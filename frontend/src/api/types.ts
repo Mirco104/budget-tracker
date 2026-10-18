@@ -39,6 +39,30 @@ export interface TransactionInput {
   categoryId: number
 }
 
+/** Counted as amountPerYear / 12 in every month from validFrom to validTo ("YYYY-MM", inclusive). */
+export interface YearlyTransaction {
+  id: number
+  amountPerYear: number
+  description: string
+  /** ISO date, optional info ("Abbuchung regulär am"). */
+  dueDate: string | null
+  validFrom: string
+  /** null means open-ended. */
+  validTo: string | null
+  categoryId: number
+  categoryName: string
+  categoryType: CategoryType
+}
+
+export interface YearlyTransactionInput {
+  amountPerYear: number
+  description: string
+  dueDate: string | null
+  validFrom: string
+  validTo: string | null
+  categoryId: number
+}
+
 export interface Totals {
   target: number | null
   actual: number
