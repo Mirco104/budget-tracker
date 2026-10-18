@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { currentMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
+import { TransactionsPage } from './pages/TransactionsPage'
 
-type Page = 'dashboard'
+type Page = 'dashboard' | 'transactions'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -19,6 +20,13 @@ function App() {
         >
           Dashboard
         </button>
+        <button
+          type="button"
+          aria-current={page === 'transactions' ? 'page' : undefined}
+          onClick={() => setPage('transactions')}
+        >
+          Transaktionen
+        </button>
         <label>
           Monat{' '}
           <input type="month" value={month} required onChange={(event) => setMonth(event.target.value)} />
@@ -26,6 +34,7 @@ function App() {
       </nav>
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}
+      {page === 'transactions' && month && <TransactionsPage month={month} />}
     </main>
   )
 }
