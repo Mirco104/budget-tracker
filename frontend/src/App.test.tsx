@@ -47,11 +47,11 @@ describe('App', () => {
     expect(monthInput).toHaveValue(current)
   })
 
-  it('hides the month selection on the settings page', () => {
+  it('keeps the month selection on the settings page', () => {
     renderApp()
 
     fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }))
 
-    expect(screen.queryByLabelText('Monat')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Monat')).toBeInTheDocument()
   })
 })

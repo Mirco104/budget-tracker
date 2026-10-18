@@ -5,8 +5,8 @@ import type { Category } from '../api/types'
 import { TransactionForm } from './TransactionForm'
 
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', type: 'EXPENSE', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, system: false },
-  { id: 20, name: 'Gehalt', type: 'INCOME', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, system: false },
+  { id: 1, name: 'Wohnen', type: 'EXPENSE', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 20, name: 'Gehalt', type: 'INCOME', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
 ]
 
 function renderForm(onSubmit = vi.fn(() => Promise.resolve())) {
