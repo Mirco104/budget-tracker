@@ -11,8 +11,7 @@ const dashboard: DashboardData = {
   expenses: { target: 2000, actual: 1635, difference: 365 },
   surplus: 365,
   surplusLabel: 'Monatlicher Überschuss',
-  changePercent: 0.2232,
-  changeLabel: 'Anstieg der Gesamteinsparung',
+  savingsRate: 0.1825,
   categories: [
     { id: 1, name: 'Wohnen', group: 'FIXED', target: 800, actual: 800, difference: 0 },
     { id: 2, name: 'Urlaub', group: 'FLEXIBLE', target: null, actual: 35, difference: null },
@@ -38,8 +37,7 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-10', expect.anything())
-    expect(screen.getByText('Anstieg der Gesamteinsparung')).toBeInTheDocument()
-    expect(screen.getByText('22,32 %')).toBeInTheDocument()
+    expect(screen.getByText('365,00 € (18,25 %)')).toBeInTheDocument()
     expect(screen.getByText('100,00 %')).toBeInTheDocument()
 
     const wohnen = screen.getByRole('row', { name: /Wohnen/ })

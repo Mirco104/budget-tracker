@@ -36,14 +36,11 @@ export function DashboardPage({ month }: { month: string }) {
         </div>
         <div>
           <dt>{data.surplusLabel}</dt>
-          <dd className={signClass(data.surplus)}>{formatEuro(data.surplus)}</dd>
+          <dd className={signClass(data.surplus)}>
+            {formatEuro(data.surplus)}
+            {data.savingsRate !== null && <> ({formatPercent(data.savingsRate)})</>}
+          </dd>
         </div>
-        {data.changeLabel !== null && (
-          <div>
-            <dt>{data.changeLabel}</dt>
-            <dd className={signClass(data.changePercent)}>{formatPercent(data.changePercent)}</dd>
-          </div>
-        )}
       </dl>
 
       <h3>Ausgaben</h3>

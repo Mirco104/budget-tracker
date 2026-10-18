@@ -67,8 +67,7 @@ export interface DashboardData {
   expenses: Totals
   surplus: number
   surplusLabel: string
-  changePercent: number | null
-  changeLabel: string | null
+  savingsRate: number | null
   categories: CategoryLine[]
   income: IncomeLine[]
 }
