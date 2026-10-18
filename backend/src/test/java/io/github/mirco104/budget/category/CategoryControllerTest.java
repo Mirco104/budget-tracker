@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.category;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -29,14 +30,19 @@ class CategoryControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    private static final String MONTH = "2026-10";
+
     @Autowired
     private CategoryRepository categoryRepository;
+
+    @Autowired
+    private CategoryTargetRepository categoryTargetRepository;
 
     // --- GET /api/categories (US1) ---
 
     @Test
     void listsAllSeededCategoriesSortedBySortOrder() throws Exception {
-        String json = mockMvc.perform(get("/api/categories"))
+        String json = getCategories(MONTH)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(21)))
                 .andExpect(jsonPath("$[0].name").value("Wohnen"))
@@ -50,7 +56,7 @@ class CategoryControllerTest {
 
     @Test
     void remainderCategoryIsMarkedAsSystem() throws Exception {
-        mockMvc.perform(get("/api/categories"))
+        getCategories(MONTH)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.group == 'REMAINDER')]", hasSize(1)))
                 .andExpect(jsonPath("$[?(@.group == 'REMAINDER')].name").value("Sonstiges (berechneter Rest)"))
@@ -59,7 +65,7 @@ class CategoryControllerTest {
 
     @Test
     void incomeCategoriesHaveNoGroupAndNoTarget() throws Exception {
-        String json = mockMvc.perform(get("/api/categories"))
+        String json = getCategories(MONTH)
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -129,8 +135,72 @@ class CategoryControllerTest {
         long id = expenseId("Mobilität");
         putTarget(id, "{\"targetAmount\": 120.25}").andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/categories"))
+        getCategories(MONTH)
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount").value(120.25));
+    }
+
+    // --- Month-dependent targets (US2, R3) ---
+
+    @Test
+    void targetAppliesFromItsMonthOnward() throws Exception {
+        long id = expenseId("Lebensmittel");
+        putTarget(id, "2026-11", "{\"targetAmount\": 300}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.targetValidFrom").value("2026-11"));
+
+        getCategories("2026-10")
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(nullValue())))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetValidFrom", contains(nullValue())));
+        getCategories("2026-12")
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(300.00)))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetValidFrom", contains("2026-11")));
+    }
+
+    @Test
+    void newerTargetReplacesOlderOneWithoutChangingEarlierMonths() throws Exception {
+        long id = expenseId("Lebensmittel");
+        putTarget(id, "2026-11", "{\"targetAmount\": 300}").andExpect(status().isOk());
+        putTarget(id, "2027-01", "{\"targetPercent\": 0.15}").andExpect(status().isOk());
+
+        getCategories("2026-12")
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(300.00)));
+        getCategories("2027-02")
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(nullValue())))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetPercent", contains(0.15)))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetValidFrom", contains("2027-01")));
+    }
+
+    @Test
+    void savingAgainForTheSameMonthOverwritesTheEntry() throws Exception {
+        long id = expenseId("Lebensmittel");
+        putTarget(id, "2026-11", "{\"targetAmount\": 300}").andExpect(status().isOk());
+        putTarget(id, "2026-11", "{\"targetAmount\": 320}").andExpect(status().isOk());
+
+        assertThat(categoryTargetRepository.findAll()).hasSize(1);
+        getCategories("2026-11")
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(320.00)));
+    }
+
+    @Test
+    void rejectsMissingMonth() throws Exception {
+        mockMvc.perform(get("/api/categories"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Der Parameter 'month' fehlt."));
+        mockMvc.perform(put("/api/categories/{id}/target", expenseId("Wohnen"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetAmount\": 10}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Der Parameter 'month' fehlt."));
+    }
+
+    @Test
+    void rejectsInvalidMonth() throws Exception {
+        getCategories("2026-13")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Ein Parameter hat ein ungültiges Format."));
+        putTarget(expenseId("Wohnen"), "Oktober", "{\"targetAmount\": 10}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Ein Parameter hat ein ungültiges Format."));
     }
 
     // --- 404 ---
@@ -189,6 +259,7 @@ class CategoryControllerTest {
     @Test
     void rejectsNonNumericId() throws Exception {
         mockMvc.perform(put("/api/categories/abc/target")
+                        .param("month", MONTH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetAmount\": 10}"))
                 .andExpect(status().isBadRequest())
@@ -209,7 +280,7 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.detail").value(
                         "Die Rest-Kategorie wird automatisch berechnet und kann nicht geändert werden."));
 
-        assertThat(categoryRepository.findById(remainder.getId()).orElseThrow().getTargetAmount()).isNull();
+        assertThat(categoryTargetRepository.findAll()).isEmpty();
     }
 
     @Test
@@ -221,8 +292,17 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.detail").value("Für Einnahmen-Kategorien kann kein Soll festgelegt werden."));
     }
 
+    private ResultActions getCategories(String month) throws Exception {
+        return mockMvc.perform(get("/api/categories").param("month", month));
+    }
+
     private ResultActions putTarget(long id, String body) throws Exception {
+        return putTarget(id, MONTH, body);
+    }
+
+    private ResultActions putTarget(long id, String month, String body) throws Exception {
         return mockMvc.perform(put("/api/categories/{id}/target", id)
+                .param("month", month)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }

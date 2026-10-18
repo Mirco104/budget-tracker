@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatEuro, formatPercent, parseAmountInput, shiftMonth } from './format'
+import { formatDate, formatEuro, formatMonth, formatPercent, parseAmountInput, shiftMonth } from './format'
 
 describe('parseAmountInput', () => {
   it.each([
@@ -32,6 +32,11 @@ describe('formatting', () => {
 
   it('formats ISO dates as TT.MM.JJJJ', () => {
     expect(formatDate('2026-10-05')).toBe('05.10.2026')
+  })
+
+  it('formats months with the German month name', () => {
+    expect(formatMonth('2026-11')).toBe('November 2026')
+    expect(formatMonth('2027-03')).toBe('März 2027')
   })
 })
 

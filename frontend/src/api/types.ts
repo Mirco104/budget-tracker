@@ -11,6 +11,8 @@ export interface Category {
   sortOrder: number
   targetAmount: number | null
   targetPercent: number | null
+  /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
+  targetValidFrom: string | null
   system: boolean
 }
 

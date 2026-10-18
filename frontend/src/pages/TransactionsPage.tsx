@@ -18,7 +18,7 @@ function defaultDateFor(month: string): string {
 
 export function TransactionsPage({ month }: { month: string }) {
   const transactions = useTransactions(month)
-  const categories = useCategories()
+  const categories = useCategories(month)
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()

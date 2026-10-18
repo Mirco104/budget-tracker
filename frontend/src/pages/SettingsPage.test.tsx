@@ -6,10 +6,10 @@ import { SettingsPage } from './SettingsPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', type: 'EXPENSE', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, system: false },
-  { id: 7, name: 'Lebensmittel', type: 'EXPENSE', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, system: false },
-  { id: 15, name: 'Sonstiges (berechneter Rest)', type: 'EXPENSE', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, system: true },
-  { id: 20, name: 'Gehalt/Lohn (netto)', type: 'INCOME', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, system: false },
+  { id: 1, name: 'Wohnen', type: 'EXPENSE', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', system: false },
+  { id: 7, name: 'Lebensmittel', type: 'EXPENSE', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', system: false },
+  { id: 15, name: 'Sonstiges (berechneter Rest)', type: 'EXPENSE', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
+  { id: 20, name: 'Gehalt/Lohn (netto)', type: 'INCOME', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
 ]
 
 function json(body: unknown, status = 200) {
@@ -21,7 +21,7 @@ function renderPage(onPut: () => Promise<Response> = () => json(categories[1])) 
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <SettingsPage />
+      <SettingsPage month="2026-11" />
     </QueryClientProvider>,
   )
   return fetchMock
@@ -46,6 +46,17 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Gehalt/Lohn (netto)')).toBeInTheDocument()
   })
 
+  it('loads the targets of the selected month and says from when they apply', async () => {
+    const fetchMock = renderPage()
+
+    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/categories?month=2026-11')
+    expect(screen.getByText(/für alle folgenden Monate/)).toHaveTextContent('Gilt ab November 2026 für alle folgenden Monate')
+    // Set in an earlier month: say so. Set in the selected month: nothing extra.
+    expect(within(wohnen).getByText('Gesetzt ab September 2026.')).toBeInTheDocument()
+    expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).queryByText(/Gesetzt ab/)).not.toBeInTheDocument()
+  })
+
   it('rejects a negative euro target without sending a request', async () => {
     const fetchMock = renderPage()
 
@@ -66,7 +77,7 @@ describe('SettingsPage', () => {
 
     expect(await within(row).findByText(/Gespeichert/)).toBeInTheDocument()
     const [url, init] = putCalls(fetchMock)[0]
-    expect(url).toBe('/api/categories/7/target')
+    expect(url).toBe('/api/categories/7/target?month=2026-11')
     expect(JSON.parse(init?.body as string)).toEqual({ targetAmount: null, targetPercent: 0.3333 })
   })
 

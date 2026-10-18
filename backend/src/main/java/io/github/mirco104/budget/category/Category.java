@@ -9,7 +9,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.math.BigDecimal;
 
 @Entity
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"name", "type"}))
@@ -34,13 +33,6 @@ public class Category {
     @Column(nullable = false)
     private int sortOrder;
 
-    @Column(precision = 12, scale = 2)
-    private BigDecimal targetAmount;
-
-    // Fraction of income, 0..1
-    @Column(precision = 5, scale = 4)
-    private BigDecimal targetPercent;
-
     // "system" is an SQL keyword
     @Column(name = "system_category", nullable = false)
     private boolean system;
@@ -54,11 +46,6 @@ public class Category {
         this.group = group;
         this.sortOrder = sortOrder;
         this.system = system;
-    }
-
-    public void updateTarget(BigDecimal targetAmount, BigDecimal targetPercent) {
-        this.targetAmount = targetAmount;
-        this.targetPercent = targetPercent;
     }
 
     public Long getId() {
@@ -79,14 +66,6 @@ public class Category {
 
     public int getSortOrder() {
         return sortOrder;
-    }
-
-    public BigDecimal getTargetAmount() {
-        return targetAmount;
-    }
-
-    public BigDecimal getTargetPercent() {
-        return targetPercent;
     }
 
     public boolean isSystem() {

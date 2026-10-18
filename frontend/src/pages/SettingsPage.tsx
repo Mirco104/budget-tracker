@@ -1,10 +1,11 @@
 import { useCategories, useUpdateTarget } from '../api/categories'
 import type { CategoryGroup } from '../api/types'
 import { TargetRow } from '../components/TargetRow'
+import { formatMonth } from '../format'
 import { GROUP_LABELS } from '../labels'
 
-export function SettingsPage() {
-  const categories = useCategories()
+export function SettingsPage({ month }: { month: string }) {
+  const categories = useCategories(month)
   const updateTarget = useUpdateTarget()
 
   if (categories.isPending) {
@@ -26,6 +27,10 @@ export function SettingsPage() {
       <p className="hint">
         Soll je Ausgaben-Kategorie in Euro oder in Prozent der Einnahmen. Ist beides gesetzt, gilt der Euro-Wert.
       </p>
+      <p className="hint">
+        Gilt ab <strong>{formatMonth(month)}</strong> für alle folgenden Monate, bis ein späterer Monat ein neues Soll
+        bekommt. Frühere Monate bleiben unverändert.
+      </p>
 
       {expenseGroups.map(({ group, items }) => (
         <section key={group}>
@@ -38,9 +43,10 @@ export function SettingsPage() {
               </div>
             ) : (
               <TargetRow
-                key={category.id}
+                key={`${category.id}-${month}`}
                 category={category}
-                onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, input })}
+                month={month}
+                onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
               />
             ),
           )}
