@@ -77,6 +77,8 @@ export interface CategoryLine {
   group: CategoryGroup | null
   target: number | null
   actual: number
+  /** Part of actual that comes from yearly transactions. */
+  actualYearly: number
   difference: number | null
 }
 
@@ -84,7 +86,18 @@ export interface IncomeLine {
   id: number
   name: string
   actual: number
+  /** Part of actual that comes from yearly transactions. */
+  actualYearly: number
   share: number
+}
+
+/** Yearly debit due in the month, with its full yearly amount. */
+export interface DueLine {
+  id: number
+  description: string
+  categoryName: string
+  amountPerYear: number
+  dueDate: string
 }
 
 export interface DashboardData {
@@ -97,6 +110,9 @@ export interface DashboardData {
   changeLabel: string | null
   categories: CategoryLine[]
   income: IncomeLine[]
+  /** Sum of the yearly shares of all expense categories. */
+  yearlyExpensesShare: number
+  dueYearly: DueLine[]
 }
 
 export interface FieldError {
