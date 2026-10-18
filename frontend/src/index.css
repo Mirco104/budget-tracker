@@ -1,0 +1,83 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1f2328;
+  background: #ffffff;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+nav button[aria-current='page'] {
+  font-weight: bold;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+}
+
+th,
+td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #d0d7de;
+  text-align: left;
+}
+
+td.number,
+th.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.negative {
+  color: #cf222e;
+}
+
+.error {
+  color: #cf222e;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px 24px;
+  margin-bottom: 24px;
+}
+
+.summary dt {
+  color: #57606a;
+}
+
+.summary dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+form.transaction-form {
+  display: grid;
+  gap: 8px;
+  max-width: 400px;
+  margin-bottom: 24px;
+}
+
+form.transaction-form label {
+  display: grid;
+  gap: 2px;
+}
