@@ -57,6 +57,9 @@ function App() {
             >
               ›
             </button>
+            <button type="button" disabled={month === currentMonth()} onClick={() => setMonth(currentMonth())}>
+              Aktueller Monat
+            </button>
           </span>
         )}
       </nav>

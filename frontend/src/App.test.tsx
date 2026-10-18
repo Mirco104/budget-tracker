@@ -32,6 +32,21 @@ describe('App', () => {
     expect(monthInput).toHaveValue('2026-11')
   })
 
+  it('jumps back to the current month', () => {
+    renderApp()
+    const monthInput = screen.getByLabelText('Monat')
+    const today = new Date()
+    const current = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    const currentButton = screen.getByRole('button', { name: 'Aktueller Monat' })
+    expect(currentButton).toBeDisabled()
+
+    fireEvent.change(monthInput, { target: { value: '2020-05' } })
+    expect(currentButton).toBeEnabled()
+    fireEvent.click(currentButton)
+
+    expect(monthInput).toHaveValue(current)
+  })
+
   it('hides the month selection on the settings page', () => {
     renderApp()
 
