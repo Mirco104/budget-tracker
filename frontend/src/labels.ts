@@ -6,3 +6,11 @@ export const GROUP_LABELS: Record<CategoryGroup, string> = {
   SAVINGS: 'Sparen & Investieren',
   REMAINDER: 'Rest',
 }
+
+/** Recommended share of the income per group (R10), display only. */
+export const GROUP_RECOMMENDATIONS: Record<CategoryGroup, string | null> = {
+  FIXED: 'ca. 50 %',
+  FLEXIBLE: 'ca. 30 %',
+  SAVINGS: 'ca. 20 %',
+  REMAINDER: null,
+}

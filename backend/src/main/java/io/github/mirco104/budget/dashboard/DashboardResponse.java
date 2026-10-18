@@ -16,12 +16,17 @@ public record DashboardResponse(
         BigDecimal surplus,
         String surplusLabel,
         BigDecimal savingsRate,
+        List<GroupLine> groups,
         List<CategoryLine> categories,
         List<IncomeLine> income,
         BigDecimal yearlyExpensesShare,
         List<DueLine> dueYearly) {
 
     public record Totals(BigDecimal target, BigDecimal actual, BigDecimal difference) {
+    }
+
+    /** Sums of the expense categories in one group (R10); target counts missing targets as 0. */
+    public record GroupLine(CategoryGroup group, BigDecimal target, BigDecimal actual, BigDecimal difference) {
     }
 
     public record CategoryLine(

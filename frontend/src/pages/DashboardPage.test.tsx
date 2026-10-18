@@ -12,6 +12,12 @@ const dashboard: DashboardData = {
   surplus: 365,
   surplusLabel: 'Monatlicher Überschuss',
   savingsRate: 0.1825,
+  groups: [
+    { group: 'FIXED', target: 860, actual: 860, difference: 0 },
+    { group: 'FLEXIBLE', target: 0, actual: 35, difference: -35 },
+    { group: 'SAVINGS', target: 0, actual: 0, difference: 0 },
+    { group: 'REMAINDER', target: -100, actual: 0, difference: -100 },
+  ],
   categories: [
     { id: 1, name: 'Wohnen', group: 'FIXED', target: 800, actual: 800, actualYearly: 0, difference: 0 },
     { id: 2, name: 'Urlaub', group: 'FLEXIBLE', target: null, actual: 35, actualYearly: 0, difference: null },
@@ -55,6 +61,21 @@ describe('DashboardPage', () => {
 
     const rest = screen.getByRole('row', { name: /Sonstiges/ })
     expect(within(rest).getAllByText('-100,00 €')[0]).toHaveClass('negative')
+  })
+
+  it('shows group totals with labels and recommendations', async () => {
+    renderPage()
+
+    const fixed = await screen.findByRole('row', { name: /Fixkosten/ })
+    expect(within(fixed).getByText('ca. 50 %')).toBeInTheDocument()
+    expect(within(fixed).getAllByText('860,00 €')).toHaveLength(2)
+
+    const flexible = screen.getByRole('row', { name: /Flexible Ausgaben/ })
+    expect(within(flexible).getByText('-35,00 €')).toHaveClass('negative')
+
+    const rest = screen.getByRole('row', { name: /^Rest/ })
+    expect(within(rest).queryByText(/ca\./)).not.toBeInTheDocument()
+    expect(within(rest).getAllByText('-100,00 €')).toHaveLength(2)
   })
 
   it('shows the yearly share in the actual cell and the yearly costs total', async () => {

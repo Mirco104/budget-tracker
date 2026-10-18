@@ -1,5 +1,6 @@
 import { useDashboard } from '../api/dashboard'
 import { formatDate, formatEuro, formatPercent } from '../format'
+import { GROUP_LABELS, GROUP_RECOMMENDATIONS } from '../labels'
 
 function signClass(value: number | null): string | undefined {
   return value !== null && value < 0 ? 'negative' : undefined
@@ -70,6 +71,30 @@ export function DashboardPage({ month }: { month: string }) {
           <p className="hint">Im Ist ist davon nur der Monatsanteil enthalten, abgebucht wird der volle Jahresbetrag.</p>
         </aside>
       )}
+
+      <h3>Gruppen</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Gruppe</th>
+            <th>Empfehlung</th>
+            <th className="number">Soll</th>
+            <th className="number">Ist</th>
+            <th className="number">Differenz</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.groups.map((line) => (
+            <tr key={line.group}>
+              <td>{GROUP_LABELS[line.group]}</td>
+              <td className="hint">{GROUP_RECOMMENDATIONS[line.group]}</td>
+              <td className={`number ${signClass(line.target) ?? ''}`}>{formatEuro(line.target)}</td>
+              <td className="number">{formatEuro(line.actual)}</td>
+              <td className={`number ${signClass(line.difference) ?? ''}`}>{formatEuro(line.difference)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <h3>Ausgaben</h3>
       <table>
