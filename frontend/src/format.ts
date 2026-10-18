@@ -26,11 +26,12 @@ export function formatDate(isoDate: string): string {
 
 /** Parses German amount input ("12,50", "1.234,5") into a number, or null if the format is invalid. */
 export function parseAmountInput(input: string): number | null {
-  const normalized = input.trim().replace(/\./g, '')
-  if (!/^-?\d+(,\d{1,2})?$/.test(normalized)) {
+  const trimmed = input.trim()
+  // Dots are only accepted as thousands separators in groups of three, so "12.50" is rejected, not read as 1250.
+  if (!/^-?(\d+|\d{1,3}(\.\d{3})+)(,\d{1,2})?$/.test(trimmed)) {
     return null
   }
-  return Number(normalized.replace(',', '.'))
+  return Number(trimmed.replace(/\./g, '').replace(',', '.'))
 }
 
 export function currentMonth(): string {
