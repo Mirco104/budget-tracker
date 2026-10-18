@@ -9,6 +9,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -33,6 +34,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex) {
         return problem(HttpStatus.CONFLICT, "Konflikt", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidFieldException.class)
+    public ProblemDetail handleInvalidField(InvalidFieldException ex) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, BAD_REQUEST_TITLE, "Die Eingaben sind ungültig.");
+        problem.setProperty("errors", List.of(new FieldErrorResponse(ex.getField(), ex.getMessage())));
+        return problem;
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex, HttpHeaders headers, HttpStatusCode status,
+            WebRequest request) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, BAD_REQUEST_TITLE,
+                "Der Parameter '" + ex.getParameterName() + "' fehlt.");
+        return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
     @Override
