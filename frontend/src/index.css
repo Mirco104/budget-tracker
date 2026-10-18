@@ -81,3 +81,66 @@ form.transaction-form label {
   display: grid;
   gap: 2px;
 }
+
+.hint {
+  color: #57606a;
+}
+
+.target-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) repeat(2, minmax(120px, 160px)) minmax(140px, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 6px 0;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.target-row label {
+  display: grid;
+  gap: 2px;
+  line-height: 1.25rem;
+  min-width: 0;
+}
+
+/* Fill the grid column; the browser's default input width is wider and overlapped the button. */
+.target-row input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.target-row p {
+  margin: 4px 0 0;
+}
+
+/* Offset by one label line so name and button sit level with the inputs. */
+.target-name,
+.target-actions {
+  padding-top: calc(1.25rem + 2px);
+}
+
+.target-name {
+  line-height: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .target-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .target-name {
+    grid-column: 1 / -1;
+    padding-top: 0;
+    font-weight: bold;
+  }
+
+  .target-actions {
+    grid-column: 1 / -1;
+    padding-top: 0;
+  }
+}
+
+.month-nav {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}

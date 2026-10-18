@@ -2,16 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Category, CategoryGroup, Transaction, TransactionInput } from '../api/types'
 import { parseAmountInput } from '../format'
+import { GROUP_LABELS } from '../labels'
 
 type Field = 'amount' | 'description' | 'date' | 'categoryId'
 type Errors = Partial<Record<Field, string>>
-
-const GROUP_LABELS: Record<CategoryGroup, string> = {
-  FIXED: 'Fixkosten',
-  FLEXIBLE: 'Flexible Ausgaben',
-  SAVINGS: 'Sparen & Investieren',
-  REMAINDER: 'Rest',
-}
 
 interface Props {
   categories: Category[]

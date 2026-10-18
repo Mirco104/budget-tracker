@@ -14,6 +14,12 @@ export interface Category {
   system: boolean
 }
 
+/** targetPercent is a fraction of income (0..1). null clears the value. */
+export interface TargetInput {
+  targetAmount: number | null
+  targetPercent: number | null
+}
+
 export interface Transaction {
   id: number
   amount: number

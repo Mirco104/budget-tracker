@@ -34,7 +34,16 @@ export function parseAmountInput(input: string): number | null {
   return Number(trimmed.replace(/\./g, '').replace(',', '.'))
 }
 
+function toMonthString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
 export function currentMonth(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return toMonthString(new Date())
+}
+
+/** Moves a "YYYY-MM" month by delta months, across year boundaries. */
+export function shiftMonth(month: string, delta: number): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return toMonthString(new Date(year, monthNumber - 1 + delta, 1))
 }
