@@ -14,6 +14,7 @@ import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.YearlyTransactionData;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
+import io.github.mirco104.budget.dashboard.DashboardResponse.DueLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -182,6 +183,101 @@ class DashboardCalculatorTest {
         assertThat(result.incomeTotal()).isEqualByComparingTo("2100.00");
     }
 
+    @Test
+    void monthlyShareIsTwelfthRoundedHalfUpToCents() {
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("600"))).isEqualByComparingTo("50.00");
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("100"))).isEqualByComparingTo("8.33");
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("0.06"))).isEqualByComparingTo("0.01");
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("100")).scale()).isEqualTo(2);
+    }
+
+    // --- Case 9: yearly share per category, yearly costs total, due debits (R12) ---
+
+    @Test
+    void showsYearlySharePerCategoryAndYearlyExpensesTotal() {
+        DashboardResponse result = calculate(
+                List.of(expense(WOHNEN, FIXED, null, null), expense(VERSICHERUNGEN, FIXED, null, null), rest(),
+                        income(GEHALT)),
+                List.of(booking(VERSICHERUNGEN, "10"), booking(WOHNEN, "700")),
+                List.of(yearly(VERSICHERUNGEN, "600"), yearly(GEHALT, "1200")));
+
+        assertThat(category(result, VERSICHERUNGEN).actual()).isEqualByComparingTo("60.00");
+        assertThat(category(result, VERSICHERUNGEN).actualYearly()).isEqualByComparingTo("50.00");
+        assertThat(category(result, WOHNEN).actualYearly()).isEqualByComparingTo("0.00");
+        assertThat(income(result, GEHALT).actualYearly()).isEqualByComparingTo("100.00");
+        // Income is not a cost
+        assertThat(result.yearlyExpensesShare()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void yearlySharePerCategoryMatchesItsActualRounding() {
+        DashboardResponse result = calculate(
+                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)),
+                List.of(),
+                List.of(yearly(VERSICHERUNGEN, "100"), yearly(VERSICHERUNGEN, "100")));
+
+        assertThat(category(result, VERSICHERUNGEN).actualYearly()).isEqualByComparingTo("16.67");
+        assertThat(result.yearlyExpensesShare()).isEqualByComparingTo("16.67");
+    }
+
+    @Test
+    void yearlyDebitIsDueInTheCalendarMonthOfItsDueDateEveryYear() {
+        List<YearlyTransactionData> yearly = List.of(
+                yearlyDue(VERSICHERUNGEN, "600", YearMonth.of(2025, 1), null, LocalDate.of(2025, 10, 15)));
+
+        DueLine due = dueIn(yearly, OCTOBER).getFirst();
+        assertThat(due.description()).isEqualTo("Jahresposten " + VERSICHERUNGEN);
+        assertThat(due.categoryName()).isEqualTo("Ausgabe " + VERSICHERUNGEN);
+        assertThat(due.amountPerYear()).isEqualByComparingTo("600.00");
+        assertThat(due.dueDate()).isEqualTo(LocalDate.of(2026, 10, 15));
+        assertThat(dueIn(yearly, OCTOBER.plusMonths(1))).isEmpty();
+    }
+
+    @Test
+    void yearlyDebitIsNotDueOutsideItsValidity() {
+        List<YearlyTransactionData> yearly = List.of(
+                yearlyDue(VERSICHERUNGEN, "600", YearMonth.of(2025, 1), OCTOBER.minusMonths(1),
+                        LocalDate.of(2025, 10, 15)));
+
+        assertThat(dueIn(yearly, OCTOBER)).isEmpty();
+    }
+
+    @Test
+    void yearlyDebitOnLeapDayIsDueOnFebruary28InOtherYears() {
+        List<YearlyTransactionData> yearly = List.of(
+                yearlyDue(VERSICHERUNGEN, "600", YearMonth.of(2024, 1), null, LocalDate.of(2024, 2, 29)));
+
+        assertThat(dueIn(yearly, YearMonth.of(2027, 2)).getFirst().dueDate()).isEqualTo(LocalDate.of(2027, 2, 28));
+    }
+
+    @Test
+    void yearlyTransactionWithoutDueDateIsNeverDue() {
+        assertThat(dueIn(List.of(yearly(VERSICHERUNGEN, "600")), OCTOBER)).isEmpty();
+    }
+
+    @Test
+    void yearlyTransactionCountsInItsFirstAndLastValidMonth() {
+        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
+
+        assertThat(versicherungenActual(yearly, OCTOBER)).isEqualByComparingTo("100.00");
+        assertThat(versicherungenActual(yearly, OCTOBER.plusMonths(2))).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void yearlyTransactionIsIgnoredBeforeValidFromAndAfterValidTo() {
+        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
+
+        assertThat(versicherungenActual(yearly, OCTOBER.minusMonths(1))).isEqualByComparingTo("0.00");
+        assertThat(versicherungenActual(yearly, OCTOBER.plusMonths(3))).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void openEndedYearlyTransactionCountsInLaterYears() {
+        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, null));
+
+        assertThat(versicherungenActual(yearly, OCTOBER.plusYears(3))).isEqualByComparingTo("100.00");
+    }
+
     // --- Case 7: negative surplus -> "Monatlicher Verlust" (R7, R8) ---
 
     @Test
@@ -324,8 +420,32 @@ class DashboardCalculatorTest {
         return new TransactionData(categoryId, new BigDecimal(amount), IN_OCTOBER);
     }
 
+    private BigDecimal versicherungenActual(List<YearlyTransactionData> yearly, YearMonth month) {
+        DashboardResponse result = calculator.calculate(
+                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)), List.of(), yearly, month);
+        return category(result, VERSICHERUNGEN).actual();
+    }
+
+    // Valid from the tested month onward, open-ended
     private static YearlyTransactionData yearly(long categoryId, String amountPerYear) {
-        return new YearlyTransactionData(categoryId, new BigDecimal(amountPerYear));
+        return yearly(categoryId, amountPerYear, OCTOBER, null);
+    }
+
+    private static YearlyTransactionData yearly(
+            long categoryId, String amountPerYear, YearMonth validFrom, YearMonth validTo) {
+        return yearlyDue(categoryId, amountPerYear, validFrom, validTo, null);
+    }
+
+    private static YearlyTransactionData yearlyDue(
+            long categoryId, String amountPerYear, YearMonth validFrom, YearMonth validTo, LocalDate dueDate) {
+        return new YearlyTransactionData(categoryId * 100, categoryId, "Jahresposten " + categoryId,
+                new BigDecimal(amountPerYear), dueDate, validFrom, validTo);
+    }
+
+    private List<DueLine> dueIn(List<YearlyTransactionData> yearly, YearMonth month) {
+        return calculator.calculate(
+                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)), List.of(), yearly, month)
+                .dueYearly();
     }
 
     private static BigDecimal decimal(String value) {
