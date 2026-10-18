@@ -13,8 +13,7 @@ public record DashboardResponse(
         Totals expenses,
         BigDecimal surplus,
         String surplusLabel,
-        BigDecimal changePercent,
-        String changeLabel,
+        BigDecimal savingsRate,
         List<CategoryLine> categories,
         List<IncomeLine> income) {
 

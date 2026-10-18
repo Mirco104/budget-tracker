@@ -59,8 +59,7 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.expenses.actual").value(750.00))
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
-                .andExpect(jsonPath("$.changePercent").value(1.6667))
-                .andExpect(jsonPath("$.changeLabel").value("Anstieg der Gesamteinsparung"))
+                .andExpect(jsonPath("$.savingsRate").value(0.625))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(1.0)));
     }
 
@@ -84,7 +83,7 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(0.00))
                 .andExpect(jsonPath("$.expenses.actual").value(0.00))
                 .andExpect(jsonPath("$.surplus").value(0.00))
-                .andExpect(jsonPath("$.changePercent").doesNotExist())
+                .andExpect(jsonPath("$.savingsRate").doesNotExist())
                 .andExpect(jsonPath("$.income[*].share", everyItem(is(0.0))));
     }
 
