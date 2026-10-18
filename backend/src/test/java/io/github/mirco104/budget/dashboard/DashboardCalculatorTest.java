@@ -121,7 +121,7 @@ class DashboardCalculatorTest {
     // --- Case 5: income = 0 -> no division by zero (R8, R9) ---
 
     @Test
-    void zeroIncomeAndZeroExpensesGiveEmptyChangeAndZeroShares() {
+    void zeroIncomeAndZeroExpensesGiveEmptySavingsRateAndZeroShares() {
         DashboardResponse result = calculate(
                 List.of(expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"), rest(), income(GEHALT), income(NEBENJOB)),
                 List.of(),
@@ -130,8 +130,7 @@ class DashboardCalculatorTest {
         assertThat(result.incomeTotal()).isEqualByComparingTo("0.00");
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("0.00");
         assertThat(category(result, REST).target()).isEqualByComparingTo("0.00");
-        assertThat(result.changePercent()).isNull();
-        assertThat(result.changeLabel()).isNull();
+        assertThat(result.savingsRate()).isNull();
         assertThat(result.surplus()).isEqualByComparingTo("0.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
         assertThat(result.income()).extracting(IncomeLine::share)
@@ -139,14 +138,14 @@ class DashboardCalculatorTest {
     }
 
     @Test
-    void zeroIncomeWithExpensesGivesMinusHundredPercentChange() {
+    void zeroIncomeWithExpensesGivesEmptySavingsRate() {
         DashboardResponse result = calculate(
                 List.of(expense(FREIZEIT, FLEXIBLE, null, null), rest(), income(GEHALT)),
                 List.of(booking(FREIZEIT, "100")),
                 List.of());
 
-        assertThat(result.changePercent()).isEqualByComparingTo("-1.0000");
-        assertThat(result.changeLabel()).isEqualTo("Reduzierung der Gesamteinsparung");
+        assertThat(result.surplus()).isEqualByComparingTo("-100.00");
+        assertThat(result.savingsRate()).isNull();
         assertThat(result.income()).singleElement()
                 .satisfies(line -> assertThat(line.share()).isEqualByComparingTo("0"));
     }
@@ -290,8 +289,31 @@ class DashboardCalculatorTest {
 
         assertThat(result.surplus()).isEqualByComparingTo("-250.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
-        assertThat(result.changePercent()).isEqualByComparingTo("-0.2000");
-        assertThat(result.changeLabel()).isEqualTo("Reduzierung der Gesamteinsparung");
+        assertThat(result.savingsRate()).isEqualByComparingTo("-0.2500");
+    }
+
+    // --- Savings rate = surplus / income (R8) ---
+
+    @Test
+    void savingsRateStaysBelowHundredPercentForSmallExpenses() {
+        DashboardResponse result = calculate(
+                List.of(expense(LEBENSMITTEL, FLEXIBLE, null, null), rest(), income(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "62.83")),
+                List.of());
+
+        // 1937.17 / 2000 = 0.968585 -> 0.9686
+        assertThat(result.surplus()).isEqualByComparingTo("1937.17");
+        assertThat(result.savingsRate()).isEqualByComparingTo("0.9686");
+    }
+
+    @Test
+    void savingsRateIsHundredPercentWithoutExpenses() {
+        DashboardResponse result = calculate(
+                List.of(rest(), income(GEHALT)),
+                List.of(booking(GEHALT, "2000")),
+                List.of());
+
+        assertThat(result.savingsRate()).isEqualByComparingTo("1.0000");
     }
 
     // --- Further rules ---
@@ -444,8 +466,8 @@ class DashboardCalculatorTest {
 
         assertThat(result.surplus()).isEqualByComparingTo("874.50");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
-        assertThat(result.changePercent()).isEqualByComparingTo("0.5733");
-        assertThat(result.changeLabel()).isEqualTo("Anstieg der Gesamteinsparung");
+        // 874.50 / 2400 = 0.364375 -> 0.3644
+        assertThat(result.savingsRate()).isEqualByComparingTo("0.3644");
 
         assertThat(result.income()).extracting(IncomeLine::id, IncomeLine::name).containsExactly(
                 tuple(GEHALT, "Einnahme " + GEHALT),

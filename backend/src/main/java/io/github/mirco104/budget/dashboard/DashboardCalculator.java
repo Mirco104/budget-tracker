@@ -98,15 +98,9 @@ public class DashboardCalculator {
         String surplusLabel = surplus.signum() >= 0 ? "Monatlicher Überschuss" : "Monatlicher Verlust";
 
         // R8
-        BigDecimal changePercent = expensesActual.signum() == 0
+        BigDecimal savingsRate = incomeTotal.signum() == 0
                 ? null
-                : incomeTotal.divide(expensesActual, RATIO_SCALE, RoundingMode.HALF_UP).subtract(BigDecimal.ONE);
-        String changeLabel = null;
-        if (changePercent != null) {
-            changeLabel = changePercent.signum() >= 0
-                    ? "Anstieg der Gesamteinsparung"
-                    : "Reduzierung der Gesamteinsparung";
-        }
+                : surplus.divide(incomeTotal, RATIO_SCALE, RoundingMode.HALF_UP);
 
         // R9
         List<IncomeLine> incomeLines = incomeCategories.stream()
@@ -126,8 +120,7 @@ public class DashboardCalculator {
                 new Totals(expensesTarget, expensesActual, expensesTarget.subtract(expensesActual)),
                 surplus,
                 surplusLabel,
-                changePercent,
-                changeLabel,
+                savingsRate,
                 groupLines(categoryLines),
                 categoryLines,
                 incomeLines,

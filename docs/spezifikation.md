@@ -31,7 +31,7 @@ Sei `M` der gewählte Monat.
 | R5 | **Differenz je Kategorie** = Soll − Ist. Ohne Soll: leer. | `F39:F59` |
 | R6 | **Gesamt:** Soll gesamt = Summe aller Soll (inkl. Rest, ergibt damit die Einnahmen); Ist gesamt = Summe aller Ist; Differenz gesamt = Soll − Ist | `D37:F37` |
 | R7 | **Überschuss** = Einnahmen (Ist) − Ausgaben (Ist). Bezeichnung: "Monatlicher Überschuss" bei ≥ 0, sonst "Monatlicher Verlust". | `I17`, `I18` |
-| R8 | **Veränderung** = Einnahmen / Ausgaben − 1 als Prozent; bei Ausgaben = 0: leer. Bezeichnung: "Anstieg der Gesamteinsparung" bei ≥ 0, sonst "Reduzierung der Gesamteinsparung". | `I15`, `I16` |
+| R8 | **Sparquote** = Überschuss (R7) / Einnahmen (Ist) als Prozent; bei Einnahmen = 0: leer. Bei Verlust negativ. Wird im Dashboard beim monatlichen Überschuss mit angezeigt. | bewusste Abweichung vom Sheet (`I15`, `I16`: Einnahmen / Ausgaben − 1, wächst bei kleinen Ausgaben unbegrenzt) |
 | R9 | **Einnahmenanteil** je Einnahmen-Kategorie = Ist / Einnahmen gesamt; bei Einnahmen = 0: 0 % | `L39:L46` |
 | R10 | **Gruppen:** Ausgaben-Kategorien gehören zu Fixkosten (empfohlen ca. 50 %), Flexible Ausgaben (ca. 30 %), Sparen & Investieren (ca. 20 %) oder Rest. Gruppensummen für Soll und Ist werden angezeigt. | `Einstellungen_Budget!H11:J31` |
 | R11 | Beträge sind positiv. Ob Einnahme oder Ausgabe, bestimmt die Kategorie, nicht das Vorzeichen. | Validierungslisten D/H |
@@ -127,7 +127,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   "incomeTotal": 2000.00,
   "expenses": { "target": 2000.00, "actual": 1635.00, "difference": 365.00 },
   "surplus": 365.00, "surplusLabel": "Monatlicher Überschuss",
-  "changePercent": 0.2232,
+  "savingsRate": 0.1825,
   "groups":    [ { "group": "FIXED", "target": 0, "actual": 0, "difference": 0 } ],
   "categories":[ { "id": 1, "name": "…", "group": "FIXED", "target": 500.00, "actual": 500.00, "actualYearly": 50.00, "difference": 0.00 } ],
   "income":    [ { "id": 20, "name": "…", "actual": 2000.00, "actualYearly": 0.00, "share": 1.0 } ],
