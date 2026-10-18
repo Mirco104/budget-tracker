@@ -140,9 +140,13 @@ public class DashboardCalculator {
 
         Map<Long, BigDecimal> actuals = new HashMap<>();
         monthly.forEach((categoryId, sum) -> actuals.put(categoryId, money(sum)));
-        yearly.forEach((categoryId, sum) -> actuals.merge(
-                categoryId, sum.divide(MONTHS_PER_YEAR, MONEY_SCALE, RoundingMode.HALF_UP), BigDecimal::add));
+        yearly.forEach((categoryId, sum) -> actuals.merge(categoryId, monthlyShare(sum), BigDecimal::add));
         return actuals;
+    }
+
+    /** R1: share of a yearly amount counted per month, amount / 12 rounded to cents. */
+    public static BigDecimal monthlyShare(BigDecimal amountPerYear) {
+        return amountPerYear.divide(MONTHS_PER_YEAR, MONEY_SCALE, RoundingMode.HALF_UP);
     }
 
     private static boolean isValidIn(YearlyTransactionData transaction, YearMonth month) {

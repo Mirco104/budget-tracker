@@ -111,7 +111,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | POST | `/transactions` | Anlegen | 201 + Location |
 | PUT | `/transactions/{id}` | Ändern | 200, 404, 400 |
 | DELETE | `/transactions/{id}` | Löschen | 204, 404 |
-| GET | `/yearly-transactions?month=2026-10` | Jährliche Transaktionen, die in diesem Monat gültig sind (Should) | 200, 400 (Monat fehlt/ungültig) |
+| GET | `/yearly-transactions?month=2026-10` | Jährliche Transaktionen, die in diesem Monat gültig sind (Should), je mit `amountPerMonth` (Jahresbetrag / 12, auf Cent gerundet, R1) | 200, 400 (Monat fehlt/ungültig) |
 | POST | `/yearly-transactions` | Anlegen, Body `{amountPerYear, description, validFrom: "2026-10", validTo?, dueDate?, categoryId}` | 201 + Location, 400 |
 | PUT | `/yearly-transactions/{id}` | Ändern | 200, 404, 400 |
 | DELETE | `/yearly-transactions/{id}` | Löschen | 204, 404 |

@@ -49,6 +49,7 @@ class YearlyTransactionControllerTest {
                 .andExpect(header().string("Location", matchesPattern(".*/api/yearly-transactions/\\d+$")))
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.amountPerYear").value(600.50))
+                .andExpect(jsonPath("$.amountPerMonth").value(50.04))
                 .andExpect(jsonPath("$.description").value("Kfz-Versicherung"))
                 .andExpect(jsonPath("$.dueDate").value("2026-11-15"))
                 .andExpect(jsonPath("$.validFrom").value("2026-11"))

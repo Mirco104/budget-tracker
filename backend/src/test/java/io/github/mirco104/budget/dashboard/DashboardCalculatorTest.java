@@ -183,6 +183,14 @@ class DashboardCalculatorTest {
     }
 
     @Test
+    void monthlyShareIsTwelfthRoundedHalfUpToCents() {
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("600"))).isEqualByComparingTo("50.00");
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("100"))).isEqualByComparingTo("8.33");
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("0.06"))).isEqualByComparingTo("0.01");
+        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("100")).scale()).isEqualTo(2);
+    }
+
+    @Test
     void yearlyTransactionCountsInItsFirstAndLastValidMonth() {
         List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
 
