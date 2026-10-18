@@ -56,7 +56,8 @@ public class DashboardService {
         // All yearly transactions; DashboardCalculator picks the ones valid in the month (R1)
         List<YearlyTransactionData> yearlyTransactions = yearlyTransactionRepository.findAllByOrderByIdAsc().stream()
                 .map(transaction -> new YearlyTransactionData(
-                        transaction.getCategory().getId(), transaction.getAmountPerYear(),
+                        transaction.getId(), transaction.getCategory().getId(), transaction.getDescription(),
+                        transaction.getAmountPerYear(), transaction.getDueDate(),
                         transaction.getValidFrom(), transaction.getValidTo()))
                 .toList();
         return calculator.calculate(categories, transactions, yearlyTransactions, month);

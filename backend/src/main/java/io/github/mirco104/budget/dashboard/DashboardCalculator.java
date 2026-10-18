@@ -3,6 +3,7 @@ package io.github.mirco104.budget.dashboard;
 import io.github.mirco104.budget.category.CategoryGroup;
 import io.github.mirco104.budget.category.CategoryType;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
+import io.github.mirco104.budget.dashboard.DashboardResponse.DueLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.Totals;
 import java.math.BigDecimal;
@@ -10,12 +11,13 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Dashboard math, rules R1–R9 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Dashboard math, rules R1–R9 and R12 from docs/spezifikation.md, section 2. No Spring dependencies.
  * Amounts are rounded to cents per category; totals add up the rounded values.
  */
 public class DashboardCalculator {
@@ -32,15 +34,17 @@ public class DashboardCalculator {
     public record TransactionData(long categoryId, BigDecimal amount, LocalDate date) {
     }
 
-    /** validTo is inclusive; null means open-ended. */
+    /** validTo is inclusive; null means open-ended. dueDate is optional (R12). */
     public record YearlyTransactionData(
-            long categoryId, BigDecimal amountPerYear, YearMonth validFrom, YearMonth validTo) {
+            long id, long categoryId, String description, BigDecimal amountPerYear, LocalDate dueDate,
+            YearMonth validFrom, YearMonth validTo) {
     }
 
     public DashboardResponse calculate(
             List<CategoryData> categories, List<TransactionData> transactions,
             List<YearlyTransactionData> yearlyTransactions, YearMonth month) {
-        Map<Long, BigDecimal> actuals = actualsByCategory(transactions, yearlyTransactions, month);
+        Map<Long, BigDecimal> yearlyShares = yearlySharesByCategory(yearlyTransactions, month);
+        Map<Long, BigDecimal> actuals = actualsByCategory(transactions, yearlyShares, month);
         List<CategoryData> expenseCategories = categories.stream()
                 .filter(category -> category.type() == CategoryType.EXPENSE)
                 .toList();
@@ -72,16 +76,20 @@ public class DashboardCalculator {
         List<CategoryLine> categoryLines = new ArrayList<>();
         BigDecimal expensesTarget = zero();
         BigDecimal expensesActual = zero();
+        BigDecimal yearlyExpensesShare = zero();
         for (CategoryData category : expenseCategories) {
             BigDecimal target = category.system() ? remainderTarget : targets.get(category.id());
             BigDecimal actual = actualOf(actuals, category);
+            BigDecimal actualYearly = actualOf(yearlyShares, category);
             BigDecimal difference = target == null ? null : target.subtract(actual);
             categoryLines.add(new CategoryLine(
-                    category.id(), category.name(), category.group(), target, actual, difference));
+                    category.id(), category.name(), category.group(), target, actual, actualYearly, difference));
             if (target != null) {
                 expensesTarget = expensesTarget.add(target);
             }
             expensesActual = expensesActual.add(actual);
+            // R12
+            yearlyExpensesShare = yearlyExpensesShare.add(actualYearly);
         }
 
         // R7
@@ -106,7 +114,8 @@ public class DashboardCalculator {
                     BigDecimal share = incomeTotal.signum() == 0
                             ? BigDecimal.ZERO.setScale(RATIO_SCALE)
                             : actual.divide(incomeTotal, RATIO_SCALE, RoundingMode.HALF_UP);
-                    return new IncomeLine(category.id(), category.name(), actual, share);
+                    return new IncomeLine(
+                            category.id(), category.name(), actual, actualOf(yearlyShares, category), share);
                 })
                 .toList();
 
@@ -119,29 +128,58 @@ public class DashboardCalculator {
                 changePercent,
                 changeLabel,
                 categoryLines,
-                incomeLines);
+                incomeLines,
+                yearlyExpensesShare,
+                dueInMonth(yearlyTransactions, categories, month));
     }
 
-    // R1: transactions of the month plus yearly sum / 12 of the yearly transactions valid in the month, per category
+    // R1: transactions of the month plus the yearly share, per category
     private static Map<Long, BigDecimal> actualsByCategory(
-            List<TransactionData> transactions, List<YearlyTransactionData> yearlyTransactions, YearMonth month) {
+            List<TransactionData> transactions, Map<Long, BigDecimal> yearlyShares, YearMonth month) {
         Map<Long, BigDecimal> monthly = new HashMap<>();
         for (TransactionData transaction : transactions) {
             if (YearMonth.from(transaction.date()).equals(month)) {
                 monthly.merge(transaction.categoryId(), transaction.amount(), BigDecimal::add);
             }
         }
+
+        Map<Long, BigDecimal> actuals = new HashMap<>();
+        monthly.forEach((categoryId, sum) -> actuals.put(categoryId, money(sum)));
+        yearlyShares.forEach((categoryId, share) -> actuals.merge(categoryId, share, BigDecimal::add));
+        return actuals;
+    }
+
+    // R1: yearly sum / 12 of the yearly transactions valid in the month, per category (summed before rounding)
+    private static Map<Long, BigDecimal> yearlySharesByCategory(
+            List<YearlyTransactionData> yearlyTransactions, YearMonth month) {
         Map<Long, BigDecimal> yearly = new HashMap<>();
         for (YearlyTransactionData transaction : yearlyTransactions) {
             if (isValidIn(transaction, month)) {
                 yearly.merge(transaction.categoryId(), transaction.amountPerYear(), BigDecimal::add);
             }
         }
+        Map<Long, BigDecimal> shares = new HashMap<>();
+        yearly.forEach((categoryId, sum) -> shares.put(categoryId, monthlyShare(sum)));
+        return shares;
+    }
 
-        Map<Long, BigDecimal> actuals = new HashMap<>();
-        monthly.forEach((categoryId, sum) -> actuals.put(categoryId, money(sum)));
-        yearly.forEach((categoryId, sum) -> actuals.merge(categoryId, monthlyShare(sum), BigDecimal::add));
-        return actuals;
+    // R12: due in the calendar month of dueDate, every year, while valid; Feb 29 falls back to Feb 28
+    private static List<DueLine> dueInMonth(
+            List<YearlyTransactionData> yearlyTransactions, List<CategoryData> categories, YearMonth month) {
+        Map<Long, String> categoryNames = new HashMap<>();
+        categories.forEach(category -> categoryNames.put(category.id(), category.name()));
+        return yearlyTransactions.stream()
+                .filter(transaction -> transaction.dueDate() != null
+                        && transaction.dueDate().getMonth() == month.getMonth()
+                        && isValidIn(transaction, month))
+                .map(transaction -> new DueLine(
+                        transaction.id(),
+                        transaction.description(),
+                        categoryNames.get(transaction.categoryId()),
+                        money(transaction.amountPerYear()),
+                        transaction.dueDate().withYear(month.getYear())))
+                .sorted(Comparator.comparing(DueLine::dueDate).thenComparing(DueLine::id))
+                .toList();
     }
 
     /** R1: share of a yearly amount counted per month, amount / 12 rounded to cents. */

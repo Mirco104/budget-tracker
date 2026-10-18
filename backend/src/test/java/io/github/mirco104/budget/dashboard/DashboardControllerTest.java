@@ -95,6 +95,29 @@ class DashboardControllerTest {
     }
 
     @Test
+    void showsYearlyShareAndDueDebitOfTheMonth() throws Exception {
+        long versicherungen = categoryId("Versicherungen", CategoryType.EXPENSE);
+        mockMvc.perform(post("/api/yearly-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amountPerYear": 600, "description": "Kfz-Versicherung", "validFrom": "2026-01",
+                                 "dueDate": "2026-11-15", "categoryId": %d}
+                                """.formatted(versicherungen)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[?(@.name == 'Versicherungen')].actualYearly", contains(50.00)))
+                .andExpect(jsonPath("$.yearlyExpensesShare").value(50.00))
+                .andExpect(jsonPath("$.dueYearly[0].description").value("Kfz-Versicherung"))
+                .andExpect(jsonPath("$.dueYearly[0].categoryName").value("Versicherungen"))
+                .andExpect(jsonPath("$.dueYearly[0].amountPerYear").value(600.00))
+                .andExpect(jsonPath("$.dueYearly[0].dueDate").value("2026-11-15"));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-12"))
+                .andExpect(jsonPath("$.dueYearly").isEmpty());
+    }
+
+    @Test
     void showsEmptyMonthWithoutErrors() throws Exception {
         mockMvc.perform(get("/api/dashboard").param("month", "2030-01"))
                 .andExpect(status().isOk())
