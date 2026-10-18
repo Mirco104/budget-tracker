@@ -110,7 +110,7 @@ export function TargetRow({ category, onSubmit }: Props) {
         {errors.targetPercent && <span className="error">{errors.targetPercent}</span>}
       </label>
 
-      <div>
+      <div className="target-actions">
         <button type="submit" disabled={submitting}>
           Speichern
         </button>
