@@ -17,7 +17,7 @@ function json(body: unknown, status = 200) {
 }
 
 function renderPage(onPut: () => Promise<Response> = () => json(categories[1])) {
-  const fetchMock = vi.fn((url: string, init?: RequestInit) => (init?.method === 'PUT' ? onPut() : json(categories)))
+  const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' ? onPut() : json(categories)))
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
