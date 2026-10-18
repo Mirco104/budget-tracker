@@ -71,6 +71,14 @@ export interface Totals {
   difference: number | null
 }
 
+/** Sums of the expense categories in one group; a missing target counts as 0. */
+export interface GroupLine {
+  group: CategoryGroup
+  target: number
+  actual: number
+  difference: number
+}
+
 export interface CategoryLine {
   id: number
   name: string
@@ -108,6 +116,7 @@ export interface DashboardData {
   surplusLabel: string
   changePercent: number | null
   changeLabel: string | null
+  groups: GroupLine[]
   categories: CategoryLine[]
   income: IncomeLine[]
   /** Sum of the yearly shares of all expense categories. */
