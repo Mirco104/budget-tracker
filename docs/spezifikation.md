@@ -26,7 +26,7 @@ Sei `M` der gewählte Monat.
 |---|---|---|
 | R1 | **Ist je Kategorie** = Summe aller Transaktionen der Kategorie in M + Summe (Jahresbetrag / 12) aller jährlichen Transaktionen der Kategorie | `Dashboard_Budget!E39:E59`, `K39:K46` |
 | R2 | **Einnahmen gesamt (Ist)** = Summe der Ist-Werte aller Einnahmen-Kategorien | `K37` |
-| R3 | **Soll je Ausgaben-Kategorie:** Ist ein Euro-Wert gesetzt, gilt er. Sonst, wenn ein Prozentwert gesetzt ist: Einnahmen gesamt × Prozent. Sonst: kein Soll. Der Euro-Wert hat immer Vorrang. | `Einstellungen_Budget!F11:F30` |
+| R3 | **Soll je Ausgaben-Kategorie:** Maßgeblich ist der Soll-Eintrag der Kategorie mit dem spätesten `validFrom ≤ M` (gilt ab M für alle folgenden Monate, bis ein neuerer Eintrag ihn ersetzt). Gibt es keinen solchen Eintrag oder sind darin beide Werte leer: kein Soll. Innerhalb des Eintrags gilt: Ist ein Euro-Wert gesetzt, gilt er. Sonst, wenn ein Prozentwert gesetzt ist: Einnahmen gesamt × Prozent. Sonst: kein Soll. Der Euro-Wert hat immer Vorrang. | `Einstellungen_Budget!F11:F30` |
 | R4 | **Rest-Kategorie "Sonstiges (berechneter Rest)":** Soll = Einnahmen gesamt − Summe aller übrigen Soll-Werte. Darf negativ sein (Überplanung). Diese Kategorie ist systemseitig, nicht löschbar, nicht editierbar. | `F31`, `G31` |
 | R5 | **Differenz je Kategorie** = Soll − Ist. Ohne Soll: leer. | `F39:F59` |
 | R6 | **Gesamt:** Soll gesamt = Summe aller Soll (inkl. Rest, ergibt damit die Einnahmen); Ist gesamt = Summe aller Ist; Differenz gesamt = Soll − Ist | `D37:F37` |
@@ -44,7 +44,7 @@ Sei `M` der gewählte Monat.
 
 ### Must
 - **US1 Kategorien ansehen:** Als Nutzer sehe ich alle Kategorien gruppiert (Fixkosten, Flexible Ausgaben, Sparen & Investieren, Einnahmen). *AK:* Beim ersten Start sind die Kategorien des Sheets als Seed vorhanden.
-- **US2 Soll festlegen:** Als Nutzer lege ich je Ausgaben-Kategorie ein Soll in Euro oder in Prozent fest. *AK:* R3 und R4 gelten; Prozent zwischen 0 und 100; negativer Euro-Wert wird abgelehnt (400 mit Fehlermeldung).
+- **US2 Soll festlegen:** Als Nutzer lege ich je Ausgaben-Kategorie ab einem gewählten Monat ein Soll in Euro oder in Prozent fest. Es gilt für diesen und alle folgenden Monate, bis ein neuerer Eintrag es ersetzt; frühere Monate bleiben unverändert. *AK:* R3 und R4 gelten; Prozent zwischen 0 und 100; negativer Euro-Wert wird abgelehnt (400 mit Fehlermeldung); erneutes Speichern für denselben Monat überschreibt den Eintrag dieses Monats; beide Werte leer heißt "kein Soll ab diesem Monat".
 - **US3 Transaktion erfassen:** Als Nutzer erfasse ich Betrag, Beschreibung, Datum und Kategorie. *AK:* Betrag > 0, Beschreibung höchstens 100 Zeichen, Kategorie muss existieren, Datum Pflicht.
 - **US4 Transaktion ändern/löschen.**
 - **US5 Dashboard:** Als Nutzer wähle ich einen Monat und sehe Soll, Ist, Differenz je Kategorie und Gesamt sowie Überschuss. *AK:* R1 bis R9; Werte entsprechen den Beispieldaten des Sheets (siehe Testfälle).
@@ -68,9 +68,15 @@ Category
   type          EXPENSE | INCOME
   group         FIXED | FLEXIBLE | SAVINGS | REMAINDER | null   (null bei INCOME)
   sortOrder     int
-  targetAmount  BigDecimal, nullable   (nur EXPENSE)
-  targetPercent BigDecimal, nullable   (0..1, nur EXPENSE)
   system        boolean                (true nur bei Rest-Kategorie)
+
+CategoryTarget                         (Soll ab einem Monat, siehe R3; nur EXPENSE, nicht Rest)
+  id            Long, PK
+  category      → Category
+  validFrom     LocalDate              (immer der 1. des Monats)
+  targetAmount  BigDecimal, nullable
+  targetPercent BigDecimal, nullable   (0..1)
+  eindeutig: (category, validFrom)
 
 Transaction
   id            Long, PK
@@ -97,8 +103,8 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 
 | Methode | Pfad | Zweck | Erfolg |
 |---|---|---|---|
-| GET | `/categories` | Alle Kategorien, sortiert | 200 |
-| PUT | `/categories/{id}/target` | Body `{targetAmount?, targetPercent?}` | 200, 404, 400 (Rest-Kategorie: 409) |
+| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`) | 200, 400 (Monat fehlt/ungültig) |
+| PUT | `/categories/{id}/target?month=2026-11` | Soll ab diesem Monat, Body `{targetAmount?, targetPercent?}` | 200, 404, 400 (auch Monat fehlt/ungültig), 409 (Rest- und Einnahmen-Kategorie) |
 | GET | `/transactions?month=2026-10` | Transaktionen eines Monats | 200 |
 | POST | `/transactions` | Anlegen | 201 + Location |
 | PUT | `/transactions/{id}` | Ändern | 200, 404, 400 |
@@ -139,6 +145,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   5. Einnahmen = 0 → keine Division durch null (R8, R9)
   6. Jahrestransaktion wird als Betrag/12 angerechnet (R1)
   7. Überschuss negativ → Bezeichnung "Monatlicher Verlust" (R7)
+  8. Soll ab M gilt nicht für M−1, aber für M und M+1; ein neuerer Eintrag ersetzt den älteren (R3, Auflösung in `TargetResolver`)
 - **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400); Rest-Kategorie nicht änderbar (409).
 - **Frontend:** 2 bis 3 Vitest/Testing-Library-Tests (Formular-Validierung, Dashboard rendert Werte).
 - **Referenzabgleich:** Eine Testfixture mit erfundenen Zahlen, deren Erwartungswerte du einmal im Sheet nachrechnest.
