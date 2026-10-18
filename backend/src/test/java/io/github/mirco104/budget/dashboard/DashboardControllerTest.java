@@ -77,6 +77,46 @@ class DashboardControllerTest {
     }
 
     @Test
+    void countsYearlyTransactionAsTwelfthOnlyInItsValidMonths() throws Exception {
+        long versicherungen = categoryId("Versicherungen", CategoryType.EXPENSE);
+        mockMvc.perform(post("/api/yearly-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amountPerYear": 1200, "description": "Hausrat", "validFrom": "2026-11",
+                                 "validTo": "2027-01", "categoryId": %d}
+                                """.formatted(versicherungen)))
+                .andExpect(status().isCreated());
+
+        assertVersicherungenActual("2026-10", 0.00);
+        assertVersicherungenActual("2026-11", 100.00);
+        assertVersicherungenActual("2027-01", 100.00);
+        assertVersicherungenActual("2027-02", 0.00);
+    }
+
+    @Test
+    void showsYearlyShareAndDueDebitOfTheMonth() throws Exception {
+        long versicherungen = categoryId("Versicherungen", CategoryType.EXPENSE);
+        mockMvc.perform(post("/api/yearly-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amountPerYear": 600, "description": "Kfz-Versicherung", "validFrom": "2026-01",
+                                 "dueDate": "2026-11-15", "categoryId": %d}
+                                """.formatted(versicherungen)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[?(@.name == 'Versicherungen')].actualYearly", contains(50.00)))
+                .andExpect(jsonPath("$.yearlyExpensesShare").value(50.00))
+                .andExpect(jsonPath("$.dueYearly[0].description").value("Kfz-Versicherung"))
+                .andExpect(jsonPath("$.dueYearly[0].categoryName").value("Versicherungen"))
+                .andExpect(jsonPath("$.dueYearly[0].amountPerYear").value(600.00))
+                .andExpect(jsonPath("$.dueYearly[0].dueDate").value("2026-11-15"));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-12"))
+                .andExpect(jsonPath("$.dueYearly").isEmpty());
+    }
+
+    @Test
     void showsEmptyMonthWithoutErrors() throws Exception {
         mockMvc.perform(get("/api/dashboard").param("month", "2030-01"))
                 .andExpect(status().isOk())
@@ -121,6 +161,12 @@ class DashboardControllerTest {
                 "$.categories[?(@.name == 'Wohnen')].target");
         assertThat(targets).as("target in %s", month).hasSize(1);
         assertThat(targets.get(0)).as("target in %s", month).isEqualTo(expected);
+    }
+
+    private void assertVersicherungenActual(String month, double expected) throws Exception {
+        mockMvc.perform(get("/api/dashboard").param("month", month))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[?(@.name == 'Versicherungen')].actual", contains(expected)));
     }
 
     private void postTransaction(String amount, String description, String date, long categoryId)

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
-import type { Category, CategoryGroup, Transaction, TransactionInput } from '../api/types'
+import type { Category, Transaction, TransactionInput } from '../api/types'
 import { parseAmountInput } from '../format'
-import { GROUP_LABELS } from '../labels'
+import { CategorySelect } from './CategorySelect'
 
 type Field = 'amount' | 'description' | 'date' | 'categoryId'
 type Errors = Partial<Record<Field, string>>
@@ -86,12 +86,6 @@ export function TransactionForm({ categories, transaction, defaultDate, onSubmit
     }
   }
 
-  const income = categories.filter((c) => c.type === 'INCOME')
-  const expenseGroups = (Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
-    group,
-    items: categories.filter((c) => c.type === 'EXPENSE' && c.group === group),
-  }))
-
   return (
     <form className="transaction-form" noValidate onSubmit={handleSubmit}>
       <h3>{transaction ? 'Transaktion bearbeiten' : 'Neue Transaktion'}</h3>
@@ -129,33 +123,7 @@ export function TransactionForm({ categories, transaction, defaultDate, onSubmit
         {errors.date && <span className="error">{errors.date}</span>}
       </label>
 
-      <label>
-        Kategorie
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          aria-invalid={errors.categoryId ? true : undefined}
-        >
-          <option value="">Bitte wählen</option>
-          <optgroup label="Einnahmen">
-            {income.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </optgroup>
-          {expenseGroups.map(({ group, items }) => (
-            <optgroup key={group} label={GROUP_LABELS[group]}>
-              {items.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        {errors.categoryId && <span className="error">{errors.categoryId}</span>}
-      </label>
+      <CategorySelect categories={categories} value={categoryId} onChange={setCategoryId} error={errors.categoryId} />
 
       {generalError && <p className="error">{generalError}</p>}
 

@@ -39,6 +39,32 @@ export interface TransactionInput {
   categoryId: number
 }
 
+/** Counted as amountPerYear / 12 in every month from validFrom to validTo ("YYYY-MM", inclusive). */
+export interface YearlyTransaction {
+  id: number
+  amountPerYear: number
+  /** Share counted per month (amountPerYear / 12, rounded by the backend). */
+  amountPerMonth: number
+  description: string
+  /** ISO date, optional info ("Abbuchung regulär am"). */
+  dueDate: string | null
+  validFrom: string
+  /** null means open-ended. */
+  validTo: string | null
+  categoryId: number
+  categoryName: string
+  categoryType: CategoryType
+}
+
+export interface YearlyTransactionInput {
+  amountPerYear: number
+  description: string
+  dueDate: string | null
+  validFrom: string
+  validTo: string | null
+  categoryId: number
+}
+
 export interface Totals {
   target: number | null
   actual: number
@@ -51,6 +77,8 @@ export interface CategoryLine {
   group: CategoryGroup | null
   target: number | null
   actual: number
+  /** Part of actual that comes from yearly transactions. */
+  actualYearly: number
   difference: number | null
 }
 
@@ -58,7 +86,18 @@ export interface IncomeLine {
   id: number
   name: string
   actual: number
+  /** Part of actual that comes from yearly transactions. */
+  actualYearly: number
   share: number
+}
+
+/** Yearly debit due in the month, with its full yearly amount. */
+export interface DueLine {
+  id: number
+  description: string
+  categoryName: string
+  amountPerYear: number
+  dueDate: string
 }
 
 export interface DashboardData {
@@ -70,6 +109,9 @@ export interface DashboardData {
   savingsRate: number | null
   categories: CategoryLine[]
   income: IncomeLine[]
+  /** Sum of the yearly shares of all expense categories. */
+  yearlyExpensesShare: number
+  dueYearly: DueLine[]
 }
 
 export interface FieldError {
