@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { currentMonth } from './format'
+import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
@@ -35,10 +35,30 @@ function App() {
         >
           Einstellungen
         </button>
-        <label>
-          Monat{' '}
-          <input type="month" value={month} required onChange={(event) => setMonth(event.target.value)} />
-        </label>
+        {page !== 'settings' && (
+          <span className="month-nav">
+            <button
+              type="button"
+              aria-label="Vorheriger Monat"
+              disabled={!month}
+              onClick={() => setMonth(shiftMonth(month, -1))}
+            >
+              ‹
+            </button>
+            <label>
+              Monat{' '}
+              <input type="month" value={month} required onChange={(event) => setMonth(event.target.value)} />
+            </label>
+            <button
+              type="button"
+              aria-label="Nächster Monat"
+              disabled={!month}
+              onClick={() => setMonth(shiftMonth(month, 1))}
+            >
+              ›
+            </button>
+          </span>
+        )}
       </nav>
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}

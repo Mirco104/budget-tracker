@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatEuro, formatPercent, parseAmountInput } from './format'
+import { formatDate, formatEuro, formatPercent, parseAmountInput, shiftMonth } from './format'
 
 describe('parseAmountInput', () => {
   it.each([
@@ -32,5 +32,16 @@ describe('formatting', () => {
 
   it('formats ISO dates as TT.MM.JJJJ', () => {
     expect(formatDate('2026-10-05')).toBe('05.10.2026')
+  })
+})
+
+describe('shiftMonth', () => {
+  it.each([
+    ['2026-10', 1, '2026-11'],
+    ['2026-10', -1, '2026-09'],
+    ['2026-12', 1, '2027-01'],
+    ['2026-01', -1, '2025-12'],
+  ])('moves %s by %i to %s', (month, delta, expected) => {
+    expect(shiftMonth(month, delta)).toBe(expected)
   })
 })

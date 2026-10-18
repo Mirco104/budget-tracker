@@ -119,3 +119,9 @@ form.transaction-form label {
     font-weight: bold;
   }
 }
+
+.month-nav {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
