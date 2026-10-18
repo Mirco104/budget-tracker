@@ -70,6 +70,7 @@ export function YearlyTransactionsPage({ month }: { month: string }) {
               <th>Beschreibung</th>
               <th>Kategorie</th>
               <th className="number">Betrag/Jahr</th>
+              <th className="number">Betrag/Monat</th>
               <th>Gültig ab</th>
               <th>Gültig bis</th>
               <th>Abbuchung</th>
@@ -84,6 +85,7 @@ export function YearlyTransactionsPage({ month }: { month: string }) {
                   {t.categoryName} ({t.categoryType === 'INCOME' ? 'Einnahme' : 'Ausgabe'})
                 </td>
                 <td className="number">{formatEuro(t.amountPerYear)}</td>
+                <td className="number">{formatEuro(t.amountPerMonth)}</td>
                 <td>{formatMonth(t.validFrom)}</td>
                 <td>{t.validTo === null ? 'unbefristet' : formatMonth(t.validTo)}</td>
                 <td>{t.dueDate === null ? '–' : formatDate(t.dueDate)}</td>

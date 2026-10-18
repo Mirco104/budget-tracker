@@ -43,6 +43,8 @@ export interface TransactionInput {
 export interface YearlyTransaction {
   id: number
   amountPerYear: number
+  /** Share counted per month (amountPerYear / 12, rounded by the backend). */
+  amountPerMonth: number
   description: string
   /** ISO date, optional info ("Abbuchung regulär am"). */
   dueDate: string | null
