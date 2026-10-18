@@ -35,6 +35,7 @@ Sei `M` der gewählte Monat.
 | R9 | **Einnahmenanteil** je Einnahmen-Kategorie = Ist / Einnahmen gesamt; bei Einnahmen = 0: 0 % | `L39:L46` |
 | R10 | **Gruppen:** Ausgaben-Kategorien gehören zu Fixkosten (empfohlen ca. 50 %), Flexible Ausgaben (ca. 30 %), Sparen & Investieren (ca. 20 %) oder Rest. Gruppensummen für Soll und Ist werden angezeigt. | `Einstellungen_Budget!H11:J31` |
 | R11 | Beträge sind positiv. Ob Einnahme oder Ausgabe, bestimmt die Kategorie, nicht das Vorzeichen. | Validierungslisten D/H |
+| R12 | **Anteilige Jahresbeträge sichtbar machen:** Je Kategorie wird ausgewiesen, wie viel vom Ist aus jährlichen Transaktionen stammt (der R1-Anteil). "Anteilige Jahreskosten" = Summe dieser Anteile über alle Ausgaben-Kategorien. **Fällige Abbuchung:** Eine jährliche Transaktion mit "Abbuchung regulär am" ist in M fällig, wenn sie in M gültig ist und der Kalendermonat von `dueDate` dem von M entspricht (jährlich wiederkehrend, gleicher Tag; 29.02. wird in Nicht-Schaltjahren zum 28.02.). Fällige Abbuchungen werden mit vollem Jahresbetrag als Hinweis angezeigt; das Ist ändert sich dadurch nicht. | neu, nicht im Sheet |
 
 **Nicht übernehmen:** Die Hilfsblätter `IGNORE…` (Diagrammdaten, rechnet das Frontend selbst) sowie veraltete Formeln in `Dashboard_Budget` (Zeilen 38 und 48–55 der Einnahmenspalte verweisen auf ein nicht existierendes Blatt `Monatliche_Transaktionen`). Als Referenzwerte gelten die Formeln, nicht diese Reste.
 
@@ -52,12 +53,14 @@ Sei `M` der gewählte Monat.
 ### Should
 - **US6 Jährliche Transaktionen:** Erfassen, ändern, löschen; Anrechnung nach R1 (Jahresbetrag / 12 pro Monat) in jedem Monat ihres Gültigkeitszeitraums. *AK:* Betrag > 0, Beschreibung höchstens 100 Zeichen, Kategorie muss existieren; "gültig ab" (Monat) ist Pflicht, "gültig bis" (Monat, einschließlich) ist optional und darf nicht vor "gültig ab" liegen (sonst 400); frühere Monate bleiben unverändert.
 - **US7 Gruppensummen** nach R10 im Dashboard.
+- **US6a Jährliche Transaktionen im Dashboard:** Als Nutzer sehe ich im Dashboard, welcher Teil des Ist je Kategorie aus jährlichen Transaktionen stammt, die Summe der anteiligen Jahreskosten und einen Hinweis auf in M fällige Abbuchungen. *AK:* R12.
 - **US8 Monatsnavigation** (vor/zurück) und Anzeige leerer Monate ohne Fehler.
 
 ### Nice
 - **US9 Diagramm** (Soll gegen Ist je Gruppe) mit Recharts.
 - **US10 Kategorien anlegen/umbenennen/löschen** (löschen nur ohne Transaktionen).
 - **US11 Flyway-Migrationen** statt `data.sql`.
+- **US12 Kategorie aufklappen (vorgemerkt, später):** Im Dashboard zeigt ein Klick auf eine Kategorie ihre Buchungen im Monat und die anteiligen Jahresbeträge (R1, R12). Passt gut zusammen mit US9.
 
 ## 4. Datenmodell
 
@@ -126,10 +129,13 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   "surplus": 365.00, "surplusLabel": "Monatlicher Überschuss",
   "changePercent": 0.2232,
   "groups":    [ { "group": "FIXED", "target": 0, "actual": 0, "difference": 0 } ],
-  "categories":[ { "id": 1, "name": "…", "group": "FIXED", "target": 500.00, "actual": 500.00, "difference": 0.00 } ],
-  "income":    [ { "id": 20, "name": "…", "actual": 2000.00, "share": 1.0 } ]
+  "categories":[ { "id": 1, "name": "…", "group": "FIXED", "target": 500.00, "actual": 500.00, "actualYearly": 50.00, "difference": 0.00 } ],
+  "income":    [ { "id": 20, "name": "…", "actual": 2000.00, "actualYearly": 0.00, "share": 1.0 } ],
+  "yearlyExpensesShare": 50.00,
+  "dueYearly": [ { "id": 3, "description": "…", "categoryName": "…", "amountPerYear": 600.00, "dueDate": "2026-10-15" } ]
 }
 ```
+`actualYearly` ist der R1-Anteil aus jährlichen Transaktionen (im `actual` bereits enthalten), `yearlyExpensesShare` und `dueYearly` siehe R12.
 (Zahlen im Beispiel nur zur Form.)
 
 ## 6. Architektur
@@ -151,6 +157,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   6. Jahrestransaktion wird als Betrag/12 angerechnet (R1), und zwar im ersten und letzten Monat ihrer Gültigkeit, aber nicht davor oder danach
   7. Überschuss negativ → Bezeichnung "Monatlicher Verlust" (R7)
   8. Soll ab M gilt nicht für M−1, aber für M und M+1; ein neuerer Eintrag ersetzt den älteren (R3, Auflösung in `TargetResolver`)
+  9. Jahresanteil je Kategorie und Summe der anteiligen Jahreskosten; fällige Abbuchung nur im Kalendermonat von `dueDate` und nur innerhalb der Gültigkeit, 29.02. im Nicht-Schaltjahr (R12)
 - **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400); Rest-Kategorie nicht änderbar (409).
 - **Frontend:** 2 bis 3 Vitest/Testing-Library-Tests (Formular-Validierung, Dashboard rendert Werte).
 - **Referenzabgleich:** Eine Testfixture mit erfundenen Zahlen, deren Erwartungswerte du einmal im Sheet nachrechnest.
