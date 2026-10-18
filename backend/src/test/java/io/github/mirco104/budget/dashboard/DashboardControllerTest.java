@@ -61,6 +61,12 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
                 .andExpect(jsonPath("$.changePercent").value(1.6667))
                 .andExpect(jsonPath("$.changeLabel").value("Anstieg der Gesamteinsparung"))
+                .andExpect(jsonPath("$.groups[*].group", contains("FIXED", "FLEXIBLE", "SAVINGS", "REMAINDER")))
+                .andExpect(jsonPath("$.groups[0].target").value(800.00))
+                .andExpect(jsonPath("$.groups[0].actual").value(750.00))
+                .andExpect(jsonPath("$.groups[0].difference").value(50.00))
+                .andExpect(jsonPath("$.groups[1].target").value(0.00))
+                .andExpect(jsonPath("$.groups[3].target").value(1200.00))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(1.0)));
     }
 

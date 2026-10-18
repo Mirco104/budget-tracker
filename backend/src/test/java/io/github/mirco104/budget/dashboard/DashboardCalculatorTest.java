@@ -15,6 +15,7 @@ import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.YearlyTransactionData;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.DueLine;
+import io.github.mirco104.budget.dashboard.DashboardResponse.GroupLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,7 +24,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rules R1–R9 from docs/spezifikation.md, section 2. Test cases 1–7 follow section 7.
+ * Rules R1–R10 and R12 from docs/spezifikation.md, section 2. Test cases 1–7 follow section 7.
  */
 class DashboardCalculatorTest {
 
@@ -346,6 +347,64 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().actual()).isEqualByComparingTo("0.00");
     }
 
+    // --- Group totals (R10) ---
+
+    @Test
+    void groupsComeInFixedOrderWithSumsOfTheirCategories() {
+        DashboardResponse result = calculate(
+                List.of(
+                        expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
+                        expense(WOHNEN, FIXED, "800", null),
+                        expense(FREIZEIT, FLEXIBLE, "100", null),
+                        expense(INVESTITIONEN, SAVINGS, "250", null),
+                        rest(),
+                        income(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "780"), booking(LEBENSMITTEL, "320.40"),
+                        booking(FREIZEIT, "75.10"), booking(INVESTITIONEN, "250"), booking(REST, "30")),
+                List.of());
+
+        assertThat(result.groups()).extracting(GroupLine::group)
+                .containsExactly(FIXED, FLEXIBLE, SAVINGS, REMAINDER);
+        assertGroup(result, FIXED, "800.00", "780.00", "20.00");
+        assertGroup(result, FLEXIBLE, "400.00", "395.50", "4.50");
+        assertGroup(result, SAVINGS, "250.00", "250.00", "0.00");
+        // R4: 2000 - 800 - 300 - 100 - 250
+        assertGroup(result, REMAINDER, "550.00", "30.00", "520.00");
+    }
+
+    @Test
+    void groupWithoutTargetsHasZeroTargetAndNegativeDifference() {
+        DashboardResponse result = calculate(
+                List.of(expense(FREIZEIT, FLEXIBLE, null, null), rest(), income(GEHALT)),
+                List.of(booking(FREIZEIT, "75.10")),
+                List.of());
+
+        assertGroup(result, FLEXIBLE, "0.00", "75.10", "-75.10");
+    }
+
+    @Test
+    void groupWithoutCategoriesIsShownWithZeros() {
+        DashboardResponse result = calculate(List.of(rest(), income(GEHALT)), List.of(), List.of());
+
+        assertGroup(result, SAVINGS, "0.00", "0.00", "0.00");
+        assertThat(group(result, SAVINGS).target().scale()).isEqualTo(2);
+    }
+
+    @Test
+    void groupTotalsAddUpToExpensesTotals() {
+        DashboardResponse result = calculate(
+                List.of(expense(WOHNEN, FIXED, "1500", null), expense(LEBENSMITTEL, FLEXIBLE, null, "0.40"),
+                        expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "1500"), booking(LEBENSMITTEL, "700")),
+                List.of(yearly(VERSICHERUNGEN, "600")));
+
+        assertThat(group(result, REMAINDER).target()).isEqualByComparingTo("-300.00");
+        assertThat(result.groups().stream().map(GroupLine::target).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo(result.expenses().target());
+        assertThat(result.groups().stream().map(GroupLine::actual).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo(result.expenses().actual());
+    }
+
     // --- Reference fixture (invented numbers, checked against the sheet) ---
 
     @Test
@@ -394,6 +453,11 @@ class DashboardCalculatorTest {
         assertThat(income(result, GEHALT).actual()).isEqualByComparingTo("2000.00");
         assertThat(income(result, GEHALT).share()).isEqualByComparingTo("0.8333");
         assertThat(income(result, NEBENJOB).share()).isEqualByComparingTo("0.1667");
+
+        assertGroup(result, FIXED, "800.00", "850.00", "-50.00");
+        assertGroup(result, FLEXIBLE, "360.00", "395.50", "-35.50");
+        assertGroup(result, SAVINGS, "250.00", "250.00", "0.00");
+        assertGroup(result, REMAINDER, "990.00", "30.00", "960.00");
     }
 
     // --- Helpers ---
@@ -458,6 +522,18 @@ class DashboardCalculatorTest {
 
     private static IncomeLine income(DashboardResponse result, long id) {
         return result.income().stream().filter(line -> line.id() == id).findFirst().orElseThrow();
+    }
+
+    private static GroupLine group(DashboardResponse result, CategoryGroup group) {
+        return result.groups().stream().filter(line -> line.group() == group).findFirst().orElseThrow();
+    }
+
+    private static void assertGroup(DashboardResponse result, CategoryGroup group, String target, String actual,
+            String difference) {
+        GroupLine line = group(result, group);
+        assertThat(line.target()).isEqualByComparingTo(target);
+        assertThat(line.actual()).isEqualByComparingTo(actual);
+        assertThat(line.difference()).isEqualByComparingTo(difference);
     }
 
     private static void assertLine(DashboardResponse result, long id, String target, String actual,

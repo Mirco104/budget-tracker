@@ -4,6 +4,7 @@ import io.github.mirco104.budget.category.CategoryGroup;
 import io.github.mirco104.budget.category.CategoryType;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.DueLine;
+import io.github.mirco104.budget.dashboard.DashboardResponse.GroupLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.Totals;
 import java.math.BigDecimal;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Dashboard math, rules R1–R9 and R12 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Dashboard math, rules R1–R10 and R12 from docs/spezifikation.md, section 2. No Spring dependencies.
  * Amounts are rounded to cents per category; totals add up the rounded values.
  */
 public class DashboardCalculator {
@@ -127,10 +128,30 @@ public class DashboardCalculator {
                 surplusLabel,
                 changePercent,
                 changeLabel,
+                groupLines(categoryLines),
                 categoryLines,
                 incomeLines,
                 yearlyExpensesShare,
                 dueInMonth(yearlyTransactions, categories, month));
+    }
+
+    // R10: every group in enum order, summed from the category lines; a missing target counts as 0 (like R6)
+    private static List<GroupLine> groupLines(List<CategoryLine> categoryLines) {
+        List<GroupLine> groupLines = new ArrayList<>();
+        for (CategoryGroup group : CategoryGroup.values()) {
+            BigDecimal target = zero();
+            BigDecimal actual = zero();
+            for (CategoryLine line : categoryLines) {
+                if (line.group() == group) {
+                    if (line.target() != null) {
+                        target = target.add(line.target());
+                    }
+                    actual = actual.add(line.actual());
+                }
+            }
+            groupLines.add(new GroupLine(group, target, actual, target.subtract(actual)));
+        }
+        return groupLines;
     }
 
     // R1: transactions of the month plus the yearly share, per category
