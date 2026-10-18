@@ -122,7 +122,7 @@ public class DashboardCalculator {
                 incomeLines);
     }
 
-    // R1: transactions of the month plus yearly sum / 12, per category
+    // R1: transactions of the month plus yearly sum / 12 of the yearly transactions valid in the month, per category
     private static Map<Long, BigDecimal> actualsByCategory(
             List<TransactionData> transactions, List<YearlyTransactionData> yearlyTransactions, YearMonth month) {
         Map<Long, BigDecimal> monthly = new HashMap<>();
@@ -133,7 +133,9 @@ public class DashboardCalculator {
         }
         Map<Long, BigDecimal> yearly = new HashMap<>();
         for (YearlyTransactionData transaction : yearlyTransactions) {
-            yearly.merge(transaction.categoryId(), transaction.amountPerYear(), BigDecimal::add);
+            if (isValidIn(transaction, month)) {
+                yearly.merge(transaction.categoryId(), transaction.amountPerYear(), BigDecimal::add);
+            }
         }
 
         Map<Long, BigDecimal> actuals = new HashMap<>();
@@ -141,6 +143,11 @@ public class DashboardCalculator {
         yearly.forEach((categoryId, sum) -> actuals.merge(
                 categoryId, sum.divide(MONTHS_PER_YEAR, MONEY_SCALE, RoundingMode.HALF_UP), BigDecimal::add));
         return actuals;
+    }
+
+    private static boolean isValidIn(YearlyTransactionData transaction, YearMonth month) {
+        return !transaction.validFrom().isAfter(month)
+                && (transaction.validTo() == null || !transaction.validTo().isBefore(month));
     }
 
     // R3: euro target wins, otherwise income × percent, otherwise no target
