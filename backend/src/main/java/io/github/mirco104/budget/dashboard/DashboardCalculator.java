@@ -32,7 +32,9 @@ public class DashboardCalculator {
     public record TransactionData(long categoryId, BigDecimal amount, LocalDate date) {
     }
 
-    public record YearlyTransactionData(long categoryId, BigDecimal amountPerYear) {
+    /** validTo is inclusive; null means open-ended. */
+    public record YearlyTransactionData(
+            long categoryId, BigDecimal amountPerYear, YearMonth validFrom, YearMonth validTo) {
     }
 
     public DashboardResponse calculate(

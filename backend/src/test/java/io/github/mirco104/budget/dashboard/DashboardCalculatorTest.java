@@ -182,6 +182,29 @@ class DashboardCalculatorTest {
         assertThat(result.incomeTotal()).isEqualByComparingTo("2100.00");
     }
 
+    @Test
+    void yearlyTransactionCountsInItsFirstAndLastValidMonth() {
+        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
+
+        assertThat(versicherungenActual(yearly, OCTOBER)).isEqualByComparingTo("100.00");
+        assertThat(versicherungenActual(yearly, OCTOBER.plusMonths(2))).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void yearlyTransactionIsIgnoredBeforeValidFromAndAfterValidTo() {
+        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
+
+        assertThat(versicherungenActual(yearly, OCTOBER.minusMonths(1))).isEqualByComparingTo("0.00");
+        assertThat(versicherungenActual(yearly, OCTOBER.plusMonths(3))).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void openEndedYearlyTransactionCountsInLaterYears() {
+        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, null));
+
+        assertThat(versicherungenActual(yearly, OCTOBER.plusYears(3))).isEqualByComparingTo("100.00");
+    }
+
     // --- Case 7: negative surplus -> "Monatlicher Verlust" (R7, R8) ---
 
     @Test
@@ -324,8 +347,20 @@ class DashboardCalculatorTest {
         return new TransactionData(categoryId, new BigDecimal(amount), IN_OCTOBER);
     }
 
+    private BigDecimal versicherungenActual(List<YearlyTransactionData> yearly, YearMonth month) {
+        DashboardResponse result = calculator.calculate(
+                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)), List.of(), yearly, month);
+        return category(result, VERSICHERUNGEN).actual();
+    }
+
+    // Valid from the tested month onward, open-ended
     private static YearlyTransactionData yearly(long categoryId, String amountPerYear) {
-        return new YearlyTransactionData(categoryId, new BigDecimal(amountPerYear));
+        return yearly(categoryId, amountPerYear, OCTOBER, null);
+    }
+
+    private static YearlyTransactionData yearly(
+            long categoryId, String amountPerYear, YearMonth validFrom, YearMonth validTo) {
+        return new YearlyTransactionData(categoryId, new BigDecimal(amountPerYear), validFrom, validTo);
     }
 
     private static BigDecimal decimal(String value) {
