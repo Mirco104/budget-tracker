@@ -35,8 +35,7 @@ function App() {
         >
           Einstellungen
         </button>
-        {page !== 'settings' && (
-          <span className="month-nav">
+        <span className="month-nav">
             <button
               type="button"
               aria-label="Vorheriger Monat"
@@ -60,13 +59,12 @@ function App() {
             <button type="button" disabled={month === currentMonth()} onClick={() => setMonth(currentMonth())}>
               Aktueller Monat
             </button>
-          </span>
-        )}
+        </span>
       </nav>
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
-      {page === 'settings' && <SettingsPage />}
+      {page === 'settings' && month && <SettingsPage month={month} />}
     </main>
   )
 }

@@ -2,23 +2,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 import type { Category, TargetInput } from './types'
 
-export function fetchCategories(): Promise<Category[]> {
-  return request<Category[]>('/categories')
+/** Categories with the targets in effect for the month ("YYYY-MM"). */
+export function fetchCategories(month: string): Promise<Category[]> {
+  return request<Category[]>(`/categories?month=${encodeURIComponent(month)}`)
 }
 
-export function updateTarget(id: number, input: TargetInput): Promise<Category> {
-  return request<Category>(`/categories/${id}/target`, { method: 'PUT', body: JSON.stringify(input) })
+/** Sets the target from the month onward. */
+export function updateTarget(id: number, month: string, input: TargetInput): Promise<Category> {
+  return request<Category>(`/categories/${id}/target?month=${encodeURIComponent(month)}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
 }
 
-export function useCategories() {
-  return useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
+export function useCategories(month: string) {
+  return useQuery({ queryKey: ['categories', month], queryFn: () => fetchCategories(month) })
 }
 
-// A target change affects every month's dashboard (including the remainder), so all months are refreshed.
+// A target applies to its month and all later ones (including the remainder), so all months are refreshed.
 export function useUpdateTarget() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: TargetInput }) => updateTarget(id, input),
+    mutationFn: ({ id, month, input }: { id: number; month: string; input: TargetInput }) =>
+      updateTarget(id, month, input),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ['categories'] }),

@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Category, TargetInput } from '../api/types'
-import { parseAmountInput } from '../format'
+import { formatMonth, parseAmountInput } from '../format'
 
 type Field = 'targetAmount' | 'targetPercent'
 type Errors = Partial<Record<Field, string>>
 
 interface Props {
   category: Category
+  month: string
   onSubmit: (input: TargetInput) => Promise<unknown>
 }
 
@@ -15,7 +16,7 @@ function toInputText(value: number): string {
   return value.toFixed(2).replace('.', ',')
 }
 
-export function TargetRow({ category, onSubmit }: Props) {
+export function TargetRow({ category, month, onSubmit }: Props) {
   const [amount, setAmount] = useState(category.targetAmount === null ? '' : toInputText(category.targetAmount))
   const [percent, setPercent] = useState(
     category.targetPercent === null ? '' : toInputText(category.targetPercent * 100),
@@ -114,7 +115,10 @@ export function TargetRow({ category, onSubmit }: Props) {
         <button type="submit" disabled={submitting}>
           Speichern
         </button>
-        {saved && <span className="hint"> Gespeichert.</span>}
+        {saved && <span className="hint"> Gespeichert ab {formatMonth(month)}.</span>}
+        {!saved && category.targetValidFrom && category.targetValidFrom !== month && (
+          <p className="hint">Gesetzt ab {formatMonth(category.targetValidFrom)}.</p>
+        )}
         {amount.trim() !== '' && percent.trim() !== '' && <p className="hint">Euro-Wert hat Vorrang.</p>}
         {generalError && <p className="error">{generalError}</p>}
       </div>

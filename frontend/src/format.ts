@@ -19,6 +19,14 @@ export function formatPercent(value: number | null): string {
   return value === null ? EMPTY : percent.format(value)
 }
 
+const monthName = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' })
+
+/** "2026-11" -> "November 2026" */
+export function formatMonth(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return monthName.format(new Date(year, monthNumber - 1, 1))
+}
+
 export function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split('-')
   return `${day}.${month}.${year}`
