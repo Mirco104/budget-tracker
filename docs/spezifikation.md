@@ -200,3 +200,50 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 3. **Monatszuordnung:** Eine Transaktion zählt nach ihrem Datum, nicht nach Blatt wie im Sheet.
 4. **Repo:** öffentlich auf GitHub. Daher: nur erfundene Seed-Daten, keine echten Beträge, keine Zugangsdaten, keine persönlichen Daten in Commits, Issues oder README.
 5. **Gültigkeit jährlicher Transaktionen** (18.10.2026): Wie das Soll (R3) gilt eine jährliche Transaktion ab einem Monat und optional bis zu einem Monat. So verändert ein neu erfasster Vertrag keine vergangenen Monate. Im Sheet gab es diese Unterscheidung nicht.
+
+## 12. Testfixture F1 und Sonderfall Einnahmen = 0
+
+Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test für den `DashboardCalculator` (ergänzend zu den 9 Fällen aus Abschnitt 7).
+
+**Monat:** 2026-10 · **Einnahmen:** Gehalt 3000,00 · Nebenjob 200,00 → 3200,00
+
+**Soll-Einstellungen (Ausgaben, gültig ab 2026-10, R3):**
+
+| Kategorie | Gruppe | Einstellung |
+|---|---|---|
+| Wohnen | FIXED | 900,00 € |
+| Nebenkosten | FIXED | 10 % |
+| Versicherungen | FIXED | 100,00 € |
+| Mobilität | FIXED | 60,00 € **und** 50 % (Euro gewinnt, R3) |
+| Lebensmittel | FLEXIBLE | 400,00 € |
+| Freizeit | FLEXIBLE | 5 % |
+| Investitionen | SAVINGS | 20 % |
+| Sonstiges (Rest) | REMAINDER | berechnet (R4) |
+
+**Transaktionen im Oktober:** Wohnen 900,00 · Nebenkosten 200,00 + 140,00 · Lebensmittel 120,30 + 200,20 + 130,00 · Mobilität 45,99 · Investitionen 640,00 · Sonstiges 20,00
+**Jahrestransaktion:** Versicherungen 240,00 pro Jahr, gültig ab 2026-01, unbefristet, ohne Abbuchungsdatum (zählt mit 20,00 pro Monat)
+**Muss ignoriert werden:** Lebensmittel 999,00 am 2026-09-30
+
+**Erwartete Ergebnisse:**
+
+| Kategorie | Soll | Ist | Differenz |
+|---|---|---|---|
+| Wohnen | 900,00 | 900,00 | 0,00 |
+| Nebenkosten | 320,00 | 340,00 | -20,00 |
+| Versicherungen | 100,00 | 20,00 | 80,00 |
+| Mobilität | 60,00 | 45,99 | 14,01 |
+| Lebensmittel | 400,00 | 450,50 | -50,50 |
+| Freizeit | 160,00 | 0,00 | 160,00 |
+| Investitionen | 640,00 | 640,00 | 0,00 |
+| Sonstiges (Rest) | 620,00 | 20,00 | 600,00 |
+| **Gesamt Ausgaben** | **3200,00** | **2416,49** | **783,51** |
+
+- Überschuss: 783,51 ("Monatlicher Überschuss") · Sparquote (R8): 783,51 / 3200,00 = 0,2448
+- Einnahmenanteile: Gehalt 0,9375 · Nebenjob 0,0625
+- Gruppen (Soll / Ist): FIXED 1380,00 / 1305,99 · FLEXIBLE 560,00 / 450,50 · SAVINGS 640,00 / 640,00 · REMAINDER 620,00 / 20,00
+- Jahresanteil (R12): Versicherungen 20,00 · anteilige Jahreskosten 20,00 · keine fällige Abbuchung
+- Kategorien ohne Soll (z. B. Kredite): Soll und Differenz sind `null`, Ist ist 0,00.
+
+**Rundung:** Geld mit Skala 2 (HALF_UP), Prozentwerte und Anteile mit Skala 4; nur im Endergebnis runden, nicht in Zwischensummen.
+
+**Sonderfall Einnahmen = 0 (Entscheidung):** Prozent-Soll ergibt 0,00; Euro-Soll bleibt erhalten; der Rest wird negativ (0 minus Summe der Euro-Soll). Überschuss = 0 minus Ausgaben ("Monatlicher Verlust"); Sparquote (R8) ist leer, Einnahmenanteile (R9) sind 0. Keine Division durch null, keine Exception. Das Sheet gibt hier Fehlerwerte aus, die App fängt den Fall sauber ab.
