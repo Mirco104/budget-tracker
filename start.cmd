@@ -6,11 +6,15 @@ set "ROOT=%~dp0"
 where java >nul 2>&1 || (echo Java wurde nicht gefunden. Bitte JDK 21 oder neuer installieren. & pause & exit /b 1)
 where npm >nul 2>&1 || (echo Node.js wurde nicht gefunden. Bitte Node.js 22.12 oder neuer installieren. & pause & exit /b 1)
 
-if not exist "%ROOT%frontend\node_modules" (
+rem Reinstall when package-lock.json changed since the last install (e.g. after git pull).
+set "LOCK=%ROOT%frontend\package-lock.json"
+set "STAMP=%ROOT%frontend\node_modules\.installed-package-lock.json"
+fc /b "%LOCK%" "%STAMP%" >nul 2>&1 || (
     echo Installiere Frontend-Abhaengigkeiten ...
     pushd "%ROOT%frontend"
     call npm ci || (popd & echo npm ci ist fehlgeschlagen. & pause & exit /b 1)
     popd
+    copy /y "%LOCK%" "%STAMP%" >nul
 )
 
 echo Starte Backend ...

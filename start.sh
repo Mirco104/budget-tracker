@@ -6,9 +6,12 @@ cd "$(dirname "$0")"
 command -v java >/dev/null || { echo "Java wurde nicht gefunden. Bitte JDK 21 oder neuer installieren."; exit 1; }
 command -v npm >/dev/null || { echo "Node.js wurde nicht gefunden. Bitte Node.js 22.12 oder neuer installieren."; exit 1; }
 
-if [ ! -d frontend/node_modules ]; then
+# Reinstall when package-lock.json changed since the last install (e.g. after git pull).
+stamp=frontend/node_modules/.installed-package-lock.json
+if ! cmp -s frontend/package-lock.json "$stamp"; then
   echo "Installiere Frontend-Abhängigkeiten ..."
   (cd frontend && npm ci)
+  cp frontend/package-lock.json "$stamp"
 fi
 
 trap 'kill 0' EXIT
