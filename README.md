@@ -11,6 +11,13 @@ Die fachliche Grundlage ist die [Spezifikation](docs/spezifikation.md).
 
 Maven muss nicht installiert sein, das Backend bringt den Maven Wrapper mit.
 
+## Schnellstart
+
+Ein Skript startet Backend und Frontend und öffnet die App im Browser (http://localhost:5173). Beim ersten Start installiert es die Frontend-Abhängigkeiten.
+
+- Windows: `start.cmd` doppelklicken. Backend und Frontend laufen in eigenen Fenstern; zum Beenden beide Fenster schließen.
+- macOS/Linux: `./start.sh` ausführen. Beenden mit Strg+C.
+
 ## Backend starten
 
 ```bash
