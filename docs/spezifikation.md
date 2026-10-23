@@ -28,7 +28,7 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 | R1 | **Netto je Kategorie** `N(k)` = Summe der Beträge (mit Vorzeichen, R11) aller Transaktionen der Kategorie in M + Summe der Beträge aller Vorkommen wiederkehrender Transaktionen der Kategorie, die in M liegen (R12). Ein Vorkommen zählt mit seinem vollen Betrag; das Ist bildet den echten Geldfluss ab. | `Dashboard_Budget!E39:E59`, `K39:K46`; bewusste Abweichung: keine Verteilung von Jahresbeträgen auf 12 Monate |
 | R2 | **Einnahmen und Ausgaben:** Eine Kategorie mit `N(k) > 0` zählt in M als Einnahme, eine mit `N(k) < 0` als Ausgabe. **Einnahmen gesamt (Ist)** `E` = Summe aller positiven `N(k)`. **Ausgaben-Ist je Kategorie** `I(k)` = `−N(k)`, wenn `N(k) < 0`, sonst 0. **Ausgaben gesamt (Ist)** `A` = Summe aller `I(k)`. Erstattungen (positive Beträge in einer Ausgaben-Kategorie) mindern so das Ist ihrer Kategorie. | `K37` |
 | R3 | **Soll je Kategorie der Gruppen Fixkosten, Flexibel und Sparen:** Maßgeblich ist der Soll-Eintrag der Kategorie mit dem spätesten `validFrom ≤ M` (gilt ab M für alle folgenden Monate, bis ein neuerer Eintrag ihn ersetzt). Gibt es keinen solchen Eintrag oder sind darin beide Werte leer: kein Soll. Innerhalb des Eintrags gilt: Ist ein Euro-Wert gesetzt, gilt er. Sonst, wenn ein Prozentwert gesetzt ist: `E` × Prozent. Sonst: kein Soll. Der Euro-Wert hat immer Vorrang. Ein Soll ist immer ein Ausgabenbudget (Betrag ≥ 0). | `Einstellungen_Budget!F11:F30` |
-| R4 | **Rest-Kategorie "Sonstiges (berechneter Rest)":** Soll = `E` − Summe aller übrigen Soll-Werte. Darf negativ sein (Überplanung). Diese Kategorie ist systemseitig, nicht löschbar, nicht editierbar. | `F31`, `G31` |
+| R4 | **Rest-Kategorie "Sonstiges (berechneter Rest)":** Soll = `E` − Summe aller übrigen Soll-Werte. Darf negativ sein (Überplanung). Diese Kategorie ist systemseitig: nicht löschbar, nicht editierbar und **nicht buchbar**. Transaktionen und wiederkehrende Transaktionen dürfen sie nicht verwenden (400), und sie erscheint in keiner Kategorieauswahl. Ihr Ist ist daher immer 0,00; ihre Differenz zeigt den nicht verplanten Teil der Einnahmen. | `F31`, `G31`; "nicht buchbar" ist neu |
 | R5 | **Differenz je Kategorie** = Soll − `I(k)`. Ohne Soll: leer. | `F39:F59` |
 | R6 | **Gesamt:** Soll gesamt = Summe aller Soll (inkl. Rest, ergibt damit `E`); Ist gesamt = `A`; Differenz gesamt = Soll − Ist | `D37:F37` |
 | R7 | **Überschuss** = `E` − `A` (gleich der Summe aller `N(k)`). Bezeichnung: "Monatlicher Überschuss" bei ≥ 0, sonst "Monatlicher Verlust". | `I17`, `I18` |
@@ -49,12 +49,12 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 ### Must
 - **US1 Kategorien ansehen:** Als Nutzer sehe ich alle Kategorien gruppiert (Fixkosten, Flexible Ausgaben, Sparen & Investieren, Rest, Ohne Gruppe). *AK:* Beim ersten Start sind die Kategorien des Sheets als Seed vorhanden; jeder Kategoriename ist eindeutig.
 - **US2 Soll festlegen:** Als Nutzer lege ich je Kategorie der Gruppen Fixkosten, Flexibel und Sparen ab einem gewählten Monat ein Soll in Euro oder in Prozent fest. Es gilt für diesen und alle folgenden Monate, bis ein neuerer Eintrag es ersetzt; frühere Monate bleiben unverändert. *AK:* R3 und R4 gelten; Prozent zwischen 0 und 100; negativer Euro-Wert wird abgelehnt (400 mit Fehlermeldung); erneutes Speichern für denselben Monat überschreibt den Eintrag dieses Monats; beide Werte leer heißt "kein Soll ab diesem Monat"; für die Rest-Kategorie und Kategorien ohne Gruppe wird ein Soll abgelehnt (409).
-- **US3 Transaktion erfassen:** Als Nutzer erfasse ich Betrag, Beschreibung, Datum und Kategorie und wähle per Umschalter "Ausgabe" oder "Einnahme". *AK:* R11; eingegebener Betrag > 0, gespeichert mit Vorzeichen (API: Betrag ≠ 0); Beschreibung höchstens 100 Zeichen; Kategorie muss existieren; Datum Pflicht.
+- **US3 Transaktion erfassen:** Als Nutzer erfasse ich Betrag, Beschreibung, Datum und Kategorie und wähle per Umschalter "Ausgabe" oder "Einnahme". *AK:* R11; eingegebener Betrag > 0, gespeichert mit Vorzeichen (API: Betrag ≠ 0); Beschreibung höchstens 100 Zeichen; Kategorie muss existieren und darf nicht die Rest-Kategorie sein (R4, sonst 400); Datum Pflicht.
 - **US4 Transaktion ändern/löschen.**
 - **US5 Dashboard:** Als Nutzer wähle ich einen Monat und sehe Soll, Ist, Differenz je Kategorie und Gesamt sowie Überschuss. *AK:* R1 bis R10; Werte entsprechen der Testfixture F1 (Abschnitt 12).
 
 ### Should
-- **US6 Wiederkehrende Transaktionen erfassen:** Als Nutzer lege ich eine wiederkehrende Transaktion an: Betrag mit Umschalter "Ausgabe / Einnahme", Beschreibung, Kategorie, Intervall (monatlich, vierteljährlich, halbjährlich, jährlich), Startdatum (= erste Abbuchung), optional Enddatum. *AK:* R11, R12; Betrag > 0 eingegeben, Beschreibung höchstens 100 Zeichen, Kategorie muss existieren, Startdatum Pflicht, Enddatum nicht vor dem Startdatum (sonst 400); die Vorkommen erscheinen in der Transaktionsliste ihres Monats, als "wiederkehrend" gekennzeichnet, und zählen im Dashboard mit vollem Betrag (R1).
+- **US6 Wiederkehrende Transaktionen erfassen:** Als Nutzer lege ich eine wiederkehrende Transaktion an: Betrag mit Umschalter "Ausgabe / Einnahme", Beschreibung, Kategorie, Intervall (monatlich, vierteljährlich, halbjährlich, jährlich), Startdatum (= erste Abbuchung), optional Enddatum. *AK:* R11, R12; Betrag > 0 eingegeben, Beschreibung höchstens 100 Zeichen, Kategorie muss existieren und darf nicht die Rest-Kategorie sein (R4, sonst 400), Startdatum Pflicht, Enddatum nicht vor dem Startdatum (sonst 400); die Vorkommen erscheinen in der Transaktionsliste ihres Monats, als "wiederkehrend" gekennzeichnet, und zählen im Dashboard mit vollem Betrag (R1).
 - **US6a Wiederkehrende Einträge bearbeiten/löschen:** Als Nutzer bearbeite oder lösche ich ein Vorkommen und wähle "Nur dieser Eintrag" oder "Dieser und alle folgenden". *AK:* R13; frühere Vorkommen bleiben unverändert; ein Datum, das kein Vorkommen der Serie ist, ergibt 404.
 - **US7 Gruppensummen** nach R10 im Dashboard.
 - **US8 Monatsnavigation** (vor/zurück) und Anzeige leerer Monate ohne Fehler.
@@ -74,7 +74,7 @@ Category
   name          String, eindeutig, nicht leer
   group         FIXED | FLEXIBLE | SAVINGS | REMAINDER | null   (null = ohne Gruppe, typisch Einnahmen)
   sortOrder     int
-  system        boolean                (true nur bei Rest-Kategorie)
+  system        boolean                (true nur bei Rest-Kategorie; nicht buchbar, R4)
 
 CategoryTarget                         (Soll ab einem Monat, siehe R3; nur Gruppen FIXED, FLEXIBLE, SAVINGS)
   id            Long, PK
@@ -120,7 +120,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 
 | Methode | Pfad | Zweck | Erfolg |
 |---|---|---|---|
-| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`) | 200, 400 (Monat fehlt/ungültig) |
+| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit `system` und dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`). Das Frontend blendet Kategorien mit `system = true` in Kategorieauswahlen aus. | 200, 400 (Monat fehlt/ungültig) |
 | PUT | `/categories/{id}/target?month=2026-11` | Soll ab diesem Monat, Body `{targetAmount?, targetPercent?}` | 200, 404, 400 (auch Monat fehlt/ungültig), 409 (Rest-Kategorie und Kategorien ohne Gruppe) |
 | GET | `/transactions?month=2026-10` | Einträge eines Monats: Transaktionen (`kind: "SINGLE"`, `id`) und Vorkommen wiederkehrender Transaktionen (`kind: "RECURRING"`, `recurringId`, `occurrenceDate`), je mit `amount` (mit Vorzeichen), `description`, `date`, Kategorie | 200, 400 (Monat fehlt/ungültig) |
 | POST | `/transactions` | Anlegen, Body `{amount, description, date, categoryId}` | 201 + Location, 400 |
@@ -184,7 +184,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   9. Vorzeichen (R2, R9, R10, R11): Erstattung mindert das Ist ihrer Kategorie; eine Kategorie mit Gruppe und positivem Netto zählt als Einnahme; Ausgaben einer Kategorie ohne Gruppe zählen zur Gruppe Rest; Gruppensummen ergeben `A`
 - **Unit:** `RecurrenceSchedule` (R12): je Intervall die richtigen Vorkommen; Tag 31 und 29.02. auf den Monatsletzten; Enddatum einschließlich; Ausnahmen werden ausgelassen; kein Vorkommen vor dem Startdatum.
 - **Unit:** `ReserveCalculator` (R14): Ø-Kosten über alle Intervalle, Rücklage nur für Intervall > 1, Einnahmen-Serien und inaktive Serien zählen nicht, Vorschau über 12 Monate mit Ausnahmen.
-- **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400, auch Betrag 0); Rest-Kategorie nicht änderbar (409); Serie anlegen → Vorkommen in `/transactions` und `/dashboard`; R13 "Nur dieser Eintrag" (Ausnahme + Ersatz-Transaktion) und "Dieser und alle folgenden" (erstes Vorkommen: Serie geändert; späteres Vorkommen: Serie geteilt, frühere Monate unverändert); unbekanntes Vorkommen → 404.
+- **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400, auch Betrag 0); Rest-Kategorie nicht änderbar (409) und nicht buchbar (400 bei Transaktion und wiederkehrender Transaktion, auch beim Ändern); Serie anlegen → Vorkommen in `/transactions` und `/dashboard`; R13 "Nur dieser Eintrag" (Ausnahme + Ersatz-Transaktion) und "Dieser und alle folgenden" (erstes Vorkommen: Serie geändert; späteres Vorkommen: Serie geteilt, frühere Monate unverändert); unbekanntes Vorkommen → 404.
 - **Frontend:** 2 bis 3 Vitest/Testing-Library-Tests (Formular-Validierung mit Umschalter, Dashboard rendert Werte, Dialog für Bearbeiten eines Vorkommens).
 - **Referenzabgleich:** Eine Testfixture mit erfundenen Zahlen (Abschnitt 12).
 
@@ -238,6 +238,7 @@ Geklärt am 23.10.2026:
 8. **Bearbeiten von Serien durch Teilen:** "Dieser und alle folgenden" beendet die alte Serie vor dem gewählten Vorkommen und legt eine neue an; "Nur dieser Eintrag" speichert eine Ausnahme und bei Bedarf eine normale Transaktion (R13). Vorkommen werden berechnet, nicht gespeichert. Rückwirkendes Ändern aller Vorkommen ist bewusst nicht möglich, damit vergangene Monate stimmen.
 9. **Vorzeichen statt Kategorietyp:** Das Vorzeichen des Betrags entscheidet über Einnahme oder Ausgabe (R11); Kategorien haben keinen Typ mehr und eindeutige Namen. Einnahmen und Ausgaben werden je Kategorie saldiert (R2), damit Erstattungen das Ist ihrer Kategorie mindern und die Gruppensummen die Ausgaben ergeben. Gegen vergessene Minuszeichen setzt im Formular ein Umschalter das Vorzeichen.
 10. **Keine Datenmigration:** Daten gibt es nur in lokalen Entwicklungsdatenbanken mit erfundenen Werten. Nach dem Umbau wird `backend/data/` gelöscht und neu befüllt.
+11. **Rest-Kategorie nicht buchbar:** "Sonstiges (berechneter Rest)" ist eine reine Rechengröße (R4): Sie zeigt, welcher Teil der Einnahmen nicht verplant ist. Buchungen darauf werden abgelehnt (400), damit Ausgaben immer in einer echten Kategorie landen.
 
 ## 12. Testfixture F1 und Sonderfall Einnahmen = 0
 
@@ -258,7 +259,7 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 | Investitionen | SAVINGS | 20 % |
 | Sonstiges (berechneter Rest) | REMAINDER | berechnet (R4) |
 
-**Transaktionen im Oktober:** Gehalt/Lohn (netto) +3000,00 · Nebenjob +200,00 · Nebenkosten −200,00 und −140,00 · Lebensmittel −120,30, −200,20 und −130,00 · Erstattung Lebensmittel +30,00 · Mobilität −45,99 · Investitionen −640,00 · Sonstiges (berechneter Rest) −20,00
+**Transaktionen im Oktober:** Gehalt/Lohn (netto) +3000,00 · Nebenjob +200,00 · Nebenkosten −200,00 und −140,00 · Lebensmittel −120,30, −200,20 und −130,00 · Erstattung Lebensmittel +30,00 · Mobilität −45,99 · Investitionen −640,00 · Geschenke −20,00 (ohne Soll)
 
 **Wiederkehrende Transaktionen:**
 - Wohnen −900,00, monatlich ab 2026-01-01, unbefristet (Vorkommen 2026-10-01)
@@ -277,15 +278,17 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 | Mobilität | 60,00 | 45,99 | 14,01 |
 | Lebensmittel | 400,00 | 420,50 | -20,50 |
 | Freizeit | 160,00 | 0,00 | 160,00 |
+| Geschenke | – | 20,00 | – |
 | Investitionen | 640,00 | 640,00 | 0,00 |
-| Sonstiges (berechneter Rest) | 620,00 | 20,00 | 600,00 |
+| Sonstiges (berechneter Rest) | 620,00 | 0,00 | 620,00 |
 | **Gesamt Ausgaben** | **3200,00** | **2606,49** | **593,51** |
 
 - Überschuss: 593,51 ("Monatlicher Überschuss") · Sparquote (R8): 593,51 / 3200,00 = 0,1855
 - Einnahmenanteile: Gehalt/Lohn (netto) 0,9375 · Nebenjob 0,0625
-- Gruppen (Soll / Ist): FIXED 1380,00 / 1525,99 · FLEXIBLE 560,00 / 420,50 · SAVINGS 640,00 / 640,00 · REMAINDER 620,00 / 20,00
+- Gruppen (Soll / Ist): FIXED 1380,00 / 1525,99 · FLEXIBLE 560,00 / 440,50 · SAVINGS 640,00 / 640,00 · REMAINDER 620,00 / 0,00
 - Lebensmittel: Netto −420,50, die Erstattung zählt nicht als Einnahme (R2)
-- Kategorien ohne Soll (z. B. Kredite): Soll und Differenz sind `null`, Ist ist 0,00.
+- Kategorien ohne Soll (z. B. Geschenke, Kredite): Soll und Differenz sind `null`, Ist ist ihr Ausgaben-Ist (Geschenke 20,00, Kredite 0,00). Deshalb ergibt die Summe der Differenzen je Kategorie (613,51) nicht die Differenz gesamt (593,51); maßgeblich ist R6.
+- Die Rest-Kategorie ist nicht buchbar (R4), ihr Ist ist 0,00.
 
 **Erwartete Ergebnisse Auswertung (R14):**
 - Aktive Ausgaben-Serien: Wohnen 900,00 / 1 = 900,00 · Versicherungen 240,00 / 12 = 20,00 · Freizeit 15,00 / 1 = 15,00
@@ -298,12 +301,12 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 
 ## 13. Ausbau ab 23.10.2026
 
-Umsetzung der Entscheidungen 6 bis 10. Jedes Arbeitspaket ist ein eigener Branch und PR; Berechnungen mit Tests zuerst.
+Umsetzung der Entscheidungen 6 bis 11. Jedes Arbeitspaket ist ein eigener Branch und PR; Berechnungen mit Tests zuerst.
 
 | AP | Inhalt | Ergebnis |
 |---|---|---|
 | 9 | Spezifikation und `CLAUDE.md` anpassen (dieser Stand) | Spec-PR |
-| 10 | Vorzeichen statt Kategorietyp (R2, R5 bis R11, US1 bis US3): Datenmodell, Seed, Validierung, `DashboardCalculator`, Formular-Umschalter | Fixture F1 ohne wiederkehrende Transaktionen grün |
+| 10 | Vorzeichen statt Kategorietyp (R2, R4 bis R11, US1 bis US3): Datenmodell, Seed, Validierung inkl. nicht buchbarer Rest-Kategorie, `DashboardCalculator`, Formular-Umschalter | Fixture F1 ohne wiederkehrende Transaktionen grün |
 | 11 | Wiederkehrende Transaktionen (R12, R13, US6, US6a): `RecurrenceSchedule`, Serien-API, Teilen und Ausnahmen, Vorkommen in `/transactions` und `/dashboard`, Seiten *Transaktionen* und *Wiederkehrend*; `YearlyTransaction` entfernen | Fixture F1 Dashboard grün |
 | 12 | Auswertung Rücklagen (R14, US13): `ReserveCalculator`, `/reserves`, Seite *Auswertung* | Fixture F1 Auswertung grün |
 | 13 | README "Learnings und Entscheidungen" und Interview-Stichpunkte (AP 8) | README |
