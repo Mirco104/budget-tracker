@@ -1,7 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
-import io.github.mirco104.budget.category.Category;
-import io.github.mirco104.budget.category.CategoryRepository;
+import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import java.math.BigDecimal;
@@ -15,11 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
 
-    public TransactionService(TransactionRepository transactionRepository, CategoryRepository categoryRepository) {
+    public TransactionService(TransactionRepository transactionRepository, CategoryService categoryService) {
         this.transactionRepository = transactionRepository;
-        this.categoryRepository = categoryRepository;
+        this.categoryService = categoryService;
     }
 
     // A transaction belongs to the month of its date (spec 11.3)
@@ -38,7 +37,7 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                findCategory(request.categoryId()));
+                categoryService.findBookable(request.categoryId()));
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
@@ -50,7 +49,7 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                findCategory(request.categoryId()));
+                categoryService.findBookable(request.categoryId()));
         return TransactionResponse.from(transaction);
     }
 
@@ -69,15 +68,5 @@ public class TransactionService {
     private Transaction findTransaction(long id) {
         return transactionRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Transaktion " + id + " wurde nicht gefunden."));
-    }
-
-    // R4: the remainder category is calculated only and not bookable
-    private Category findCategory(long categoryId) {
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new InvalidFieldException("categoryId", "Die Kategorie existiert nicht."));
-        if (category.isSystem()) {
-            throw new InvalidFieldException("categoryId", "Auf die Rest-Kategorie kann nicht gebucht werden.");
-        }
-        return category;
     }
 }
