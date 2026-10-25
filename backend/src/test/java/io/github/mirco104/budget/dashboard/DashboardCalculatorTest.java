@@ -127,23 +127,25 @@ class DashboardCalculatorTest {
         assertThat(result.surplus()).isEqualByComparingTo("850.00");
     }
 
-    // --- Case 5: income = 0 -> no division by zero (R8, R9) ---
+    // --- Case 5: income = 0 -> no division by zero, empty shares (R8, R9) ---
 
     @Test
-    void zeroIncomeAndZeroExpensesGiveEmptySavingsRateAndZeroShares() {
+    void zeroIncomeAndZeroExpensesGiveEmptySharesAndNoIncomeLines() {
         DashboardResponse result = calculate(
                 List.of(category(LEBENSMITTEL, FLEXIBLE, null, "0.15"), ungrouped(GEHALT),
                         ungrouped(NEBENJOB)),
                 List.of());
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("0.00");
+        assertThat(result.incomeTotalShare()).isNull();
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("0.00");
+        assertThat(category(result, LEBENSMITTEL).targetShare()).isNull();
         assertThat(result.unplanned()).isEqualByComparingTo("0.00");
-        assertThat(result.savingsRate()).isNull();
         assertThat(result.surplus()).isEqualByComparingTo("0.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
-        assertThat(result.income()).extracting(IncomeLine::share)
-                .allSatisfy(share -> assertThat(share).isEqualByComparingTo("0"));
+        assertThat(result.surplusShare()).isNull();
+        assertThat(result.expenses().actualShare()).isNull();
+        assertThat(result.income()).isEmpty();
     }
 
     @Test
@@ -158,9 +160,10 @@ class DashboardCalculatorTest {
         assertThat(result.unplanned()).isEqualByComparingTo("-900.00");
         assertThat(result.surplus()).isEqualByComparingTo("-100.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
-        assertThat(result.savingsRate()).isNull();
-        assertThat(result.income()).singleElement()
-                .satisfies(line -> assertThat(line.share()).isEqualByComparingTo("0"));
+        assertThat(result.surplusShare()).isNull();
+        assertThat(category(result, WOHNEN).actualShare()).isNull();
+        assertThat(group(result, FIXED).actualShare()).isNull();
+        assertThat(result.income()).isEmpty();
     }
 
     // --- Case 7: negative surplus -> "Monatlicher Verlust" (R7, R8) ---
@@ -173,29 +176,55 @@ class DashboardCalculatorTest {
 
         assertThat(result.surplus()).isEqualByComparingTo("-250.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
-        assertThat(result.savingsRate()).isEqualByComparingTo("-0.2500");
+        assertThat(result.surplusShare()).isEqualByComparingTo("-0.2500");
     }
 
-    // --- Savings rate = surplus / income (R8) ---
+    // --- Shares of income (R8) ---
 
     @Test
-    void savingsRateStaysBelowHundredPercentForSmallExpenses() {
+    void surplusShareIsRoundedHalfUp() {
         DashboardResponse result = calculate(
                 List.of(category(LEBENSMITTEL, FLEXIBLE, null, null), ungrouped(GEHALT)),
                 List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "-62.83")));
 
         // 1937.17 / 2000 = 0.968585 -> 0.9686
         assertThat(result.surplus()).isEqualByComparingTo("1937.17");
-        assertThat(result.savingsRate()).isEqualByComparingTo("0.9686");
+        assertThat(result.surplusShare()).isEqualByComparingTo("0.9686");
     }
 
     @Test
-    void savingsRateIsHundredPercentWithoutExpenses() {
+    void incomeTotalAndSurplusAreHundredPercentWithoutExpenses() {
         DashboardResponse result = calculate(
                 List.of(ungrouped(GEHALT)),
                 List.of(booking(GEHALT, "2000")));
 
-        assertThat(result.savingsRate()).isEqualByComparingTo("1.0000");
+        assertThat(result.incomeTotalShare()).isEqualByComparingTo("1.0000");
+        assertThat(result.surplusShare()).isEqualByComparingTo("1.0000");
+    }
+
+    @Test
+    void everyAmountComesWithItsShareOfIncome() {
+        DashboardResponse result = calculate(
+                List.of(category(WOHNEN, FIXED, "800", null), category(FREIZEIT, FLEXIBLE, null, null),
+                        ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-750"), booking(FREIZEIT, "-50")));
+
+        CategoryLine wohnen = category(result, WOHNEN);
+        assertThat(wohnen.targetShare()).isEqualByComparingTo("0.4000");
+        assertThat(wohnen.actualShare()).isEqualByComparingTo("0.3750");
+        assertThat(wohnen.differenceShare()).isEqualByComparingTo("0.0250");
+
+        CategoryLine freizeit = category(result, FREIZEIT);
+        assertThat(freizeit.targetShare()).isNull();
+        assertThat(freizeit.actualShare()).isEqualByComparingTo("0.0250");
+        assertThat(freizeit.differenceShare()).isNull();
+
+        assertThat(group(result, FLEXIBLE).targetShare()).isEqualByComparingTo("0");
+        assertThat(group(result, FLEXIBLE).differenceShare()).isEqualByComparingTo("-0.0250");
+        assertThat(result.expenses().targetShare()).isEqualByComparingTo("0.4000");
+        assertThat(result.expenses().actualShare()).isEqualByComparingTo("0.4000");
+        assertThat(result.expenses().differenceShare()).isEqualByComparingTo("0");
+        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("1.0000");
     }
 
     // --- Case 9: the sign decides (R2, R9, R10, R11) ---
@@ -234,32 +263,33 @@ class DashboardCalculatorTest {
         assertThat(result.categories()).extracting(CategoryLine::id).containsExactly(WOHNEN, NEBENJOB);
         assertLine(result, NEBENJOB, null, "50.00", null);
         assertThat(category(result, NEBENJOB).group()).isNull();
-        assertThat(result.groups()).extracting(GroupLine::group).containsExactly(FIXED, FLEXIBLE, SAVINGS, null);
+        assertThat(result.groups()).extracting(GroupLine::group).containsExactly(FIXED, null);
         assertGroup(result, null, "0.00", "50.00", "-50.00");
         assertThat(result.expenses().actual()).isEqualByComparingTo("850.00");
         assertThat(result.surplus()).isEqualByComparingTo("1150.00");
     }
 
     @Test
-    void incomeListShowsAllUngroupedCategoriesEvenWithoutIncome() {
+    void incomeListShowsOnlyCategoriesWithPositiveNet() {
         DashboardResponse result = calculate(
                 List.of(ungrouped(GEHALT), ungrouped(NEBENJOB)),
                 List.of(booking(GEHALT, "2000"), booking(NEBENJOB, "-50")));
 
-        assertThat(result.income()).extracting(IncomeLine::id).containsExactly(GEHALT, NEBENJOB);
-        assertThat(income(result, NEBENJOB).actual()).isEqualByComparingTo("-50.00");
-        assertThat(income(result, NEBENJOB).share()).isEqualByComparingTo("0");
+        assertThat(result.income()).extracting(IncomeLine::id).containsExactly(GEHALT);
         assertThat(income(result, GEHALT).share()).isEqualByComparingTo("1.0000");
     }
 
+    // --- Budget table rows (R10) ---
+
     @Test
-    void ungroupedCategoryWithoutExpenseIsNotInExpenseList() {
+    void categoryWithoutTargetAndExpenseIsNotListed() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, FIXED, null, null), ungrouped(GEHALT), ungrouped(NEBENJOB)),
+                List.of(category(WOHNEN, FIXED, "800", null), category(FREIZEIT, FLEXIBLE, null, null),
+                        ungrouped(GEHALT), ungrouped(NEBENJOB)),
                 List.of(booking(GEHALT, "2000")));
 
         assertThat(result.categories()).extracting(CategoryLine::id).containsExactly(WOHNEN);
-        assertThat(result.groups()).extracting(GroupLine::group).containsExactly(FIXED, FLEXIBLE, SAVINGS);
+        assertThat(result.groups()).extracting(GroupLine::group).containsExactly(FIXED);
     }
 
     // --- Further rules ---
@@ -291,9 +321,9 @@ class DashboardCalculatorTest {
     @Test
     void keepsInputOrderInExpenseAndIncomeLines() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, FIXED, null, null), category(FREIZEIT, FLEXIBLE, null, null),
+                List.of(category(WOHNEN, FIXED, "800", null), category(FREIZEIT, FLEXIBLE, "100", null),
                         ungrouped(GEHALT), ungrouped(NEBENJOB)),
-                List.of());
+                List.of(booking(NEBENJOB, "200"), booking(GEHALT, "2000")));
 
         assertThat(result.month()).isEqualTo("2026-10");
         assertThat(result.categories()).extracting(CategoryLine::id).containsExactly(WOHNEN, FREIZEIT);
@@ -339,14 +369,16 @@ class DashboardCalculatorTest {
                 List.of(booking(FREIZEIT, "-75.10")));
 
         assertGroup(result, FLEXIBLE, "0.00", "75.10", "-75.10");
+        assertThat(group(result, FLEXIBLE).target().scale()).isEqualTo(2);
     }
 
     @Test
-    void groupWithoutCategoriesIsShownWithZeros() {
-        DashboardResponse result = calculate(List.of(ungrouped(GEHALT)), List.of());
+    void groupWithoutListedCategoriesIsLeftOut() {
+        DashboardResponse result = calculate(
+                List.of(category(FREIZEIT, FLEXIBLE, null, null), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000")));
 
-        assertGroup(result, SAVINGS, "0.00", "0.00", "0.00");
-        assertThat(group(result, SAVINGS).target().scale()).isEqualTo(2);
+        assertThat(result.groups()).isEmpty();
     }
 
     @Test
@@ -409,7 +441,6 @@ class DashboardCalculatorTest {
         assertLine(result, NEBENKOSTEN, "320.00", "340.00", "-20.00");
         assertLine(result, VERSICHERUNGEN, "100.00", "240.00", "-140.00");
         assertLine(result, MOBILITAET, "60.00", "45.99", "14.01");
-        assertLine(result, KREDITE, null, "0.00", null);
         assertLine(result, LEBENSMITTEL, "400.00", "420.50", "-20.50");
         assertLine(result, FREIZEIT, "160.00", "0.00", "160.00");
         assertLine(result, GESCHENKE, null, "20.00", null);
@@ -422,7 +453,14 @@ class DashboardCalculatorTest {
 
         assertThat(result.surplus()).isEqualByComparingTo("593.51");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
-        assertThat(result.savingsRate()).isEqualByComparingTo("0.1855");
+        assertThat(result.surplusShare()).isEqualByComparingTo("0.1855");
+
+        assertThat(result.categories()).extracting(CategoryLine::id).doesNotContain(KREDITE);
+        assertThat(result.expenses().targetShare()).isEqualByComparingTo("0.8063");
+        assertThat(result.expenses().actualShare()).isEqualByComparingTo("0.8145");
+        assertThat(result.expenses().differenceShare()).isEqualByComparingTo("-0.0083");
+        assertThat(category(result, WOHNEN).targetShare()).isEqualByComparingTo("0.2813");
+        assertThat(category(result, WOHNEN).actualShare()).isEqualByComparingTo("0.2813");
 
         assertThat(result.income()).extracting(IncomeLine::id, IncomeLine::name).containsExactly(
                 tuple(GEHALT, "Kategorie " + GEHALT),
