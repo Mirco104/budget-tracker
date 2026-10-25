@@ -4,13 +4,13 @@ Stand: 23.10.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" (nu
 
 ## 1. Ziel und Scope
 
-**Ziel:** Eine schlanke Web-App, die das Budget-Blatt des Sheets abbildet: Soll-Verteilung festlegen, Ausgaben und Einnahmen erfassen, Dashboard mit Soll/Ist/Differenz. Das Projekt zeigt vor allem den Prozess: Spezifikation → Plan → Umsetzung mit Claude Code → Review → Tests → CI.
+**Ziel:** Eine schlanke Web-App, die das Budget-Blatt des Sheets abbildet: Soll-Verteilung festlegen, Ausgaben und Einnahmen erfassen, Dashboard mit Soll/Ist/Abweichung. Das Projekt zeigt vor allem den Prozess: Spezifikation → Plan → Umsetzung mit Claude Code → Review → Tests → CI.
 
 **Im MVP (drin):**
 - Kategorien mit Soll-Werten (Euro oder Prozent der Einnahmen)
 - Transaktionen erfassen (Einnahmen positiv, Ausgaben negativ, mit Datum)
 - Wiederkehrende Transaktionen (monatlich, vierteljährlich, halbjährlich, jährlich), die im Monat ihrer Abbuchung mit vollem Betrag zählen
-- Dashboard pro Monat: Soll, Ist, Differenz, Überschuss, Einnahmenanteile
+- Dashboard pro Monat: Soll, Ist, Abweichung zum Soll, nicht verplante Einnahmen, Überschuss, Einnahmenanteile
 - Auswertung: durchschnittliche monatliche Kosten und nötige Rücklagen für wiederkehrende Ausgaben
 
 **Bewusst draußen (im README als Ausblick):**
@@ -28,13 +28,13 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 | R1 | **Netto je Kategorie** `N(k)` = Summe der Beträge (mit Vorzeichen, R11) aller Transaktionen der Kategorie in M + Summe der Beträge aller Vorkommen wiederkehrender Transaktionen der Kategorie, die in M liegen (R12). Ein Vorkommen zählt mit seinem vollen Betrag; das Ist bildet den echten Geldfluss ab. | `Dashboard_Budget!E39:E59`, `K39:K46`; bewusste Abweichung: keine Verteilung von Jahresbeträgen auf 12 Monate |
 | R2 | **Einnahmen und Ausgaben:** Eine Kategorie mit `N(k) > 0` zählt in M als Einnahme, eine mit `N(k) < 0` als Ausgabe. **Einnahmen gesamt (Ist)** `E` = Summe aller positiven `N(k)`. **Ausgaben-Ist je Kategorie** `I(k)` = `−N(k)`, wenn `N(k) < 0`, sonst 0. **Ausgaben gesamt (Ist)** `A` = Summe aller `I(k)`. Erstattungen (positive Beträge in einer Ausgaben-Kategorie) mindern so das Ist ihrer Kategorie. | `K37` |
 | R3 | **Soll je Kategorie der Gruppen Fixkosten, Flexibel und Sparen:** Maßgeblich ist der Soll-Eintrag der Kategorie mit dem spätesten `validFrom ≤ M` (gilt ab M für alle folgenden Monate, bis ein neuerer Eintrag ihn ersetzt). Gibt es keinen solchen Eintrag oder sind darin beide Werte leer: kein Soll. Innerhalb des Eintrags gilt: Ist ein Euro-Wert gesetzt, gilt er. Sonst, wenn ein Prozentwert gesetzt ist: `E` × Prozent. Sonst: kein Soll. Der Euro-Wert hat immer Vorrang. Ein Soll ist immer ein Ausgabenbudget (Betrag ≥ 0). | `Einstellungen_Budget!F11:F30` |
-| R4 | **Rest-Kategorie "Sonstiges (berechneter Rest)":** Soll = `E` − Summe aller übrigen Soll-Werte. Darf negativ sein (Überplanung). Diese Kategorie ist systemseitig: nicht löschbar, nicht editierbar und **nicht buchbar**. Transaktionen und wiederkehrende Transaktionen dürfen sie nicht verwenden (400), und sie erscheint in keiner Kategorieauswahl. Ihr Ist ist daher immer 0,00; ihre Differenz zeigt den nicht verplanten Teil der Einnahmen. | `F31`, `G31`; "nicht buchbar" ist neu |
-| R5 | **Differenz je Kategorie** = Soll − `I(k)`. Ohne Soll: leer. | `F39:F59` |
-| R6 | **Gesamt:** Soll gesamt = Summe aller Soll (inkl. Rest, ergibt damit `E`); Ist gesamt = `A`; Differenz gesamt = Soll − Ist | `D37:F37` |
-| R7 | **Überschuss** = `E` − `A` (gleich der Summe aller `N(k)`). Bezeichnung: "Monatlicher Überschuss" bei ≥ 0, sonst "Monatlicher Verlust". | `I17`, `I18` |
+| R4 | **Nicht verplant** = `E` − `P`, wobei `P` die Summe aller Soll-Werte (R3) ist. Zeigt, welcher Teil der Einnahmen kein Budget hat. Darf negativ sein (Überplanung). Eine reine Rechengröße im Dashboard, keine Kategorie. | `F31`, `G31`; bewusste Abweichung: im Sheet eine berechnete Rest-Kategorie, die im Soll gesamt mitzählte |
+| R5 | **Abweichung zum Soll je Kategorie** = Soll − `I(k)`. Positiv heißt unter Budget, negativ über Budget. Ohne Soll: leer. | `F39:F59` |
+| R6 | **Gesamt:** Soll gesamt = `P` (ohne nicht verplante Einnahmen); Ist gesamt = `A`; Abweichung zum Soll gesamt = `P` − `A` | `D37:F37`; bewusste Abweichung: im Sheet war Soll gesamt immer `E` und die Differenz damit gleich dem Überschuss |
+| R7 | **Überschuss** = `E` − `A` (gleich der Summe aller `N(k)`, und gleich Nicht verplant + Abweichung zum Soll gesamt). Bezeichnung: "Monatlicher Überschuss" bei ≥ 0, sonst "Monatlicher Verlust". | `I17`, `I18` |
 | R8 | **Sparquote** = Überschuss (R7) / `E` als Prozent; bei `E` = 0: leer. Bei Verlust negativ. Wird im Dashboard beim monatlichen Überschuss mit angezeigt. | bewusste Abweichung vom Sheet (`I15`, `I16`: Einnahmen / Ausgaben − 1, wächst bei kleinen Ausgaben unbegrenzt) |
 | R9 | **Einnahmenanteil** je Kategorie mit `N(k) > 0` = `N(k)` / `E`. Die Einnahmen-Liste zeigt alle Kategorien ohne Gruppe (auch mit 0,00) sowie jede Kategorie mit Gruppe, deren `N(k) > 0` ist; Anteil bei `N(k) ≤ 0`: 0 %. | `L39:L46` |
-| R10 | **Gruppen:** Kategorien gehören zu Fixkosten, Flexible Ausgaben, Sparen & Investieren, Rest oder zu keiner Gruppe (typisch für Einnahmen). Zu den ersten drei Gruppen zeigt das Dashboard je eine Empfehlung als Anteil an den Einnahmen: Fixkosten ca. 50 %, Flexible Ausgaben ca. 30 %, Sparen & Investieren ca. 20 % (50-30-20-Regel). Alle drei Werte sind reine Empfehlungen: Sie werden nur angezeigt, nicht berechnet, nicht geprüft und nicht als Soll verwendet. Gruppensummen für Soll und Ist (`I(k)`) werden angezeigt. Ausgaben von Kategorien ohne Gruppe zählen zur Gruppe Rest, damit die Gruppensummen `A` ergeben. Die Ausgaben-Liste zeigt alle Kategorien mit Gruppe sowie jede Kategorie ohne Gruppe, deren `N(k) < 0` ist. | `Einstellungen_Budget!H11:J31` |
+| R10 | **Gruppen:** Kategorien gehören zu Fixkosten, Flexible Ausgaben, Sparen & Investieren oder zu keiner Gruppe (typisch für Einnahmen). Zu den drei Gruppen zeigt das Dashboard je eine Empfehlung als Anteil an den Einnahmen: Fixkosten ca. 50 %, Flexible Ausgaben ca. 30 %, Sparen & Investieren ca. 20 % (50-30-20-Regel). Alle drei Werte sind reine Empfehlungen: Sie werden nur angezeigt, nicht berechnet, nicht geprüft und nicht als Soll verwendet. Gruppensummen für Soll und Ist (`I(k)`) werden angezeigt. Haben Kategorien ohne Gruppe Ausgaben, erscheint zusätzlich die Zeile "Ohne Gruppe" (Soll 0, Abweichung = −Ist), damit die Gruppensummen `P` und `A` ergeben. Die Ausgaben-Liste zeigt alle Kategorien mit Gruppe sowie jede Kategorie ohne Gruppe, deren `N(k) < 0` ist. | `Einstellungen_Budget!H11:J31` |
 | R11 | **Vorzeichen:** Das Vorzeichen des Betrags entscheidet: positiv = Einnahme, negativ = Ausgabe. Ein Betrag von 0 ist ungültig. Kategorien haben keinen Typ. Im Formular wird der Betrag immer positiv eingegeben; ein Umschalter "Ausgabe / Einnahme" (Vorgabe: Ausgabe) setzt das Vorzeichen. | bewusste Abweichung vom Sheet (dort entschied die Kategorie) |
 | R12 | **Vorkommen wiederkehrender Transaktionen:** Eine wiederkehrende Transaktion hat ein Intervall (monatlich = 1, vierteljährlich = 3, halbjährlich = 6, jährlich = 12 Monate), ein Startdatum und optional ein Enddatum (einschließlich). Ihre Vorkommen liegen am Startdatum plus k × Intervall Monate (k = 0, 1, 2, …), jeweils am Tag des Startdatums; hat ein Monat diesen Tag nicht, am letzten Tag des Monats (31.01. → 28.02. bzw. 29.02., 30.04.; 29.02. → 28.02. in Nicht-Schaltjahren). Ein Vorkommen zählt, wenn es nicht nach dem Enddatum liegt und für sein Datum keine Ausnahme (R13) existiert. Vorkommen werden berechnet, nicht als Transaktionen gespeichert. | neu, nicht im Sheet |
 | R13 | **Vorkommen bearbeiten oder löschen:** Der Nutzer wählt "Nur dieser Eintrag" oder "Dieser und alle folgenden". Sei `d` das gewählte Vorkommen. **Nur dieser Eintrag:** Für `d` wird eine Ausnahme gespeichert, das Vorkommen zählt nicht mehr. Beim Bearbeiten wird zusätzlich eine normale Transaktion mit den geänderten Werten angelegt (Datum frei wählbar, Vorschlag `d`). **Dieser und alle folgenden:** Ist `d` das erste Vorkommen, wird die Serie selbst geändert bzw. gelöscht (beim Löschen samt ihrer Ausnahmen). Sonst wird das Enddatum der Serie auf den Tag vor `d` gesetzt, Ausnahmen ab `d` entfallen, und beim Bearbeiten entsteht eine neue Serie mit den geänderten Werten und derselben `seriesId`; ihr Startdatum (Vorschlag `d`) muss nach dem vorherigen Vorkommen liegen. Vergangene Vorkommen werden nie über die Serie rückwirkend geändert; eine Option "Alle Einträge" gibt es nicht. | neu, nicht im Sheet |
@@ -47,14 +47,14 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 ## 3. User Stories und Akzeptanzkriterien
 
 ### Must
-- **US1 Kategorien ansehen:** Als Nutzer sehe ich alle Kategorien gruppiert (Fixkosten, Flexible Ausgaben, Sparen & Investieren, Rest, Ohne Gruppe). *AK:* Beim ersten Start sind die Kategorien des Sheets als Seed vorhanden; jeder Kategoriename ist eindeutig.
-- **US2 Soll festlegen:** Als Nutzer lege ich je Kategorie der Gruppen Fixkosten, Flexibel und Sparen ab einem gewählten Monat ein Soll in Euro oder in Prozent fest. Es gilt für diesen und alle folgenden Monate, bis ein neuerer Eintrag es ersetzt; frühere Monate bleiben unverändert. *AK:* R3 und R4 gelten; Prozent zwischen 0 und 100; negativer Euro-Wert wird abgelehnt (400 mit Fehlermeldung); erneutes Speichern für denselben Monat überschreibt den Eintrag dieses Monats; beide Werte leer heißt "kein Soll ab diesem Monat"; für die Rest-Kategorie und Kategorien ohne Gruppe wird ein Soll abgelehnt (409).
-- **US3 Transaktion erfassen:** Als Nutzer erfasse ich Betrag, Beschreibung, Datum und Kategorie und wähle per Umschalter "Ausgabe" oder "Einnahme". *AK:* R11; eingegebener Betrag > 0, gespeichert mit Vorzeichen (API: Betrag ≠ 0); Beschreibung höchstens 100 Zeichen; Kategorie muss existieren und darf nicht die Rest-Kategorie sein (R4, sonst 400); Datum Pflicht.
+- **US1 Kategorien ansehen:** Als Nutzer sehe ich alle Kategorien gruppiert (Fixkosten, Flexible Ausgaben, Sparen & Investieren, Ohne Gruppe). *AK:* Beim ersten Start sind die Kategorien des Sheets als Seed vorhanden; jeder Kategoriename ist eindeutig.
+- **US2 Soll festlegen:** Als Nutzer lege ich je Kategorie der Gruppen Fixkosten, Flexibel und Sparen ab einem gewählten Monat ein Soll in Euro oder in Prozent fest. Es gilt für diesen und alle folgenden Monate, bis ein neuerer Eintrag es ersetzt; frühere Monate bleiben unverändert. *AK:* R3 gilt; Prozent zwischen 0 und 100; negativer Euro-Wert wird abgelehnt (400 mit Fehlermeldung); erneutes Speichern für denselben Monat überschreibt den Eintrag dieses Monats; beide Werte leer heißt "kein Soll ab diesem Monat"; für Kategorien ohne Gruppe wird ein Soll abgelehnt (409).
+- **US3 Transaktion erfassen:** Als Nutzer erfasse ich Betrag, Beschreibung, Datum und Kategorie und wähle per Umschalter "Ausgabe" oder "Einnahme". *AK:* R11; eingegebener Betrag > 0, gespeichert mit Vorzeichen (API: Betrag ≠ 0); Beschreibung höchstens 100 Zeichen; Kategorie muss existieren (sonst 400); Datum Pflicht.
 - **US4 Transaktion ändern/löschen.**
-- **US5 Dashboard:** Als Nutzer wähle ich einen Monat und sehe Soll, Ist, Differenz je Kategorie und Gesamt sowie Überschuss. *AK:* R1 bis R10; Werte entsprechen der Testfixture F1 (Abschnitt 12).
+- **US5 Dashboard:** Als Nutzer wähle ich einen Monat und sehe Soll, Ist, Abweichung zum Soll je Kategorie und Gesamt, die nicht verplanten Einnahmen sowie den Überschuss. *AK:* R1 bis R10; Werte entsprechen der Testfixture F1 (Abschnitt 12).
 
 ### Should
-- **US6 Wiederkehrende Transaktionen erfassen:** Als Nutzer lege ich eine wiederkehrende Transaktion an: Betrag mit Umschalter "Ausgabe / Einnahme", Beschreibung, Kategorie, Intervall (monatlich, vierteljährlich, halbjährlich, jährlich), Startdatum (= erste Abbuchung), optional Enddatum. *AK:* R11, R12; Betrag > 0 eingegeben, Beschreibung höchstens 100 Zeichen, Kategorie muss existieren und darf nicht die Rest-Kategorie sein (R4, sonst 400), Startdatum Pflicht, Enddatum nicht vor dem Startdatum (sonst 400); die Vorkommen erscheinen in der Transaktionsliste ihres Monats, als "wiederkehrend" gekennzeichnet, und zählen im Dashboard mit vollem Betrag (R1).
+- **US6 Wiederkehrende Transaktionen erfassen:** Als Nutzer lege ich eine wiederkehrende Transaktion an: Betrag mit Umschalter "Ausgabe / Einnahme", Beschreibung, Kategorie, Intervall (monatlich, vierteljährlich, halbjährlich, jährlich), Startdatum (= erste Abbuchung), optional Enddatum. *AK:* R11, R12; Betrag > 0 eingegeben, Beschreibung höchstens 100 Zeichen, Kategorie muss existieren (sonst 400), Startdatum Pflicht, Enddatum nicht vor dem Startdatum (sonst 400); die Vorkommen erscheinen in der Transaktionsliste ihres Monats, als "wiederkehrend" gekennzeichnet, und zählen im Dashboard mit vollem Betrag (R1).
 - **US6a Wiederkehrende Einträge bearbeiten/löschen:** Als Nutzer bearbeite oder lösche ich ein Vorkommen und wähle "Nur dieser Eintrag" oder "Dieser und alle folgenden". *AK:* R13; frühere Vorkommen bleiben unverändert; ein Datum, das kein Vorkommen der Serie ist, ergibt 404.
 - **US7 Gruppensummen** nach R10 im Dashboard.
 - **US8 Monatsnavigation** (vor/zurück) und Anzeige leerer Monate ohne Fehler.
@@ -72,9 +72,8 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 Category
   id            Long, PK
   name          String, eindeutig, nicht leer
-  group         FIXED | FLEXIBLE | SAVINGS | REMAINDER | null   (null = ohne Gruppe, typisch Einnahmen)
+  group         FIXED | FLEXIBLE | SAVINGS | null   (null = ohne Gruppe, typisch Einnahmen)
   sortOrder     int
-  system        boolean                (true nur bei Rest-Kategorie; nicht buchbar, R4)
 
 CategoryTarget                         (Soll ab einem Monat, siehe R3; nur Gruppen FIXED, FLEXIBLE, SAVINGS)
   id            Long, PK
@@ -110,7 +109,7 @@ RecurringException                     (ausgesetztes Vorkommen, siehe R13)
 
 `YearlyTransaction` entfällt; jährliche Transaktionen sind wiederkehrende Transaktionen mit Intervall `YEARLY`.
 
-Seed (aus `Einstellungen_Budget`): Fixkosten: Wohnen, Nebenkosten, Versicherungen, Mobilität, Kredite, Spenden. Flexibel: Lebensmittel, Freizeit, Urlaub, Persönlicher Bedarf, Geschenke, Gesundheit. Sparen: Investitionen, Selbstständigkeit. Rest: Sonstiges (berechneter Rest). Ohne Gruppe: Gehalt/Lohn (netto), Nebenjob, Einnahmen Selbstständigkeit, Kapitalerträge, Staatliche Leistungen, Sonstige Einnahmen. Die Platzhalter-Zeilen des Sheets entfallen, weil die App Kategorien frei anlegen lässt (US10). Die im Sheet doppelten Namen "Selbstständigkeit" und "Sonstiges" sind umbenannt, weil Namen eindeutig sind.
+Seed (aus `Einstellungen_Budget`): Fixkosten: Wohnen, Nebenkosten, Versicherungen, Mobilität, Kredite, Spenden. Flexibel: Lebensmittel, Freizeit, Urlaub, Persönlicher Bedarf, Geschenke, Gesundheit. Sparen: Investitionen, Selbstständigkeit. Ohne Gruppe: Gehalt/Lohn (netto), Nebenjob, Einnahmen Selbstständigkeit, Kapitalerträge, Staatliche Leistungen, Sonstige Einnahmen. Die Platzhalter-Zeilen des Sheets entfallen, weil die App Kategorien frei anlegen lässt (US10). Der im Sheet doppelte Name "Selbstständigkeit" ist umbenannt, weil Namen eindeutig sind. Die berechnete Rest-Kategorie des Sheets entfällt (R4).
 
 **Seed-Beträge:** ausschließlich erfundene Werte, keine echten Zahlen (Repo ist öffentlich einsehbar).
 
@@ -120,8 +119,8 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 
 | Methode | Pfad | Zweck | Erfolg |
 |---|---|---|---|
-| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit `system` und dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`). Das Frontend blendet Kategorien mit `system = true` in Kategorieauswahlen aus. | 200, 400 (Monat fehlt/ungültig) |
-| PUT | `/categories/{id}/target?month=2026-11` | Soll ab diesem Monat, Body `{targetAmount?, targetPercent?}` | 200, 404, 400 (auch Monat fehlt/ungültig), 409 (Rest-Kategorie und Kategorien ohne Gruppe) |
+| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`) | 200, 400 (Monat fehlt/ungültig) |
+| PUT | `/categories/{id}/target?month=2026-11` | Soll ab diesem Monat, Body `{targetAmount?, targetPercent?}` | 200, 404, 400 (auch Monat fehlt/ungültig), 409 (Kategorien ohne Gruppe) |
 | GET | `/transactions?month=2026-10` | Einträge eines Monats: Transaktionen (`kind: "SINGLE"`, `id`) und Vorkommen wiederkehrender Transaktionen (`kind: "RECURRING"`, `recurringId`, `occurrenceDate`), je mit `amount` (mit Vorzeichen), `description`, `date`, Kategorie | 200, 400 (Monat fehlt/ungültig) |
 | POST | `/transactions` | Anlegen, Body `{amount, description, date, categoryId}` | 201 + Location, 400 |
 | PUT | `/transactions/{id}` | Ändern | 200, 404, 400 |
@@ -139,7 +138,8 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 {
   "month": "2026-10",
   "incomeTotal": 2000.00,
-  "expenses": { "target": 2000.00, "actual": 1635.00, "difference": 365.00 },
+  "expenses": { "target": 1800.00, "actual": 1635.00, "difference": 165.00 },
+  "unplanned": 200.00,
   "surplus": 365.00, "surplusLabel": "Monatlicher Überschuss",
   "savingsRate": 0.1825,
   "groups":    [ { "group": "FIXED", "target": 0, "actual": 0, "difference": 0 } ],
@@ -147,7 +147,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   "income":    [ { "id": 20, "name": "…", "actual": 2000.00, "share": 1.0 } ]
 }
 ```
-`categories[].actual` ist `I(k)`, `income[].actual` ist `N(k)` (R2, R9). (Zahlen im Beispiel nur zur Form.)
+`difference` ist die Abweichung zum Soll (R5, R6), `unplanned` sind die nicht verplanten Einnahmen (R4), `groups[].group` ist `null` für die Zeile "Ohne Gruppe" (R10). `categories[].actual` ist `I(k)`, `income[].actual` ist `N(k)` (R2, R9). (Zahlen im Beispiel nur zur Form.)
 
 **Rücklagen-Antwort (Kern):**
 ```json
@@ -176,15 +176,15 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   1. Nur Euro-Soll, keine Prozente
   2. Nur Prozent-Soll, Einnahmen > 0
   3. Euro und Prozent gleichzeitig → Euro gewinnt (R3)
-  4. Rest-Kategorie wird negativ bei Überplanung (R4)
+  4. Nicht verplant = `E` − `P`, negativ bei Überplanung; Soll gesamt enthält es nicht (R4, R6)
   5. Einnahmen = 0 → keine Division durch null (R8, R9)
   6. Vorkommen einer wiederkehrenden Transaktion zählt mit vollem Betrag im Monat des Vorkommens, in anderen Monaten nicht (R1)
   7. Überschuss negativ → Bezeichnung "Monatlicher Verlust" (R7)
   8. Soll ab M gilt nicht für M−1, aber für M und M+1; ein neuerer Eintrag ersetzt den älteren (R3, Auflösung in `TargetResolver`)
-  9. Vorzeichen (R2, R9, R10, R11): Erstattung mindert das Ist ihrer Kategorie; eine Kategorie mit Gruppe und positivem Netto zählt als Einnahme; Ausgaben einer Kategorie ohne Gruppe zählen zur Gruppe Rest; Gruppensummen ergeben `A`
+  9. Vorzeichen (R2, R9, R10, R11): Erstattung mindert das Ist ihrer Kategorie; eine Kategorie mit Gruppe und positivem Netto zählt als Einnahme; Ausgaben einer Kategorie ohne Gruppe zählen zur Zeile "Ohne Gruppe"; Gruppensummen ergeben `P` und `A`
 - **Unit:** `RecurrenceSchedule` (R12): je Intervall die richtigen Vorkommen; Tag 31 und 29.02. auf den Monatsletzten; Enddatum einschließlich; Ausnahmen werden ausgelassen; kein Vorkommen vor dem Startdatum.
 - **Unit:** `ReserveCalculator` (R14): Ø-Kosten über alle Intervalle, Rücklage nur für Intervall > 1, Einnahmen-Serien und inaktive Serien zählen nicht, Vorschau über 12 Monate mit Ausnahmen.
-- **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400, auch Betrag 0); Rest-Kategorie nicht änderbar (409) und nicht buchbar (400 bei Transaktion und wiederkehrender Transaktion, auch beim Ändern); Serie anlegen → Vorkommen in `/transactions` und `/dashboard`; R13 "Nur dieser Eintrag" (Ausnahme + Ersatz-Transaktion) und "Dieser und alle folgenden" (erstes Vorkommen: Serie geändert; späteres Vorkommen: Serie geteilt, frühere Monate unverändert); unbekanntes Vorkommen → 404.
+- **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400, auch Betrag 0); Soll für Kategorien ohne Gruppe abgelehnt (409); Serie anlegen → Vorkommen in `/transactions` und `/dashboard`; R13 "Nur dieser Eintrag" (Ausnahme + Ersatz-Transaktion) und "Dieser und alle folgenden" (erstes Vorkommen: Serie geändert; späteres Vorkommen: Serie geteilt, frühere Monate unverändert); unbekanntes Vorkommen → 404.
 - **Frontend:** 2 bis 3 Vitest/Testing-Library-Tests (Formular-Validierung mit Umschalter, Dashboard rendert Werte, Dialog für Bearbeiten eines Vorkommens).
 - **Referenzabgleich:** Eine Testfixture mit erfundenen Zahlen (Abschnitt 12).
 
@@ -238,7 +238,11 @@ Geklärt am 23.10.2026:
 8. **Bearbeiten von Serien durch Teilen:** "Dieser und alle folgenden" beendet die alte Serie vor dem gewählten Vorkommen und legt eine neue an; "Nur dieser Eintrag" speichert eine Ausnahme und bei Bedarf eine normale Transaktion (R13). Vorkommen werden berechnet, nicht gespeichert; `Transaction` (Buchung) und `RecurringTransaction` (Regel) bleiben bewusst getrennte Tabellen (geprüft am 25.10.2026: eine gemeinsame Tabelle oder gespeicherte Vorkommen hätten mehr leere Spalten bzw. einen Erzeugungsmechanismus gebraucht). Rückwirkendes Ändern aller Vorkommen ist bewusst nicht möglich, damit vergangene Monate stimmen.
 9. **Vorzeichen statt Kategorietyp:** Das Vorzeichen des Betrags entscheidet über Einnahme oder Ausgabe (R11); Kategorien haben keinen Typ mehr und eindeutige Namen. Einnahmen und Ausgaben werden je Kategorie saldiert (R2), damit Erstattungen das Ist ihrer Kategorie mindern und die Gruppensummen die Ausgaben ergeben. Gegen vergessene Minuszeichen setzt im Formular ein Umschalter das Vorzeichen.
 10. **Keine Datenmigration:** Daten gibt es nur in lokalen Entwicklungsdatenbanken mit erfundenen Werten. Nach dem Umbau wird `backend/data/` gelöscht und neu befüllt.
-11. **Rest-Kategorie nicht buchbar:** "Sonstiges (berechneter Rest)" ist eine reine Rechengröße (R4): Sie zeigt, welcher Teil der Einnahmen nicht verplant ist. Buchungen darauf werden abgelehnt (400), damit Ausgaben immer in einer echten Kategorie landen.
+11. **Rest-Kategorie nicht buchbar:** "Sonstiges (berechneter Rest)" ist eine reine Rechengröße (R4): Sie zeigt, welcher Teil der Einnahmen nicht verplant ist. Buchungen darauf werden abgelehnt (400), damit Ausgaben immer in einer echten Kategorie landen. *Ersetzt durch Entscheidung 12.*
+
+Geklärt am 25.10.2026:
+
+12. **Nicht verplant statt Rest-Kategorie:** Zählte der Rest im Soll gesamt mit, war Soll gesamt immer `E` und die Differenz gesamt immer gleich dem Überschuss. Eine unvollständige Soll-Verteilung fiel so nicht auf. Jetzt ist Soll gesamt nur die Summe der Soll-Werte (R6), und "Nicht verplant" (R4) ist ein eigener Wert im Dashboard. Die drei Werte beantworten verschiedene Fragen: Nicht verplant (Wie viel der Einnahmen hat kein Budget?), Abweichung zum Soll (Halte ich mein Budget ein?) und Überschuss (Was bleibt übrig?); es gilt Überschuss = Nicht verplant + Abweichung. Die System-Kategorie, die Gruppe Rest und das Feld `system` entfallen; Ausgaben ohne Gruppe erscheinen als Gruppenzeile "Ohne Gruppe" (R10). "Differenz" heißt in der UI jetzt "Abweichung zum Soll". Keine Datenmigration (Entscheidung 10).
 
 ## 12. Testfixture F1 und Sonderfall Einnahmen = 0
 
@@ -257,7 +261,6 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 | Lebensmittel | FLEXIBLE | 400,00 € |
 | Freizeit | FLEXIBLE | 5 % |
 | Investitionen | SAVINGS | 20 % |
-| Sonstiges (berechneter Rest) | REMAINDER | berechnet (R4) |
 
 **Transaktionen im Oktober:** Gehalt/Lohn (netto) +3000,00 · Nebenjob +200,00 · Nebenkosten −200,00 und −140,00 · Lebensmittel −120,30, −200,20 und −130,00 · Erstattung Lebensmittel +30,00 · Mobilität −45,99 · Investitionen −640,00 · Geschenke −20,00 (ohne Soll)
 
@@ -270,7 +273,7 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 
 **Erwartete Ergebnisse Dashboard:**
 
-| Kategorie | Soll | Ist | Differenz |
+| Kategorie | Soll | Ist | Abweichung |
 |---|---|---|---|
 | Wohnen | 900,00 | 900,00 | 0,00 |
 | Nebenkosten | 320,00 | 340,00 | -20,00 |
@@ -280,15 +283,14 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 | Freizeit | 160,00 | 0,00 | 160,00 |
 | Geschenke | – | 20,00 | – |
 | Investitionen | 640,00 | 640,00 | 0,00 |
-| Sonstiges (berechneter Rest) | 620,00 | 0,00 | 620,00 |
-| **Gesamt Ausgaben** | **3200,00** | **2606,49** | **593,51** |
+| **Gesamt Ausgaben** | **2580,00** | **2606,49** | **-26,49** |
 
-- Überschuss: 593,51 ("Monatlicher Überschuss") · Sparquote (R8): 593,51 / 3200,00 = 0,1855
+- Nicht verplant (R4): 3200,00 − 2580,00 = 620,00
+- Überschuss: 593,51 ("Monatlicher Überschuss") = 620,00 + (−26,49) · Sparquote (R8): 593,51 / 3200,00 = 0,1855
 - Einnahmenanteile: Gehalt/Lohn (netto) 0,9375 · Nebenjob 0,0625
-- Gruppen (Soll / Ist): FIXED 1380,00 / 1525,99 · FLEXIBLE 560,00 / 440,50 · SAVINGS 640,00 / 640,00 · REMAINDER 620,00 / 0,00
+- Gruppen (Soll / Ist): FIXED 1380,00 / 1525,99 · FLEXIBLE 560,00 / 440,50 · SAVINGS 640,00 / 640,00 · keine Zeile "Ohne Gruppe" (keine Ausgaben ohne Gruppe)
 - Lebensmittel: Netto −420,50, die Erstattung zählt nicht als Einnahme (R2)
-- Kategorien ohne Soll (z. B. Geschenke, Kredite): Soll und Differenz sind `null`, Ist ist ihr Ausgaben-Ist (Geschenke 20,00, Kredite 0,00). Deshalb ergibt die Summe der Differenzen je Kategorie (613,51) nicht die Differenz gesamt (593,51); maßgeblich ist R6.
-- Die Rest-Kategorie ist nicht buchbar (R4), ihr Ist ist 0,00.
+- Kategorien ohne Soll (z. B. Geschenke, Kredite): Soll und Abweichung sind `null`, Ist ist ihr Ausgaben-Ist (Geschenke 20,00, Kredite 0,00). Deshalb ergibt die Summe der Abweichungen je Kategorie (−6,49) nicht die Abweichung gesamt (−26,49); maßgeblich ist R6.
 
 **Erwartete Ergebnisse Auswertung (R14):**
 - Aktive Ausgaben-Serien: Wohnen 900,00 / 1 = 900,00 · Versicherungen 240,00 / 12 = 20,00 · Freizeit 15,00 / 1 = 15,00
@@ -297,11 +299,11 @@ Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test fü
 
 **Rundung:** Geld mit Skala 2 (HALF_UP), Prozentwerte und Anteile mit Skala 4; nur im Endergebnis runden, nicht in Zwischensummen.
 
-**Sonderfall Einnahmen = 0 (Entscheidung):** Prozent-Soll ergibt 0,00; Euro-Soll bleibt erhalten; der Rest wird negativ (0 minus Summe der Euro-Soll). Überschuss = 0 minus Ausgaben ("Monatlicher Verlust"); Sparquote (R8) ist leer, Einnahmenanteile (R9) sind 0. Keine Division durch null, keine Exception. Das Sheet gibt hier Fehlerwerte aus, die App fängt den Fall sauber ab.
+**Sonderfall Einnahmen = 0 (Entscheidung):** Prozent-Soll ergibt 0,00; Euro-Soll bleibt erhalten; Nicht verplant wird negativ (0 minus Summe der Euro-Soll). Überschuss = 0 minus Ausgaben ("Monatlicher Verlust"); Sparquote (R8) ist leer, Einnahmenanteile (R9) sind 0. Keine Division durch null, keine Exception. Das Sheet gibt hier Fehlerwerte aus, die App fängt den Fall sauber ab.
 
 ## 13. Ausbau ab 23.10.2026
 
-Umsetzung der Entscheidungen 6 bis 11. Jedes Arbeitspaket ist ein eigener Branch und PR; Berechnungen mit Tests zuerst.
+Umsetzung der Entscheidungen 6 bis 12. Jedes Arbeitspaket ist ein eigener Branch und PR; Berechnungen mit Tests zuerst.
 
 | AP | Inhalt | Ergebnis |
 |---|---|---|
@@ -309,6 +311,7 @@ Umsetzung der Entscheidungen 6 bis 11. Jedes Arbeitspaket ist ein eigener Branch
 | 10 | Vorzeichen statt Kategorietyp (R2, R4 bis R11, US1 bis US3): Datenmodell, Seed, Validierung inkl. nicht buchbarer Rest-Kategorie, `DashboardCalculator`, Formular-Umschalter; `YearlyTransaction` entfernen (vorgezogen am 25.10.2026, weil ihre Beträge am Kategorietyp hingen) | Fixture F1 ohne wiederkehrende Transaktionen grün |
 | 11 | Wiederkehrende Transaktionen (R12, R13, US6, US6a): `RecurrenceSchedule`, Serien-API, Teilen und Ausnahmen, Vorkommen in `/transactions` und `/dashboard`, Seiten *Transaktionen* und *Wiederkehrend* | Fixture F1 Dashboard grün |
 | 12 | Auswertung Rücklagen (R14, US13): `ReserveCalculator`, `/reserves`, Seite *Auswertung* | Fixture F1 Auswertung grün |
+| 12a | Nicht verplant statt Rest-Kategorie (Entscheidung 12, R4 bis R7, R10): Rest-Kategorie, Gruppe REMAINDER und `system` entfernen, `DashboardCalculator`, Dashboard-Bezeichnungen | Fixture F1 grün |
 | 13 | README "Learnings und Entscheidungen" und Interview-Stichpunkte (AP 8) | README |
 
 Getrennt davon und ohne fachliche Änderung: Upgrade auf Spring Boot 4.
