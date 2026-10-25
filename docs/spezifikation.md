@@ -306,8 +306,8 @@ Umsetzung der Entscheidungen 6 bis 11. Jedes Arbeitspaket ist ein eigener Branch
 | AP | Inhalt | Ergebnis |
 |---|---|---|
 | 9 | Spezifikation und `CLAUDE.md` anpassen (dieser Stand) | Spec-PR |
-| 10 | Vorzeichen statt Kategorietyp (R2, R4 bis R11, US1 bis US3): Datenmodell, Seed, Validierung inkl. nicht buchbarer Rest-Kategorie, `DashboardCalculator`, Formular-Umschalter | Fixture F1 ohne wiederkehrende Transaktionen grün |
-| 11 | Wiederkehrende Transaktionen (R12, R13, US6, US6a): `RecurrenceSchedule`, Serien-API, Teilen und Ausnahmen, Vorkommen in `/transactions` und `/dashboard`, Seiten *Transaktionen* und *Wiederkehrend*; `YearlyTransaction` entfernen | Fixture F1 Dashboard grün |
+| 10 | Vorzeichen statt Kategorietyp (R2, R4 bis R11, US1 bis US3): Datenmodell, Seed, Validierung inkl. nicht buchbarer Rest-Kategorie, `DashboardCalculator`, Formular-Umschalter; `YearlyTransaction` entfernen (vorgezogen am 25.10.2026, weil ihre Beträge am Kategorietyp hingen) | Fixture F1 ohne wiederkehrende Transaktionen grün |
+| 11 | Wiederkehrende Transaktionen (R12, R13, US6, US6a): `RecurrenceSchedule`, Serien-API, Teilen und Ausnahmen, Vorkommen in `/transactions` und `/dashboard`, Seiten *Transaktionen* und *Wiederkehrend* | Fixture F1 Dashboard grün |
 | 12 | Auswertung Rücklagen (R14, US13): `ReserveCalculator`, `/reserves`, Seite *Auswertung* | Fixture F1 Auswertung grün |
 | 13 | README "Learnings und Entscheidungen" und Interview-Stichpunkte (AP 8) | README |
 
