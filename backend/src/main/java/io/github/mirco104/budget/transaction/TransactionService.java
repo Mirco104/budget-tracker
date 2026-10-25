@@ -3,10 +3,13 @@ package io.github.mirco104.budget.transaction;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
+import io.github.mirco104.budget.recurring.OccurrenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,18 +18,27 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryService categoryService;
+    private final OccurrenceService occurrenceService;
 
-    public TransactionService(TransactionRepository transactionRepository, CategoryService categoryService) {
+    public TransactionService(
+            TransactionRepository transactionRepository, CategoryService categoryService,
+            OccurrenceService occurrenceService) {
         this.transactionRepository = transactionRepository;
         this.categoryService = categoryService;
+        this.occurrenceService = occurrenceService;
     }
 
-    // A transaction belongs to the month of its date (spec 11.3)
+    // A transaction belongs to the month of its date (spec 11.3); occurrences of recurring ones are added (R12).
+    // Newest first; on the same date occurrences come after single transactions.
     @Transactional(readOnly = true)
     public List<TransactionResponse> findByMonth(YearMonth month) {
-        return transactionRepository.findByDateBetweenOrderByDateDescIdDesc(month.atDay(1), month.atEndOfMonth())
-                .stream()
-                .map(TransactionResponse::from)
+        Stream<TransactionResponse> singles = transactionRepository
+                .findByDateBetweenOrderByDateDescIdDesc(month.atDay(1), month.atEndOfMonth()).stream()
+                .map(TransactionResponse::from);
+        Stream<TransactionResponse> occurrences = occurrenceService.occurrencesIn(month).stream()
+                .map(TransactionResponse::from);
+        return Stream.concat(singles, occurrences)
+                .sorted(Comparator.comparing(TransactionResponse::date).reversed())
                 .toList();
     }
 
