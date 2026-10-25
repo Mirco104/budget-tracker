@@ -3,6 +3,8 @@ package io.github.mirco104.budget.dashboard;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -20,6 +22,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -111,6 +114,86 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.income", hasSize(0)));
     }
 
+    // --- Reference fixture F1 (spec section 12), end to end with recurring transactions (R1, R12, R13) ---
+
+    @Test
+    void referenceFixtureF1MatchesSpec() throws Exception {
+        putTarget(categoryId("Wohnen"), "2026-10", "{\"targetAmount\": 900}");
+        putTarget(categoryId("Nebenkosten"), "2026-10", "{\"targetPercent\": 0.10}");
+        putTarget(categoryId("Versicherungen"), "2026-10", "{\"targetAmount\": 100}");
+        putTarget(categoryId("Mobilität"), "2026-10", "{\"targetAmount\": 60, \"targetPercent\": 0.50}");
+        putTarget(categoryId("Lebensmittel"), "2026-10", "{\"targetAmount\": 400}");
+        putTarget(categoryId("Freizeit"), "2026-10", "{\"targetPercent\": 0.05}");
+        putTarget(categoryId("Investitionen"), "2026-10", "{\"targetPercent\": 0.20}");
+
+        postTransaction("3000.00", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
+        postTransaction("200.00", "Nebenjob", "2026-10-10", categoryId("Nebenjob"));
+        postTransaction("-200.00", "Strom", "2026-10-02", categoryId("Nebenkosten"));
+        postTransaction("-140.00", "Wasser", "2026-10-03", categoryId("Nebenkosten"));
+        postTransaction("-120.30", "Einkauf 1", "2026-10-04", categoryId("Lebensmittel"));
+        postTransaction("-200.20", "Einkauf 2", "2026-10-11", categoryId("Lebensmittel"));
+        postTransaction("-130.00", "Einkauf 3", "2026-10-18", categoryId("Lebensmittel"));
+        postTransaction("30.00", "Erstattung", "2026-10-19", categoryId("Lebensmittel"));
+        postTransaction("-45.99", "Tanken", "2026-10-06", categoryId("Mobilität"));
+        postTransaction("-640.00", "Sparplan", "2026-10-15", categoryId("Investitionen"));
+        postTransaction("-20.00", "Geschenk", "2026-10-20", categoryId("Geschenke"));
+        postTransaction("-999.00", "Einkauf September", "2026-09-30", categoryId("Lebensmittel"));
+
+        postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2026-01-01");
+        postSeries("-240.00", "Haftpflicht", categoryId("Versicherungen"), "YEARLY", "2026-10-15");
+        long streaming = postSeries("-15.00", "Streaming", categoryId("Freizeit"), "MONTHLY", "2026-01-05");
+        mockMvc.perform(delete("/api/recurring-transactions/{id}/occurrences/{date}", streaming, "2026-10-05")
+                        .param("scope", "THIS"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.incomeTotal").value(3200.00))
+                .andExpect(line("Wohnen", "target", 900.00)).andExpect(line("Wohnen", "actual", 900.00))
+                .andExpect(line("Wohnen", "difference", 0.00))
+                .andExpect(line("Nebenkosten", "target", 320.00)).andExpect(line("Nebenkosten", "actual", 340.00))
+                .andExpect(line("Nebenkosten", "difference", -20.00))
+                .andExpect(line("Versicherungen", "target", 100.00))
+                .andExpect(line("Versicherungen", "actual", 240.00))
+                .andExpect(line("Versicherungen", "difference", -140.00))
+                .andExpect(line("Mobilität", "target", 60.00)).andExpect(line("Mobilität", "actual", 45.99))
+                .andExpect(line("Mobilität", "difference", 14.01))
+                .andExpect(line("Lebensmittel", "target", 400.00))
+                .andExpect(line("Lebensmittel", "actual", 420.50))
+                .andExpect(line("Lebensmittel", "difference", -20.50))
+                .andExpect(line("Freizeit", "target", 160.00)).andExpect(line("Freizeit", "actual", 0.00))
+                .andExpect(line("Freizeit", "difference", 160.00))
+                .andExpect(line("Geschenke", "target", null)).andExpect(line("Geschenke", "actual", 20.00))
+                .andExpect(line("Geschenke", "difference", null))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Kredite')]", hasSize(0)))
+                .andExpect(line("Investitionen", "target", 640.00))
+                .andExpect(line("Investitionen", "actual", 640.00))
+                .andExpect(line("Investitionen", "difference", 0.00))
+                .andExpect(jsonPath("$.expenses.target").value(2580.00))
+                .andExpect(jsonPath("$.expenses.actual").value(2606.49))
+                .andExpect(jsonPath("$.expenses.difference").value(-26.49))
+                .andExpect(jsonPath("$.unplanned").value(620.00))
+                .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
+                .andExpect(jsonPath("$.surplus").value(593.51))
+                .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
+                .andExpect(jsonPath("$.surplusShare").value(0.1855))
+                .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(0.9375)))
+                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0625)))
+                .andExpect(jsonPath("$.groups[0].target").value(1380.00))
+                .andExpect(jsonPath("$.groups[0].actual").value(1525.99))
+                .andExpect(jsonPath("$.groups[1].target").value(560.00))
+                .andExpect(jsonPath("$.groups[1].actual").value(440.50))
+                .andExpect(jsonPath("$.groups[2].target").value(640.00))
+                .andExpect(jsonPath("$.groups[2].actual").value(640.00))
+                .andExpect(jsonPath("$.groups", hasSize(3)));
+
+        // An occurrence counts only in its own month (R1): November has rent and streaming, no insurance
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))
+                .andExpect(line("Wohnen", "actual", 900.00))
+                .andExpect(line("Versicherungen", "actual", 0.00))
+                .andExpect(line("Freizeit", "actual", 15.00));
+    }
+
     // --- GET /api/dashboard (US5): validation ---
 
     @ParameterizedTest
@@ -159,6 +242,24 @@ class DashboardControllerTest {
                                 {"amount": %s, "description": "%s", "date": "%s", "categoryId": %d}
                                 """.formatted(amount, description, date, categoryId)))
                 .andExpect(status().isCreated());
+    }
+
+    private long postSeries(String amount, String description, long categoryId, String interval, String startDate)
+            throws Exception {
+        String json = mockMvc.perform(post("/api/recurring-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": %s, "description": "%s", "categoryId": %d, "interval": "%s",
+                                 "startDate": "%s"}
+                                """.formatted(amount, description, categoryId, interval, startDate)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(json, "$.id")).longValue();
+    }
+
+    private static ResultMatcher line(String name, String field, Double expected) {
+        String path = "$.categories[?(@.name == '" + name + "')]." + field;
+        return expected == null ? jsonPath(path, contains(nullValue())) : jsonPath(path, contains(expected));
     }
 
     private long categoryId(String name) {

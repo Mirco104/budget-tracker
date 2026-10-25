@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -43,7 +44,9 @@ class TransactionControllerTest {
         postTransaction(body("12.5", "Wocheneinkauf", "2026-10-05", categoryId))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", matchesPattern(".*/api/transactions/\\d+$")))
+                .andExpect(jsonPath("$.kind").value("SINGLE"))
                 .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.recurringId").doesNotExist())
                 .andExpect(jsonPath("$.amount").value(12.50))
                 .andExpect(jsonPath("$.description").value("Wocheneinkauf"))
                 .andExpect(jsonPath("$.date").value("2026-10-05"))
@@ -157,6 +160,25 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].description").value("Oktober Ende"))
                 .andExpect(jsonPath("$[1].description").value("Oktober Anfang"));
+    }
+
+    @Test
+    void listsOccurrencesOfRecurringTransactionsBetweenSingleOnesByDate() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        create(body("-1", "Anfang", "2026-10-01", categoryId));
+        create(body("-2", "Ende", "2026-10-20", categoryId));
+        mockMvc.perform(post("/api/recurring-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": -15, "description": "Streaming", "categoryId": %d, "interval": "MONTHLY",
+                                 "startDate": "2026-01-15"}
+                                """.formatted(categoryId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].description", contains("Ende", "Streaming", "Anfang")))
+                .andExpect(jsonPath("$[*].kind", contains("SINGLE", "RECURRING", "SINGLE")));
     }
 
     @Test

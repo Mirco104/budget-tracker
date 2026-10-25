@@ -20,9 +20,16 @@ export interface TargetInput {
   targetPercent: number | null
 }
 
-/** amount is signed: positive is income, negative is expense. */
+/**
+ * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
+ * recurring transaction (kind RECURRING, recurringId, occurrenceDate). amount is signed: positive is income,
+ * negative is expense.
+ */
 export interface Transaction {
-  id: number
+  kind: 'SINGLE' | 'RECURRING'
+  id: number | null
+  recurringId: number | null
+  occurrenceDate: string | null
   amount: number
   description: string
   date: string
@@ -36,6 +43,35 @@ export interface TransactionInput {
   date: string
   categoryId: number
 }
+
+export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
+
+/** One series of a recurring transaction. amount is signed per occurrence; endDate is inclusive. */
+export interface RecurringTransaction {
+  id: number
+  seriesId: string
+  amount: number
+  description: string
+  categoryId: number
+  categoryName: string
+  interval: RecurringInterval
+  startDate: string
+  endDate: string | null
+  /** |amount| per month of the interval, calculated by the backend. */
+  monthlyEquivalent: number
+}
+
+export interface RecurringTransactionInput {
+  amount: number
+  description: string
+  categoryId: number
+  interval: RecurringInterval
+  startDate: string
+  endDate: string | null
+}
+
+/** "Nur dieser Eintrag" (THIS) or "Dieser und alle folgenden" (FOLLOWING). */
+export type OccurrenceScope = 'THIS' | 'FOLLOWING'
 
 /** Amounts with their shares of the income; a share is null without income or without amount. */
 interface Shares {
