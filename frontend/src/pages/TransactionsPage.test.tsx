@@ -40,9 +40,8 @@ function renderPage() {
   return fetchMock
 }
 
-// The month list comes first; the series section below lists Streaming again.
 async function streamingRow() {
-  return (await screen.findAllByRole('row', { name: /Streaming/ }))[0]
+  return screen.findByRole('row', { name: /Streaming/ })
 }
 
 describe('TransactionsPage', () => {
@@ -116,13 +115,11 @@ describe('TransactionsPage', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('/api/transactions', expect.objectContaining({ method: 'POST' }))
   })
 
-  it('lists the active series in a collapsible section', async () => {
+  it('has no separate list of series', async () => {
     renderPage()
 
-    const summary = await screen.findByText('Wiederkehrende Transaktionen (1)')
-    const section = summary.closest('details') as HTMLElement
-    expect(section).not.toHaveAttribute('open')
-    expect(within(section).getByRole('row', { name: /Streaming.*monatlich/ })).toBeInTheDocument()
+    await streamingRow()
+    expect(screen.queryByText(/Wiederkehrende Transaktionen/)).not.toBeInTheDocument()
   })
 
   it('deletes only this occurrence after asking for the scope', async () => {

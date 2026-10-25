@@ -17,7 +17,6 @@ import type { OccurrenceScope, Transaction } from '../api/types'
 import { OccurrenceScopeDialog } from '../components/OccurrenceScopeDialog'
 import { TransactionForm, type TransactionFormValues } from '../components/TransactionForm'
 import { formatDate, formatEuro } from '../format'
-import { INTERVAL_LABELS } from '../labels'
 
 function defaultDateFor(month: string): string {
   const today = new Date()
@@ -48,6 +47,7 @@ type Editing =
 export function TransactionsPage({ month }: { month: string }) {
   const transactions = useTransactions(month)
   const categories = useCategories(month)
+  // Series active in the month; "Dieser und alle folgenden" prefills the form from them.
   const series = useRecurringTransactions(month)
   const createTransaction = useCreateTransaction()
   const createSeries = useCreateRecurringTransaction()
@@ -238,7 +238,7 @@ export function TransactionsPage({ month }: { month: string }) {
       )}
       {transactions.data && transactions.data.length === 0 && <p>Keine Transaktionen in diesem Monat.</p>}
       {transactions.data && transactions.data.length > 0 && (
-        <table>
+        <table className="transactions">
           <thead>
             <tr>
               <th>Datum</th>
@@ -251,16 +251,16 @@ export function TransactionsPage({ month }: { month: string }) {
           <tbody>
             {transactions.data.map((t) => (
               <tr key={rowKey(t)}>
-                <td>{formatDate(t.date)}</td>
-                <td>
+                <td className="tx-date">{formatDate(t.date)}</td>
+                <td className="tx-description">
                   {t.description}
                   {t.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
                 </td>
-                <td>
-                  {t.categoryName} ({t.amount < 0 ? 'Ausgabe' : 'Einnahme'})
+                <td className="tx-category">
+                  {t.categoryName} <span className="tx-kind">({t.amount < 0 ? 'Ausgabe' : 'Einnahme'})</span>
                 </td>
-                <td className="number">{formatEuro(t.amount)}</td>
-                <td>
+                <td className={`number tx-amount ${t.amount < 0 ? '' : 'positive'}`}>{formatEuro(t.amount)}</td>
+                <td className="tx-actions">
                   <button type="button" onClick={() => handleEdit(t)}>
                     Bearbeiten
                   </button>{' '}
@@ -277,49 +277,6 @@ export function TransactionsPage({ month }: { month: string }) {
           </tbody>
         </table>
       )}
-
-      <details className="series">
-        <summary>Wiederkehrende Transaktionen ({series.data?.length ?? 0})</summary>
-        <p className="hint">
-          Aktiv in diesem Monat. Einzelne Einträge lassen sich in der Liste oben bearbeiten oder löschen („Nur dieser
-          Eintrag“ oder „Dieser und alle folgenden“).
-        </p>
-        {series.isPending && <p>Lade wiederkehrende Transaktionen …</p>}
-        {series.error && (
-          <p className="error">Wiederkehrende Transaktionen konnten nicht geladen werden: {series.error.message}</p>
-        )}
-        {series.data && series.data.length === 0 && <p>Keine wiederkehrenden Transaktionen in diesem Monat.</p>}
-        {series.data && series.data.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Beschreibung</th>
-                <th>Kategorie</th>
-                <th>Intervall</th>
-                <th className="number">Betrag</th>
-                <th>Start</th>
-                <th>Ende</th>
-                <th className="number">Ø pro Monat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {series.data.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.description}</td>
-                  <td>
-                    {s.categoryName} ({s.amount < 0 ? 'Ausgabe' : 'Einnahme'})
-                  </td>
-                  <td>{INTERVAL_LABELS[s.interval]}</td>
-                  <td className="number">{formatEuro(s.amount)}</td>
-                  <td>{formatDate(s.startDate)}</td>
-                  <td>{s.endDate ? formatDate(s.endDate) : 'unbefristet'}</td>
-                  <td className="number">{formatEuro(s.monthlyEquivalent)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </details>
     </section>
   )
 }
