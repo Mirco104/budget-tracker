@@ -8,7 +8,8 @@ import { DashboardPage } from './DashboardPage'
 const dashboard: DashboardData = {
   month: '2026-10',
   incomeTotal: 2000,
-  expenses: { target: 2000, actual: 1635, difference: 365 },
+  expenses: { target: 2100, actual: 1635, difference: 465 },
+  unplanned: -100,
   surplus: 365,
   surplusLabel: 'Monatlicher Überschuss',
   savingsRate: 0.1825,
@@ -16,13 +17,11 @@ const dashboard: DashboardData = {
     { group: 'FIXED', target: 860, actual: 860, difference: 0 },
     { group: 'FLEXIBLE', target: 0, actual: 35, difference: -35 },
     { group: 'SAVINGS', target: 0, actual: 0, difference: 0 },
-    { group: 'REMAINDER', target: -100, actual: 0, difference: -100 },
   ],
   categories: [
     { id: 1, name: 'Wohnen', group: 'FIXED', target: 800, actual: 800, difference: 0 },
     { id: 2, name: 'Urlaub', group: 'FLEXIBLE', target: null, actual: 35, difference: null },
-    { id: 3, name: 'Versicherungen', group: 'FIXED', target: 60, actual: 60, difference: 0 },
-    { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', target: -100, actual: 0, difference: -100 },
+    { id: 3, name: 'Versicherungen', group: 'FIXED', target: 60, actual: 60, difference: -20 },
   ],
   income: [{ id: 20, name: 'Gehalt', actual: 2000, share: 1 }],
 }
@@ -46,6 +45,9 @@ describe('DashboardPage', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-10', expect.anything())
     expect(screen.getByText('365,00 € (18,25 %)')).toBeInTheDocument()
     expect(screen.getByText('100,00 %')).toBeInTheDocument()
+    expect(screen.getByText('Abweichung zum Soll').nextSibling).toHaveTextContent('465,00 €')
+    expect(screen.getByText('Nicht verplant').nextSibling).toHaveTextContent('-100,00 €')
+    expect(screen.getByText('Nicht verplant').nextSibling).toHaveClass('negative')
 
     const wohnen = screen.getByRole('row', { name: /Wohnen/ })
     expect(within(wohnen).getAllByText('800,00 €')).toHaveLength(2)
@@ -57,8 +59,8 @@ describe('DashboardPage', () => {
     const urlaub = await screen.findByRole('row', { name: /Urlaub/ })
     expect(within(urlaub).getAllByText('–')).toHaveLength(2)
 
-    const rest = screen.getByRole('row', { name: /Sonstiges/ })
-    expect(within(rest).getAllByText('-100,00 €')[0]).toHaveClass('negative')
+    const versicherungen = screen.getByRole('row', { name: /Versicherungen/ })
+    expect(within(versicherungen).getByText('-20,00 €')).toHaveClass('negative')
   })
 
   it('shows group totals with labels and recommendations', async () => {
@@ -70,15 +72,13 @@ describe('DashboardPage', () => {
 
     const flexible = screen.getByRole('row', { name: /Flexible Ausgaben/ })
     expect(within(flexible).getByText('-35,00 €')).toHaveClass('negative')
-
-    const rest = screen.getByRole('row', { name: /^Rest/ })
-    expect(within(rest).queryByText(/ca\./)).not.toBeInTheDocument()
-    expect(within(rest).getAllByText('-100,00 €')).toHaveLength(2)
+    expect(screen.queryByRole('row', { name: /^Ohne Gruppe/ })).not.toBeInTheDocument()
   })
 
-  it('lists an ungrouped expense and marks negative income', async () => {
+  it('lists an ungrouped expense with its own group line and marks negative income', async () => {
     renderPage({
       ...dashboard,
+      groups: [...dashboard.groups, { group: null, target: 0, actual: 20, difference: -20 }],
       categories: [
         ...dashboard.categories,
         { id: 21, name: 'Nebenjob', group: null, target: null, actual: 20, difference: null },
@@ -90,5 +90,9 @@ describe('DashboardPage', () => {
     expect(rows).toHaveLength(2)
     expect(within(rows[0]).getByText('20,00 €')).toBeInTheDocument()
     expect(within(rows[1]).getByText('-20,00 €')).toHaveClass('negative')
+
+    const ungrouped = screen.getByRole('row', { name: /^Ohne Gruppe/ })
+    expect(within(ungrouped).queryByText(/ca\./)).not.toBeInTheDocument()
+    expect(within(ungrouped).getByText('-20,00 €')).toHaveClass('negative')
   })
 })

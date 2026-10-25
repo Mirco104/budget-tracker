@@ -1,6 +1,6 @@
 // Mirrors of the backend DTOs (Java records). Money and ratios arrive as JSON numbers.
 
-export type CategoryGroup = 'FIXED' | 'FLEXIBLE' | 'SAVINGS' | 'REMAINDER'
+export type CategoryGroup = 'FIXED' | 'FLEXIBLE' | 'SAVINGS'
 
 export interface Category {
   id: number
@@ -12,8 +12,6 @@ export interface Category {
   targetPercent: number | null
   /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
   targetValidFrom: string | null
-  /** The calculated remainder category; not bookable. */
-  system: boolean
 }
 
 /** targetPercent is a fraction of income (0..1). null clears the value. */
@@ -39,15 +37,19 @@ export interface TransactionInput {
   categoryId: number
 }
 
+/** difference is the deviation from the target (target - actual). */
 export interface Totals {
-  target: number | null
+  target: number
   actual: number
-  difference: number | null
+  difference: number
 }
 
-/** Sums of the expense lines in one group; a missing target counts as 0. */
+/**
+ * Sums of the expense lines in one group; a missing target counts as 0.
+ * group null sums the ungrouped categories with expenses and is only present if there are any.
+ */
 export interface GroupLine {
-  group: CategoryGroup
+  group: CategoryGroup | null
   target: number
   actual: number
   difference: number
@@ -75,6 +77,8 @@ export interface DashboardData {
   month: string
   incomeTotal: number
   expenses: Totals
+  /** Income without a target: income minus the target total; negative when over-planned. */
+  unplanned: number
   surplus: number
   surplusLabel: string
   savingsRate: number | null

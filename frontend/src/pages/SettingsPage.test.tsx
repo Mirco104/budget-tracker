@@ -6,10 +6,9 @@ import { SettingsPage } from './SettingsPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', system: false },
-  { id: 7, name: 'Lebensmittel', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', system: false },
-  { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
-  { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09' },
+  { id: 7, name: 'Lebensmittel', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11' },
+  { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
 function json(body: unknown, status = 200) {
@@ -32,7 +31,7 @@ function putCalls(fetchMock: ReturnType<typeof renderPage>) {
 }
 
 describe('SettingsPage', () => {
-  it('shows categories by group with prefilled targets and a read-only remainder', async () => {
+  it('shows categories by group with prefilled targets', async () => {
     renderPage()
 
     const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
@@ -41,8 +40,6 @@ describe('SettingsPage', () => {
     expect(within(wohnen).getByLabelText(/Soll \(€\)/)).toHaveValue('800,00')
     expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).getByLabelText(/Soll \(%\)/)).toHaveValue('15,00')
 
-    expect(screen.queryByRole('form', { name: /Sonstiges/ })).not.toBeInTheDocument()
-    expect(screen.getByText(/wird automatisch berechnet/)).toBeInTheDocument()
     expect(screen.getByText('Gehalt/Lohn (netto)')).toBeInTheDocument()
   })
 

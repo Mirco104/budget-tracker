@@ -1,6 +1,6 @@
 import { useDashboard } from '../api/dashboard'
 import { formatEuro, formatPercent } from '../format'
-import { GROUP_LABELS, GROUP_RECOMMENDATIONS } from '../labels'
+import { GROUP_LABELS, GROUP_RECOMMENDATIONS, UNGROUPED_LABEL } from '../labels'
 
 function signClass(value: number | null): string | undefined {
   return value !== null && value < 0 ? 'negative' : undefined
@@ -32,8 +32,12 @@ export function DashboardPage({ month }: { month: string }) {
           </dd>
         </div>
         <div>
-          <dt>Differenz</dt>
+          <dt>Abweichung zum Soll</dt>
           <dd className={signClass(data.expenses.difference)}>{formatEuro(data.expenses.difference)}</dd>
+        </div>
+        <div>
+          <dt>Nicht verplant</dt>
+          <dd className={signClass(data.unplanned)}>{formatEuro(data.unplanned)}</dd>
         </div>
         <div>
           <dt>{data.surplusLabel}</dt>
@@ -52,14 +56,14 @@ export function DashboardPage({ month }: { month: string }) {
             <th>Empfehlung</th>
             <th className="number">Soll</th>
             <th className="number">Ist</th>
-            <th className="number">Differenz</th>
+            <th className="number">Abweichung</th>
           </tr>
         </thead>
         <tbody>
           {data.groups.map((line) => (
-            <tr key={line.group}>
-              <td>{GROUP_LABELS[line.group]}</td>
-              <td className="hint">{GROUP_RECOMMENDATIONS[line.group]}</td>
+            <tr key={line.group ?? 'UNGROUPED'}>
+              <td>{line.group ? GROUP_LABELS[line.group] : UNGROUPED_LABEL}</td>
+              <td className="hint">{line.group && GROUP_RECOMMENDATIONS[line.group]}</td>
               <td className={`number ${signClass(line.target) ?? ''}`}>{formatEuro(line.target)}</td>
               <td className="number">{formatEuro(line.actual)}</td>
               <td className={`number ${signClass(line.difference) ?? ''}`}>{formatEuro(line.difference)}</td>
@@ -75,7 +79,7 @@ export function DashboardPage({ month }: { month: string }) {
             <th>Kategorie</th>
             <th className="number">Soll</th>
             <th className="number">Ist</th>
-            <th className="number">Differenz</th>
+            <th className="number">Abweichung</th>
           </tr>
         </thead>
         <tbody>

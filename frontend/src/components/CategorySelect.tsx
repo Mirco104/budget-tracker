@@ -1,5 +1,5 @@
 import type { Category, CategoryGroup } from '../api/types'
-import { GROUP_LABELS } from '../labels'
+import { GROUP_LABELS, UNGROUPED_LABEL } from '../labels'
 
 interface Props {
   categories: Category[]
@@ -9,15 +9,14 @@ interface Props {
   error?: string
 }
 
-/** Category dropdown, grouped like the settings. The remainder category is not bookable and is left out. */
+/** Category dropdown, grouped like the settings. */
 export function CategorySelect({ categories, value, onChange, error }: Props) {
-  const bookable = categories.filter((c) => !c.system)
   const groups = [
     ...(Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
       label: GROUP_LABELS[group],
-      items: bookable.filter((c) => c.group === group),
+      items: categories.filter((c) => c.group === group),
     })),
-    { label: 'Ohne Gruppe', items: bookable.filter((c) => c.group === null) },
+    { label: UNGROUPED_LABEL, items: categories.filter((c) => c.group === null) },
   ].filter(({ items }) => items.length > 0)
 
   return (

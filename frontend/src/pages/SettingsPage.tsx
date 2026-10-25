@@ -2,7 +2,7 @@ import { useCategories, useUpdateTarget } from '../api/categories'
 import type { CategoryGroup } from '../api/types'
 import { TargetRow } from '../components/TargetRow'
 import { formatMonth } from '../format'
-import { GROUP_LABELS } from '../labels'
+import { GROUP_LABELS, UNGROUPED_LABEL } from '../labels'
 
 export function SettingsPage({ month }: { month: string }) {
   const categories = useCategories(month)
@@ -35,26 +35,19 @@ export function SettingsPage({ month }: { month: string }) {
       {groups.map(({ group, items }) => (
         <section key={group}>
           <h3>{GROUP_LABELS[group]}</h3>
-          {items.map((category) =>
-            category.system ? (
-              <div key={category.id} className="target-row">
-                <span className="target-name">{category.name}</span>
-                <span className="hint">wird automatisch berechnet (Einnahmen − übrige Soll-Werte)</span>
-              </div>
-            ) : (
-              <TargetRow
-                key={`${category.id}-${month}`}
-                category={category}
-                month={month}
-                onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
-              />
-            ),
-          )}
+          {items.map((category) => (
+            <TargetRow
+              key={`${category.id}-${month}`}
+              category={category}
+              month={month}
+              onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
+            />
+          ))}
         </section>
       ))}
 
       <section>
-        <h3>Ohne Gruppe</h3>
+        <h3>{UNGROUPED_LABEL}</h3>
         <p className="hint">Typisch für Einnahmen; ohne Soll.</p>
         <ul>
           {ungrouped.map((category) => (

@@ -5,9 +5,8 @@ import type { Category } from '../api/types'
 import { TransactionForm } from './TransactionForm'
 
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
-  { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
-  { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null },
+  { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
 function renderForm(onSubmit = vi.fn(() => Promise.resolve())) {
@@ -85,10 +84,10 @@ describe('TransactionForm', () => {
     expect(screen.getByLabelText('Einnahme')).not.toBeChecked()
   })
 
-  it('does not offer the remainder category', () => {
+  it('groups the categories like the settings', () => {
     renderForm()
 
-    expect(screen.queryByRole('option', { name: 'Sonstiges (berechneter Rest)' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Fixkosten' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Ohne Gruppe' })).toBeInTheDocument()
   })
 
