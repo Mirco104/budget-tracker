@@ -98,6 +98,7 @@ class DashboardCalculatorTest {
 
         // 2400 - 800 - 360
         assertThat(result.unplanned()).isEqualByComparingTo("1240.00");
+        assertThat(result.unplannedLabel()).isEqualTo("Nicht verplant");
         assertThat(result.expenses().target()).isEqualByComparingTo("1160.00");
     }
 
@@ -110,6 +111,7 @@ class DashboardCalculatorTest {
 
         // 2000 - 1500 - 800
         assertThat(result.unplanned()).isEqualByComparingTo("-300.00");
+        assertThat(result.unplannedLabel()).isEqualTo("Überplant");
         assertThat(result.expenses().target()).isEqualByComparingTo("2300.00");
     }
 
@@ -141,6 +143,7 @@ class DashboardCalculatorTest {
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("0.00");
         assertThat(category(result, LEBENSMITTEL).targetShare()).isNull();
         assertThat(result.unplanned()).isEqualByComparingTo("0.00");
+        assertThat(result.unplannedLabel()).isEqualTo("Nicht verplant");
         assertThat(result.surplus()).isEqualByComparingTo("0.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
         assertThat(result.surplusShare()).isNull();

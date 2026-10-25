@@ -23,8 +23,9 @@ function PlanningSummary({ month }: { month: string }) {
           <dd>{formatEuro(data.expenses.target)}</dd>
         </div>
         <div>
-          <dt>Nicht verplant</dt>
-          <dd className={data.unplanned < 0 ? 'negative' : undefined}>{formatEuro(data.unplanned)}</dd>
+          <dt>{data.unplannedLabel}</dt>
+          {/* The label already says "Überplant", so the amount is shown without minus sign (R4). */}
+          <dd className={data.unplanned < 0 ? 'negative' : undefined}>{formatEuro(Math.abs(data.unplanned))}</dd>
         </div>
       </dl>
       {data.incomeTotal === 0 && (

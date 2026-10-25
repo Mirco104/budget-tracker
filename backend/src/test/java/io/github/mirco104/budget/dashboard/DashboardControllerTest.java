@@ -55,6 +55,7 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.expenses.actual").value(750.00))
                 .andExpect(jsonPath("$.expenses.difference").value(50.00))
                 .andExpect(jsonPath("$.unplanned").value(1200.00))
+                .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
                 .andExpect(jsonPath("$.surplusShare").value(0.625))

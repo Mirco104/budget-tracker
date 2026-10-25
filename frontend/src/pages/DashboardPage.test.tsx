@@ -18,6 +18,7 @@ const dashboard: DashboardData = {
     differenceShare: 0.0325,
   },
   unplanned: 1040,
+  unplannedLabel: 'Nicht verplant',
   surplus: 1105,
   surplusLabel: 'Monatlicher Überschuss',
   surplusShare: 0.5525,

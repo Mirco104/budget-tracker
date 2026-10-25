@@ -87,6 +87,8 @@ export interface DashboardData {
   expenses: Totals
   /** Income without a target: income minus the target total; negative when over-planned. */
   unplanned: number
+  /** "Nicht verplant" or "Überplant" (negative unplanned). */
+  unplannedLabel: string
   surplus: number
   surplusLabel: string
   surplusShare: number | null

@@ -66,6 +66,7 @@ public class DashboardCalculator {
 
         // R4
         BigDecimal unplanned = incomeTotal.subtract(expensesTarget);
+        String unplannedLabel = unplanned.signum() >= 0 ? "Nicht verplant" : "Überplant";
 
         // R7
         BigDecimal surplus = incomeTotal.subtract(expensesActual);
@@ -88,6 +89,7 @@ public class DashboardCalculator {
                 new Totals(expensesTarget, expensesActual, expensesDifference, share(expensesTarget, incomeTotal),
                         share(expensesActual, incomeTotal), share(expensesDifference, incomeTotal)),
                 unplanned,
+                unplannedLabel,
                 surplus,
                 surplusLabel,
                 share(surplus, incomeTotal),

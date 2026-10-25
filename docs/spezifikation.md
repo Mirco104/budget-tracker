@@ -30,7 +30,7 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 | R1 | **Netto je Kategorie** `N(k)` = Summe der Beträge (mit Vorzeichen, R11) aller Transaktionen der Kategorie in M + Summe der Beträge aller Vorkommen wiederkehrender Transaktionen der Kategorie, die in M liegen (R12). Ein Vorkommen zählt mit seinem vollen Betrag; das Ist bildet den echten Geldfluss ab. | `Dashboard_Budget!E39:E59`, `K39:K46`; bewusste Abweichung: keine Verteilung von Jahresbeträgen auf 12 Monate |
 | R2 | **Einnahmen und Ausgaben:** Eine Kategorie mit `N(k) > 0` zählt in M als Einnahme, eine mit `N(k) < 0` als Ausgabe. **Einnahmen gesamt (Ist)** `E` = Summe aller positiven `N(k)`. **Ausgaben-Ist je Kategorie** `I(k)` = `−N(k)`, wenn `N(k) < 0`, sonst 0. **Ausgaben gesamt (Ist)** `A` = Summe aller `I(k)`. Erstattungen (positive Beträge in einer Ausgaben-Kategorie) mindern so das Ist ihrer Kategorie. | `K37` |
 | R3 | **Soll je Kategorie der Gruppen Fixkosten, Flexibel und Sparen:** Maßgeblich ist der Soll-Eintrag der Kategorie mit dem spätesten `validFrom ≤ M` (gilt ab M für alle folgenden Monate, bis ein neuerer Eintrag ihn ersetzt). Gibt es keinen solchen Eintrag oder sind darin beide Werte leer: kein Soll. Innerhalb des Eintrags gilt: Ist ein Euro-Wert gesetzt, gilt er. Sonst, wenn ein Prozentwert gesetzt ist: `E` × Prozent. Sonst: kein Soll. Der Euro-Wert hat immer Vorrang. Ein Soll ist immer ein Ausgabenbudget (Betrag ≥ 0). | `Einstellungen_Budget!F11:F30` |
-| R4 | **Nicht verplant** = `E` − `P`, wobei `P` die Summe aller Soll-Werte (R3) ist. Zeigt, welcher Teil der Einnahmen kein Budget hat. Darf negativ sein (Überplanung). Eine reine Rechengröße, keine Kategorie. Angezeigt in den Einstellungen für den gewählten Monat (Einnahmen, verplant, nicht verplant); sind in dem Monat noch keine Einnahmen gebucht, steht dort ein Hinweis. | `F31`, `G31`; bewusste Abweichung: im Sheet eine berechnete Rest-Kategorie, die im Soll gesamt mitzählte |
+| R4 | **Nicht verplant** = `E` − `P`, wobei `P` die Summe aller Soll-Werte (R3) ist. Zeigt, welcher Teil der Einnahmen kein Budget hat. Darf negativ sein (Überplanung). Bezeichnung: "Nicht verplant" bei ≥ 0, sonst "Überplant"; bei "Überplant" wird der Betrag ohne Minuszeichen und rot angezeigt. Eine reine Rechengröße, keine Kategorie. Angezeigt in den Einstellungen für den gewählten Monat (Einnahmen, verplant, nicht verplant); sind in dem Monat noch keine Einnahmen gebucht, steht dort ein Hinweis. | `F31`, `G31`; bewusste Abweichung: im Sheet eine berechnete Rest-Kategorie, die im Soll gesamt mitzählte |
 | R5 | **Abweichung zum Soll je Kategorie** = Soll − `I(k)`. Positiv heißt unter Budget, negativ über Budget. Ohne Soll: leer. | `F39:F59` |
 | R6 | **Gesamt:** Soll gesamt = `P` (ohne nicht verplante Einnahmen); Ist gesamt = `A`; Abweichung zum Soll gesamt = `P` − `A` | `D37:F37`; bewusste Abweichung: im Sheet war Soll gesamt immer `E` und die Differenz damit gleich dem Überschuss |
 | R7 | **Überschuss** = `E` − `A` (gleich der Summe aller `N(k)`, und gleich Nicht verplant + Abweichung zum Soll gesamt). Bezeichnung: "Monatlicher Überschuss" bei ≥ 0, sonst "Monatlicher Verlust". | `I17`, `I18` |
@@ -144,7 +144,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   "incomeTotalShare": 1.0,
   "expenses": { "target": 1800.00, "actual": 1635.00, "difference": 165.00,
                 "targetShare": 0.9, "actualShare": 0.8175, "differenceShare": 0.0825 },
-  "unplanned": 200.00,
+  "unplanned": 200.00, "unplannedLabel": "Nicht verplant",
   "surplus": 365.00, "surplusLabel": "Monatlicher Überschuss", "surplusShare": 0.1825,
   "groups":    [ { "group": "FIXED", "target": 500.00, "actual": 500.00, "difference": 0.00,
                    "targetShare": 0.25, "actualShare": 0.25, "differenceShare": 0.0 } ],
@@ -182,7 +182,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   1. Nur Euro-Soll, keine Prozente
   2. Nur Prozent-Soll, Einnahmen > 0
   3. Euro und Prozent gleichzeitig → Euro gewinnt (R3)
-  4. Nicht verplant = `E` − `P`, negativ bei Überplanung; Soll gesamt enthält es nicht (R4, R6)
+  4. Nicht verplant = `E` − `P`, negativ bei Überplanung und dann mit Bezeichnung "Überplant"; Soll gesamt enthält es nicht (R4, R6)
   5. Einnahmen = 0 → keine Division durch null, Anteile leer (R8, R9)
   6. Vorkommen einer wiederkehrenden Transaktion zählt mit vollem Betrag im Monat des Vorkommens, in anderen Monaten nicht (R1)
   7. Überschuss negativ → Bezeichnung "Monatlicher Verlust" (R7)

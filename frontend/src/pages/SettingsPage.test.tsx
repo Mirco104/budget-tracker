@@ -12,7 +12,7 @@ const categories: Category[] = [
 ]
 
 // Only the fields the planning summary uses.
-const dashboard = { incomeTotal: 3200, expenses: { target: 3300 }, unplanned: -100 }
+const dashboard = { incomeTotal: 3200, expenses: { target: 3000 }, unplanned: 200, unplannedLabel: 'Nicht verplant' }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -58,16 +58,24 @@ describe('SettingsPage', () => {
     const fetchMock = renderPage()
 
     const unplanned = await screen.findByText('Nicht verplant', { selector: 'dt' })
-    expect(unplanned.nextSibling).toHaveTextContent('-100,00 €')
-    expect(unplanned.nextSibling).toHaveClass('negative')
-    expect(screen.getByText('Verplant', { selector: 'dt' }).nextSibling).toHaveTextContent('3.300,00 €')
+    expect(unplanned.nextSibling).toHaveTextContent('200,00 €')
+    expect(unplanned.nextSibling).not.toHaveClass('negative')
+    expect(screen.getByText('Verplant', { selector: 'dt' }).nextSibling).toHaveTextContent('3.000,00 €')
     expect(screen.getByText('Einnahmen November 2026').nextSibling).toHaveTextContent('3.200,00 €')
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-11', expect.anything())
     expect(screen.queryByText(/noch keine Einnahmen gebucht/)).not.toBeInTheDocument()
   })
 
+  it('shows an over-planned month in red without minus sign', async () => {
+    renderPage(undefined, { incomeTotal: 3200, expenses: { target: 3300 }, unplanned: -100, unplannedLabel: 'Überplant' })
+
+    const overPlanned = await screen.findByText('Überplant', { selector: 'dt' })
+    expect(overPlanned.nextSibling).toHaveTextContent(/^100,00\s€$/)
+    expect(overPlanned.nextSibling).toHaveClass('negative')
+  })
+
   it('says so when the month has no income yet', async () => {
-    renderPage(undefined, { incomeTotal: 0, expenses: { target: 800 }, unplanned: -800 })
+    renderPage(undefined, { incomeTotal: 0, expenses: { target: 800 }, unplanned: -800, unplannedLabel: 'Überplant' })
 
     expect(await screen.findByText(/noch keine Einnahmen gebucht/)).toBeInTheDocument()
   })

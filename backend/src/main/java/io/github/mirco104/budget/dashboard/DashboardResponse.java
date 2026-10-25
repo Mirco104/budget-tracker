@@ -16,6 +16,7 @@ public record DashboardResponse(
         BigDecimal incomeTotalShare,
         Totals expenses,
         BigDecimal unplanned,
+        String unplannedLabel,
         BigDecimal surplus,
         String surplusLabel,
         BigDecimal surplusShare,
