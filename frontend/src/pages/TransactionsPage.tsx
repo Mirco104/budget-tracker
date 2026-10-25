@@ -256,10 +256,8 @@ export function TransactionsPage({ month }: { month: string }) {
                   {t.description}
                   {t.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
                 </td>
-                <td className="tx-category">
-                  {t.categoryName} <span className="tx-kind">({t.amount < 0 ? 'Ausgabe' : 'Einnahme'})</span>
-                </td>
-                <td className={`number tx-amount ${t.amount < 0 ? '' : 'positive'}`}>{formatEuro(t.amount)}</td>
+                <td className="tx-category">{t.categoryName}</td>
+                <td className={`number tx-amount ${t.amount < 0 ? 'negative' : 'positive'}`}>{formatEuro(t.amount)}</td>
                 <td className="tx-actions">
                   <button type="button" onClick={() => handleEdit(t)}>
                     Bearbeiten

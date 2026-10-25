@@ -52,6 +52,15 @@ describe('TransactionsPage', () => {
     expect(within(screen.getByRole('row', { name: /Kino/ })).queryByText('wiederkehrend')).not.toBeInTheDocument()
   })
 
+  it('colors expenses red, shows the category without Ausgabe/Einnahme', async () => {
+    renderPage()
+
+    const kino = await screen.findByRole('row', { name: /Kino/ })
+    expect(within(kino).getByText('-12,00 €')).toHaveClass('negative')
+    expect(within(kino).getByText('Freizeit')).toBeInTheDocument()
+    expect(within(kino).queryByText(/Ausgabe/)).not.toBeInTheDocument()
+  })
+
   it('asks for the scope before editing an occurrence and edits the following ones as a series', async () => {
     const fetchMock = renderPage()
     await screen.findByRole('option', { name: 'Freizeit' })

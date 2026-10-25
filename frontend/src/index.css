@@ -318,10 +318,6 @@ form.transaction-form .sign-toggle label {
     grid-area: category;
   }
 
-  .transactions .tx-kind {
-    display: none;
-  }
-
   .transactions .tx-actions {
     grid-area: actions;
     display: flex;
