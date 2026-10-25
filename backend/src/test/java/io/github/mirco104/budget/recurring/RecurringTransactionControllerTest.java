@@ -86,15 +86,6 @@ class RecurringTransactionControllerTest {
     }
 
     @Test
-    void rejectsRemainderCategory() throws Exception {
-        postSeries(series("-10", "Test", remainderId(), "MONTHLY", "2026-10-05", null))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("categoryId"))
-                .andExpect(jsonPath("$.errors[0].message")
-                        .value("Auf die Rest-Kategorie kann nicht gebucht werden."));
-    }
-
-    @Test
     void rejectsUnknownCategory() throws Exception {
         postSeries(series("-10", "Test", 999_999, "MONTHLY", "2026-10-05", null))
                 .andExpect(status().isBadRequest())
@@ -192,7 +183,7 @@ class RecurringTransactionControllerTest {
     void updateThisWithInvalidBodyChangesNothing() throws Exception {
         long id = create(series("-15", "Streaming", categoryId("Freizeit"), "MONTHLY", "2026-01-05", null));
 
-        putOccurrence(id, "2026-10-05", "THIS", transaction("-20", "Test", "2026-10-05", remainderId()))
+        putOccurrence(id, "2026-10-05", "THIS", transaction("-20", "Test", "2026-10-05", 999_999))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
         assertDescriptions("2026-10", "Streaming");
@@ -282,11 +273,11 @@ class RecurringTransactionControllerTest {
     }
 
     @Test
-    void updateFollowingOntoRemainderCategoryReturns400() throws Exception {
+    void updateFollowingOntoUnknownCategoryReturns400() throws Exception {
         long id = create(series("-900", "Miete", categoryId("Wohnen"), "MONTHLY", "2026-01-01", null));
 
         putOccurrence(id, "2026-10-01", "FOLLOWING",
-                series("-900", "Miete", remainderId(), "MONTHLY", "2026-10-01", null))
+                series("-900", "Miete", 999_999, "MONTHLY", "2026-10-01", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
     }
@@ -428,13 +419,6 @@ class RecurringTransactionControllerTest {
     private long categoryId(String name) {
         return categoryRepository.findAll().stream()
                 .filter(c -> c.getName().equals(name))
-                .findFirst().orElseThrow()
-                .getId();
-    }
-
-    private long remainderId() {
-        return categoryRepository.findAll().stream()
-                .filter(c -> c.isSystem())
                 .findFirst().orElseThrow()
                 .getId();
     }

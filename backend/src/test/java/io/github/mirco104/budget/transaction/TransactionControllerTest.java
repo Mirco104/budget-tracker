@@ -145,15 +145,6 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.errors[0].message").value("Der Betrag darf nicht 0 sein."));
     }
 
-    @Test
-    void rejectsBookingOnRemainderCategory() throws Exception {
-        postTransaction(body("-10", "Test", "2026-10-05", remainderId()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("categoryId"))
-                .andExpect(jsonPath("$.errors[0].message")
-                        .value("Auf die Rest-Kategorie kann nicht gebucht werden."));
-    }
-
     // --- GET /api/transactions?month= ---
 
     @Test
@@ -248,15 +239,6 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.errors[0].field").value("amount"));
     }
 
-    @Test
-    void updateOntoRemainderCategoryReturns400() throws Exception {
-        long id = create(body("-10", "Test", "2026-10-05", categoryId("Freizeit")));
-
-        putTransaction(id, body("-10", "Test", "2026-10-05", remainderId()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
-    }
-
     // --- DELETE /api/transactions/{id} (US4) ---
 
     @Test
@@ -301,13 +283,6 @@ class TransactionControllerTest {
     private long categoryId(String name) {
         return categoryRepository.findAll().stream()
                 .filter(c -> c.getName().equals(name))
-                .findFirst().orElseThrow()
-                .getId();
-    }
-
-    private long remainderId() {
-        return categoryRepository.findAll().stream()
-                .filter(c -> c.isSystem())
                 .findFirst().orElseThrow()
                 .getId();
     }

@@ -6,18 +6,28 @@ import { SettingsPage } from './SettingsPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', system: false },
-  { id: 7, name: 'Lebensmittel', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', system: false },
-  { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
-  { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09' },
+  { id: 7, name: 'Lebensmittel', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11' },
+  { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
+
+// Only the fields the planning summary uses.
+const dashboard = { incomeTotal: 3200, expenses: { target: 3000 }, unplanned: 200, unplannedLabel: 'Nicht verplant' }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
-function renderPage(onPut: () => Promise<Response> = () => json(categories[1])) {
-  const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' ? onPut() : json(categories)))
+function renderPage(
+  onPut: () => Promise<Response> = () => json(categories[1]),
+  dashboardData: unknown = dashboard,
+) {
+  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') {
+      return onPut()
+    }
+    return url.startsWith('/api/dashboard') ? json(dashboardData) : json(categories)
+  })
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -32,7 +42,7 @@ function putCalls(fetchMock: ReturnType<typeof renderPage>) {
 }
 
 describe('SettingsPage', () => {
-  it('shows categories by group with prefilled targets and a read-only remainder', async () => {
+  it('shows categories by group with prefilled targets', async () => {
     renderPage()
 
     const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
@@ -41,9 +51,33 @@ describe('SettingsPage', () => {
     expect(within(wohnen).getByLabelText(/Soll \(€\)/)).toHaveValue('800,00')
     expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).getByLabelText(/Soll \(%\)/)).toHaveValue('15,00')
 
-    expect(screen.queryByRole('form', { name: /Sonstiges/ })).not.toBeInTheDocument()
-    expect(screen.getByText(/wird automatisch berechnet/)).toBeInTheDocument()
     expect(screen.getByText('Gehalt/Lohn (netto)')).toBeInTheDocument()
+  })
+
+  it('shows income, planned targets and the unplanned rest of the month', async () => {
+    const fetchMock = renderPage()
+
+    const unplanned = await screen.findByText('Nicht verplant', { selector: 'dt' })
+    expect(unplanned.nextSibling).toHaveTextContent('200,00 €')
+    expect(unplanned.nextSibling).not.toHaveClass('negative')
+    expect(screen.getByText('Verplant', { selector: 'dt' }).nextSibling).toHaveTextContent('3.000,00 €')
+    expect(screen.getByText('Einnahmen November 2026').nextSibling).toHaveTextContent('3.200,00 €')
+    expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-11', expect.anything())
+    expect(screen.queryByText(/noch keine Einnahmen gebucht/)).not.toBeInTheDocument()
+  })
+
+  it('shows an over-planned month in red without minus sign', async () => {
+    renderPage(undefined, { incomeTotal: 3200, expenses: { target: 3300 }, unplanned: -100, unplannedLabel: 'Überplant' })
+
+    const overPlanned = await screen.findByText('Überplant', { selector: 'dt' })
+    expect(overPlanned.nextSibling).toHaveTextContent(/^100,00\s€$/)
+    expect(overPlanned.nextSibling).toHaveClass('negative')
+  })
+
+  it('says so when the month has no income yet', async () => {
+    renderPage(undefined, { incomeTotal: 0, expenses: { target: 800 }, unplanned: -800, unplannedLabel: 'Überplant' })
+
+    expect(await screen.findByText(/noch keine Einnahmen gebucht/)).toBeInTheDocument()
   })
 
   it('loads the targets of the selected month and says from when they apply', async () => {

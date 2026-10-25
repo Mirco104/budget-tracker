@@ -15,8 +15,7 @@ public record CategoryResponse(
         int sortOrder,
         BigDecimal targetAmount,
         BigDecimal targetPercent,
-        YearMonth targetValidFrom,
-        boolean system) {
+        YearMonth targetValidFrom) {
 
     static CategoryResponse from(Category category, TargetEntry target) {
         return new CategoryResponse(
@@ -26,7 +25,6 @@ public record CategoryResponse(
                 category.getSortOrder(),
                 target == null ? null : target.targetAmount(),
                 target == null ? null : target.targetPercent(),
-                target == null ? null : target.validFrom(),
-                category.isSystem());
+                target == null ? null : target.validFrom());
     }
 }

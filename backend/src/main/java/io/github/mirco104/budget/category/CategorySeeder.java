@@ -2,7 +2,6 @@ package io.github.mirco104.budget.category;
 
 import static io.github.mirco104.budget.category.CategoryGroup.FIXED;
 import static io.github.mirco104.budget.category.CategoryGroup.FLEXIBLE;
-import static io.github.mirco104.budget.category.CategoryGroup.REMAINDER;
 import static io.github.mirco104.budget.category.CategoryGroup.SAVINGS;
 
 import java.util.ArrayList;
@@ -18,8 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 public class CategorySeeder implements ApplicationRunner {
-
-    private static final String REMAINDER_NAME = "Sonstiges (berechneter Rest)";
 
     private final CategoryRepository categoryRepository;
 
@@ -41,7 +38,6 @@ public class CategorySeeder implements ApplicationRunner {
                 "Lebensmittel", "Freizeit", "Urlaub", "Persönlicher Bedarf", "Geschenke", "Gesundheit");
         addGroup(categories, SAVINGS,
                 "Investitionen", "Selbstständigkeit");
-        categories.add(new Category(REMAINDER_NAME, REMAINDER, nextSortOrder(categories), true));
         addGroup(categories, null, "Gehalt/Lohn (netto)", "Nebenjob", "Einnahmen Selbstständigkeit",
                 "Kapitalerträge", "Staatliche Leistungen", "Sonstige Einnahmen");
 
@@ -51,7 +47,7 @@ public class CategorySeeder implements ApplicationRunner {
     // group null means "ohne Gruppe"
     private static void addGroup(List<Category> categories, CategoryGroup group, String... names) {
         for (String name : names) {
-            categories.add(new Category(name, group, nextSortOrder(categories), false));
+            categories.add(new Category(name, group, nextSortOrder(categories)));
         }
     }
 

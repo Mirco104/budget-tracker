@@ -19,6 +19,18 @@ export function formatPercent(value: number | null): string {
   return value === null ? EMPTY : percent.format(value)
 }
 
+const decimal = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** For table cells: the unit (€ or %) is in the column header, which saves width on narrow screens. */
+export function formatAmount(value: number | null): string {
+  return value === null ? EMPTY : decimal.format(value)
+}
+
+/** Ratio as percent number without the % sign, see formatAmount. */
+export function formatShare(value: number | null): string {
+  return value === null ? EMPTY : decimal.format(value * 100)
+}
+
 const monthName = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' })
 
 /** "2026-11" -> "November 2026" */

@@ -2,8 +2,7 @@ package io.github.mirco104.budget.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -31,8 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class DashboardControllerTest {
 
-    private static final String REMAINDER = "Sonstiges (berechneter Rest)";
-
     @Autowired
     private MockMvc mockMvc;
 
@@ -56,18 +53,20 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.name == 'Wohnen')].target", contains(800.00)))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Wohnen')].actual", contains(750.00)))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Wohnen')].difference", contains(50.00)))
-                .andExpect(jsonPath("$.categories[?(@.name == '" + REMAINDER + "')].target", contains(1200.00)))
-                .andExpect(jsonPath("$.expenses.target").value(2000.00))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Sonstiges (berechneter Rest)')]", hasSize(0)))
+                .andExpect(jsonPath("$.expenses.target").value(800.00))
                 .andExpect(jsonPath("$.expenses.actual").value(750.00))
+                .andExpect(jsonPath("$.expenses.difference").value(50.00))
+                .andExpect(jsonPath("$.unplanned").value(1200.00))
+                .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
-                .andExpect(jsonPath("$.savingsRate").value(0.625))
-                .andExpect(jsonPath("$.groups[*].group", contains("FIXED", "FLEXIBLE", "SAVINGS", "REMAINDER")))
+                .andExpect(jsonPath("$.surplusShare").value(0.625))
+                .andExpect(jsonPath("$.groups[*].group", contains("FIXED")))
                 .andExpect(jsonPath("$.groups[0].target").value(800.00))
                 .andExpect(jsonPath("$.groups[0].actual").value(750.00))
                 .andExpect(jsonPath("$.groups[0].difference").value(50.00))
-                .andExpect(jsonPath("$.groups[1].target").value(0.00))
-                .andExpect(jsonPath("$.groups[3].target").value(1200.00))
+                .andExpect(jsonPath("$.groups[0].actualShare").value(0.375))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(1.0)));
     }
 
@@ -85,7 +84,7 @@ class DashboardControllerTest {
     }
 
     @Test
-    void refundLowersActualOfItsCategoryAndUngroupedExpenseCountsTowardsRemainder() throws Exception {
+    void refundLowersActualOfItsCategoryAndUngroupedExpenseHasItsOwnGroupLine() throws Exception {
         postTransaction("2000", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
         postTransaction("-100", "Einkauf", "2026-10-02", categoryId("Lebensmittel"));
         postTransaction("30", "Erstattung", "2026-10-03", categoryId("Lebensmittel"));
@@ -96,10 +95,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(2000.00))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Lebensmittel')].actual", contains(70.00)))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Nebenjob')].actual", contains(20.00)))
-                .andExpect(jsonPath("$.groups[3].actual").value(20.00))
+                .andExpect(jsonPath("$.groups[1].group").doesNotExist())
+                .andExpect(jsonPath("$.groups[1].actual").value(20.00))
                 .andExpect(jsonPath("$.expenses.actual").value(90.00))
-                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].actual", contains(-20.00)))
-                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0)));
+                .andExpect(jsonPath("$.income[*].name", contains("Gehalt/Lohn (netto)")));
     }
 
     @Test
@@ -109,8 +108,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(0.00))
                 .andExpect(jsonPath("$.expenses.actual").value(0.00))
                 .andExpect(jsonPath("$.surplus").value(0.00))
-                .andExpect(jsonPath("$.savingsRate").doesNotExist())
-                .andExpect(jsonPath("$.income[*].share", everyItem(is(0.0))));
+                .andExpect(jsonPath("$.surplusShare").doesNotExist())
+                .andExpect(jsonPath("$.categories", hasSize(0)))
+                .andExpect(jsonPath("$.groups", hasSize(0)))
+                .andExpect(jsonPath("$.income", hasSize(0)));
     }
 
     // --- Reference fixture F1 (spec section 12), end to end with recurring transactions (R1, R12, R13) ---
@@ -164,18 +165,18 @@ class DashboardControllerTest {
                 .andExpect(line("Freizeit", "difference", 160.00))
                 .andExpect(line("Geschenke", "target", null)).andExpect(line("Geschenke", "actual", 20.00))
                 .andExpect(line("Geschenke", "difference", null))
-                .andExpect(line("Kredite", "target", null)).andExpect(line("Kredite", "actual", 0.00))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Kredite')]", hasSize(0)))
                 .andExpect(line("Investitionen", "target", 640.00))
                 .andExpect(line("Investitionen", "actual", 640.00))
                 .andExpect(line("Investitionen", "difference", 0.00))
-                .andExpect(line(REMAINDER, "target", 620.00)).andExpect(line(REMAINDER, "actual", 0.00))
-                .andExpect(line(REMAINDER, "difference", 620.00))
-                .andExpect(jsonPath("$.expenses.target").value(3200.00))
+                .andExpect(jsonPath("$.expenses.target").value(2580.00))
                 .andExpect(jsonPath("$.expenses.actual").value(2606.49))
-                .andExpect(jsonPath("$.expenses.difference").value(593.51))
+                .andExpect(jsonPath("$.expenses.difference").value(-26.49))
+                .andExpect(jsonPath("$.unplanned").value(620.00))
+                .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
                 .andExpect(jsonPath("$.surplus").value(593.51))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
-                .andExpect(jsonPath("$.savingsRate").value(0.1855))
+                .andExpect(jsonPath("$.surplusShare").value(0.1855))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(0.9375)))
                 .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0625)))
                 .andExpect(jsonPath("$.groups[0].target").value(1380.00))
@@ -184,8 +185,7 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.groups[1].actual").value(440.50))
                 .andExpect(jsonPath("$.groups[2].target").value(640.00))
                 .andExpect(jsonPath("$.groups[2].actual").value(640.00))
-                .andExpect(jsonPath("$.groups[3].target").value(620.00))
-                .andExpect(jsonPath("$.groups[3].actual").value(0.00));
+                .andExpect(jsonPath("$.groups", hasSize(3)));
 
         // An occurrence counts only in its own month (R1): November has rent and streaming, no insurance
         mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))
@@ -226,8 +226,12 @@ class DashboardControllerTest {
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsString(),
                 "$.categories[?(@.name == 'Wohnen')].target");
-        assertThat(targets).as("target in %s", month).hasSize(1);
-        assertThat(targets.get(0)).as("target in %s", month).isEqualTo(expected);
+        // Without a target and without expenses the category is not listed (R10)
+        if (expected == null) {
+            assertThat(targets).as("target in %s", month).isEmpty();
+        } else {
+            assertThat(targets).as("target in %s", month).containsExactly(expected);
+        }
     }
 
     private void postTransaction(String amount, String description, String date, long categoryId)

@@ -46,10 +46,6 @@ public class CategoryService {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Kategorie " + id + " wurde nicht gefunden."));
 
-        if (category.isSystem()) {
-            throw new ConflictException(
-                    "Die Rest-Kategorie wird automatisch berechnet und kann nicht geändert werden.");
-        }
         if (category.getGroup() == null) {
             throw new ConflictException("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden.");
         }
@@ -61,15 +57,11 @@ public class CategoryService {
         return CategoryResponse.from(category, target.toEntry());
     }
 
-    /** The category for a booking; 400 on field categoryId if it is unknown or the remainder category (R4). */
+    /** The category for a booking; 400 on field categoryId if it is unknown. */
     @Transactional(readOnly = true)
     public Category findBookable(long categoryId) {
-        Category category = categoryRepository.findById(categoryId)
+        return categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new InvalidFieldException("categoryId", "Die Kategorie existiert nicht."));
-        if (category.isSystem()) {
-            throw new InvalidFieldException("categoryId", "Auf die Rest-Kategorie kann nicht gebucht werden.");
-        }
-        return category;
     }
 
     private static BigDecimal scale(BigDecimal value, int scale) {

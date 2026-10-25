@@ -29,18 +29,13 @@ public class Category {
     @Column(nullable = false)
     private int sortOrder;
 
-    // "system" is an SQL keyword
-    @Column(name = "system_category", nullable = false)
-    private boolean system;
-
     protected Category() {
     }
 
-    public Category(String name, CategoryGroup group, int sortOrder, boolean system) {
+    public Category(String name, CategoryGroup group, int sortOrder) {
         this.name = name;
         this.group = group;
         this.sortOrder = sortOrder;
-        this.system = system;
     }
 
     public Long getId() {
@@ -57,9 +52,5 @@ public class Category {
 
     public int getSortOrder() {
         return sortOrder;
-    }
-
-    public boolean isSystem() {
-        return system;
     }
 }

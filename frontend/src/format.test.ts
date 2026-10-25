@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatEuro, formatMonth, formatPercent, parseAmountInput, shiftMonth } from './format'
+import {
+  formatAmount,
+  formatDate,
+  formatEuro,
+  formatMonth,
+  formatPercent,
+  formatShare,
+  parseAmountInput,
+  shiftMonth,
+} from './format'
 
 describe('parseAmountInput', () => {
   it.each([
@@ -23,6 +32,14 @@ describe('formatting', () => {
     // Intl puts a non-breaking space before the symbol.
     expect(formatEuro(1234.5)).toBe('1.234,50 €')
     expect(formatEuro(null)).toBe('–')
+  })
+
+  it('formats table amounts and shares without unit', () => {
+    expect(formatAmount(-1234.5)).toBe('-1.234,50')
+    expect(formatShare(0.2813)).toBe('28,13')
+    expect(formatShare(-0.0083)).toBe('-0,83')
+    expect(formatAmount(null)).toBe('–')
+    expect(formatShare(null)).toBe('–')
   })
 
   it('formats ratios with two decimals', () => {

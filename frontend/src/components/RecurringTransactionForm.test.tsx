@@ -4,9 +4,8 @@ import type { Category, RecurringTransactionInput } from '../api/types'
 import { RecurringTransactionForm } from './RecurringTransactionForm'
 
 const categories: Category[] = [
-  { id: 3, name: 'Versicherungen', group: 'FIXED', sortOrder: 3, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
-  { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
-  { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 3, name: 'Versicherungen', group: 'FIXED', sortOrder: 3, targetAmount: null, targetPercent: null, targetValidFrom: null },
+  { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
 function renderForm(initial: RecurringTransactionInput | null = null, onSubmit = vi.fn(() => Promise.resolve())) {
@@ -101,11 +100,5 @@ describe('RecurringTransactionForm', () => {
     expect(screen.getByLabelText('Intervall')).toHaveValue('QUARTERLY')
     expect(screen.getByLabelText('Startdatum (erste Abbuchung)')).toHaveValue('2026-11-05')
     expect(screen.getByLabelText('Enddatum (optional)')).toHaveValue('2027-12-31')
-  })
-
-  it('does not offer the remainder category', () => {
-    renderForm()
-
-    expect(screen.queryByRole('option', { name: 'Sonstiges (berechneter Rest)' })).not.toBeInTheDocument()
   })
 })

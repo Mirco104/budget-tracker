@@ -43,8 +43,7 @@ public class DashboardService {
                             category.getName(),
                             category.getGroup(),
                             target == null ? null : target.targetAmount(),
-                            target == null ? null : target.targetPercent(),
-                            category.isSystem());
+                            target == null ? null : target.targetPercent());
                 })
                 .toList();
         // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction
