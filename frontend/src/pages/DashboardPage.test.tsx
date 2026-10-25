@@ -19,14 +19,12 @@ const dashboard: DashboardData = {
     { group: 'REMAINDER', target: -100, actual: 0, difference: -100 },
   ],
   categories: [
-    { id: 1, name: 'Wohnen', group: 'FIXED', target: 800, actual: 800, actualYearly: 0, difference: 0 },
-    { id: 2, name: 'Urlaub', group: 'FLEXIBLE', target: null, actual: 35, actualYearly: 0, difference: null },
-    { id: 3, name: 'Versicherungen', group: 'FIXED', target: 60, actual: 60, actualYearly: 50, difference: 0 },
-    { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', target: -100, actual: 0, actualYearly: 0, difference: -100 },
+    { id: 1, name: 'Wohnen', group: 'FIXED', target: 800, actual: 800, difference: 0 },
+    { id: 2, name: 'Urlaub', group: 'FLEXIBLE', target: null, actual: 35, difference: null },
+    { id: 3, name: 'Versicherungen', group: 'FIXED', target: 60, actual: 60, difference: 0 },
+    { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', target: -100, actual: 0, difference: -100 },
   ],
-  income: [{ id: 20, name: 'Gehalt', actual: 2000, actualYearly: 0, share: 1 }],
-  yearlyExpensesShare: 50,
-  dueYearly: [],
+  income: [{ id: 20, name: 'Gehalt', actual: 2000, share: 1 }],
 }
 
 function renderPage(data: DashboardData = dashboard) {
@@ -78,32 +76,19 @@ describe('DashboardPage', () => {
     expect(within(rest).getAllByText('-100,00 €')).toHaveLength(2)
   })
 
-  it('shows the yearly share in the actual cell and the yearly costs total', async () => {
-    renderPage()
-
-    const versicherungen = await screen.findByRole('row', { name: /Versicherungen/ })
-    expect(within(versicherungen).getByText('davon 50,00 € anteilig jährlich')).toBeInTheDocument()
-    const wohnen = screen.getByRole('row', { name: /Wohnen/ })
-    expect(within(wohnen).queryByText(/anteilig jährlich/)).not.toBeInTheDocument()
-    expect(screen.getByText('Davon anteilige Jahreskosten').nextElementSibling).toHaveTextContent('50,00 €')
-  })
-
-  it('lists yearly debits due in the month', async () => {
+  it('lists an ungrouped expense and marks negative income', async () => {
     renderPage({
       ...dashboard,
-      dueYearly: [
-        { id: 7, description: 'Kfz-Versicherung', categoryName: 'Versicherungen', amountPerYear: 600, dueDate: '2026-10-15' },
+      categories: [
+        ...dashboard.categories,
+        { id: 21, name: 'Nebenjob', group: null, target: null, actual: 20, difference: null },
       ],
+      income: [...dashboard.income, { id: 21, name: 'Nebenjob', actual: -20, share: 0 }],
     })
 
-    const notice = await screen.findByRole('complementary', { name: 'Fällige Jahresabbuchungen' })
-    expect(within(notice).getByText('15.10.2026: Kfz-Versicherung (Versicherungen) – 600,00 €')).toBeInTheDocument()
-  })
-
-  it('shows no due notice without due debits', async () => {
-    renderPage()
-
-    await screen.findByText('Monatlicher Überschuss')
-    expect(screen.queryByRole('complementary', { name: 'Fällige Jahresabbuchungen' })).not.toBeInTheDocument()
+    const rows = await screen.findAllByRole('row', { name: /Nebenjob/ })
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0]).getByText('20,00 €')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('-20,00 €')).toHaveClass('negative')
   })
 })

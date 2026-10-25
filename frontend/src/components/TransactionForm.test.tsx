@@ -5,8 +5,9 @@ import type { Category } from '../api/types'
 import { TransactionForm } from './TransactionForm'
 
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', type: 'EXPENSE', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
-  { id: 20, name: 'Gehalt', type: 'INCOME', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
+  { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
 ]
 
 function renderForm(onSubmit = vi.fn(() => Promise.resolve())) {
@@ -42,7 +43,7 @@ describe('TransactionForm', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('submits a valid transaction with the amount as a number', async () => {
+  it('submits an expense with a negative amount by default', async () => {
     const onSubmit = renderForm()
     fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '12,50' } })
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Miete' } })
@@ -51,8 +52,44 @@ describe('TransactionForm', () => {
     submit()
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({ amount: 12.5, description: 'Miete', date: '2026-10-18', categoryId: 1 }),
+      expect(onSubmit).toHaveBeenCalledWith({ amount: -12.5, description: 'Miete', date: '2026-10-18', categoryId: 1 }),
     )
+  })
+
+  it('submits income with a positive amount', async () => {
+    const onSubmit = renderForm()
+    fireEvent.click(screen.getByLabelText('Einnahme'))
+    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Gehalt' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '20' } })
+
+    submit()
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ amount: 2000, description: 'Gehalt', date: '2026-10-18', categoryId: 20 }),
+    )
+  })
+
+  it('shows the amount of an expense positive with Ausgabe selected when editing', () => {
+    render(
+      <TransactionForm
+        categories={categories}
+        transaction={{ id: 5, amount: -45.99, description: 'Tanken', date: '2026-10-05', categoryId: 1, categoryName: 'Wohnen' }}
+        defaultDate="2026-10-18"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('Betrag (€)')).toHaveValue('45,99')
+    expect(screen.getByLabelText('Ausgabe')).toBeChecked()
+    expect(screen.getByLabelText('Einnahme')).not.toBeChecked()
+  })
+
+  it('does not offer the remainder category', () => {
+    renderForm()
+
+    expect(screen.queryByRole('option', { name: 'Sonstiges (berechneter Rest)' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Ohne Gruppe' })).toBeInTheDocument()
   })
 
   it('shows field errors returned by the server', async () => {

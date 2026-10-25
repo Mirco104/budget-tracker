@@ -9,28 +9,24 @@ interface Props {
   error?: string
 }
 
-/** Category dropdown, grouped into income and the expense groups. */
+/** Category dropdown, grouped like the settings. The remainder category is not bookable and is left out. */
 export function CategorySelect({ categories, value, onChange, error }: Props) {
-  const income = categories.filter((c) => c.type === 'INCOME')
-  const expenseGroups = (Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
-    group,
-    items: categories.filter((c) => c.type === 'EXPENSE' && c.group === group),
-  }))
+  const bookable = categories.filter((c) => !c.system)
+  const groups = [
+    ...(Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
+      label: GROUP_LABELS[group],
+      items: bookable.filter((c) => c.group === group),
+    })),
+    { label: 'Ohne Gruppe', items: bookable.filter((c) => c.group === null) },
+  ].filter(({ items }) => items.length > 0)
 
   return (
     <label>
       Kategorie
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={error ? true : undefined}>
         <option value="">Bitte wählen</option>
-        <optgroup label="Einnahmen">
-          {income.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </optgroup>
-        {expenseGroups.map(({ group, items }) => (
-          <optgroup key={group} label={GROUP_LABELS[group]}>
+        {groups.map(({ label, items }) => (
+          <optgroup key={label} label={label}>
             {items.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

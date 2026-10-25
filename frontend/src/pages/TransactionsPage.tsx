@@ -83,7 +83,7 @@ export function TransactionsPage({ month }: { month: string }) {
                 <td>{formatDate(t.date)}</td>
                 <td>{t.description}</td>
                 <td>
-                  {t.categoryName} ({t.categoryType === 'INCOME' ? 'Einnahme' : 'Ausgabe'})
+                  {t.categoryName} ({t.amount < 0 ? 'Ausgabe' : 'Einnahme'})
                 </td>
                 <td className="number">{formatEuro(t.amount)}</td>
                 <td>

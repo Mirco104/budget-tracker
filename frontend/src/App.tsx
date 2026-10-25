@@ -3,9 +3,8 @@ import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
-import { YearlyTransactionsPage } from './pages/YearlyTransactionsPage'
 
-type Page = 'dashboard' | 'transactions' | 'yearly' | 'settings'
+type Page = 'dashboard' | 'transactions' | 'settings'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -28,13 +27,6 @@ function App() {
           onClick={() => setPage('transactions')}
         >
           Transaktionen
-        </button>
-        <button
-          type="button"
-          aria-current={page === 'yearly' ? 'page' : undefined}
-          onClick={() => setPage('yearly')}
-        >
-          Jährliche Transaktionen
         </button>
         <button
           type="button"
@@ -72,7 +64,6 @@ function App() {
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
-      {page === 'yearly' && month && <YearlyTransactionsPage month={month} />}
       {page === 'settings' && month && <SettingsPage month={month} />}
     </main>
   )

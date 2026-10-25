@@ -15,24 +15,24 @@ export function SettingsPage({ month }: { month: string }) {
     return <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>
   }
 
-  const income = categories.data.filter((c) => c.type === 'INCOME')
-  const expenseGroups = (Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
+  const ungrouped = categories.data.filter((c) => c.group === null)
+  const groups = (Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
     group,
-    items: categories.data.filter((c) => c.type === 'EXPENSE' && c.group === group),
+    items: categories.data.filter((c) => c.group === group),
   }))
 
   return (
     <section>
       <h2>Einstellungen</h2>
       <p className="hint">
-        Soll je Ausgaben-Kategorie in Euro oder in Prozent der Einnahmen. Ist beides gesetzt, gilt der Euro-Wert.
+        Soll je Kategorie in Euro oder in Prozent der Einnahmen. Ist beides gesetzt, gilt der Euro-Wert.
       </p>
       <p className="hint">
         Gilt ab <strong>{formatMonth(month)}</strong> für alle folgenden Monate, bis ein späterer Monat ein neues Soll
         bekommt. Frühere Monate bleiben unverändert.
       </p>
 
-      {expenseGroups.map(({ group, items }) => (
+      {groups.map(({ group, items }) => (
         <section key={group}>
           <h3>{GROUP_LABELS[group]}</h3>
           {items.map((category) =>
@@ -54,9 +54,10 @@ export function SettingsPage({ month }: { month: string }) {
       ))}
 
       <section>
-        <h3>Einnahmen</h3>
+        <h3>Ohne Gruppe</h3>
+        <p className="hint">Typisch für Einnahmen; ohne Soll.</p>
         <ul>
-          {income.map((category) => (
+          {ungrouped.map((category) => (
             <li key={category.id}>{category.name}</li>
           ))}
         </ul>
