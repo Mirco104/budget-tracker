@@ -262,3 +262,13 @@ form.transaction-form .sign-toggle label {
   border-radius: 6px;
   background: #f6f8fa;
 }
+
+details.series {
+  margin-bottom: 24px;
+}
+
+details.series summary {
+  padding: 8px 0;
+  font-weight: bold;
+  cursor: pointer;
+}

@@ -63,7 +63,7 @@ export function DashboardPage({ month }: { month: string }) {
   return (
     <section>
       <div className="dashboard-header">
-        <h2>Dashboard</h2>
+        <h2>Übersicht</h2>
         <div className="unit-toggle" role="group" aria-label="Anzeige">
           <button type="button" aria-pressed={unit === 'euro'} onClick={() => setUnit('euro')}>
             €

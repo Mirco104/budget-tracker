@@ -2,16 +2,36 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Category } from '../api/types'
-import { TransactionForm } from './TransactionForm'
+import { TransactionForm, type RepeatOption, type TransactionFormValues } from './TransactionForm'
 
 const categories: Category[] = [
   { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null },
   { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
-function renderForm(onSubmit = vi.fn(() => Promise.resolve())) {
-  render(<TransactionForm categories={categories} transaction={null} defaultDate="2026-10-18" onSubmit={onSubmit} />)
+function renderForm(
+  onSubmit = vi.fn(() => Promise.resolve()),
+  initial: TransactionFormValues | null = null,
+  repeatOption: RepeatOption = 'optional',
+) {
+  render(
+    <TransactionForm
+      categories={categories}
+      initial={initial}
+      defaultDate="2026-10-18"
+      repeatOption={repeatOption}
+      title="Neue Transaktion"
+      submitLabel="Hinzufügen"
+      onSubmit={onSubmit}
+    />,
+  )
   return onSubmit
+}
+
+function fillValid() {
+  fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '240' } })
+  fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Haftpflicht' } })
+  fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '1' } })
 }
 
 function submit() {
@@ -51,7 +71,10 @@ describe('TransactionForm', () => {
     submit()
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({ amount: -12.5, description: 'Miete', date: '2026-10-18', categoryId: 1 }),
+      expect(onSubmit).toHaveBeenCalledWith({
+        kind: 'single',
+        input: { amount: -12.5, description: 'Miete', date: '2026-10-18', categoryId: 1 },
+      }),
     )
   })
 
@@ -65,26 +88,114 @@ describe('TransactionForm', () => {
     submit()
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({ amount: 2000, description: 'Gehalt', date: '2026-10-18', categoryId: 20 }),
+      expect(onSubmit).toHaveBeenCalledWith({
+        kind: 'single',
+        input: { amount: 2000, description: 'Gehalt', date: '2026-10-18', categoryId: 20 },
+      }),
     )
   })
 
   it('shows the amount of an expense positive with Ausgabe selected when editing', () => {
-    render(
-      <TransactionForm
-        categories={categories}
-        transaction={{ kind: 'SINGLE', id: 5, recurringId: null, occurrenceDate: null, amount: -45.99, description: 'Tanken', date: '2026-10-05', categoryId: 1, categoryName: 'Wohnen' }}
-        defaultDate="2026-10-18"
-        onSubmit={vi.fn()}
-      />,
+    renderForm(
+      vi.fn(),
+      { amount: -45.99, description: 'Tanken', date: '2026-10-05', categoryId: 1, repeat: 'NONE', endDate: null },
+      'none',
     )
 
     expect(screen.getByLabelText('Betrag (€)')).toHaveValue('45,99')
     expect(screen.getByLabelText('Ausgabe')).toBeChecked()
     expect(screen.getByLabelText('Einnahme')).not.toBeChecked()
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
   })
 
-  it('groups the categories like the settings', () => {
+  // --- Wiederholen (US6) ---
+
+  it('creates a single transaction unless a repeat is chosen', () => {
+    renderForm()
+
+    expect(screen.getByLabelText('Wiederholen')).toHaveValue('NONE')
+    expect(screen.queryByLabelText('Enddatum (optional)')).not.toBeInTheDocument()
+  })
+
+  it('submits a series when a repeat is chosen', async () => {
+    const onSubmit = renderForm()
+    fillValid()
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'YEARLY' } })
+    fireEvent.change(screen.getByLabelText('Datum (erste Abbuchung)'), { target: { value: '2026-10-15' } })
+
+    submit()
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        kind: 'recurring',
+        input: {
+          amount: -240,
+          description: 'Haftpflicht',
+          categoryId: 1,
+          interval: 'YEARLY',
+          startDate: '2026-10-15',
+          endDate: null,
+        },
+      }),
+    )
+  })
+
+  it('submits the end date of a series', async () => {
+    const onSubmit = renderForm()
+    fillValid()
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+    fireEvent.change(screen.getByLabelText('Enddatum (optional)'), { target: { value: '2027-03-31' } })
+
+    submit()
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'recurring', input: expect.objectContaining({ endDate: '2027-03-31' }) }),
+      ),
+    )
+  })
+
+  it('rejects an end date before the first occurrence', () => {
+    const onSubmit = renderForm()
+    fillValid()
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+    fireEvent.change(screen.getByLabelText('Enddatum (optional)'), { target: { value: '2026-09-30' } })
+
+    submit()
+
+    expect(screen.getByText('Das Enddatum darf nicht vor dem Startdatum liegen.')).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('offers only intervals when editing a series', () => {
+    renderForm(
+      vi.fn(),
+      { amount: -15, description: 'Streaming', date: '2026-11-05', categoryId: 1, repeat: 'QUARTERLY', endDate: '2027-12-31' },
+      'required',
+    )
+
+    expect(screen.getByLabelText('Wiederholen')).toHaveValue('QUARTERLY')
+    expect(screen.queryByRole('option', { name: 'nie' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Datum (erste Abbuchung)')).toHaveValue('2026-11-05')
+    expect(screen.getByLabelText('Enddatum (optional)')).toHaveValue('2027-12-31')
+    expect(screen.getByLabelText('Betrag (€)')).toHaveValue('15,00')
+  })
+
+  it('shows a server error on startDate at the date field', async () => {
+    const onSubmit = vi.fn(() =>
+      Promise.reject(new ApiError({ status: 400, errors: [{ field: 'startDate', message: 'Startdatum zu früh.' }] })),
+    )
+    renderForm(onSubmit)
+    fillValid()
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+
+    submit()
+
+    expect(await screen.findByText('Startdatum zu früh.')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Datum \(erste Abbuchung\)/)).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('groups the categories like the planning page', () => {
     renderForm()
 
     expect(screen.getByRole('group', { name: 'Fixkosten' })).toBeInTheDocument()

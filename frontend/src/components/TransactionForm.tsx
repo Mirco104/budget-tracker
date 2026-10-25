@@ -1,41 +1,84 @@
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
-import type { Category, Transaction, TransactionInput } from '../api/types'
+import type { Category, RecurringInterval, RecurringTransactionInput, TransactionInput } from '../api/types'
 import { parseAmountInput } from '../format'
+import { INTERVAL_LABELS } from '../labels'
 import { CategorySelect } from './CategorySelect'
 
-type Field = 'amount' | 'description' | 'date' | 'categoryId'
+type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'repeat' | 'endDate'
 type Errors = Partial<Record<Field, string>>
+
+/** NONE is a single transaction; an interval makes it a recurring one (R12). */
+export type Repeat = 'NONE' | RecurringInterval
+
+/** Values the form starts with. amount is signed (R11); for a series, date is the first occurrence. */
+export interface TransactionFormValues {
+  amount: number
+  description: string
+  date: string
+  categoryId: number
+  repeat: Repeat
+  endDate: string | null
+}
+
+/** What the form submits: a single transaction or a series, depending on "Wiederholen". */
+export type TransactionFormResult =
+  | { kind: 'single'; input: TransactionInput }
+  | { kind: 'recurring'; input: RecurringTransactionInput }
+
+/**
+ * none: no "Wiederholen" (editing a single transaction or one occurrence).
+ * optional: "nie" or an interval (new transaction).
+ * required: only intervals (editing a series from an occurrence on).
+ */
+export type RepeatOption = 'none' | 'optional' | 'required'
 
 interface Props {
   categories: Category[]
-  /** Transaction being edited, or null when creating a new one. */
-  transaction: Transaction | null
+  /** Values to start with, or null for an empty form. */
+  initial: TransactionFormValues | null
   defaultDate: string
-  /** Heading; defaults to "Neue Transaktion" or "Transaktion bearbeiten". */
-  title?: string
-  onSubmit: (input: TransactionInput) => Promise<unknown>
+  repeatOption: RepeatOption
+  title: string
+  submitLabel: string
+  onSubmit: (result: TransactionFormResult) => Promise<unknown>
   onCancel?: () => void
 }
 
 type Kind = 'expense' | 'income'
 
+// The series API names the first occurrence startDate; the form shows it in the date field.
+const SERVER_FIELDS: Record<string, Field> = { startDate: 'date', interval: 'repeat' }
+
 function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
 }
 
-export function TransactionForm({ categories, transaction, defaultDate, title, onSubmit, onCancel }: Props) {
+export function TransactionForm({
+  categories,
+  initial,
+  defaultDate,
+  repeatOption,
+  title,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: Props) {
   // The amount is entered positive; the toggle sets the sign (R11).
-  const [kind, setKind] = useState<Kind>(transaction && transaction.amount > 0 ? 'income' : 'expense')
-  const [amount, setAmount] = useState(transaction ? toAmountText(transaction.amount) : '')
-  const [description, setDescription] = useState(transaction?.description ?? '')
-  const [date, setDate] = useState(transaction?.date ?? defaultDate)
-  const [categoryId, setCategoryId] = useState(transaction ? String(transaction.categoryId) : '')
+  const [kind, setKind] = useState<Kind>(initial && initial.amount > 0 ? 'income' : 'expense')
+  const [amount, setAmount] = useState(initial ? toAmountText(initial.amount) : '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+  const [date, setDate] = useState(initial?.date ?? defaultDate)
+  const [categoryId, setCategoryId] = useState(initial ? String(initial.categoryId) : '')
+  const [repeat, setRepeat] = useState<Repeat>(initial?.repeat ?? (repeatOption === 'required' ? 'MONTHLY' : 'NONE'))
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '')
   const [errors, setErrors] = useState<Errors>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  function validate(): { errors: Errors; input: TransactionInput | null } {
+  const recurring = repeat !== 'NONE'
+
+  function validate(): { errors: Errors; result: TransactionFormResult | null } {
     const found: Errors = {}
     const parsedAmount = parseAmountInput(amount)
     if (amount.trim() === '') {
@@ -52,42 +95,50 @@ export function TransactionForm({ categories, transaction, defaultDate, title, o
     }
     if (date === '') {
       found.date = 'Das Datum ist Pflicht.'
+    } else if (recurring && endDate !== '' && endDate < date) {
+      // ISO dates compare correctly as strings
+      found.endDate = 'Das Enddatum darf nicht vor dem Startdatum liegen.'
     }
     if (categoryId === '') {
       found.categoryId = 'Die Kategorie ist Pflicht.'
     }
     if (Object.keys(found).length > 0 || parsedAmount === null) {
-      return { errors: found, input: null }
+      return { errors: found, result: null }
     }
+    const signedAmount = kind === 'expense' ? -parsedAmount : parsedAmount
+    const common = { amount: signedAmount, description: description.trim(), categoryId: Number(categoryId) }
     return {
       errors: found,
-      input: {
-        amount: kind === 'expense' ? -parsedAmount : parsedAmount,
-        description: description.trim(), date,
-        categoryId: Number(categoryId),
-      },
+      result: recurring
+        ? {
+            kind: 'recurring',
+            input: { ...common, interval: repeat, startDate: date, endDate: endDate === '' ? null : endDate },
+          }
+        : { kind: 'single', input: { ...common, date } },
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setGeneralError(null)
-    const result = validate()
-    setErrors(result.errors)
-    if (!result.input) {
+    const { errors: found, result } = validate()
+    setErrors(found)
+    if (!result) {
       return
     }
 
     setSubmitting(true)
     try {
-      await onSubmit(result.input)
-      if (!transaction) {
+      await onSubmit(result)
+      if (!initial) {
         setAmount('')
         setDescription('')
+        setEndDate('')
+        setRepeat('NONE')
       }
     } catch (error) {
       if (error instanceof ApiError && error.problem.errors?.length) {
-        setErrors(Object.fromEntries(error.problem.errors.map((e) => [e.field, e.message])))
+        setErrors(Object.fromEntries(error.problem.errors.map((e) => [SERVER_FIELDS[e.field] ?? e.field, e.message])))
       } else {
         setGeneralError(error instanceof Error ? error.message : 'Speichern fehlgeschlagen.')
       }
@@ -96,9 +147,11 @@ export function TransactionForm({ categories, transaction, defaultDate, title, o
     }
   }
 
+  const intervals = Object.keys(INTERVAL_LABELS) as RecurringInterval[]
+
   return (
     <form className="transaction-form" noValidate onSubmit={handleSubmit}>
-      <h3>{title ?? (transaction ? 'Transaktion bearbeiten' : 'Neue Transaktion')}</h3>
+      <h3>{title}</h3>
 
       <fieldset className="sign-toggle">
         <legend>Art</legend>
@@ -135,7 +188,7 @@ export function TransactionForm({ categories, transaction, defaultDate, title, o
       </label>
 
       <label>
-        Datum
+        {recurring ? 'Datum (erste Abbuchung)' : 'Datum'}
         <input
           type="date"
           value={date}
@@ -147,11 +200,39 @@ export function TransactionForm({ categories, transaction, defaultDate, title, o
 
       <CategorySelect categories={categories} value={categoryId} onChange={setCategoryId} error={errors.categoryId} />
 
+      {repeatOption !== 'none' && (
+        <label>
+          Wiederholen
+          <select value={repeat} onChange={(e) => setRepeat(e.target.value as Repeat)}>
+            {repeatOption === 'optional' && <option value="NONE">nie</option>}
+            {intervals.map((value) => (
+              <option key={value} value={value}>
+                {INTERVAL_LABELS[value]}
+              </option>
+            ))}
+          </select>
+          {errors.repeat && <span className="error">{errors.repeat}</span>}
+        </label>
+      )}
+
+      {recurring && (
+        <label>
+          Enddatum (optional)
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            aria-invalid={errors.endDate ? true : undefined}
+          />
+          {errors.endDate && <span className="error">{errors.endDate}</span>}
+        </label>
+      )}
+
       {generalError && <p className="error">{generalError}</p>}
 
       <div>
         <button type="submit" disabled={submitting}>
-          {transaction ? 'Speichern' : 'Hinzufügen'}
+          {submitLabel}
         </button>{' '}
         {onCancel && (
           <button type="button" onClick={onCancel}>

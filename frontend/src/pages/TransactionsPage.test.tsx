@@ -40,8 +40,9 @@ function renderPage() {
   return fetchMock
 }
 
+// The month list comes first; the series section below lists Streaming again.
 async function streamingRow() {
-  return screen.findByRole('row', { name: /Streaming/ })
+  return (await screen.findAllByRole('row', { name: /Streaming/ }))[0]
 }
 
 describe('TransactionsPage', () => {
@@ -64,10 +65,10 @@ describe('TransactionsPage', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '„Streaming“ ab 05.10.2026 bearbeiten' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Startdatum (erste Abbuchung)')).toHaveValue('2026-10-05')
-    expect(screen.getByLabelText('Betrag je Vorkommen (€)')).toHaveValue('15,00')
+    expect(screen.getByLabelText('Datum (erste Abbuchung)')).toHaveValue('2026-10-05')
+    expect(screen.getByLabelText('Betrag (€)')).toHaveValue('15,00')
 
-    fireEvent.change(screen.getByLabelText('Betrag je Vorkommen (€)'), { target: { value: '18' } })
+    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '18' } })
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
 
     await waitFor(() =>
@@ -96,6 +97,32 @@ describe('TransactionsPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Nur den Eintrag vom 05.10.2026 bearbeiten' })).toBeInTheDocument()
     expect(screen.getByLabelText('Datum')).toHaveValue('2026-10-05')
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+  })
+
+  it('creates a series from the transaction form when a repeat is chosen', async () => {
+    const fetchMock = renderPage()
+    await screen.findByRole('option', { name: 'Freizeit' })
+
+    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '9,99' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Musik' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/recurring-transactions', expect.objectContaining({ method: 'POST' })),
+    )
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/transactions', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('lists the active series in a collapsible section', async () => {
+    renderPage()
+
+    const summary = await screen.findByText('Wiederkehrende Transaktionen (1)')
+    const section = summary.closest('details') as HTMLElement
+    expect(section).not.toHaveAttribute('open')
+    expect(within(section).getByRole('row', { name: /Streaming.*monatlich/ })).toBeInTheDocument()
   })
 
   it('deletes only this occurrence after asking for the scope', async () => {

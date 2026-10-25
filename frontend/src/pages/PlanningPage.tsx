@@ -37,7 +37,7 @@ function PlanningSummary({ month }: { month: string }) {
   )
 }
 
-export function SettingsPage({ month }: { month: string }) {
+export function PlanningPage({ month }: { month: string }) {
   const categories = useCategories(month)
   const updateTarget = useUpdateTarget()
 
@@ -56,7 +56,7 @@ export function SettingsPage({ month }: { month: string }) {
 
   return (
     <section>
-      <h2>Einstellungen</h2>
+      <h2>Planung</h2>
       <p className="hint">
         Soll je Kategorie in Euro oder in Prozent der Einnahmen. Ist beides gesetzt, gilt der Euro-Wert.
       </p>

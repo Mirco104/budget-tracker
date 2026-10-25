@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
-import { RecurringPage } from './pages/RecurringPage'
-import { SettingsPage } from './pages/SettingsPage'
+import { PlanningPage } from './pages/PlanningPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 
-type Page = 'dashboard' | 'transactions' | 'recurring' | 'settings'
+type Page = 'dashboard' | 'transactions' | 'planning'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -20,7 +19,7 @@ function App() {
           aria-current={page === 'dashboard' ? 'page' : undefined}
           onClick={() => setPage('dashboard')}
         >
-          Dashboard
+          Übersicht
         </button>
         <button
           type="button"
@@ -31,17 +30,10 @@ function App() {
         </button>
         <button
           type="button"
-          aria-current={page === 'recurring' ? 'page' : undefined}
-          onClick={() => setPage('recurring')}
+          aria-current={page === 'planning' ? 'page' : undefined}
+          onClick={() => setPage('planning')}
         >
-          Wiederkehrend
-        </button>
-        <button
-          type="button"
-          aria-current={page === 'settings' ? 'page' : undefined}
-          onClick={() => setPage('settings')}
-        >
-          Einstellungen
+          Planung
         </button>
         <span className="month-nav">
             <button
@@ -72,8 +64,7 @@ function App() {
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
-      {page === 'recurring' && month && <RecurringPage month={month} />}
-      {page === 'settings' && month && <SettingsPage month={month} />}
+      {page === 'planning' && month && <PlanningPage month={month} />}
     </main>
   )
 }

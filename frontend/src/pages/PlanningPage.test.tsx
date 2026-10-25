@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Category } from '../api/types'
-import { SettingsPage } from './SettingsPage'
+import { PlanningPage } from './PlanningPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
@@ -31,7 +31,7 @@ function renderPage(
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <SettingsPage month="2026-11" />
+      <PlanningPage month="2026-11" />
     </QueryClientProvider>,
   )
   return fetchMock
@@ -41,7 +41,7 @@ function putCalls(fetchMock: ReturnType<typeof renderPage>) {
   return fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')
 }
 
-describe('SettingsPage', () => {
+describe('PlanningPage', () => {
   it('shows categories by group with prefilled targets', async () => {
     renderPage()
 
