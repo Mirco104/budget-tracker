@@ -91,28 +91,65 @@ describe('PlanningPage', () => {
     expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).queryByText(/Gesetzt ab/)).not.toBeInTheDocument()
   })
 
+  it('has no save button', async () => {
+    renderPage()
+
+    await screen.findByRole('form', { name: 'Wohnen' })
+    expect(screen.queryByRole('button', { name: 'Speichern' })).not.toBeInTheDocument()
+  })
+
   it('rejects a negative euro target without sending a request', async () => {
     const fetchMock = renderPage()
 
     const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    fireEvent.change(within(wohnen).getByLabelText(/Soll \(€\)/), { target: { value: '-5' } })
-    fireEvent.click(within(wohnen).getByRole('button', { name: 'Speichern' }))
+    const input = within(wohnen).getByLabelText(/Soll \(€\)/)
+    fireEvent.change(input, { target: { value: '-5' } })
+    fireEvent.focusOut(input)
 
     expect(await within(wohnen).findByText('Der Soll-Betrag darf nicht negativ sein.')).toBeInTheDocument()
     expect(putCalls(fetchMock)).toHaveLength(0)
   })
 
-  it('sends a percent target as a fraction with four decimals', async () => {
+  it('saves a percent target as a fraction with four decimals when the row loses focus', async () => {
     const fetchMock = renderPage()
 
     const row = await screen.findByRole('form', { name: 'Lebensmittel' })
-    fireEvent.change(within(row).getByLabelText(/Soll \(%\)/), { target: { value: '33,33' } })
-    fireEvent.click(within(row).getByRole('button', { name: 'Speichern' }))
+    const input = within(row).getByLabelText(/Soll \(%\)/)
+    fireEvent.change(input, { target: { value: '33,33' } })
+    fireEvent.focusOut(input)
 
     expect(await within(row).findByText(/Gespeichert/)).toBeInTheDocument()
     const [url, init] = putCalls(fetchMock)[0]
     expect(url).toBe('/api/categories/7/target?month=2026-11')
     expect(JSON.parse(init?.body as string)).toEqual({ targetAmount: null, targetPercent: 0.3333 })
+  })
+
+  it('saves on Enter', async () => {
+    const fetchMock = renderPage()
+
+    const row = await screen.findByRole('form', { name: 'Wohnen' })
+    const input = within(row).getByLabelText(/Soll \(€\)/)
+    fireEvent.change(input, { target: { value: '850' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await within(row).findByText('Gespeichert ab November 2026.')).toBeInTheDocument()
+    expect(JSON.parse(putCalls(fetchMock)[0][1]?.body as string)).toEqual({ targetAmount: 850, targetPercent: null })
+  })
+
+  it('does not save while the focus moves within the row or when nothing changed', async () => {
+    const fetchMock = renderPage()
+
+    const row = await screen.findByRole('form', { name: 'Wohnen' })
+    const amount = within(row).getByLabelText(/Soll \(€\)/)
+    const percent = within(row).getByLabelText(/Soll \(%\)/)
+    fireEvent.focusOut(amount)
+    fireEvent.change(amount, { target: { value: '850' } })
+    fireEvent.focusOut(amount, { relatedTarget: percent })
+
+    expect(putCalls(fetchMock)).toHaveLength(0)
+
+    fireEvent.focusOut(percent)
+    await waitFor(() => expect(putCalls(fetchMock)).toHaveLength(1))
   })
 
   it('shows a server field error at the matching input', async () => {
@@ -128,7 +165,9 @@ describe('PlanningPage', () => {
     )
 
     const row = await screen.findByRole('form', { name: 'Lebensmittel' })
-    fireEvent.click(within(row).getByRole('button', { name: 'Speichern' }))
+    const input = within(row).getByLabelText(/Soll \(%\)/)
+    fireEvent.change(input, { target: { value: '20' } })
+    fireEvent.focusOut(input)
 
     await waitFor(() =>
       expect(within(row).getByLabelText(/Soll \(%\)/)).toHaveAttribute('aria-invalid', 'true'),

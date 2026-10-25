@@ -58,7 +58,8 @@ export function PlanningPage({ month }: { month: string }) {
     <section>
       <h2>Planung</h2>
       <p className="hint">
-        Soll je Kategorie in Euro oder in Prozent der Einnahmen. Ist beides gesetzt, gilt der Euro-Wert.
+        Soll je Kategorie in Euro oder in Prozent der Einnahmen. Ist beides gesetzt, gilt der Euro-Wert. Änderungen
+        werden automatisch gespeichert, sobald du ein Feld verlässt oder Enter drückst.
       </p>
       <p className="hint">
         Gilt ab <strong>{formatMonth(month)}</strong> für alle folgenden Monate, bis ein späterer Monat ein neues Soll
