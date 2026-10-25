@@ -49,8 +49,8 @@ public class CategoryService {
             throw new ConflictException(
                     "Die Rest-Kategorie wird automatisch berechnet und kann nicht geändert werden.");
         }
-        if (category.getType() == CategoryType.INCOME) {
-            throw new ConflictException("Für Einnahmen-Kategorien kann kein Soll festgelegt werden.");
+        if (category.getGroup() == null) {
+            throw new ConflictException("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden.");
         }
 
         CategoryTarget target = categoryTargetRepository.findByCategoryIdAndValidFrom(id, month.atDay(1))

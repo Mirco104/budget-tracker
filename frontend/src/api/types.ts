@@ -1,18 +1,18 @@
 // Mirrors of the backend DTOs (Java records). Money and ratios arrive as JSON numbers.
 
-export type CategoryType = 'EXPENSE' | 'INCOME'
 export type CategoryGroup = 'FIXED' | 'FLEXIBLE' | 'SAVINGS' | 'REMAINDER'
 
 export interface Category {
   id: number
   name: string
-  type: CategoryType
+  /** null means "ohne Gruppe" (typically income). */
   group: CategoryGroup | null
   sortOrder: number
   targetAmount: number | null
   targetPercent: number | null
   /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
   targetValidFrom: string | null
+  /** The calculated remainder category; not bookable. */
   system: boolean
 }
 
@@ -22,6 +22,7 @@ export interface TargetInput {
   targetPercent: number | null
 }
 
+/** amount is signed: positive is income, negative is expense. */
 export interface Transaction {
   id: number
   amount: number
@@ -29,7 +30,6 @@ export interface Transaction {
   date: string
   categoryId: number
   categoryName: string
-  categoryType: CategoryType
 }
 
 export interface TransactionInput {
@@ -39,39 +39,13 @@ export interface TransactionInput {
   categoryId: number
 }
 
-/** Counted as amountPerYear / 12 in every month from validFrom to validTo ("YYYY-MM", inclusive). */
-export interface YearlyTransaction {
-  id: number
-  amountPerYear: number
-  /** Share counted per month (amountPerYear / 12, rounded by the backend). */
-  amountPerMonth: number
-  description: string
-  /** ISO date, optional info ("Abbuchung regulär am"). */
-  dueDate: string | null
-  validFrom: string
-  /** null means open-ended. */
-  validTo: string | null
-  categoryId: number
-  categoryName: string
-  categoryType: CategoryType
-}
-
-export interface YearlyTransactionInput {
-  amountPerYear: number
-  description: string
-  dueDate: string | null
-  validFrom: string
-  validTo: string | null
-  categoryId: number
-}
-
 export interface Totals {
   target: number | null
   actual: number
   difference: number | null
 }
 
-/** Sums of the expense categories in one group; a missing target counts as 0. */
+/** Sums of the expense lines in one group; a missing target counts as 0. */
 export interface GroupLine {
   group: CategoryGroup
   target: number
@@ -79,33 +53,22 @@ export interface GroupLine {
   difference: number
 }
 
+/** actual is the expense of the category (positive). group is null for an ungrouped category with expenses. */
 export interface CategoryLine {
   id: number
   name: string
   group: CategoryGroup | null
   target: number | null
   actual: number
-  /** Part of actual that comes from yearly transactions. */
-  actualYearly: number
   difference: number | null
 }
 
+/** actual is the net of the category and may be negative for ungrouped categories. */
 export interface IncomeLine {
   id: number
   name: string
   actual: number
-  /** Part of actual that comes from yearly transactions. */
-  actualYearly: number
   share: number
-}
-
-/** Yearly debit due in the month, with its full yearly amount. */
-export interface DueLine {
-  id: number
-  description: string
-  categoryName: string
-  amountPerYear: number
-  dueDate: string
 }
 
 export interface DashboardData {
@@ -118,9 +81,6 @@ export interface DashboardData {
   groups: GroupLine[]
   categories: CategoryLine[]
   income: IncomeLine[]
-  /** Sum of the yearly shares of all expense categories. */
-  yearlyExpensesShare: number
-  dueYearly: DueLine[]
 }
 
 export interface FieldError {

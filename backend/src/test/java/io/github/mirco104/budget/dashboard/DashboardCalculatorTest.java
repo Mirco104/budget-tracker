@@ -4,17 +4,13 @@ import static io.github.mirco104.budget.category.CategoryGroup.FIXED;
 import static io.github.mirco104.budget.category.CategoryGroup.FLEXIBLE;
 import static io.github.mirco104.budget.category.CategoryGroup.REMAINDER;
 import static io.github.mirco104.budget.category.CategoryGroup.SAVINGS;
-import static io.github.mirco104.budget.category.CategoryType.EXPENSE;
-import static io.github.mirco104.budget.category.CategoryType.INCOME;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import io.github.mirco104.budget.category.CategoryGroup;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
-import io.github.mirco104.budget.dashboard.DashboardCalculator.YearlyTransactionData;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
-import io.github.mirco104.budget.dashboard.DashboardResponse.DueLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.GroupLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import java.math.BigDecimal;
@@ -24,7 +20,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rules R1–R10 and R12 from docs/spezifikation.md, section 2. Test cases 1–7 follow section 7.
+ * Rules R1–R11 from docs/spezifikation.md, section 2. Test cases follow section 7, the reference fixture follows
+ * section 12 (F1, with the recurring occurrences booked as single transactions).
  */
 class DashboardCalculatorTest {
 
@@ -32,13 +29,17 @@ class DashboardCalculatorTest {
     private static final LocalDate IN_OCTOBER = LocalDate.of(2026, 10, 15);
 
     private static final long WOHNEN = 1;
-    private static final long VERSICHERUNGEN = 2;
-    private static final long LEBENSMITTEL = 3;
-    private static final long FREIZEIT = 4;
-    private static final long INVESTITIONEN = 5;
-    private static final long REST = 6;
-    private static final long GEHALT = 7;
-    private static final long NEBENJOB = 8;
+    private static final long NEBENKOSTEN = 2;
+    private static final long VERSICHERUNGEN = 3;
+    private static final long MOBILITAET = 4;
+    private static final long KREDITE = 5;
+    private static final long LEBENSMITTEL = 6;
+    private static final long FREIZEIT = 7;
+    private static final long GESCHENKE = 8;
+    private static final long INVESTITIONEN = 9;
+    private static final long REST = 10;
+    private static final long GEHALT = 11;
+    private static final long NEBENJOB = 12;
 
     private final DashboardCalculator calculator = new DashboardCalculator();
 
@@ -47,9 +48,8 @@ class DashboardCalculatorTest {
     @Test
     void euroTargetIsUsedAndDifferenceIsTargetMinusActual() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, "800", null), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "750")),
-                List.of());
+                List.of(category(WOHNEN, FIXED, "800", null), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-750")));
 
         CategoryLine wohnen = category(result, WOHNEN);
         assertThat(wohnen.target()).isEqualByComparingTo("800.00");
@@ -62,9 +62,8 @@ class DashboardCalculatorTest {
     @Test
     void percentTargetIsShareOfIncome() {
         DashboardResponse result = calculate(
-                List.of(expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2400")),
-                List.of());
+                List.of(category(LEBENSMITTEL, FLEXIBLE, null, "0.15"), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2400")));
 
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("360.00");
     }
@@ -72,9 +71,8 @@ class DashboardCalculatorTest {
     @Test
     void percentTargetIsRoundedHalfUpToCents() {
         DashboardResponse result = calculate(
-                List.of(expense(LEBENSMITTEL, FLEXIBLE, null, "0.3333"), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "100.15")),
-                List.of());
+                List.of(category(LEBENSMITTEL, FLEXIBLE, null, "0.3333"), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "100.15")));
 
         // 100.15 * 0.3333 = 33.380 -> 33.38
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("33.38");
@@ -85,9 +83,8 @@ class DashboardCalculatorTest {
     @Test
     void euroTargetWinsOverPercent() {
         DashboardResponse result = calculate(
-                List.of(expense(INVESTITIONEN, SAVINGS, "250", "0.10"), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2400")),
-                List.of());
+                List.of(category(INVESTITIONEN, SAVINGS, "250", "0.10"), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2400")));
 
         assertThat(category(result, INVESTITIONEN).target()).isEqualByComparingTo("250.00");
     }
@@ -97,21 +94,20 @@ class DashboardCalculatorTest {
     @Test
     void remainderTargetIsIncomeMinusOtherTargets() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, "800", null), expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
-                        rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2400")),
-                List.of());
+                List.of(category(WOHNEN, FIXED, "800", null), category(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
+                        rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2400")));
 
         assertThat(category(result, REST).target()).isEqualByComparingTo("1240.00");
+        assertThat(category(result, REST).actual()).isEqualByComparingTo("0.00");
     }
 
     @Test
     void remainderTargetIsNegativeWhenOverPlanned() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, "1500", null), expense(LEBENSMITTEL, FLEXIBLE, null, "0.40"),
-                        rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2000")),
-                List.of());
+                List.of(category(WOHNEN, FIXED, "1500", null), category(LEBENSMITTEL, FLEXIBLE, null, "0.40"),
+                        rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000")));
 
         // 2000 - 1500 - 800
         assertThat(category(result, REST).target()).isEqualByComparingTo("-300.00");
@@ -123,8 +119,8 @@ class DashboardCalculatorTest {
     @Test
     void zeroIncomeAndZeroExpensesGiveEmptySavingsRateAndZeroShares() {
         DashboardResponse result = calculate(
-                List.of(expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"), rest(), income(GEHALT), income(NEBENJOB)),
-                List.of(),
+                List.of(category(LEBENSMITTEL, FLEXIBLE, null, "0.15"), rest(), ungrouped(GEHALT),
+                        ungrouped(NEBENJOB)),
                 List.of());
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("0.00");
@@ -138,144 +134,20 @@ class DashboardCalculatorTest {
     }
 
     @Test
-    void zeroIncomeWithExpensesGivesEmptySavingsRate() {
+    void zeroIncomeKeepsEuroTargetsAndGivesNegativeRemainder() {
         DashboardResponse result = calculate(
-                List.of(expense(FREIZEIT, FLEXIBLE, null, null), rest(), income(GEHALT)),
-                List.of(booking(FREIZEIT, "100")),
-                List.of());
+                List.of(category(WOHNEN, FIXED, "900", null), category(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
+                        rest(), ungrouped(GEHALT)),
+                List.of(booking(WOHNEN, "-100")));
 
+        assertThat(category(result, WOHNEN).target()).isEqualByComparingTo("900.00");
+        assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("0.00");
+        assertThat(category(result, REST).target()).isEqualByComparingTo("-900.00");
         assertThat(result.surplus()).isEqualByComparingTo("-100.00");
+        assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
         assertThat(result.savingsRate()).isNull();
         assertThat(result.income()).singleElement()
                 .satisfies(line -> assertThat(line.share()).isEqualByComparingTo("0"));
-    }
-
-    // --- Case 6: yearly transaction counts as amount / 12 (R1) ---
-
-    @Test
-    void yearlyTransactionCountsAsTwelfth() {
-        DashboardResponse result = calculate(
-                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)),
-                List.of(booking(VERSICHERUNGEN, "10")),
-                List.of(yearly(VERSICHERUNGEN, "600")));
-
-        assertThat(category(result, VERSICHERUNGEN).actual()).isEqualByComparingTo("60.00");
-    }
-
-    @Test
-    void yearlyAmountsAreSummedPerCategoryBeforeRounding() {
-        DashboardResponse result = calculate(
-                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)),
-                List.of(),
-                List.of(yearly(VERSICHERUNGEN, "100"), yearly(VERSICHERUNGEN, "100")));
-
-        // 200 / 12 = 16.666 -> 16.67 (rounding each item would give 8.33 + 8.33 = 16.66)
-        assertThat(category(result, VERSICHERUNGEN).actual()).isEqualByComparingTo("16.67");
-    }
-
-    @Test
-    void yearlyIncomeCountsTowardsIncomeTotal() {
-        DashboardResponse result = calculate(
-                List.of(rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2000")),
-                List.of(yearly(GEHALT, "1200")));
-
-        assertThat(result.incomeTotal()).isEqualByComparingTo("2100.00");
-    }
-
-    @Test
-    void monthlyShareIsTwelfthRoundedHalfUpToCents() {
-        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("600"))).isEqualByComparingTo("50.00");
-        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("100"))).isEqualByComparingTo("8.33");
-        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("0.06"))).isEqualByComparingTo("0.01");
-        assertThat(DashboardCalculator.monthlyShare(new BigDecimal("100")).scale()).isEqualTo(2);
-    }
-
-    // --- Case 9: yearly share per category, yearly costs total, due debits (R12) ---
-
-    @Test
-    void showsYearlySharePerCategoryAndYearlyExpensesTotal() {
-        DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, null, null), expense(VERSICHERUNGEN, FIXED, null, null), rest(),
-                        income(GEHALT)),
-                List.of(booking(VERSICHERUNGEN, "10"), booking(WOHNEN, "700")),
-                List.of(yearly(VERSICHERUNGEN, "600"), yearly(GEHALT, "1200")));
-
-        assertThat(category(result, VERSICHERUNGEN).actual()).isEqualByComparingTo("60.00");
-        assertThat(category(result, VERSICHERUNGEN).actualYearly()).isEqualByComparingTo("50.00");
-        assertThat(category(result, WOHNEN).actualYearly()).isEqualByComparingTo("0.00");
-        assertThat(income(result, GEHALT).actualYearly()).isEqualByComparingTo("100.00");
-        // Income is not a cost
-        assertThat(result.yearlyExpensesShare()).isEqualByComparingTo("50.00");
-    }
-
-    @Test
-    void yearlySharePerCategoryMatchesItsActualRounding() {
-        DashboardResponse result = calculate(
-                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)),
-                List.of(),
-                List.of(yearly(VERSICHERUNGEN, "100"), yearly(VERSICHERUNGEN, "100")));
-
-        assertThat(category(result, VERSICHERUNGEN).actualYearly()).isEqualByComparingTo("16.67");
-        assertThat(result.yearlyExpensesShare()).isEqualByComparingTo("16.67");
-    }
-
-    @Test
-    void yearlyDebitIsDueInTheCalendarMonthOfItsDueDateEveryYear() {
-        List<YearlyTransactionData> yearly = List.of(
-                yearlyDue(VERSICHERUNGEN, "600", YearMonth.of(2025, 1), null, LocalDate.of(2025, 10, 15)));
-
-        DueLine due = dueIn(yearly, OCTOBER).getFirst();
-        assertThat(due.description()).isEqualTo("Jahresposten " + VERSICHERUNGEN);
-        assertThat(due.categoryName()).isEqualTo("Ausgabe " + VERSICHERUNGEN);
-        assertThat(due.amountPerYear()).isEqualByComparingTo("600.00");
-        assertThat(due.dueDate()).isEqualTo(LocalDate.of(2026, 10, 15));
-        assertThat(dueIn(yearly, OCTOBER.plusMonths(1))).isEmpty();
-    }
-
-    @Test
-    void yearlyDebitIsNotDueOutsideItsValidity() {
-        List<YearlyTransactionData> yearly = List.of(
-                yearlyDue(VERSICHERUNGEN, "600", YearMonth.of(2025, 1), OCTOBER.minusMonths(1),
-                        LocalDate.of(2025, 10, 15)));
-
-        assertThat(dueIn(yearly, OCTOBER)).isEmpty();
-    }
-
-    @Test
-    void yearlyDebitOnLeapDayIsDueOnFebruary28InOtherYears() {
-        List<YearlyTransactionData> yearly = List.of(
-                yearlyDue(VERSICHERUNGEN, "600", YearMonth.of(2024, 1), null, LocalDate.of(2024, 2, 29)));
-
-        assertThat(dueIn(yearly, YearMonth.of(2027, 2)).getFirst().dueDate()).isEqualTo(LocalDate.of(2027, 2, 28));
-    }
-
-    @Test
-    void yearlyTransactionWithoutDueDateIsNeverDue() {
-        assertThat(dueIn(List.of(yearly(VERSICHERUNGEN, "600")), OCTOBER)).isEmpty();
-    }
-
-    @Test
-    void yearlyTransactionCountsInItsFirstAndLastValidMonth() {
-        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
-
-        assertThat(versicherungenActual(yearly, OCTOBER)).isEqualByComparingTo("100.00");
-        assertThat(versicherungenActual(yearly, OCTOBER.plusMonths(2))).isEqualByComparingTo("100.00");
-    }
-
-    @Test
-    void yearlyTransactionIsIgnoredBeforeValidFromAndAfterValidTo() {
-        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, OCTOBER.plusMonths(2)));
-
-        assertThat(versicherungenActual(yearly, OCTOBER.minusMonths(1))).isEqualByComparingTo("0.00");
-        assertThat(versicherungenActual(yearly, OCTOBER.plusMonths(3))).isEqualByComparingTo("0.00");
-    }
-
-    @Test
-    void openEndedYearlyTransactionCountsInLaterYears() {
-        List<YearlyTransactionData> yearly = List.of(yearly(VERSICHERUNGEN, "1200", OCTOBER, null));
-
-        assertThat(versicherungenActual(yearly, OCTOBER.plusYears(3))).isEqualByComparingTo("100.00");
     }
 
     // --- Case 7: negative surplus -> "Monatlicher Verlust" (R7, R8) ---
@@ -283,9 +155,8 @@ class DashboardCalculatorTest {
     @Test
     void negativeSurplusIsLabelledAsLoss() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, null, null), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "1000"), booking(WOHNEN, "1250")),
-                List.of());
+                List.of(category(WOHNEN, FIXED, null, null), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "1000"), booking(WOHNEN, "-1250")));
 
         assertThat(result.surplus()).isEqualByComparingTo("-250.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
@@ -297,9 +168,8 @@ class DashboardCalculatorTest {
     @Test
     void savingsRateStaysBelowHundredPercentForSmallExpenses() {
         DashboardResponse result = calculate(
-                List.of(expense(LEBENSMITTEL, FLEXIBLE, null, null), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "62.83")),
-                List.of());
+                List.of(category(LEBENSMITTEL, FLEXIBLE, null, null), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "-62.83")));
 
         // 1937.17 / 2000 = 0.968585 -> 0.9686
         assertThat(result.surplus()).isEqualByComparingTo("1937.17");
@@ -309,11 +179,72 @@ class DashboardCalculatorTest {
     @Test
     void savingsRateIsHundredPercentWithoutExpenses() {
         DashboardResponse result = calculate(
-                List.of(rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2000")),
-                List.of());
+                List.of(rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000")));
 
         assertThat(result.savingsRate()).isEqualByComparingTo("1.0000");
+    }
+
+    // --- Case 9: the sign decides (R2, R9, R10, R11) ---
+
+    @Test
+    void refundLowersActualOfItsCategoryAndIsNoIncome() {
+        DashboardResponse result = calculate(
+                List.of(category(LEBENSMITTEL, FLEXIBLE, null, null), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "-100"), booking(LEBENSMITTEL, "30")));
+
+        assertThat(category(result, LEBENSMITTEL).actual()).isEqualByComparingTo("70.00");
+        assertThat(result.incomeTotal()).isEqualByComparingTo("2000.00");
+        assertThat(result.income()).extracting(IncomeLine::id).containsExactly(GEHALT);
+    }
+
+    @Test
+    void groupedCategoryWithPositiveNetCountsAsIncome() {
+        DashboardResponse result = calculate(
+                List.of(category(LEBENSMITTEL, FLEXIBLE, null, null), rest(), ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "1500"), booking(LEBENSMITTEL, "-20"), booking(LEBENSMITTEL, "520")));
+
+        assertThat(result.incomeTotal()).isEqualByComparingTo("2000.00");
+        assertThat(category(result, LEBENSMITTEL).actual()).isEqualByComparingTo("0.00");
+        assertThat(result.expenses().actual()).isEqualByComparingTo("0.00");
+        assertThat(result.income()).extracting(IncomeLine::id).containsExactly(LEBENSMITTEL, GEHALT);
+        assertThat(income(result, LEBENSMITTEL).actual()).isEqualByComparingTo("500.00");
+        assertThat(income(result, LEBENSMITTEL).share()).isEqualByComparingTo("0.2500");
+    }
+
+    @Test
+    void ungroupedExpenseIsListedAndCountsTowardsRemainderGroup() {
+        DashboardResponse result = calculate(
+                List.of(category(WOHNEN, FIXED, "800", null), rest(), ungrouped(GEHALT), ungrouped(NEBENJOB)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-800"), booking(NEBENJOB, "-50")));
+
+        assertThat(result.categories()).extracting(CategoryLine::id).containsExactly(WOHNEN, REST, NEBENJOB);
+        assertLine(result, NEBENJOB, null, "50.00", null);
+        assertThat(category(result, NEBENJOB).group()).isNull();
+        assertGroup(result, REMAINDER, "1200.00", "50.00", "1150.00");
+        assertThat(result.expenses().actual()).isEqualByComparingTo("850.00");
+        assertThat(result.surplus()).isEqualByComparingTo("1150.00");
+    }
+
+    @Test
+    void incomeListShowsAllUngroupedCategoriesEvenWithoutIncome() {
+        DashboardResponse result = calculate(
+                List.of(rest(), ungrouped(GEHALT), ungrouped(NEBENJOB)),
+                List.of(booking(GEHALT, "2000"), booking(NEBENJOB, "-50")));
+
+        assertThat(result.income()).extracting(IncomeLine::id).containsExactly(GEHALT, NEBENJOB);
+        assertThat(income(result, NEBENJOB).actual()).isEqualByComparingTo("-50.00");
+        assertThat(income(result, NEBENJOB).share()).isEqualByComparingTo("0");
+        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("1.0000");
+    }
+
+    @Test
+    void ungroupedCategoryWithoutExpenseIsNotInExpenseList() {
+        DashboardResponse result = calculate(
+                List.of(category(WOHNEN, FIXED, null, null), rest(), ungrouped(GEHALT), ungrouped(NEBENJOB)),
+                List.of(booking(GEHALT, "2000")));
+
+        assertThat(result.categories()).extracting(CategoryLine::id).containsExactly(WOHNEN, REST);
     }
 
     // --- Further rules ---
@@ -321,9 +252,8 @@ class DashboardCalculatorTest {
     @Test
     void differenceIsEmptyWithoutTarget() {
         DashboardResponse result = calculate(
-                List.of(expense(FREIZEIT, FLEXIBLE, null, null), rest(), income(GEHALT)),
-                List.of(booking(FREIZEIT, "75.10")),
-                List.of());
+                List.of(category(FREIZEIT, FLEXIBLE, null, null), rest(), ungrouped(GEHALT)),
+                List.of(booking(FREIZEIT, "-75.10")));
 
         CategoryLine freizeit = category(result, FREIZEIT);
         assertThat(freizeit.target()).isNull();
@@ -334,22 +264,20 @@ class DashboardCalculatorTest {
     @Test
     void transactionsOutsideTheMonthAreIgnored() {
         DashboardResponse result = calculate(
-                List.of(expense(FREIZEIT, FLEXIBLE, null, null), rest(), income(GEHALT)),
-                List.of(new TransactionData(FREIZEIT, new BigDecimal("10"), LocalDate.of(2026, 9, 30)),
-                        new TransactionData(FREIZEIT, new BigDecimal("20"), LocalDate.of(2026, 10, 1)),
-                        new TransactionData(FREIZEIT, new BigDecimal("30"), LocalDate.of(2026, 10, 31)),
-                        new TransactionData(FREIZEIT, new BigDecimal("40"), LocalDate.of(2026, 11, 1))),
-                List.of());
+                List.of(category(FREIZEIT, FLEXIBLE, null, null), rest(), ungrouped(GEHALT)),
+                List.of(new TransactionData(FREIZEIT, new BigDecimal("-10"), LocalDate.of(2026, 9, 30)),
+                        new TransactionData(FREIZEIT, new BigDecimal("-20"), LocalDate.of(2026, 10, 1)),
+                        new TransactionData(FREIZEIT, new BigDecimal("-30"), LocalDate.of(2026, 10, 31)),
+                        new TransactionData(FREIZEIT, new BigDecimal("-40"), LocalDate.of(2026, 11, 1))));
 
         assertThat(category(result, FREIZEIT).actual()).isEqualByComparingTo("50.00");
     }
 
     @Test
-    void separatesExpenseAndIncomeLinesInInputOrder() {
+    void keepsInputOrderInExpenseAndIncomeLines() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, null, null), expense(FREIZEIT, FLEXIBLE, null, null), rest(),
-                        income(GEHALT), income(NEBENJOB)),
-                List.of(),
+                List.of(category(WOHNEN, FIXED, null, null), category(FREIZEIT, FLEXIBLE, null, null), rest(),
+                        ungrouped(GEHALT), ungrouped(NEBENJOB)),
                 List.of());
 
         assertThat(result.month()).isEqualTo("2026-10");
@@ -360,8 +288,7 @@ class DashboardCalculatorTest {
     @Test
     void emptyMonthGivesZeroActuals() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, "800", null), rest(), income(GEHALT)),
-                List.of(),
+                List.of(category(WOHNEN, FIXED, "800", null), rest(), ungrouped(GEHALT)),
                 List.of());
 
         assertThat(category(result, WOHNEN).actual()).isEqualByComparingTo("0.00");
@@ -375,15 +302,14 @@ class DashboardCalculatorTest {
     void groupsComeInFixedOrderWithSumsOfTheirCategories() {
         DashboardResponse result = calculate(
                 List.of(
-                        expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
-                        expense(WOHNEN, FIXED, "800", null),
-                        expense(FREIZEIT, FLEXIBLE, "100", null),
-                        expense(INVESTITIONEN, SAVINGS, "250", null),
+                        category(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
+                        category(WOHNEN, FIXED, "800", null),
+                        category(FREIZEIT, FLEXIBLE, "100", null),
+                        category(INVESTITIONEN, SAVINGS, "250", null),
                         rest(),
-                        income(GEHALT)),
-                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "780"), booking(LEBENSMITTEL, "320.40"),
-                        booking(FREIZEIT, "75.10"), booking(INVESTITIONEN, "250"), booking(REST, "30")),
-                List.of());
+                        ungrouped(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-780"), booking(LEBENSMITTEL, "-320.40"),
+                        booking(FREIZEIT, "-75.10"), booking(INVESTITIONEN, "-250")));
 
         assertThat(result.groups()).extracting(GroupLine::group)
                 .containsExactly(FIXED, FLEXIBLE, SAVINGS, REMAINDER);
@@ -391,22 +317,21 @@ class DashboardCalculatorTest {
         assertGroup(result, FLEXIBLE, "400.00", "395.50", "4.50");
         assertGroup(result, SAVINGS, "250.00", "250.00", "0.00");
         // R4: 2000 - 800 - 300 - 100 - 250
-        assertGroup(result, REMAINDER, "550.00", "30.00", "520.00");
+        assertGroup(result, REMAINDER, "550.00", "0.00", "550.00");
     }
 
     @Test
     void groupWithoutTargetsHasZeroTargetAndNegativeDifference() {
         DashboardResponse result = calculate(
-                List.of(expense(FREIZEIT, FLEXIBLE, null, null), rest(), income(GEHALT)),
-                List.of(booking(FREIZEIT, "75.10")),
-                List.of());
+                List.of(category(FREIZEIT, FLEXIBLE, null, null), rest(), ungrouped(GEHALT)),
+                List.of(booking(FREIZEIT, "-75.10")));
 
         assertGroup(result, FLEXIBLE, "0.00", "75.10", "-75.10");
     }
 
     @Test
     void groupWithoutCategoriesIsShownWithZeros() {
-        DashboardResponse result = calculate(List.of(rest(), income(GEHALT)), List.of(), List.of());
+        DashboardResponse result = calculate(List.of(rest(), ungrouped(GEHALT)), List.of());
 
         assertGroup(result, SAVINGS, "0.00", "0.00", "0.00");
         assertThat(group(result, SAVINGS).target().scale()).isEqualTo(2);
@@ -415,123 +340,111 @@ class DashboardCalculatorTest {
     @Test
     void groupTotalsAddUpToExpensesTotals() {
         DashboardResponse result = calculate(
-                List.of(expense(WOHNEN, FIXED, "1500", null), expense(LEBENSMITTEL, FLEXIBLE, null, "0.40"),
-                        expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)),
-                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "1500"), booking(LEBENSMITTEL, "700")),
-                List.of(yearly(VERSICHERUNGEN, "600")));
+                List.of(category(WOHNEN, FIXED, "1500", null), category(LEBENSMITTEL, FLEXIBLE, null, "0.40"),
+                        category(VERSICHERUNGEN, FIXED, null, null), rest(), ungrouped(GEHALT),
+                        ungrouped(NEBENJOB)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-1500"), booking(LEBENSMITTEL, "-700"),
+                        booking(LEBENSMITTEL, "25"), booking(VERSICHERUNGEN, "-50"), booking(NEBENJOB, "-12.34")));
 
         assertThat(group(result, REMAINDER).target()).isEqualByComparingTo("-300.00");
         assertThat(result.groups().stream().map(GroupLine::target).reduce(BigDecimal.ZERO, BigDecimal::add))
                 .isEqualByComparingTo(result.expenses().target());
         assertThat(result.groups().stream().map(GroupLine::actual).reduce(BigDecimal.ZERO, BigDecimal::add))
                 .isEqualByComparingTo(result.expenses().actual());
+        assertThat(result.expenses().actual()).isEqualByComparingTo("2237.34");
     }
 
-    // --- Reference fixture (invented numbers, checked against the sheet) ---
+    // --- Reference fixture F1 (section 12) ---
 
     @Test
-    void referenceFixtureMatchesSheet() {
+    void referenceFixtureF1MatchesSpec() {
         DashboardResponse result = calculate(
                 List.of(
-                        expense(WOHNEN, FIXED, "800", null),
-                        expense(VERSICHERUNGEN, FIXED, null, null),
-                        expense(LEBENSMITTEL, FLEXIBLE, null, "0.15"),
-                        expense(FREIZEIT, FLEXIBLE, null, null),
-                        expense(INVESTITIONEN, SAVINGS, "250", "0.10"),
+                        category(WOHNEN, FIXED, "900", null),
+                        category(NEBENKOSTEN, FIXED, null, "0.10"),
+                        category(VERSICHERUNGEN, FIXED, "100", null),
+                        category(MOBILITAET, FIXED, "60", "0.50"),
+                        category(KREDITE, FIXED, null, null),
+                        category(LEBENSMITTEL, FLEXIBLE, "400", null),
+                        category(FREIZEIT, FLEXIBLE, null, "0.05"),
+                        category(GESCHENKE, FLEXIBLE, null, null),
+                        category(INVESTITIONEN, SAVINGS, null, "0.20"),
                         rest(),
-                        income(GEHALT),
-                        income(NEBENJOB)),
+                        ungrouped(GEHALT),
+                        ungrouped(NEBENJOB)),
                 List.of(
-                        booking(GEHALT, "2000.00"),
-                        booking(NEBENJOB, "400.00"),
-                        booking(WOHNEN, "800.00"),
-                        booking(LEBENSMITTEL, "320.40"),
-                        booking(FREIZEIT, "75.10"),
-                        booking(INVESTITIONEN, "250.00"),
-                        booking(REST, "30.00")),
-                List.of(yearly(VERSICHERUNGEN, "600.00")));
+                        booking(GEHALT, "3000.00"),
+                        booking(NEBENJOB, "200.00"),
+                        booking(NEBENKOSTEN, "-200.00"),
+                        booking(NEBENKOSTEN, "-140.00"),
+                        booking(LEBENSMITTEL, "-120.30"),
+                        booking(LEBENSMITTEL, "-200.20"),
+                        booking(LEBENSMITTEL, "-130.00"),
+                        booking(LEBENSMITTEL, "30.00"),
+                        booking(MOBILITAET, "-45.99"),
+                        booking(INVESTITIONEN, "-640.00"),
+                        booking(GESCHENKE, "-20.00"),
+                        // Occurrences of the recurring transactions of F1, booked as single transactions
+                        new TransactionData(WOHNEN, new BigDecimal("-900.00"), LocalDate.of(2026, 10, 1)),
+                        new TransactionData(VERSICHERUNGEN, new BigDecimal("-240.00"), LocalDate.of(2026, 10, 15)),
+                        // Must be ignored
+                        new TransactionData(LEBENSMITTEL, new BigDecimal("-999.00"), LocalDate.of(2026, 9, 30))));
 
-        assertThat(result.incomeTotal()).isEqualByComparingTo("2400.00");
+        assertThat(result.incomeTotal()).isEqualByComparingTo("3200.00");
 
-        assertLine(result, WOHNEN, "800.00", "800.00", "0.00");
-        assertLine(result, VERSICHERUNGEN, null, "50.00", null);
-        assertLine(result, LEBENSMITTEL, "360.00", "320.40", "39.60");
-        assertLine(result, FREIZEIT, null, "75.10", null);
-        assertLine(result, INVESTITIONEN, "250.00", "250.00", "0.00");
-        assertLine(result, REST, "990.00", "30.00", "960.00");
+        assertLine(result, WOHNEN, "900.00", "900.00", "0.00");
+        assertLine(result, NEBENKOSTEN, "320.00", "340.00", "-20.00");
+        assertLine(result, VERSICHERUNGEN, "100.00", "240.00", "-140.00");
+        assertLine(result, MOBILITAET, "60.00", "45.99", "14.01");
+        assertLine(result, KREDITE, null, "0.00", null);
+        assertLine(result, LEBENSMITTEL, "400.00", "420.50", "-20.50");
+        assertLine(result, FREIZEIT, "160.00", "0.00", "160.00");
+        assertLine(result, GESCHENKE, null, "20.00", null);
+        assertLine(result, INVESTITIONEN, "640.00", "640.00", "0.00");
+        assertLine(result, REST, "620.00", "0.00", "620.00");
 
-        assertThat(result.expenses().target()).isEqualByComparingTo("2400.00");
-        assertThat(result.expenses().actual()).isEqualByComparingTo("1525.50");
-        assertThat(result.expenses().difference()).isEqualByComparingTo("874.50");
+        assertThat(result.expenses().target()).isEqualByComparingTo("3200.00");
+        assertThat(result.expenses().actual()).isEqualByComparingTo("2606.49");
+        assertThat(result.expenses().difference()).isEqualByComparingTo("593.51");
 
-        assertThat(result.surplus()).isEqualByComparingTo("874.50");
+        assertThat(result.surplus()).isEqualByComparingTo("593.51");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
-        // 874.50 / 2400 = 0.364375 -> 0.3644
-        assertThat(result.savingsRate()).isEqualByComparingTo("0.3644");
+        assertThat(result.savingsRate()).isEqualByComparingTo("0.1855");
 
         assertThat(result.income()).extracting(IncomeLine::id, IncomeLine::name).containsExactly(
-                tuple(GEHALT, "Einnahme " + GEHALT),
-                tuple(NEBENJOB, "Einnahme " + NEBENJOB));
-        assertThat(income(result, GEHALT).actual()).isEqualByComparingTo("2000.00");
-        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("0.8333");
-        assertThat(income(result, NEBENJOB).share()).isEqualByComparingTo("0.1667");
+                tuple(GEHALT, "Kategorie " + GEHALT),
+                tuple(NEBENJOB, "Kategorie " + NEBENJOB));
+        assertThat(income(result, GEHALT).actual()).isEqualByComparingTo("3000.00");
+        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("0.9375");
+        assertThat(income(result, NEBENJOB).share()).isEqualByComparingTo("0.0625");
 
-        assertGroup(result, FIXED, "800.00", "850.00", "-50.00");
-        assertGroup(result, FLEXIBLE, "360.00", "395.50", "-35.50");
-        assertGroup(result, SAVINGS, "250.00", "250.00", "0.00");
-        assertGroup(result, REMAINDER, "990.00", "30.00", "960.00");
+        assertGroup(result, FIXED, "1380.00", "1525.99", "-145.99");
+        assertGroup(result, FLEXIBLE, "560.00", "440.50", "119.50");
+        assertGroup(result, SAVINGS, "640.00", "640.00", "0.00");
+        assertGroup(result, REMAINDER, "620.00", "0.00", "620.00");
     }
 
     // --- Helpers ---
 
-    private DashboardResponse calculate(
-            List<CategoryData> categories, List<TransactionData> transactions,
-            List<YearlyTransactionData> yearly) {
-        return calculator.calculate(categories, transactions, yearly, OCTOBER);
+    private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions) {
+        return calculator.calculate(categories, transactions, OCTOBER);
     }
 
-    private static CategoryData expense(long id, CategoryGroup group, String amount, String percent) {
-        return new CategoryData(id, "Ausgabe " + id, EXPENSE, group, decimal(amount), decimal(percent), false);
+    private static CategoryData category(long id, CategoryGroup group, String amount, String percent) {
+        return new CategoryData(id, "Kategorie " + id, group, decimal(amount), decimal(percent), false);
     }
 
     private static CategoryData rest() {
-        return new CategoryData(REST, "Sonstiges (berechneter Rest)", EXPENSE, REMAINDER, null, null, true);
+        return new CategoryData(REST, "Sonstiges (berechneter Rest)", REMAINDER, null, null, true);
     }
 
-    private static CategoryData income(long id) {
-        return new CategoryData(id, "Einnahme " + id, INCOME, null, null, null, false);
+    private static CategoryData ungrouped(long id) {
+        return new CategoryData(id, "Kategorie " + id, null, null, null, false);
     }
 
+    /** Signed amount: positive is income, negative is expense (R11). */
     private static TransactionData booking(long categoryId, String amount) {
         return new TransactionData(categoryId, new BigDecimal(amount), IN_OCTOBER);
-    }
-
-    private BigDecimal versicherungenActual(List<YearlyTransactionData> yearly, YearMonth month) {
-        DashboardResponse result = calculator.calculate(
-                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)), List.of(), yearly, month);
-        return category(result, VERSICHERUNGEN).actual();
-    }
-
-    // Valid from the tested month onward, open-ended
-    private static YearlyTransactionData yearly(long categoryId, String amountPerYear) {
-        return yearly(categoryId, amountPerYear, OCTOBER, null);
-    }
-
-    private static YearlyTransactionData yearly(
-            long categoryId, String amountPerYear, YearMonth validFrom, YearMonth validTo) {
-        return yearlyDue(categoryId, amountPerYear, validFrom, validTo, null);
-    }
-
-    private static YearlyTransactionData yearlyDue(
-            long categoryId, String amountPerYear, YearMonth validFrom, YearMonth validTo, LocalDate dueDate) {
-        return new YearlyTransactionData(categoryId * 100, categoryId, "Jahresposten " + categoryId,
-                new BigDecimal(amountPerYear), dueDate, validFrom, validTo);
-    }
-
-    private List<DueLine> dueIn(List<YearlyTransactionData> yearly, YearMonth month) {
-        return calculator.calculate(
-                List.of(expense(VERSICHERUNGEN, FIXED, null, null), rest(), income(GEHALT)), List.of(), yearly, month)
-                .dueYearly();
     }
 
     private static BigDecimal decimal(String value) {

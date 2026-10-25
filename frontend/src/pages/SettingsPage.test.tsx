@@ -6,10 +6,10 @@ import { SettingsPage } from './SettingsPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', type: 'EXPENSE', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', system: false },
-  { id: 7, name: 'Lebensmittel', type: 'EXPENSE', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', system: false },
-  { id: 15, name: 'Sonstiges (berechneter Rest)', type: 'EXPENSE', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
-  { id: 20, name: 'Gehalt/Lohn (netto)', type: 'INCOME', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
+  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', system: false },
+  { id: 7, name: 'Lebensmittel', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', system: false },
+  { id: 15, name: 'Sonstiges (berechneter Rest)', group: 'REMAINDER', sortOrder: 15, targetAmount: null, targetPercent: null, targetValidFrom: null, system: true },
+  { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, system: false },
 ]
 
 function json(body: unknown, status = 200) {
@@ -37,7 +37,7 @@ describe('SettingsPage', () => {
 
     const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
     expect(screen.getByRole('heading', { name: 'Fixkosten' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Einnahmen' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Ohne Gruppe' })).toBeInTheDocument()
     expect(within(wohnen).getByLabelText(/Soll \(€\)/)).toHaveValue('800,00')
     expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).getByLabelText(/Soll \(%\)/)).toHaveValue('15,00')
 

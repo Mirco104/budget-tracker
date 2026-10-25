@@ -11,7 +11,6 @@ import java.time.YearMonth;
 public record CategoryResponse(
         Long id,
         String name,
-        CategoryType type,
         CategoryGroup group,
         int sortOrder,
         BigDecimal targetAmount,
@@ -23,7 +22,6 @@ public record CategoryResponse(
         return new CategoryResponse(
                 category.getId(),
                 category.getName(),
-                category.getType(),
                 category.getGroup(),
                 category.getSortOrder(),
                 target == null ? null : target.targetAmount(),

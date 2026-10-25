@@ -16,11 +16,15 @@ interface Props {
   onCancel?: () => void
 }
 
+type Kind = 'expense' | 'income'
+
 function toAmountText(amount: number): string {
-  return amount.toFixed(2).replace('.', ',')
+  return Math.abs(amount).toFixed(2).replace('.', ',')
 }
 
 export function TransactionForm({ categories, transaction, defaultDate, onSubmit, onCancel }: Props) {
+  // The amount is entered positive; the toggle sets the sign (R11).
+  const [kind, setKind] = useState<Kind>(transaction && transaction.amount > 0 ? 'income' : 'expense')
   const [amount, setAmount] = useState(transaction ? toAmountText(transaction.amount) : '')
   const [description, setDescription] = useState(transaction?.description ?? '')
   const [date, setDate] = useState(transaction?.date ?? defaultDate)
@@ -55,7 +59,11 @@ export function TransactionForm({ categories, transaction, defaultDate, onSubmit
     }
     return {
       errors: found,
-      input: { amount: parsedAmount, description: description.trim(), date, categoryId: Number(categoryId) },
+      input: {
+        amount: kind === 'expense' ? -parsedAmount : parsedAmount,
+        description: description.trim(), date,
+        categoryId: Number(categoryId),
+      },
     }
   }
 
@@ -89,6 +97,18 @@ export function TransactionForm({ categories, transaction, defaultDate, onSubmit
   return (
     <form className="transaction-form" noValidate onSubmit={handleSubmit}>
       <h3>{transaction ? 'Transaktion bearbeiten' : 'Neue Transaktion'}</h3>
+
+      <fieldset className="sign-toggle">
+        <legend>Art</legend>
+        <label>
+          <input type="radio" name="kind" checked={kind === 'expense'} onChange={() => setKind('expense')} />
+          Ausgabe
+        </label>
+        <label>
+          <input type="radio" name="kind" checked={kind === 'income'} onChange={() => setKind('income')} />
+          Einnahme
+        </label>
+      </fieldset>
 
       <label>
         Betrag (€)

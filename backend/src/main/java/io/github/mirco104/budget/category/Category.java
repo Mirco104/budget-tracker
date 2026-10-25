@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"name", "type"}))
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = "name"))
 public class Category {
 
     @Id
@@ -21,11 +21,7 @@ public class Category {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private CategoryType type;
-
-    // "group" is an SQL keyword
+    // "group" is an SQL keyword; null means "ohne Gruppe"
     @Enumerated(EnumType.STRING)
     @Column(name = "category_group", length = 20)
     private CategoryGroup group;
@@ -40,9 +36,8 @@ public class Category {
     protected Category() {
     }
 
-    public Category(String name, CategoryType type, CategoryGroup group, int sortOrder, boolean system) {
+    public Category(String name, CategoryGroup group, int sortOrder, boolean system) {
         this.name = name;
-        this.type = type;
         this.group = group;
         this.sortOrder = sortOrder;
         this.system = system;
@@ -54,10 +49,6 @@ public class Category {
 
     public String getName() {
         return name;
-    }
-
-    public CategoryType getType() {
-        return type;
     }
 
     public CategoryGroup getGroup() {
