@@ -11,12 +11,23 @@ const categories: Category[] = [
   { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
+// Only the fields the planning summary uses.
+const dashboard = { incomeTotal: 3200, expenses: { target: 3300 }, unplanned: -100 }
+
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
-function renderPage(onPut: () => Promise<Response> = () => json(categories[1])) {
-  const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' ? onPut() : json(categories)))
+function renderPage(
+  onPut: () => Promise<Response> = () => json(categories[1]),
+  dashboardData: unknown = dashboard,
+) {
+  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') {
+      return onPut()
+    }
+    return url.startsWith('/api/dashboard') ? json(dashboardData) : json(categories)
+  })
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -41,6 +52,24 @@ describe('SettingsPage', () => {
     expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).getByLabelText(/Soll \(%\)/)).toHaveValue('15,00')
 
     expect(screen.getByText('Gehalt/Lohn (netto)')).toBeInTheDocument()
+  })
+
+  it('shows income, planned targets and the unplanned rest of the month', async () => {
+    const fetchMock = renderPage()
+
+    const unplanned = await screen.findByText('Nicht verplant', { selector: 'dt' })
+    expect(unplanned.nextSibling).toHaveTextContent('-100,00 €')
+    expect(unplanned.nextSibling).toHaveClass('negative')
+    expect(screen.getByText('Verplant', { selector: 'dt' }).nextSibling).toHaveTextContent('3.300,00 €')
+    expect(screen.getByText('Einnahmen November 2026').nextSibling).toHaveTextContent('3.200,00 €')
+    expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-11', expect.anything())
+    expect(screen.queryByText(/noch keine Einnahmen gebucht/)).not.toBeInTheDocument()
+  })
+
+  it('says so when the month has no income yet', async () => {
+    renderPage(undefined, { incomeTotal: 0, expenses: { target: 800 }, unplanned: -800 })
+
+    expect(await screen.findByText(/noch keine Einnahmen gebucht/)).toBeInTheDocument()
   })
 
   it('loads the targets of the selected month and says from when they apply', async () => {

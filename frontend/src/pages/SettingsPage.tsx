@@ -1,8 +1,40 @@
 import { useCategories, useUpdateTarget } from '../api/categories'
+import { useDashboard } from '../api/dashboard'
 import type { CategoryGroup } from '../api/types'
 import { TargetRow } from '../components/TargetRow'
-import { formatMonth } from '../format'
+import { formatEuro, formatMonth } from '../format'
 import { GROUP_LABELS, UNGROUPED_LABEL } from '../labels'
+
+/** Income of the month, planned targets and the unplanned rest (R4), taken from the dashboard. */
+function PlanningSummary({ month }: { month: string }) {
+  const { data } = useDashboard(month)
+  if (!data) {
+    return null
+  }
+  return (
+    <>
+      <dl className="summary">
+        <div>
+          <dt>Einnahmen {formatMonth(month)}</dt>
+          <dd>{formatEuro(data.incomeTotal)}</dd>
+        </div>
+        <div>
+          <dt>Verplant</dt>
+          <dd>{formatEuro(data.expenses.target)}</dd>
+        </div>
+        <div>
+          <dt>Nicht verplant</dt>
+          <dd className={data.unplanned < 0 ? 'negative' : undefined}>{formatEuro(data.unplanned)}</dd>
+        </div>
+      </dl>
+      {data.incomeTotal === 0 && (
+        <p className="hint">
+          Für diesen Monat sind noch keine Einnahmen gebucht. Prozent-Soll ergeben daher 0,00 €.
+        </p>
+      )}
+    </>
+  )
+}
 
 export function SettingsPage({ month }: { month: string }) {
   const categories = useCategories(month)
@@ -31,6 +63,7 @@ export function SettingsPage({ month }: { month: string }) {
         Gilt ab <strong>{formatMonth(month)}</strong> für alle folgenden Monate, bis ein späterer Monat ein neues Soll
         bekommt. Frühere Monate bleiben unverändert.
       </p>
+      <PlanningSummary month={month} />
 
       {groups.map(({ group, items }) => (
         <section key={group}>

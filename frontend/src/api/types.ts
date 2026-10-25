@@ -37,8 +37,15 @@ export interface TransactionInput {
   categoryId: number
 }
 
+/** Amounts with their shares of the income; a share is null without income or without amount. */
+interface Shares {
+  targetShare: number | null
+  actualShare: number | null
+  differenceShare: number | null
+}
+
 /** difference is the deviation from the target (target - actual). */
-export interface Totals {
+export interface Totals extends Shares {
   target: number
   actual: number
   difference: number
@@ -46,9 +53,9 @@ export interface Totals {
 
 /**
  * Sums of the expense lines in one group; a missing target counts as 0.
- * group null sums the ungrouped categories with expenses and is only present if there are any.
+ * Only groups with category lines are present; group null sums the ungrouped categories with expenses.
  */
-export interface GroupLine {
+export interface GroupLine extends Shares {
   group: CategoryGroup | null
   target: number
   actual: number
@@ -56,7 +63,7 @@ export interface GroupLine {
 }
 
 /** actual is the expense of the category (positive). group is null for an ungrouped category with expenses. */
-export interface CategoryLine {
+export interface CategoryLine extends Shares {
   id: number
   name: string
   group: CategoryGroup | null
@@ -65,23 +72,24 @@ export interface CategoryLine {
   difference: number | null
 }
 
-/** actual is the net of the category and may be negative for ungrouped categories. */
+/** actual is the net of the category (positive). share is null without income. */
 export interface IncomeLine {
   id: number
   name: string
   actual: number
-  share: number
+  share: number | null
 }
 
 export interface DashboardData {
   month: string
   incomeTotal: number
+  incomeTotalShare: number | null
   expenses: Totals
   /** Income without a target: income minus the target total; negative when over-planned. */
   unplanned: number
   surplus: number
   surplusLabel: string
-  savingsRate: number | null
+  surplusShare: number | null
   groups: GroupLine[]
   categories: CategoryLine[]
   income: IncomeLine[]
