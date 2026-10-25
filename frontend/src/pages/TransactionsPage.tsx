@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useCategories } from '../api/categories'
 import {
+  useCreateRecurringTransaction,
   useDeleteOccurrence,
   useRecurringTransactions,
   useUpdateOccurrenceFollowing,
@@ -12,16 +13,19 @@ import {
   useTransactions,
   useUpdateTransaction,
 } from '../api/transactions'
-import type { OccurrenceScope, RecurringTransactionInput, Transaction } from '../api/types'
+import type { OccurrenceScope, Transaction } from '../api/types'
 import { OccurrenceScopeDialog } from '../components/OccurrenceScopeDialog'
-import { RecurringTransactionForm } from '../components/RecurringTransactionForm'
-import { TransactionForm } from '../components/TransactionForm'
+import { TransactionForm, type TransactionFormValues } from '../components/TransactionForm'
 import { formatDate, formatEuro } from '../format'
 
 function defaultDateFor(month: string): string {
   const today = new Date()
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   return todayIso.startsWith(month) ? todayIso : `${month}-01`
+}
+
+function valuesOf(t: Transaction): TransactionFormValues {
+  return { amount: t.amount, description: t.description, date: t.date, categoryId: t.categoryId, repeat: 'NONE', endDate: null }
 }
 
 function rowKey(t: Transaction): string {
@@ -38,13 +42,15 @@ interface OccurrenceRef {
 type Editing =
   | { mode: 'single'; transaction: Transaction }
   | { mode: 'this'; occurrence: OccurrenceRef }
-  | { mode: 'following'; occurrence: OccurrenceRef; initial: RecurringTransactionInput }
+  | { mode: 'following'; occurrence: OccurrenceRef; initial: TransactionFormValues }
 
 export function TransactionsPage({ month }: { month: string }) {
   const transactions = useTransactions(month)
   const categories = useCategories(month)
+  // Series active in the month; "Dieser und alle folgenden" prefills the form from them.
   const series = useRecurringTransactions(month)
   const createTransaction = useCreateTransaction()
+  const createSeries = useCreateRecurringTransaction()
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
   const updateOccurrenceThis = useUpdateOccurrenceThis()
@@ -109,9 +115,9 @@ export function TransactionsPage({ month }: { month: string }) {
           initial: {
             amount: current.amount,
             description: current.description,
+            date: occurrence.date,
             categoryId: current.categoryId,
-            interval: current.interval,
-            startDate: occurrence.date,
+            repeat: current.interval,
             endDate: current.endDate,
           },
         })
@@ -126,17 +132,20 @@ export function TransactionsPage({ month }: { month: string }) {
     if (editing?.mode === 'following') {
       const { occurrence, initial } = editing
       return (
-        <RecurringTransactionForm
+        <TransactionForm
           key={`following-${occurrence.recurringId}-${occurrence.date}`}
           categories={categories.data}
           initial={initial}
-          defaultStartDate={occurrence.date}
+          defaultDate={occurrence.date}
+          repeatOption="required"
           title={`„${occurrence.entry.description}“ ab ${formatDate(occurrence.date)} bearbeiten`}
           submitLabel="Speichern"
-          onSubmit={(input) =>
-            updateOccurrenceFollowing
-              .mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.date, input })
-              .then(() => setEditing(null))
+          onSubmit={(result) =>
+            result.kind === 'recurring'
+              ? updateOccurrenceFollowing
+                  .mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.date, input: result.input })
+                  .then(() => setEditing(null))
+              : Promise.reject(new Error('Eine Serie braucht ein Intervall.'))
           }
           onCancel={() => setEditing(null)}
         />
@@ -148,32 +157,56 @@ export function TransactionsPage({ month }: { month: string }) {
         <TransactionForm
           key={`this-${occurrence.recurringId}-${occurrence.date}`}
           categories={categories.data}
-          transaction={occurrence.entry}
+          initial={valuesOf(occurrence.entry)}
           defaultDate={occurrence.date}
+          repeatOption="none"
           title={`Nur den Eintrag vom ${formatDate(occurrence.date)} bearbeiten`}
-          onSubmit={(input) =>
-            updateOccurrenceThis
-              .mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.date, input })
-              .then(() => setEditing(null))
+          submitLabel="Speichern"
+          onSubmit={(result) =>
+            result.kind === 'single'
+              ? updateOccurrenceThis
+                  .mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.date, input: result.input })
+                  .then(() => setEditing(null))
+              : Promise.reject(new Error('Ein einzelner Eintrag hat kein Intervall.'))
           }
           onCancel={() => setEditing(null)}
         />
       )
     }
-    const single = editing?.mode === 'single' ? editing.transaction : null
+    if (editing?.mode === 'single') {
+      const single = editing.transaction
+      return (
+        <TransactionForm
+          // Remount on switch so the fields show the selected transaction.
+          key={`single-${single.id}`}
+          categories={categories.data}
+          initial={valuesOf(single)}
+          defaultDate={defaultDateFor(month)}
+          repeatOption="none"
+          title="Transaktion bearbeiten"
+          submitLabel="Speichern"
+          onSubmit={(result) =>
+            single.id !== null && result.kind === 'single'
+              ? updateTransaction.mutateAsync({ id: single.id, input: result.input }).then(() => setEditing(null))
+              : Promise.reject(new Error('Speichern fehlgeschlagen.'))
+          }
+          onCancel={() => setEditing(null)}
+        />
+      )
+    }
+    // US6: one form for single and recurring transactions; "Wiederholen" picks the endpoint.
     return (
       <TransactionForm
-        // Remount on switch so the fields show the selected transaction.
-        key={single ? `single-${single.id}` : `new-${month}`}
+        key={`new-${month}`}
         categories={categories.data}
-        transaction={single}
+        initial={null}
         defaultDate={defaultDateFor(month)}
-        onSubmit={(input) =>
-          single?.id != null
-            ? updateTransaction.mutateAsync({ id: single.id, input }).then(() => setEditing(null))
-            : createTransaction.mutateAsync(input)
+        repeatOption="optional"
+        title="Neue Transaktion"
+        submitLabel="Hinzufügen"
+        onSubmit={(result) =>
+          result.kind === 'recurring' ? createSeries.mutateAsync(result.input) : createTransaction.mutateAsync(result.input)
         }
-        onCancel={single ? () => setEditing(null) : undefined}
       />
     )
   }
@@ -205,7 +238,7 @@ export function TransactionsPage({ month }: { month: string }) {
       )}
       {transactions.data && transactions.data.length === 0 && <p>Keine Transaktionen in diesem Monat.</p>}
       {transactions.data && transactions.data.length > 0 && (
-        <table>
+        <table className="transactions">
           <thead>
             <tr>
               <th>Datum</th>
@@ -218,16 +251,14 @@ export function TransactionsPage({ month }: { month: string }) {
           <tbody>
             {transactions.data.map((t) => (
               <tr key={rowKey(t)}>
-                <td>{formatDate(t.date)}</td>
-                <td>
+                <td className="tx-date">{formatDate(t.date)}</td>
+                <td className="tx-description">
                   {t.description}
                   {t.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
                 </td>
-                <td>
-                  {t.categoryName} ({t.amount < 0 ? 'Ausgabe' : 'Einnahme'})
-                </td>
-                <td className="number">{formatEuro(t.amount)}</td>
-                <td>
+                <td className="tx-category">{t.categoryName}</td>
+                <td className={`number tx-amount ${t.amount < 0 ? 'negative' : 'positive'}`}>{formatEuro(t.amount)}</td>
+                <td className="tx-actions">
                   <button type="button" onClick={() => handleEdit(t)}>
                     Bearbeiten
                   </button>{' '}

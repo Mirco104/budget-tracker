@@ -52,6 +52,15 @@ describe('TransactionsPage', () => {
     expect(within(screen.getByRole('row', { name: /Kino/ })).queryByText('wiederkehrend')).not.toBeInTheDocument()
   })
 
+  it('colors expenses red, shows the category without Ausgabe/Einnahme', async () => {
+    renderPage()
+
+    const kino = await screen.findByRole('row', { name: /Kino/ })
+    expect(within(kino).getByText('-12,00 €')).toHaveClass('negative')
+    expect(within(kino).getByText('Freizeit')).toBeInTheDocument()
+    expect(within(kino).queryByText(/Ausgabe/)).not.toBeInTheDocument()
+  })
+
   it('asks for the scope before editing an occurrence and edits the following ones as a series', async () => {
     const fetchMock = renderPage()
     await screen.findByRole('option', { name: 'Freizeit' })
@@ -64,10 +73,10 @@ describe('TransactionsPage', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '„Streaming“ ab 05.10.2026 bearbeiten' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Startdatum (erste Abbuchung)')).toHaveValue('2026-10-05')
-    expect(screen.getByLabelText('Betrag je Vorkommen (€)')).toHaveValue('15,00')
+    expect(screen.getByLabelText('Datum (erste Abbuchung)')).toHaveValue('2026-10-05')
+    expect(screen.getByLabelText('Betrag (€)')).toHaveValue('15,00')
 
-    fireEvent.change(screen.getByLabelText('Betrag je Vorkommen (€)'), { target: { value: '18' } })
+    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '18' } })
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
 
     await waitFor(() =>
@@ -96,6 +105,30 @@ describe('TransactionsPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Nur den Eintrag vom 05.10.2026 bearbeiten' })).toBeInTheDocument()
     expect(screen.getByLabelText('Datum')).toHaveValue('2026-10-05')
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+  })
+
+  it('creates a series from the transaction form when a repeat is chosen', async () => {
+    const fetchMock = renderPage()
+    await screen.findByRole('option', { name: 'Freizeit' })
+
+    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '9,99' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Musik' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/recurring-transactions', expect.objectContaining({ method: 'POST' })),
+    )
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/transactions', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('has no separate list of series', async () => {
+    renderPage()
+
+    await streamingRow()
+    expect(screen.queryByText(/Wiederkehrende Transaktionen/)).not.toBeInTheDocument()
   })
 
   it('deletes only this occurrence after asking for the scope', async () => {

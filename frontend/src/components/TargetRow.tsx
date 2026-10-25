@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FocusEvent, type FormEvent, type KeyboardEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Category, TargetInput } from '../api/types'
 import { formatMonth, parseAmountInput } from '../format'
@@ -16,11 +16,17 @@ function toInputText(value: number): string {
   return value.toFixed(2).replace('.', ',')
 }
 
+/**
+ * Target of one category. There is no save button: a change is saved when the focus leaves the row or on Enter
+ * (US2). Moving between the two inputs of the row does not save yet, so euro and percent go out together.
+ */
 export function TargetRow({ category, month, onSubmit }: Props) {
   const [amount, setAmount] = useState(category.targetAmount === null ? '' : toInputText(category.targetAmount))
   const [percent, setPercent] = useState(
     category.targetPercent === null ? '' : toInputText(category.targetPercent * 100),
   )
+  // Input texts as last saved; leaving the row without a change sends nothing.
+  const [savedTexts, setSavedTexts] = useState({ amount, percent })
   const [errors, setErrors] = useState<Errors>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -54,8 +60,10 @@ export function TargetRow({ category, month, onSubmit }: Props) {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function save() {
+    if (submitting || (amount === savedTexts.amount && percent === savedTexts.percent)) {
+      return
+    }
     setGeneralError(null)
     setSaved(false)
     const result = validate()
@@ -67,6 +75,7 @@ export function TargetRow({ category, month, onSubmit }: Props) {
     setSubmitting(true)
     try {
       await onSubmit(result.input)
+      setSavedTexts({ amount, percent })
       setSaved(true)
     } catch (error) {
       if (error instanceof ApiError && error.problem.errors?.length) {
@@ -79,19 +88,39 @@ export function TargetRow({ category, month, onSubmit }: Props) {
     }
   }
 
+  function handleBlur(event: FocusEvent<HTMLFormElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      void save()
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      void save()
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void save()
+  }
+
   return (
-    <form className="target-row" aria-label={category.name} noValidate onSubmit={handleSubmit}>
+    <form className="target-row" aria-label={category.name} noValidate onSubmit={handleSubmit} onBlur={handleBlur}>
       <span className="target-name">{category.name}</span>
 
       <label>
         Soll (€)
         <input
           inputMode="decimal"
+          enterKeyHint="done"
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value)
             setSaved(false)
           }}
+          onKeyDown={handleKeyDown}
           aria-invalid={errors.targetAmount ? true : undefined}
         />
         {errors.targetAmount && <span className="error">{errors.targetAmount}</span>}
@@ -101,22 +130,22 @@ export function TargetRow({ category, month, onSubmit }: Props) {
         Soll (%)
         <input
           inputMode="decimal"
+          enterKeyHint="done"
           value={percent}
           onChange={(e) => {
             setPercent(e.target.value)
             setSaved(false)
           }}
+          onKeyDown={handleKeyDown}
           aria-invalid={errors.targetPercent ? true : undefined}
         />
         {errors.targetPercent && <span className="error">{errors.targetPercent}</span>}
       </label>
 
-      <div className="target-actions">
-        <button type="submit" disabled={submitting}>
-          Speichern
-        </button>
-        {saved && <span className="hint"> Gespeichert ab {formatMonth(month)}.</span>}
-        {!saved && category.targetValidFrom && category.targetValidFrom !== month && (
+      <div className="target-actions" aria-live="polite">
+        {submitting && <p className="hint">Speichert …</p>}
+        {saved && <p className="hint">Gespeichert ab {formatMonth(month)}.</p>}
+        {!saved && !submitting && category.targetValidFrom && category.targetValidFrom !== month && (
           <p className="hint">Gesetzt ab {formatMonth(category.targetValidFrom)}.</p>
         )}
         {amount.trim() !== '' && percent.trim() !== '' && <p className="hint">Euro-Wert hat Vorrang.</p>}

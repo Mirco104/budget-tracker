@@ -9,7 +9,7 @@ interface Props {
   error?: string
 }
 
-/** Category dropdown, grouped like the settings. */
+/** Category dropdown, grouped like the planning page. */
 export function CategorySelect({ categories, value, onChange, error }: Props) {
   const groups = [
     ...(Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
