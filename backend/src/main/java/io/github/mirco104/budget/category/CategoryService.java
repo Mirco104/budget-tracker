@@ -2,6 +2,7 @@ package io.github.mirco104.budget.category;
 
 import io.github.mirco104.budget.category.TargetResolver.TargetEntry;
 import io.github.mirco104.budget.common.ConflictException;
+import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -58,6 +59,17 @@ public class CategoryService {
         target.update(scale(request.targetAmount(), 2), scale(request.targetPercent(), 4));
         categoryTargetRepository.save(target);
         return CategoryResponse.from(category, target.toEntry());
+    }
+
+    /** The category for a booking; 400 on field categoryId if it is unknown or the remainder category (R4). */
+    @Transactional(readOnly = true)
+    public Category findBookable(long categoryId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new InvalidFieldException("categoryId", "Die Kategorie existiert nicht."));
+        if (category.isSystem()) {
+            throw new InvalidFieldException("categoryId", "Auf die Rest-Kategorie kann nicht gebucht werden.");
+        }
+        return category;
     }
 
     private static BigDecimal scale(BigDecimal value, int scale) {

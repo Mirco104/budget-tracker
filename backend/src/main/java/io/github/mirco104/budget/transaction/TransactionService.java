@@ -1,13 +1,15 @@
 package io.github.mirco104.budget.transaction;
 
-import io.github.mirco104.budget.category.Category;
-import io.github.mirco104.budget.category.CategoryRepository;
+import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
+import io.github.mirco104.budget.recurring.OccurrenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,19 +17,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
+    private final OccurrenceService occurrenceService;
 
-    public TransactionService(TransactionRepository transactionRepository, CategoryRepository categoryRepository) {
+    public TransactionService(
+            TransactionRepository transactionRepository, CategoryService categoryService,
+            OccurrenceService occurrenceService) {
         this.transactionRepository = transactionRepository;
-        this.categoryRepository = categoryRepository;
+        this.categoryService = categoryService;
+        this.occurrenceService = occurrenceService;
     }
 
-    // A transaction belongs to the month of its date (spec 11.3)
+    // A transaction belongs to the month of its date (spec 11.3); occurrences of recurring ones are added (R12).
+    // Newest first; on the same date occurrences come after single transactions.
     @Transactional(readOnly = true)
     public List<TransactionResponse> findByMonth(YearMonth month) {
-        return transactionRepository.findByDateBetweenOrderByDateDescIdDesc(month.atDay(1), month.atEndOfMonth())
-                .stream()
-                .map(TransactionResponse::from)
+        Stream<TransactionResponse> singles = transactionRepository
+                .findByDateBetweenOrderByDateDescIdDesc(month.atDay(1), month.atEndOfMonth()).stream()
+                .map(TransactionResponse::from);
+        Stream<TransactionResponse> occurrences = occurrenceService.occurrencesIn(month).stream()
+                .map(TransactionResponse::from);
+        return Stream.concat(singles, occurrences)
+                .sorted(Comparator.comparing(TransactionResponse::date).reversed())
                 .toList();
     }
 
@@ -38,7 +49,7 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                findCategory(request.categoryId()));
+                categoryService.findBookable(request.categoryId()));
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
@@ -50,7 +61,7 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                findCategory(request.categoryId()));
+                categoryService.findBookable(request.categoryId()));
         return TransactionResponse.from(transaction);
     }
 
@@ -69,15 +80,5 @@ public class TransactionService {
     private Transaction findTransaction(long id) {
         return transactionRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Transaktion " + id + " wurde nicht gefunden."));
-    }
-
-    // R4: the remainder category is calculated only and not bookable
-    private Category findCategory(long categoryId) {
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new InvalidFieldException("categoryId", "Die Kategorie existiert nicht."));
-        if (category.isSystem()) {
-            throw new InvalidFieldException("categoryId", "Auf die Rest-Kategorie kann nicht gebucht werden.");
-        }
-        return category;
     }
 }
