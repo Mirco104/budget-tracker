@@ -44,23 +44,15 @@ class CategoryControllerTest {
     void listsAllSeededCategoriesSortedBySortOrder() throws Exception {
         String json = getCategories(MONTH)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(21)))
+                .andExpect(jsonPath("$", hasSize(20)))
                 .andExpect(jsonPath("$[0].name").value("Wohnen"))
                 .andExpect(jsonPath("$[0].type").doesNotExist())
+                .andExpect(jsonPath("$[0].system").doesNotExist())
                 .andExpect(jsonPath("$[0].group").value("FIXED"))
                 .andReturn().getResponse().getContentAsString();
 
         List<Integer> sortOrders = JsonPath.read(json, "$[*].sortOrder");
         assertThat(sortOrders).isSorted();
-    }
-
-    @Test
-    void remainderCategoryIsMarkedAsSystem() throws Exception {
-        getCategories(MONTH)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.group == 'REMAINDER')]", hasSize(1)))
-                .andExpect(jsonPath("$[?(@.group == 'REMAINDER')].name").value("Sonstiges (berechneter Rest)"))
-                .andExpect(jsonPath("$[?(@.group == 'REMAINDER')].system").value(true));
     }
 
     @Test
@@ -269,27 +261,15 @@ class CategoryControllerTest {
     // --- 409 ---
 
     @Test
-    void rejectsChangesToRemainderCategory() throws Exception {
-        Category remainder = categoryRepository.findAll().stream()
-                .filter(Category::isSystem)
-                .findFirst().orElseThrow();
-
-        putTarget(remainder.getId(), "{\"targetAmount\": 10}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.title").value("Konflikt"))
-                .andExpect(jsonPath("$.detail").value(
-                        "Die Rest-Kategorie wird automatisch berechnet und kann nicht geändert werden."));
-
-        assertThat(categoryTargetRepository.findAll()).isEmpty();
-    }
-
-    @Test
     void rejectsTargetForUngroupedCategory() throws Exception {
         long id = categoryId("Nebenjob");
 
         putTarget(id, "{\"targetAmount\": 10}")
                 .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Konflikt"))
                 .andExpect(jsonPath("$.detail").value("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden."));
+
+        assertThat(categoryTargetRepository.findAll()).isEmpty();
     }
 
     private ResultActions getCategories(String month) throws Exception {

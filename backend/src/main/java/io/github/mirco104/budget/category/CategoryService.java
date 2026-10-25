@@ -45,10 +45,6 @@ public class CategoryService {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Kategorie " + id + " wurde nicht gefunden."));
 
-        if (category.isSystem()) {
-            throw new ConflictException(
-                    "Die Rest-Kategorie wird automatisch berechnet und kann nicht geändert werden.");
-        }
         if (category.getGroup() == null) {
             throw new ConflictException("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden.");
         }

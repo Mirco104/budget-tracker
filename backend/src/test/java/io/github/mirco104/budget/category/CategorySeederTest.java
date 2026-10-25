@@ -21,11 +21,9 @@ class CategorySeederTest {
 
     @Test
     void seedsCategoriesOnStartup() {
-        assertThat(categoryRepository.count()).isEqualTo(21);
-        assertThat(categoryRepository.findAll())
-                .filteredOn(Category::isSystem)
-                .singleElement()
-                .satisfies(c -> assertThat(c.getGroup()).isEqualTo(CategoryGroup.REMAINDER));
+        assertThat(categoryRepository.count()).isEqualTo(20);
+        assertThat(categoryRepository.findAll()).extracting(Category::getName)
+                .doesNotContain("Sonstiges (berechneter Rest)");
     }
 
     @Test
@@ -45,6 +43,6 @@ class CategorySeederTest {
     void doesNotSeedTwice() {
         categorySeeder.run(new DefaultApplicationArguments());
 
-        assertThat(categoryRepository.count()).isEqualTo(21);
+        assertThat(categoryRepository.count()).isEqualTo(20);
     }
 }

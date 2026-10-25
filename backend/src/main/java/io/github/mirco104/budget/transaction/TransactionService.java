@@ -71,13 +71,8 @@ public class TransactionService {
                 .orElseThrow(() -> new NotFoundException("Transaktion " + id + " wurde nicht gefunden."));
     }
 
-    // R4: the remainder category is calculated only and not bookable
     private Category findCategory(long categoryId) {
-        Category category = categoryRepository.findById(categoryId)
+        return categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new InvalidFieldException("categoryId", "Die Kategorie existiert nicht."));
-        if (category.isSystem()) {
-            throw new InvalidFieldException("categoryId", "Auf die Rest-Kategorie kann nicht gebucht werden.");
-        }
-        return category;
     }
 }

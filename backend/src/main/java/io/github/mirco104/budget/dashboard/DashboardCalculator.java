@@ -25,8 +25,7 @@ public class DashboardCalculator {
 
     /** group null means "ohne Gruppe". */
     public record CategoryData(
-            long id, String name, CategoryGroup group, BigDecimal targetAmount, BigDecimal targetPercent,
-            boolean system) {
+            long id, String name, CategoryGroup group, BigDecimal targetAmount, BigDecimal targetPercent) {
     }
 
     /** amount is signed: positive is income, negative is expense (R11). */
@@ -43,22 +42,7 @@ public class DashboardCalculator {
                 .filter(net -> net.signum() > 0)
                 .reduce(zero(), BigDecimal::add);
 
-        // R3 for the categories of FIXED, FLEXIBLE and SAVINGS, then R4 for the remainder
-        Map<Long, BigDecimal> targets = new HashMap<>();
-        BigDecimal plannedTotal = zero();
-        for (CategoryData category : categories) {
-            if (category.system() || category.group() == null) {
-                continue;
-            }
-            BigDecimal target = target(category, incomeTotal);
-            if (target != null) {
-                targets.put(category.id(), target);
-                plannedTotal = plannedTotal.add(target);
-            }
-        }
-        BigDecimal remainderTarget = incomeTotal.subtract(plannedTotal);
-
-        // R5, R6; R10: every category with a group, plus ungrouped ones with expenses
+        // R3, R5, R6; R10: every category with a group, plus ungrouped ones with expenses
         List<CategoryLine> categoryLines = new ArrayList<>();
         BigDecimal expensesTarget = zero();
         BigDecimal expensesActual = zero();
@@ -67,7 +51,7 @@ public class DashboardCalculator {
             if (category.group() == null && actual.signum() == 0) {
                 continue;
             }
-            BigDecimal target = category.system() ? remainderTarget : targets.get(category.id());
+            BigDecimal target = category.group() == null ? null : target(category, incomeTotal);
             BigDecimal difference = target == null ? null : target.subtract(actual);
             categoryLines.add(new CategoryLine(
                     category.id(), category.name(), category.group(), target, actual, difference));
@@ -76,6 +60,9 @@ public class DashboardCalculator {
             }
             expensesActual = expensesActual.add(actual);
         }
+
+        // R4
+        BigDecimal unplanned = incomeTotal.subtract(expensesTarget);
 
         // R7
         BigDecimal surplus = incomeTotal.subtract(expensesActual);
@@ -102,6 +89,7 @@ public class DashboardCalculator {
                 month.toString(),
                 incomeTotal,
                 new Totals(expensesTarget, expensesActual, expensesTarget.subtract(expensesActual)),
+                unplanned,
                 surplus,
                 surplusLabel,
                 savingsRate,
@@ -111,24 +99,30 @@ public class DashboardCalculator {
     }
 
     // R10: every group in enum order, summed from the category lines; a missing target counts as 0 (like R6).
-    // Expenses of ungrouped categories count towards REMAINDER, so the group actuals add up to the expenses total.
+    // Expenses of ungrouped categories get a line with group null, so the group totals add up to the expenses totals.
     private static List<GroupLine> groupLines(List<CategoryLine> categoryLines) {
         List<GroupLine> groupLines = new ArrayList<>();
         for (CategoryGroup group : CategoryGroup.values()) {
-            BigDecimal target = zero();
-            BigDecimal actual = zero();
-            for (CategoryLine line : categoryLines) {
-                CategoryGroup lineGroup = line.group() == null ? CategoryGroup.REMAINDER : line.group();
-                if (lineGroup == group) {
-                    if (line.target() != null) {
-                        target = target.add(line.target());
-                    }
-                    actual = actual.add(line.actual());
-                }
-            }
-            groupLines.add(new GroupLine(group, target, actual, target.subtract(actual)));
+            groupLines.add(groupLine(group, categoryLines));
+        }
+        if (categoryLines.stream().anyMatch(line -> line.group() == null)) {
+            groupLines.add(groupLine(null, categoryLines));
         }
         return groupLines;
+    }
+
+    private static GroupLine groupLine(CategoryGroup group, List<CategoryLine> categoryLines) {
+        BigDecimal target = zero();
+        BigDecimal actual = zero();
+        for (CategoryLine line : categoryLines) {
+            if (line.group() == group) {
+                if (line.target() != null) {
+                    target = target.add(line.target());
+                }
+                actual = actual.add(line.actual());
+            }
+        }
+        return new GroupLine(group, target, actual, target.subtract(actual));
     }
 
     // R1: sum of the signed amounts of the month, per category
