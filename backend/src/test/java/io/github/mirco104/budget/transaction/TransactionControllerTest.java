@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.github.mirco104.budget.category.CategoryRepository;
-import io.github.mirco104.budget.category.CategoryType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -39,7 +38,7 @@ class TransactionControllerTest {
 
     @Test
     void createsTransactionWithLocationAndScaledAmount() throws Exception {
-        long categoryId = expenseId("Lebensmittel");
+        long categoryId = categoryId("Lebensmittel");
 
         postTransaction(body("12.5", "Wocheneinkauf", "2026-10-05", categoryId))
                 .andExpect(status().isCreated())
@@ -49,19 +48,28 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.description").value("Wocheneinkauf"))
                 .andExpect(jsonPath("$.date").value("2026-10-05"))
                 .andExpect(jsonPath("$.categoryId").value(categoryId))
-                .andExpect(jsonPath("$.categoryName").value("Lebensmittel"))
-                .andExpect(jsonPath("$.categoryType").value("EXPENSE"));
+                .andExpect(jsonPath("$.categoryName").value("Lebensmittel"));
+    }
+
+    @Test
+    void storesSignedAmounts() throws Exception {
+        postTransaction(body("-45.99", "Tanken", "2026-10-05", categoryId("Mobilität")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(-45.99));
+        postTransaction(body("30", "Erstattung", "2026-10-06", categoryId("Lebensmittel")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(30.00));
     }
 
     @Test
     void acceptsDescriptionWithExactly100Characters() throws Exception {
-        postTransaction(body("10", "x".repeat(100), "2026-10-05", expenseId("Freizeit")))
+        postTransaction(body("10", "x".repeat(100), "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isCreated());
     }
 
     @Test
     void trimsDescription() throws Exception {
-        postTransaction(body("10", "  Kino  ", "2026-10-05", expenseId("Freizeit")))
+        postTransaction(body("10", "  Kino  ", "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.description").value("Kino"));
     }
@@ -69,9 +77,9 @@ class TransactionControllerTest {
     // --- POST /api/transactions (US3): validation ---
 
     @ParameterizedTest
-    @ValueSource(strings = {"0", "-5", "1.234"})
+    @ValueSource(strings = {"0", "0.00", "-0", "1.234", "-1.234"})
     void rejectsInvalidAmount(String amount) throws Exception {
-        postTransaction(body(amount, "Test", "2026-10-05", expenseId("Freizeit")))
+        postTransaction(body(amount, "Test", "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"))
                 .andExpect(jsonPath("$.errors[0].field").value("amount"));
@@ -80,7 +88,7 @@ class TransactionControllerTest {
     @Test
     void rejectsMissingAmount() throws Exception {
         postTransaction("{\"description\": \"Test\", \"date\": \"2026-10-05\", \"categoryId\": "
-                + expenseId("Freizeit") + "}")
+                + categoryId("Freizeit") + "}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("amount"))
                 .andExpect(jsonPath("$.errors[0].message").value("Der Betrag ist Pflicht."));
@@ -88,14 +96,14 @@ class TransactionControllerTest {
 
     @Test
     void rejectsBlankDescription() throws Exception {
-        postTransaction(body("10", "   ", "2026-10-05", expenseId("Freizeit")))
+        postTransaction(body("10", "   ", "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("description"));
     }
 
     @Test
     void rejectsDescriptionLongerThan100Characters() throws Exception {
-        postTransaction(body("10", "x".repeat(101), "2026-10-05", expenseId("Freizeit")))
+        postTransaction(body("10", "x".repeat(101), "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("description"))
                 .andExpect(jsonPath("$.errors[0].message")
@@ -105,7 +113,7 @@ class TransactionControllerTest {
     @Test
     void rejectsMissingDate() throws Exception {
         postTransaction("{\"amount\": 10, \"description\": \"Test\", \"categoryId\": "
-                + expenseId("Freizeit") + "}")
+                + categoryId("Freizeit") + "}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("date"));
     }
@@ -126,11 +134,28 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.errors[0].message").value("Die Kategorie existiert nicht."));
     }
 
+    @Test
+    void rejectsZeroAmountWithMessage() throws Exception {
+        postTransaction(body("0", "Test", "2026-10-05", categoryId("Freizeit")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("amount"))
+                .andExpect(jsonPath("$.errors[0].message").value("Der Betrag darf nicht 0 sein."));
+    }
+
+    @Test
+    void rejectsBookingOnRemainderCategory() throws Exception {
+        postTransaction(body("-10", "Test", "2026-10-05", remainderId()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("categoryId"))
+                .andExpect(jsonPath("$.errors[0].message")
+                        .value("Auf die Rest-Kategorie kann nicht gebucht werden."));
+    }
+
     // --- GET /api/transactions?month= ---
 
     @Test
     void listsOnlyTransactionsOfTheMonthNewestFirst() throws Exception {
-        long categoryId = expenseId("Freizeit");
+        long categoryId = categoryId("Freizeit");
         create(body("1", "September", "2026-09-30", categoryId));
         create(body("2", "Oktober Anfang", "2026-10-01", categoryId));
         create(body("3", "Oktober Ende", "2026-10-31", categoryId));
@@ -169,8 +194,8 @@ class TransactionControllerTest {
 
     @Test
     void updatesTransactionIncludingCategory() throws Exception {
-        long id = create(body("10", "Alt", "2026-10-05", expenseId("Freizeit")));
-        long salaryId = categoryId("Gehalt/Lohn (netto)", CategoryType.INCOME);
+        long id = create(body("10", "Alt", "2026-10-05", categoryId("Freizeit")));
+        long salaryId = categoryId("Gehalt/Lohn (netto)");
 
         putTransaction(id, body("2000", "Neu", "2026-10-28", salaryId))
                 .andExpect(status().isOk())
@@ -178,8 +203,7 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.amount").value(2000.00))
                 .andExpect(jsonPath("$.description").value("Neu"))
                 .andExpect(jsonPath("$.date").value("2026-10-28"))
-                .andExpect(jsonPath("$.categoryName").value("Gehalt/Lohn (netto)"))
-                .andExpect(jsonPath("$.categoryType").value("INCOME"));
+                .andExpect(jsonPath("$.categoryName").value("Gehalt/Lohn (netto)"));
 
         mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
                 .andExpect(jsonPath("$", hasSize(1)))
@@ -188,25 +212,34 @@ class TransactionControllerTest {
 
     @Test
     void updateOfUnknownTransactionReturns404() throws Exception {
-        putTransaction(999_999, body("10", "Test", "2026-10-05", expenseId("Freizeit")))
+        putTransaction(999_999, body("10", "Test", "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Nicht gefunden"));
     }
 
     @Test
     void updateWithInvalidBodyReturns400() throws Exception {
-        long id = create(body("10", "Test", "2026-10-05", expenseId("Freizeit")));
+        long id = create(body("10", "Test", "2026-10-05", categoryId("Freizeit")));
 
-        putTransaction(id, body("-1", "Test", "2026-10-05", expenseId("Freizeit")))
+        putTransaction(id, body("0", "Test", "2026-10-05", categoryId("Freizeit")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("amount"));
+    }
+
+    @Test
+    void updateOntoRemainderCategoryReturns400() throws Exception {
+        long id = create(body("-10", "Test", "2026-10-05", categoryId("Freizeit")));
+
+        putTransaction(id, body("-10", "Test", "2026-10-05", remainderId()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
     }
 
     // --- DELETE /api/transactions/{id} (US4) ---
 
     @Test
     void deletesTransaction() throws Exception {
-        long id = create(body("10", "Test", "2026-10-05", expenseId("Freizeit")));
+        long id = create(body("10", "Test", "2026-10-05", categoryId("Freizeit")));
 
         mockMvc.perform(delete("/api/transactions/{id}", id))
                 .andExpect(status().isNoContent());
@@ -243,13 +276,16 @@ class TransactionControllerTest {
                 .content(body));
     }
 
-    private long expenseId(String name) {
-        return categoryId(name, CategoryType.EXPENSE);
+    private long categoryId(String name) {
+        return categoryRepository.findAll().stream()
+                .filter(c -> c.getName().equals(name))
+                .findFirst().orElseThrow()
+                .getId();
     }
 
-    private long categoryId(String name, CategoryType type) {
+    private long remainderId() {
         return categoryRepository.findAll().stream()
-                .filter(c -> c.getName().equals(name) && c.getType() == type)
+                .filter(c -> c.isSystem())
                 .findFirst().orElseThrow()
                 .getId();
     }
