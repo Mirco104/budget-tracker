@@ -4,8 +4,6 @@ import static io.github.mirco104.budget.category.CategoryGroup.FIXED;
 import static io.github.mirco104.budget.category.CategoryGroup.FLEXIBLE;
 import static io.github.mirco104.budget.category.CategoryGroup.REMAINDER;
 import static io.github.mirco104.budget.category.CategoryGroup.SAVINGS;
-import static io.github.mirco104.budget.category.CategoryType.EXPENSE;
-import static io.github.mirco104.budget.category.CategoryType.INCOME;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,24 +35,23 @@ public class CategorySeeder implements ApplicationRunner {
         }
 
         List<Category> categories = new ArrayList<>();
-        addExpenses(categories, FIXED,
+        addGroup(categories, FIXED,
                 "Wohnen", "Nebenkosten", "Versicherungen", "Mobilität", "Kredite", "Spenden");
-        addExpenses(categories, FLEXIBLE,
+        addGroup(categories, FLEXIBLE,
                 "Lebensmittel", "Freizeit", "Urlaub", "Persönlicher Bedarf", "Geschenke", "Gesundheit");
-        addExpenses(categories, SAVINGS,
+        addGroup(categories, SAVINGS,
                 "Investitionen", "Selbstständigkeit");
-        categories.add(new Category(REMAINDER_NAME, EXPENSE, REMAINDER, nextSortOrder(categories), true));
-        for (String name : List.of("Gehalt/Lohn (netto)", "Nebenjob", "Selbstständigkeit",
-                "Kapitalerträge", "Staatliche Leistungen", "Sonstiges")) {
-            categories.add(new Category(name, INCOME, null, nextSortOrder(categories), false));
-        }
+        categories.add(new Category(REMAINDER_NAME, REMAINDER, nextSortOrder(categories), true));
+        addGroup(categories, null, "Gehalt/Lohn (netto)", "Nebenjob", "Einnahmen Selbstständigkeit",
+                "Kapitalerträge", "Staatliche Leistungen", "Sonstige Einnahmen");
 
         categoryRepository.saveAll(categories);
     }
 
-    private static void addExpenses(List<Category> categories, CategoryGroup group, String... names) {
+    // group null means "ohne Gruppe"
+    private static void addGroup(List<Category> categories, CategoryGroup group, String... names) {
         for (String name : names) {
-            categories.add(new Category(name, EXPENSE, group, nextSortOrder(categories), false));
+            categories.add(new Category(name, group, nextSortOrder(categories), false));
         }
     }
 

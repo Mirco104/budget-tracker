@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.github.mirco104.budget.category.CategoryRepository;
-import io.github.mirco104.budget.category.CategoryType;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,11 +40,11 @@ class DashboardControllerTest {
 
     @Test
     void reflectsTargetsAndTransactionsOfTheMonth() throws Exception {
-        long wohnen = categoryId("Wohnen", CategoryType.EXPENSE);
+        long wohnen = categoryId("Wohnen");
         putTarget(wohnen, "2026-10", "{\"targetAmount\": 800}");
-        postTransaction("2000", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)", CategoryType.INCOME));
-        postTransaction("750", "Miete", "2026-10-03", wohnen);
-        postTransaction("99", "Miete September", "2026-09-30", wohnen);
+        postTransaction("2000", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
+        postTransaction("-750", "Miete", "2026-10-03", wohnen);
+        postTransaction("-99", "Miete September", "2026-09-30", wohnen);
 
         mockMvc.perform(get("/api/dashboard").param("month", "2026-10"))
                 .andExpect(status().isOk())
@@ -71,7 +70,7 @@ class DashboardControllerTest {
 
     @Test
     void appliesTargetFromItsMonthOnwardUntilANewerOneReplacesIt() throws Exception {
-        long wohnen = categoryId("Wohnen", CategoryType.EXPENSE);
+        long wohnen = categoryId("Wohnen");
         putTarget(wohnen, "2026-11", "{\"targetAmount\": 800}");
         putTarget(wohnen, "2027-01", "{\"targetAmount\": 850}");
 
@@ -83,43 +82,21 @@ class DashboardControllerTest {
     }
 
     @Test
-    void countsYearlyTransactionAsTwelfthOnlyInItsValidMonths() throws Exception {
-        long versicherungen = categoryId("Versicherungen", CategoryType.EXPENSE);
-        mockMvc.perform(post("/api/yearly-transactions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amountPerYear": 1200, "description": "Hausrat", "validFrom": "2026-11",
-                                 "validTo": "2027-01", "categoryId": %d}
-                                """.formatted(versicherungen)))
-                .andExpect(status().isCreated());
+    void refundLowersActualOfItsCategoryAndUngroupedExpenseCountsTowardsRemainder() throws Exception {
+        postTransaction("2000", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
+        postTransaction("-100", "Einkauf", "2026-10-02", categoryId("Lebensmittel"));
+        postTransaction("30", "Erstattung", "2026-10-03", categoryId("Lebensmittel"));
+        postTransaction("-20", "Gebühr", "2026-10-04", categoryId("Nebenjob"));
 
-        assertVersicherungenActual("2026-10", 0.00);
-        assertVersicherungenActual("2026-11", 100.00);
-        assertVersicherungenActual("2027-01", 100.00);
-        assertVersicherungenActual("2027-02", 0.00);
-    }
-
-    @Test
-    void showsYearlyShareAndDueDebitOfTheMonth() throws Exception {
-        long versicherungen = categoryId("Versicherungen", CategoryType.EXPENSE);
-        mockMvc.perform(post("/api/yearly-transactions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amountPerYear": 600, "description": "Kfz-Versicherung", "validFrom": "2026-01",
-                                 "dueDate": "2026-11-15", "categoryId": %d}
-                                """.formatted(versicherungen)))
-                .andExpect(status().isCreated());
-
-        mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.categories[?(@.name == 'Versicherungen')].actualYearly", contains(50.00)))
-                .andExpect(jsonPath("$.yearlyExpensesShare").value(50.00))
-                .andExpect(jsonPath("$.dueYearly[0].description").value("Kfz-Versicherung"))
-                .andExpect(jsonPath("$.dueYearly[0].categoryName").value("Versicherungen"))
-                .andExpect(jsonPath("$.dueYearly[0].amountPerYear").value(600.00))
-                .andExpect(jsonPath("$.dueYearly[0].dueDate").value("2026-11-15"));
-        mockMvc.perform(get("/api/dashboard").param("month", "2026-12"))
-                .andExpect(jsonPath("$.dueYearly").isEmpty());
+                .andExpect(jsonPath("$.incomeTotal").value(2000.00))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Lebensmittel')].actual", contains(70.00)))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Nebenjob')].actual", contains(20.00)))
+                .andExpect(jsonPath("$.groups[3].actual").value(20.00))
+                .andExpect(jsonPath("$.expenses.actual").value(90.00))
+                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].actual", contains(-20.00)))
+                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0)));
     }
 
     @Test
@@ -169,12 +146,6 @@ class DashboardControllerTest {
         assertThat(targets.get(0)).as("target in %s", month).isEqualTo(expected);
     }
 
-    private void assertVersicherungenActual(String month, double expected) throws Exception {
-        mockMvc.perform(get("/api/dashboard").param("month", month))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.categories[?(@.name == 'Versicherungen')].actual", contains(expected)));
-    }
-
     private void postTransaction(String amount, String description, String date, long categoryId)
             throws Exception {
         mockMvc.perform(post("/api/transactions")
@@ -185,9 +156,9 @@ class DashboardControllerTest {
                 .andExpect(status().isCreated());
     }
 
-    private long categoryId(String name, CategoryType type) {
+    private long categoryId(String name) {
         return categoryRepository.findAll().stream()
-                .filter(c -> c.getName().equals(name) && c.getType() == type)
+                .filter(c -> c.getName().equals(name))
                 .findFirst().orElseThrow()
                 .getId();
     }

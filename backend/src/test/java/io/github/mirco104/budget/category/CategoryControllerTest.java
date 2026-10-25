@@ -46,7 +46,7 @@ class CategoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(21)))
                 .andExpect(jsonPath("$[0].name").value("Wohnen"))
-                .andExpect(jsonPath("$[0].type").value("EXPENSE"))
+                .andExpect(jsonPath("$[0].type").doesNotExist())
                 .andExpect(jsonPath("$[0].group").value("FIXED"))
                 .andReturn().getResponse().getContentAsString();
 
@@ -64,24 +64,24 @@ class CategoryControllerTest {
     }
 
     @Test
-    void incomeCategoriesHaveNoGroupAndNoTarget() throws Exception {
+    void ungroupedCategoriesHaveNoTarget() throws Exception {
         String json = getCategories(MONTH)
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        List<Object> incomeGroups = JsonPath.read(json, "$[?(@.type == 'INCOME')].group");
-        List<Object> incomeAmounts = JsonPath.read(json, "$[?(@.type == 'INCOME')].targetAmount");
-        List<Object> incomePercents = JsonPath.read(json, "$[?(@.type == 'INCOME')].targetPercent");
-        assertThat(incomeGroups).hasSize(6).containsOnlyNulls();
-        assertThat(incomeAmounts).containsOnlyNulls();
-        assertThat(incomePercents).containsOnlyNulls();
+        List<Object> names = JsonPath.read(json, "$[?(@.group == null)].name");
+        List<Object> amounts = JsonPath.read(json, "$[?(@.group == null)].targetAmount");
+        List<Object> percents = JsonPath.read(json, "$[?(@.group == null)].targetPercent");
+        assertThat(names).hasSize(6);
+        assertThat(amounts).containsOnlyNulls();
+        assertThat(percents).containsOnlyNulls();
     }
 
     // --- PUT /api/categories/{id}/target (US2): success ---
 
     @Test
     void setsTargetAmountWithTwoDecimals() throws Exception {
-        long id = expenseId("Wohnen");
+        long id = categoryId("Wohnen");
 
         putTarget(id, "{\"targetAmount\": 750.5}")
                 .andExpect(status().isOk())
@@ -92,7 +92,7 @@ class CategoryControllerTest {
 
     @Test
     void setsTargetPercent() throws Exception {
-        long id = expenseId("Lebensmittel");
+        long id = categoryId("Lebensmittel");
 
         putTarget(id, "{\"targetPercent\": 0.15}")
                 .andExpect(status().isOk())
@@ -102,7 +102,7 @@ class CategoryControllerTest {
 
     @Test
     void storesAmountAndPercentTogether() throws Exception {
-        long id = expenseId("Freizeit");
+        long id = categoryId("Freizeit");
 
         putTarget(id, "{\"targetAmount\": 100, \"targetPercent\": 0.05}")
                 .andExpect(status().isOk())
@@ -112,7 +112,7 @@ class CategoryControllerTest {
 
     @Test
     void clearsTargetWhenBothValuesAreNull() throws Exception {
-        long id = expenseId("Urlaub");
+        long id = categoryId("Urlaub");
         putTarget(id, "{\"targetAmount\": 200}").andExpect(status().isOk());
 
         putTarget(id, "{\"targetAmount\": null, \"targetPercent\": null}")
@@ -123,7 +123,7 @@ class CategoryControllerTest {
 
     @Test
     void acceptsBoundaryValues() throws Exception {
-        long id = expenseId("Geschenke");
+        long id = categoryId("Geschenke");
 
         putTarget(id, "{\"targetAmount\": 0}").andExpect(status().isOk());
         putTarget(id, "{\"targetPercent\": 0}").andExpect(status().isOk());
@@ -132,7 +132,7 @@ class CategoryControllerTest {
 
     @Test
     void persistsTarget() throws Exception {
-        long id = expenseId("Mobilität");
+        long id = categoryId("Mobilität");
         putTarget(id, "{\"targetAmount\": 120.25}").andExpect(status().isOk());
 
         getCategories(MONTH)
@@ -143,7 +143,7 @@ class CategoryControllerTest {
 
     @Test
     void targetAppliesFromItsMonthOnward() throws Exception {
-        long id = expenseId("Lebensmittel");
+        long id = categoryId("Lebensmittel");
         putTarget(id, "2026-11", "{\"targetAmount\": 300}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.targetValidFrom").value("2026-11"));
@@ -158,7 +158,7 @@ class CategoryControllerTest {
 
     @Test
     void newerTargetReplacesOlderOneWithoutChangingEarlierMonths() throws Exception {
-        long id = expenseId("Lebensmittel");
+        long id = categoryId("Lebensmittel");
         putTarget(id, "2026-11", "{\"targetAmount\": 300}").andExpect(status().isOk());
         putTarget(id, "2027-01", "{\"targetPercent\": 0.15}").andExpect(status().isOk());
 
@@ -172,7 +172,7 @@ class CategoryControllerTest {
 
     @Test
     void savingAgainForTheSameMonthOverwritesTheEntry() throws Exception {
-        long id = expenseId("Lebensmittel");
+        long id = categoryId("Lebensmittel");
         putTarget(id, "2026-11", "{\"targetAmount\": 300}").andExpect(status().isOk());
         putTarget(id, "2026-11", "{\"targetAmount\": 320}").andExpect(status().isOk());
 
@@ -186,7 +186,7 @@ class CategoryControllerTest {
         mockMvc.perform(get("/api/categories"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Der Parameter 'month' fehlt."));
-        mockMvc.perform(put("/api/categories/{id}/target", expenseId("Wohnen"))
+        mockMvc.perform(put("/api/categories/{id}/target", categoryId("Wohnen"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetAmount\": 10}"))
                 .andExpect(status().isBadRequest())
@@ -198,7 +198,7 @@ class CategoryControllerTest {
         getCategories("2026-13")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Ein Parameter hat ein ungültiges Format."));
-        putTarget(expenseId("Wohnen"), "Oktober", "{\"targetAmount\": 10}")
+        putTarget(categoryId("Wohnen"), "Oktober", "{\"targetAmount\": 10}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Ein Parameter hat ein ungültiges Format."));
     }
@@ -218,7 +218,7 @@ class CategoryControllerTest {
 
     @Test
     void rejectsNegativeTargetAmount() throws Exception {
-        putTarget(expenseId("Wohnen"), "{\"targetAmount\": -1}")
+        putTarget(categoryId("Wohnen"), "{\"targetAmount\": -1}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"))
                 .andExpect(jsonPath("$.errors[0].field").value("targetAmount"))
@@ -227,7 +227,7 @@ class CategoryControllerTest {
 
     @Test
     void rejectsTargetPercentAboveOne() throws Exception {
-        putTarget(expenseId("Wohnen"), "{\"targetPercent\": 1.01}")
+        putTarget(categoryId("Wohnen"), "{\"targetPercent\": 1.01}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("targetPercent"))
                 .andExpect(jsonPath("$.errors[0].message").value("Der Prozentwert muss zwischen 0 und 100 % liegen."));
@@ -235,14 +235,14 @@ class CategoryControllerTest {
 
     @Test
     void rejectsNegativeTargetPercent() throws Exception {
-        putTarget(expenseId("Wohnen"), "{\"targetPercent\": -0.01}")
+        putTarget(categoryId("Wohnen"), "{\"targetPercent\": -0.01}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("targetPercent"));
     }
 
     @Test
     void rejectsTargetAmountWithMoreThanTwoDecimals() throws Exception {
-        putTarget(expenseId("Wohnen"), "{\"targetAmount\": 12.345}")
+        putTarget(categoryId("Wohnen"), "{\"targetAmount\": 12.345}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("targetAmount"))
                 .andExpect(jsonPath("$.errors[0].message").value("Der Soll-Betrag darf höchstens 2 Nachkommastellen haben."));
@@ -250,7 +250,7 @@ class CategoryControllerTest {
 
     @Test
     void rejectsMalformedJson() throws Exception {
-        putTarget(expenseId("Wohnen"), "{\"targetAmount\": ")
+        putTarget(categoryId("Wohnen"), "{\"targetAmount\": ")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"))
                 .andExpect(jsonPath("$.detail").value("Die Anfrage konnte nicht gelesen werden."));
@@ -284,12 +284,12 @@ class CategoryControllerTest {
     }
 
     @Test
-    void rejectsTargetForIncomeCategory() throws Exception {
-        long id = categoryId("Nebenjob", CategoryType.INCOME);
+    void rejectsTargetForUngroupedCategory() throws Exception {
+        long id = categoryId("Nebenjob");
 
         putTarget(id, "{\"targetAmount\": 10}")
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("Für Einnahmen-Kategorien kann kein Soll festgelegt werden."));
+                .andExpect(jsonPath("$.detail").value("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden."));
     }
 
     private ResultActions getCategories(String month) throws Exception {
@@ -307,13 +307,9 @@ class CategoryControllerTest {
                 .content(body));
     }
 
-    private long expenseId(String name) {
-        return categoryId(name, CategoryType.EXPENSE);
-    }
-
-    private long categoryId(String name, CategoryType type) {
+    private long categoryId(String name) {
         return categoryRepository.findAll().stream()
-                .filter(c -> c.getName().equals(name) && c.getType() == type)
+                .filter(c -> c.getName().equals(name))
                 .findFirst().orElseThrow()
                 .getId();
     }

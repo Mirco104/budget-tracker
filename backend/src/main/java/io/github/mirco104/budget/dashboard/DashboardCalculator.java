@@ -1,9 +1,7 @@
 package io.github.mirco104.budget.dashboard;
 
 import io.github.mirco104.budget.category.CategoryGroup;
-import io.github.mirco104.budget.category.CategoryType;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
-import io.github.mirco104.budget.dashboard.DashboardResponse.DueLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.GroupLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.Totals;
@@ -12,57 +10,44 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Dashboard math, rules R1–R10 and R12 from docs/spezifikation.md, section 2. No Spring dependencies.
- * Amounts are rounded to cents per category; totals add up the rounded values.
+ * Dashboard math, rules R1–R11 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Amounts carry their sign (R11). The net per category is rounded to cents; totals add up the rounded values.
  */
 public class DashboardCalculator {
 
     private static final int MONEY_SCALE = 2;
     private static final int RATIO_SCALE = 4;
-    private static final BigDecimal MONTHS_PER_YEAR = BigDecimal.valueOf(12);
 
+    /** group null means "ohne Gruppe". */
     public record CategoryData(
-            long id, String name, CategoryType type, CategoryGroup group,
-            BigDecimal targetAmount, BigDecimal targetPercent, boolean system) {
+            long id, String name, CategoryGroup group, BigDecimal targetAmount, BigDecimal targetPercent,
+            boolean system) {
     }
 
+    /** amount is signed: positive is income, negative is expense (R11). */
     public record TransactionData(long categoryId, BigDecimal amount, LocalDate date) {
     }
 
-    /** validTo is inclusive; null means open-ended. dueDate is optional (R12). */
-    public record YearlyTransactionData(
-            long id, long categoryId, String description, BigDecimal amountPerYear, LocalDate dueDate,
-            YearMonth validFrom, YearMonth validTo) {
-    }
-
     public DashboardResponse calculate(
-            List<CategoryData> categories, List<TransactionData> transactions,
-            List<YearlyTransactionData> yearlyTransactions, YearMonth month) {
-        Map<Long, BigDecimal> yearlyShares = yearlySharesByCategory(yearlyTransactions, month);
-        Map<Long, BigDecimal> actuals = actualsByCategory(transactions, yearlyShares, month);
-        List<CategoryData> expenseCategories = categories.stream()
-                .filter(category -> category.type() == CategoryType.EXPENSE)
-                .toList();
-        List<CategoryData> incomeCategories = categories.stream()
-                .filter(category -> category.type() == CategoryType.INCOME)
-                .toList();
+            List<CategoryData> categories, List<TransactionData> transactions, YearMonth month) {
+        Map<Long, BigDecimal> nets = netsByCategory(transactions, month);
 
         // R2
-        BigDecimal incomeTotal = incomeCategories.stream()
-                .map(category -> actualOf(actuals, category))
+        BigDecimal incomeTotal = categories.stream()
+                .map(category -> netOf(nets, category))
+                .filter(net -> net.signum() > 0)
                 .reduce(zero(), BigDecimal::add);
 
-        // R3 for regular categories, then R4 for the remainder
+        // R3 for the categories of FIXED, FLEXIBLE and SAVINGS, then R4 for the remainder
         Map<Long, BigDecimal> targets = new HashMap<>();
         BigDecimal plannedTotal = zero();
-        for (CategoryData category : expenseCategories) {
-            if (category.system()) {
+        for (CategoryData category : categories) {
+            if (category.system() || category.group() == null) {
                 continue;
             }
             BigDecimal target = target(category, incomeTotal);
@@ -73,24 +58,23 @@ public class DashboardCalculator {
         }
         BigDecimal remainderTarget = incomeTotal.subtract(plannedTotal);
 
-        // R5, R6
+        // R5, R6; R10: every category with a group, plus ungrouped ones with expenses
         List<CategoryLine> categoryLines = new ArrayList<>();
         BigDecimal expensesTarget = zero();
         BigDecimal expensesActual = zero();
-        BigDecimal yearlyExpensesShare = zero();
-        for (CategoryData category : expenseCategories) {
+        for (CategoryData category : categories) {
+            BigDecimal actual = expenseOf(netOf(nets, category));
+            if (category.group() == null && actual.signum() == 0) {
+                continue;
+            }
             BigDecimal target = category.system() ? remainderTarget : targets.get(category.id());
-            BigDecimal actual = actualOf(actuals, category);
-            BigDecimal actualYearly = actualOf(yearlyShares, category);
             BigDecimal difference = target == null ? null : target.subtract(actual);
             categoryLines.add(new CategoryLine(
-                    category.id(), category.name(), category.group(), target, actual, actualYearly, difference));
+                    category.id(), category.name(), category.group(), target, actual, difference));
             if (target != null) {
                 expensesTarget = expensesTarget.add(target);
             }
             expensesActual = expensesActual.add(actual);
-            // R12
-            yearlyExpensesShare = yearlyExpensesShare.add(actualYearly);
         }
 
         // R7
@@ -102,15 +86,15 @@ public class DashboardCalculator {
                 ? null
                 : surplus.divide(incomeTotal, RATIO_SCALE, RoundingMode.HALF_UP);
 
-        // R9
-        List<IncomeLine> incomeLines = incomeCategories.stream()
+        // R9: every ungrouped category, plus categories with a group and a positive net
+        List<IncomeLine> incomeLines = categories.stream()
+                .filter(category -> category.group() == null || netOf(nets, category).signum() > 0)
                 .map(category -> {
-                    BigDecimal actual = actualOf(actuals, category);
-                    BigDecimal share = incomeTotal.signum() == 0
+                    BigDecimal net = netOf(nets, category);
+                    BigDecimal share = net.signum() <= 0 || incomeTotal.signum() == 0
                             ? BigDecimal.ZERO.setScale(RATIO_SCALE)
-                            : actual.divide(incomeTotal, RATIO_SCALE, RoundingMode.HALF_UP);
-                    return new IncomeLine(
-                            category.id(), category.name(), actual, actualOf(yearlyShares, category), share);
+                            : net.divide(incomeTotal, RATIO_SCALE, RoundingMode.HALF_UP);
+                    return new IncomeLine(category.id(), category.name(), net, share);
                 })
                 .toList();
 
@@ -123,19 +107,19 @@ public class DashboardCalculator {
                 savingsRate,
                 groupLines(categoryLines),
                 categoryLines,
-                incomeLines,
-                yearlyExpensesShare,
-                dueInMonth(yearlyTransactions, categories, month));
+                incomeLines);
     }
 
-    // R10: every group in enum order, summed from the category lines; a missing target counts as 0 (like R6)
+    // R10: every group in enum order, summed from the category lines; a missing target counts as 0 (like R6).
+    // Expenses of ungrouped categories count towards REMAINDER, so the group actuals add up to the expenses total.
     private static List<GroupLine> groupLines(List<CategoryLine> categoryLines) {
         List<GroupLine> groupLines = new ArrayList<>();
         for (CategoryGroup group : CategoryGroup.values()) {
             BigDecimal target = zero();
             BigDecimal actual = zero();
             for (CategoryLine line : categoryLines) {
-                if (line.group() == group) {
+                CategoryGroup lineGroup = line.group() == null ? CategoryGroup.REMAINDER : line.group();
+                if (lineGroup == group) {
                     if (line.target() != null) {
                         target = target.add(line.target());
                     }
@@ -147,63 +131,22 @@ public class DashboardCalculator {
         return groupLines;
     }
 
-    // R1: transactions of the month plus the yearly share, per category
-    private static Map<Long, BigDecimal> actualsByCategory(
-            List<TransactionData> transactions, Map<Long, BigDecimal> yearlyShares, YearMonth month) {
-        Map<Long, BigDecimal> monthly = new HashMap<>();
+    // R1: sum of the signed amounts of the month, per category
+    private static Map<Long, BigDecimal> netsByCategory(List<TransactionData> transactions, YearMonth month) {
+        Map<Long, BigDecimal> sums = new HashMap<>();
         for (TransactionData transaction : transactions) {
             if (YearMonth.from(transaction.date()).equals(month)) {
-                monthly.merge(transaction.categoryId(), transaction.amount(), BigDecimal::add);
+                sums.merge(transaction.categoryId(), transaction.amount(), BigDecimal::add);
             }
         }
-
-        Map<Long, BigDecimal> actuals = new HashMap<>();
-        monthly.forEach((categoryId, sum) -> actuals.put(categoryId, money(sum)));
-        yearlyShares.forEach((categoryId, share) -> actuals.merge(categoryId, share, BigDecimal::add));
-        return actuals;
+        Map<Long, BigDecimal> nets = new HashMap<>();
+        sums.forEach((categoryId, sum) -> nets.put(categoryId, money(sum)));
+        return nets;
     }
 
-    // R1: yearly sum / 12 of the yearly transactions valid in the month, per category (summed before rounding)
-    private static Map<Long, BigDecimal> yearlySharesByCategory(
-            List<YearlyTransactionData> yearlyTransactions, YearMonth month) {
-        Map<Long, BigDecimal> yearly = new HashMap<>();
-        for (YearlyTransactionData transaction : yearlyTransactions) {
-            if (isValidIn(transaction, month)) {
-                yearly.merge(transaction.categoryId(), transaction.amountPerYear(), BigDecimal::add);
-            }
-        }
-        Map<Long, BigDecimal> shares = new HashMap<>();
-        yearly.forEach((categoryId, sum) -> shares.put(categoryId, monthlyShare(sum)));
-        return shares;
-    }
-
-    // R12: due in the calendar month of dueDate, every year, while valid; Feb 29 falls back to Feb 28
-    private static List<DueLine> dueInMonth(
-            List<YearlyTransactionData> yearlyTransactions, List<CategoryData> categories, YearMonth month) {
-        Map<Long, String> categoryNames = new HashMap<>();
-        categories.forEach(category -> categoryNames.put(category.id(), category.name()));
-        return yearlyTransactions.stream()
-                .filter(transaction -> transaction.dueDate() != null
-                        && transaction.dueDate().getMonth() == month.getMonth()
-                        && isValidIn(transaction, month))
-                .map(transaction -> new DueLine(
-                        transaction.id(),
-                        transaction.description(),
-                        categoryNames.get(transaction.categoryId()),
-                        money(transaction.amountPerYear()),
-                        transaction.dueDate().withYear(month.getYear())))
-                .sorted(Comparator.comparing(DueLine::dueDate).thenComparing(DueLine::id))
-                .toList();
-    }
-
-    /** R1: share of a yearly amount counted per month, amount / 12 rounded to cents. */
-    public static BigDecimal monthlyShare(BigDecimal amountPerYear) {
-        return amountPerYear.divide(MONTHS_PER_YEAR, MONEY_SCALE, RoundingMode.HALF_UP);
-    }
-
-    private static boolean isValidIn(YearlyTransactionData transaction, YearMonth month) {
-        return !transaction.validFrom().isAfter(month)
-                && (transaction.validTo() == null || !transaction.validTo().isBefore(month));
+    // R2: I(k) = -N(k) for a negative net, otherwise 0
+    private static BigDecimal expenseOf(BigDecimal net) {
+        return net.signum() < 0 ? net.negate() : zero();
     }
 
     // R3: euro target wins, otherwise income × percent, otherwise no target
@@ -217,8 +160,8 @@ public class DashboardCalculator {
         return null;
     }
 
-    private static BigDecimal actualOf(Map<Long, BigDecimal> actuals, CategoryData category) {
-        return actuals.getOrDefault(category.id(), zero());
+    private static BigDecimal netOf(Map<Long, BigDecimal> nets, CategoryData category) {
+        return nets.getOrDefault(category.id(), zero());
     }
 
     private static BigDecimal money(BigDecimal value) {
