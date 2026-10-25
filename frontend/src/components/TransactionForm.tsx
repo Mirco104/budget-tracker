@@ -12,6 +12,8 @@ interface Props {
   /** Transaction being edited, or null when creating a new one. */
   transaction: Transaction | null
   defaultDate: string
+  /** Heading; defaults to "Neue Transaktion" or "Transaktion bearbeiten". */
+  title?: string
   onSubmit: (input: TransactionInput) => Promise<unknown>
   onCancel?: () => void
 }
@@ -22,7 +24,7 @@ function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
 }
 
-export function TransactionForm({ categories, transaction, defaultDate, onSubmit, onCancel }: Props) {
+export function TransactionForm({ categories, transaction, defaultDate, title, onSubmit, onCancel }: Props) {
   // The amount is entered positive; the toggle sets the sign (R11).
   const [kind, setKind] = useState<Kind>(transaction && transaction.amount > 0 ? 'income' : 'expense')
   const [amount, setAmount] = useState(transaction ? toAmountText(transaction.amount) : '')
@@ -96,7 +98,7 @@ export function TransactionForm({ categories, transaction, defaultDate, onSubmit
 
   return (
     <form className="transaction-form" noValidate onSubmit={handleSubmit}>
-      <h3>{transaction ? 'Transaktion bearbeiten' : 'Neue Transaktion'}</h3>
+      <h3>{title ?? (transaction ? 'Transaktion bearbeiten' : 'Neue Transaktion')}</h3>
 
       <fieldset className="sign-toggle">
         <legend>Art</legend>

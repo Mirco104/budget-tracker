@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
+import { RecurringPage } from './pages/RecurringPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 
-type Page = 'dashboard' | 'transactions' | 'settings'
+type Page = 'dashboard' | 'transactions' | 'recurring' | 'settings'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -27,6 +28,13 @@ function App() {
           onClick={() => setPage('transactions')}
         >
           Transaktionen
+        </button>
+        <button
+          type="button"
+          aria-current={page === 'recurring' ? 'page' : undefined}
+          onClick={() => setPage('recurring')}
+        >
+          Wiederkehrend
         </button>
         <button
           type="button"
@@ -64,6 +72,7 @@ function App() {
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
+      {page === 'recurring' && month && <RecurringPage month={month} />}
       {page === 'settings' && month && <SettingsPage month={month} />}
     </main>
   )

@@ -74,7 +74,7 @@ describe('TransactionForm', () => {
     render(
       <TransactionForm
         categories={categories}
-        transaction={{ id: 5, amount: -45.99, description: 'Tanken', date: '2026-10-05', categoryId: 1, categoryName: 'Wohnen' }}
+        transaction={{ kind: 'SINGLE', id: 5, recurringId: null, occurrenceDate: null, amount: -45.99, description: 'Tanken', date: '2026-10-05', categoryId: 1, categoryName: 'Wohnen' }}
         defaultDate="2026-10-18"
         onSubmit={vi.fn()}
       />,
