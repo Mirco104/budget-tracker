@@ -247,7 +247,8 @@ class DashboardCalculatorTest {
                 List.of(booking(GEHALT, "1500"), booking(LEBENSMITTEL, "-20"), booking(LEBENSMITTEL, "520")));
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("2000.00");
-        assertThat(category(result, LEBENSMITTEL).actual()).isEqualByComparingTo("0.00");
+        // No target and no expense left, so not in the budget table (R10)
+        assertThat(result.categories()).extracting(CategoryLine::id).doesNotContain(LEBENSMITTEL);
         assertThat(result.expenses().actual()).isEqualByComparingTo("0.00");
         assertThat(result.income()).extracting(IncomeLine::id).containsExactly(LEBENSMITTEL, GEHALT);
         assertThat(income(result, LEBENSMITTEL).actual()).isEqualByComparingTo("500.00");

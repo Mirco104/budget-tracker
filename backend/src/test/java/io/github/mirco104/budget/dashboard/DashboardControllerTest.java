@@ -2,9 +2,7 @@ package io.github.mirco104.budget.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -59,12 +57,12 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.unplanned").value(1200.00))
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
-                .andExpect(jsonPath("$.savingsRate").value(0.625))
-                .andExpect(jsonPath("$.groups[*].group", contains("FIXED", "FLEXIBLE", "SAVINGS")))
+                .andExpect(jsonPath("$.surplusShare").value(0.625))
+                .andExpect(jsonPath("$.groups[*].group", contains("FIXED")))
                 .andExpect(jsonPath("$.groups[0].target").value(800.00))
                 .andExpect(jsonPath("$.groups[0].actual").value(750.00))
                 .andExpect(jsonPath("$.groups[0].difference").value(50.00))
-                .andExpect(jsonPath("$.groups[1].target").value(0.00))
+                .andExpect(jsonPath("$.groups[0].actualShare").value(0.375))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(1.0)));
     }
 
@@ -93,11 +91,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(2000.00))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Lebensmittel')].actual", contains(70.00)))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Nebenjob')].actual", contains(20.00)))
-                .andExpect(jsonPath("$.groups[3].group").doesNotExist())
-                .andExpect(jsonPath("$.groups[3].actual").value(20.00))
+                .andExpect(jsonPath("$.groups[1].group").doesNotExist())
+                .andExpect(jsonPath("$.groups[1].actual").value(20.00))
                 .andExpect(jsonPath("$.expenses.actual").value(90.00))
-                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].actual", contains(-20.00)))
-                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0)));
+                .andExpect(jsonPath("$.income[*].name", contains("Gehalt/Lohn (netto)")));
     }
 
     @Test
@@ -107,8 +104,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(0.00))
                 .andExpect(jsonPath("$.expenses.actual").value(0.00))
                 .andExpect(jsonPath("$.surplus").value(0.00))
-                .andExpect(jsonPath("$.savingsRate").doesNotExist())
-                .andExpect(jsonPath("$.income[*].share", everyItem(is(0.0))));
+                .andExpect(jsonPath("$.surplusShare").doesNotExist())
+                .andExpect(jsonPath("$.categories", hasSize(0)))
+                .andExpect(jsonPath("$.groups", hasSize(0)))
+                .andExpect(jsonPath("$.income", hasSize(0)));
     }
 
     // --- GET /api/dashboard (US5): validation ---
@@ -143,8 +142,12 @@ class DashboardControllerTest {
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsString(),
                 "$.categories[?(@.name == 'Wohnen')].target");
-        assertThat(targets).as("target in %s", month).hasSize(1);
-        assertThat(targets.get(0)).as("target in %s", month).isEqualTo(expected);
+        // Without a target and without expenses the category is not listed (R10)
+        if (expected == null) {
+            assertThat(targets).as("target in %s", month).isEmpty();
+        } else {
+            assertThat(targets).as("target in %s", month).containsExactly(expected);
+        }
     }
 
     private void postTransaction(String amount, String description, String date, long categoryId)
