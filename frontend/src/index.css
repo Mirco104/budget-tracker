@@ -341,11 +341,16 @@ form.transaction-form .sign-toggle label {
   background: #cf222e;
 }
 
-.forecast-occurrences {
+.forecast-entries {
   margin: 4px 0;
   padding-left: 16px;
   font-size: 0.9rem;
   color: #57606a;
+}
+
+.tile-note {
+  color: #57606a;
+  font-size: 0.85rem;
 }
 
 @media (max-width: 480px) {

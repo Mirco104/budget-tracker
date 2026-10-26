@@ -145,19 +145,25 @@ export interface ProblemDetail {
   errors?: FieldError[]
 }
 
-/** An expense series active in the month. amount is signed (negative); monthlyEquivalent is |amount| per month. */
-export interface ReserveSeries {
-  id: number
+/** A rare expense in the reserve pot. amount is the cost (positive); nextDate is its next occurrence. */
+export interface ReserveLine {
+  recurringId: number
   description: string
   categoryName: string
   amount: number
   interval: RecurringInterval
-  monthlyEquivalent: number
+  nextDate: string
+  /** To put aside each month. */
+  monthly: number
+  /** What should be saved by now; the full amount in the month it is due. */
+  saved: number
 }
 
-/** amount is a cost, so positive. */
-export interface ForecastOccurrence {
-  recurringId: number
+/** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). amount is positive. */
+export interface ForecastEntry {
+  kind: 'SINGLE' | 'RECURRING'
+  id: number | null
+  recurringId: number | null
   description: string
   date: string
   amount: number
@@ -166,16 +172,19 @@ export interface ForecastOccurrence {
 export interface ForecastMonth {
   month: string
   total: number
-  occurrences: ForecastOccurrence[]
+  entries: ForecastEntry[]
 }
 
-/** Reserve analysis of a month (R14): only recurring expenses count, single transactions do not. */
+/** Analysis of a month (R14). */
 export interface ReserveData {
   month: string
-  averageMonthlyCosts: number
-  /** Part of averageMonthlyCosts from series with an interval longer than one month. */
-  reserve: number
-  series: ReserveSeries[]
+  /** Average expenses of the completed months counted; null when averageMonths is 0. */
+  averageExpenses: number | null
+  /** Months in the average: the 12 before the month, fewer if the first entry is more recent. */
+  averageMonths: number
+  monthlyReserve: number
+  reserveBalance: number
+  reserves: ReserveLine[]
   /** The month and the following 11 months. */
   forecast: ForecastMonth[]
 }

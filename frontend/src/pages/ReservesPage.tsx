@@ -1,7 +1,93 @@
 import { useReserves } from '../api/reserves'
-import type { ForecastMonth } from '../api/types'
+import type { ForecastMonth, ReserveData } from '../api/types'
 import { formatAmount, formatDate, formatEuro, formatMonth } from '../format'
 import { INTERVAL_LABELS } from '../labels'
+
+function averagePeriod(months: number): string {
+  return months === 1 ? 'letzter Monat' : `letzte ${months} Monate`
+}
+
+function AverageExpenses({ data }: { data: ReserveData }) {
+  return (
+    <>
+      <dl className="summary">
+        <div>
+          <dt>
+            Ø Ausgaben pro Monat
+            {data.averageMonths > 0 && <span className="tile-note"> ({averagePeriod(data.averageMonths)})</span>}
+          </dt>
+          <dd>{formatEuro(data.averageExpenses)}</dd>
+        </div>
+      </dl>
+      {data.averageMonths === 0 && (
+        <p className="hint">
+          Noch kein abgeschlossener Monat mit Einträgen. Der Durchschnitt erscheint ab dem Monat nach dem ersten
+          Eintrag.
+        </p>
+      )}
+      {data.averageMonths > 0 && data.averageMonths < 12 && (
+        <p className="hint">
+          Es gibt erst seit {data.averageMonths === 1 ? 'einem Monat' : `${data.averageMonths} Monaten`} Einträge,
+          daher zählen nur diese.
+        </p>
+      )}
+    </>
+  )
+}
+
+function ReservePot({ data }: { data: ReserveData }) {
+  if (data.reserves.length === 0) {
+    return (
+      <p className="hint">
+        Keine seltenen Ausgaben in den nächsten 12 Monaten. Vierteljährliche, halbjährliche und jährliche
+        wiederkehrende Ausgaben erscheinen hier.
+      </p>
+    )
+  }
+  return (
+    <>
+      <dl className="summary">
+        <div>
+          <dt>Monatlich zurücklegen</dt>
+          <dd>{formatEuro(data.monthlyReserve)}</dd>
+        </div>
+        <div>
+          <dt>Sollte jetzt angespart sein</dt>
+          <dd>{formatEuro(data.reserveBalance)}</dd>
+        </div>
+      </dl>
+      <p className="hint">
+        Lege jeden Monat {formatEuro(data.monthlyReserve)} zur Seite, dann ist jede seltene Abbuchung gedeckt, wenn
+        sie fällig wird.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Ausgabe</th>
+            <th className="number col-optional">Betrag (€)</th>
+            <th>Fällig am</th>
+            <th className="number">Pro Monat (€)</th>
+            <th className="number">Angespart (€)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.reserves.map((line) => (
+            <tr key={line.recurringId}>
+              <td>
+                {line.description}
+                <span className="tile-note"> {INTERVAL_LABELS[line.interval]}</span>
+              </td>
+              <td className="number col-optional">{formatAmount(line.amount)}</td>
+              <td>{formatDate(line.nextDate)}</td>
+              <td className="number">{formatAmount(line.monthly)}</td>
+              <td className="number">{formatAmount(line.saved)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )
+}
 
 function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number }) {
   // Bar length relative to the most expensive month, for display only
@@ -9,13 +95,14 @@ function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number
   return (
     <tr>
       <td>
-        {month.occurrences.length > 0 ? (
+        {month.entries.length > 0 ? (
           <details>
             <summary>{formatMonth(month.month)}</summary>
-            <ul className="forecast-occurrences">
-              {month.occurrences.map((occurrence) => (
-                <li key={`${occurrence.recurringId}-${occurrence.date}`}>
-                  {formatDate(occurrence.date)} {occurrence.description}: {formatEuro(occurrence.amount)}
+            <ul className="forecast-entries">
+              {month.entries.map((entry) => (
+                <li key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.date}`}>
+                  {formatDate(entry.date)} {entry.description}: {formatEuro(entry.amount)}
+                  {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
                 </li>
               ))}
             </ul>
@@ -32,7 +119,7 @@ function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number
   )
 }
 
-/** Reserve analysis (R14, US13): average monthly costs of recurring expenses and a 12-month forecast. */
+/** Analysis (R14, US13): average expenses, reserve pot for rare expenses and a 12-month forecast. */
 export function ReservesPage({ month }: { month: string }) {
   const { data, isPending, error } = useReserves(month)
 
@@ -48,60 +135,20 @@ export function ReservesPage({ month }: { month: string }) {
   return (
     <section>
       <h2>Auswertung</h2>
-      <p className="hint">
-        Wiederkehrende Ausgaben, die in {formatMonth(month)} laufen. Einzelne Transaktionen und wiederkehrende
-        Einnahmen zählen nicht.
-      </p>
-      <dl className="summary">
-        <div>
-          <dt>Ø monatliche Kosten</dt>
-          <dd>{formatEuro(data.averageMonthlyCosts)}</dd>
-        </div>
-        <div>
-          <dt>davon Rücklage</dt>
-          <dd>{formatEuro(data.reserve)}</dd>
-        </div>
-      </dl>
-      <p className="hint">
-        Die Rücklage ist der Betrag, den du monatlich zurücklegen solltest, um vierteljährliche, halbjährliche und
-        jährliche Abbuchungen zu decken.
-      </p>
+      <AverageExpenses data={data} />
 
-      <h3>Wiederkehrende Ausgaben</h3>
-      {data.series.length === 0 ? (
-        <p className="hint">In diesem Monat laufen keine wiederkehrenden Ausgaben.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Beschreibung</th>
-              <th className="col-optional">Kategorie</th>
-              <th>Intervall</th>
-              <th className="number">Betrag (€)</th>
-              <th className="number">Pro Monat (€)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.series.map((line) => (
-              <tr key={line.id}>
-                <td>{line.description}</td>
-                <td className="col-optional">{line.categoryName}</td>
-                <td>{INTERVAL_LABELS[line.interval]}</td>
-                <td className="number">{formatAmount(Math.abs(line.amount))}</td>
-                <td className="number">{formatAmount(line.monthlyEquivalent)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <h3>Rücklagen</h3>
+      <ReservePot data={data} />
 
       <h3>Vorschau 12 Monate</h3>
-      <p className="hint">Abbuchungen wiederkehrender Ausgaben je Monat; teure Monate haben einen längeren Balken.</p>
+      <p className="hint">
+        Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne; teure Monate haben einen längeren Balken.
+      </p>
       <table className="forecast">
         <thead>
           <tr>
             <th>Monat</th>
-            <th className="number">Abbuchungen (€)</th>
+            <th className="number">Ausgaben (€)</th>
             <th className="forecast-bar-cell" aria-hidden="true" />
           </tr>
         </thead>

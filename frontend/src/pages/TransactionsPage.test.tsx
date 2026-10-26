@@ -19,7 +19,13 @@ const series: RecurringTransaction[] = [
 ]
 
 // Only the fields the reserve summary uses.
-const reserves: Pick<ReserveData, 'averageMonthlyCosts' | 'reserve'> = { averageMonthlyCosts: 35, reserve: 20 }
+const reserves: Pick<ReserveData, 'monthlyReserve' | 'reserveBalance' | 'reserves'> = {
+  monthlyReserve: 20,
+  reserveBalance: 100,
+  reserves: [
+    { recurringId: 4, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 100 },
+  ],
+}
 
 function renderPage() {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
@@ -57,11 +63,11 @@ describe('TransactionsPage', () => {
     expect(within(screen.getByRole('row', { name: /Kino/ })).queryByText('wiederkehrend')).not.toBeInTheDocument()
   })
 
-  it('shows the average monthly costs and the reserve of recurring expenses', async () => {
+  it('shows the monthly reserve and what should be saved by now', async () => {
     renderPage()
 
     expect(
-      await screen.findByText('Wiederkehrende Ausgaben: Ø 35,00 € pro Monat, davon Rücklage 20,00 €.'),
+      await screen.findByText('Rücklagen: monatlich 20,00 € zurücklegen, jetzt angespart 100,00 €.'),
     ).toBeInTheDocument()
   })
 

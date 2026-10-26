@@ -50,7 +50,7 @@ export function TransactionsPage({ month }: { month: string }) {
   const categories = useCategories(month)
   // Series active in the month; "Dieser und alle folgenden" prefills the form from them.
   const series = useRecurringTransactions(month)
-  // Compact reserve summary (R14), because series are maintained here; details on the Auswertung page.
+  // Compact reserve pot (R14), because series are maintained here; details on the Auswertung page.
   const reserves = useReserves(month)
   const createTransaction = useCreateTransaction()
   const createSeries = useCreateRecurringTransaction()
@@ -235,10 +235,10 @@ export function TransactionsPage({ month }: { month: string }) {
 
       {deleteError && <p className="error">Löschen fehlgeschlagen: {deleteError.message}</p>}
 
-      {reserves.data && reserves.data.averageMonthlyCosts > 0 && (
+      {reserves.data && reserves.data.reserves.length > 0 && (
         <p className="hint">
-          Wiederkehrende Ausgaben: Ø {formatEuro(reserves.data.averageMonthlyCosts)} pro Monat, davon Rücklage{' '}
-          {formatEuro(reserves.data.reserve)}.
+          Rücklagen: monatlich {formatEuro(reserves.data.monthlyReserve)} zurücklegen, jetzt angespart{' '}
+          {formatEuro(reserves.data.reserveBalance)}.
         </p>
       )}
 
