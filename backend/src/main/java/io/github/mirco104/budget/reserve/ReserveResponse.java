@@ -1,30 +1,37 @@
 package io.github.mirco104.budget.reserve;
 
 import io.github.mirco104.budget.recurring.RecurringInterval;
+import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Reserve analysis for one month (R14, spec section 5). series are the expense series active in the month,
- * forecast has exactly 12 months (the month and the following 11). Amounts in forecast are costs, so positive.
+ * Analysis for one month (R14, spec section 5). averageExpenses is the average expense actual of the completed
+ * months counted (averageMonths, 0 to 12), null without such a month. monthlyReserve and reserveBalance sum the
+ * reserve pot. forecast has exactly 12 months (the month and the following 11). Amounts in reserves and forecast
+ * are costs, so positive.
  */
 public record ReserveResponse(
         String month,
-        BigDecimal averageMonthlyCosts,
-        BigDecimal reserve,
-        List<SeriesLine> series,
+        BigDecimal averageExpenses,
+        int averageMonths,
+        BigDecimal monthlyReserve,
+        BigDecimal reserveBalance,
+        List<ReserveLine> reserves,
         List<ForecastMonth> forecast) {
 
-    /** amount is signed (negative); monthlyEquivalent is |amount| / interval in months, rounded to cents. */
-    public record SeriesLine(
-            long id, String description, String categoryName, BigDecimal amount, RecurringInterval interval,
-            BigDecimal monthlyEquivalent) {
+    /** A rare expense in the pot: nextDate is its next occurrence, saved what should be put aside by now. */
+    public record ReserveLine(
+            long recurringId, String description, String categoryName, BigDecimal amount, RecurringInterval interval,
+            LocalDate nextDate, BigDecimal monthly, BigDecimal saved) {
     }
 
-    public record ForecastMonth(String month, BigDecimal total, List<ForecastOccurrence> occurrences) {
+    public record ForecastMonth(String month, BigDecimal total, List<ForecastEntry> entries) {
     }
 
-    public record ForecastOccurrence(long recurringId, String description, LocalDate date, BigDecimal amount) {
+    /** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). */
+    public record ForecastEntry(
+            Kind kind, Long id, Long recurringId, String description, LocalDate date, BigDecimal amount) {
     }
 }
