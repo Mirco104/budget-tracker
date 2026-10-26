@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlanningPage } from './pages/PlanningPage'
+import { ReservesPage } from './pages/ReservesPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 
-type Page = 'dashboard' | 'transactions' | 'planning'
+type Page = 'dashboard' | 'transactions' | 'planning' | 'reserves'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -34,6 +35,13 @@ function App() {
           onClick={() => setPage('planning')}
         >
           Planung
+        </button>
+        <button
+          type="button"
+          aria-current={page === 'reserves' ? 'page' : undefined}
+          onClick={() => setPage('reserves')}
+        >
+          Auswertung
         </button>
         <span className="month-nav">
             <button
@@ -65,6 +73,7 @@ function App() {
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
       {page === 'planning' && month && <PlanningPage month={month} />}
+      {page === 'reserves' && month && <ReservesPage month={month} />}
     </main>
   )
 }

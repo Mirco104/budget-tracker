@@ -329,3 +329,31 @@ form.transaction-form .sign-toggle label {
     max-width: none;
   }
 }
+
+.forecast-bar-cell {
+  width: 40%;
+}
+
+.forecast-bar {
+  display: block;
+  height: 10px;
+  border-radius: 2px;
+  background: #cf222e;
+}
+
+.forecast-occurrences {
+  margin: 4px 0;
+  padding-left: 16px;
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+@media (max-width: 480px) {
+  .col-optional {
+    display: none;
+  }
+
+  .forecast-bar-cell {
+    width: 25%;
+  }
+}

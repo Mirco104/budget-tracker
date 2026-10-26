@@ -144,3 +144,38 @@ export interface ProblemDetail {
   detail?: string
   errors?: FieldError[]
 }
+
+/** An expense series active in the month. amount is signed (negative); monthlyEquivalent is |amount| per month. */
+export interface ReserveSeries {
+  id: number
+  description: string
+  categoryName: string
+  amount: number
+  interval: RecurringInterval
+  monthlyEquivalent: number
+}
+
+/** amount is a cost, so positive. */
+export interface ForecastOccurrence {
+  recurringId: number
+  description: string
+  date: string
+  amount: number
+}
+
+export interface ForecastMonth {
+  month: string
+  total: number
+  occurrences: ForecastOccurrence[]
+}
+
+/** Reserve analysis of a month (R14): only recurring expenses count, single transactions do not. */
+export interface ReserveData {
+  month: string
+  averageMonthlyCosts: number
+  /** Part of averageMonthlyCosts from series with an interval longer than one month. */
+  reserve: number
+  series: ReserveSeries[]
+  /** The month and the following 11 months. */
+  forecast: ForecastMonth[]
+}

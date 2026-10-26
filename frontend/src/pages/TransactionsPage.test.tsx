@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Category, RecurringTransaction, Transaction } from '../api/types'
+import type { Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
 import { TransactionsPage } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
@@ -18,6 +18,9 @@ const series: RecurringTransaction[] = [
   { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', interval: 'MONTHLY', startDate: '2026-01-05', endDate: null, monthlyEquivalent: 15 },
 ]
 
+// Only the fields the reserve summary uses.
+const reserves: Pick<ReserveData, 'averageMonthlyCosts' | 'reserve'> = { averageMonthlyCosts: 35, reserve: 20 }
+
 function renderPage() {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     const body = init?.method && init.method !== 'GET'
@@ -26,7 +29,9 @@ function renderPage() {
         ? transactions
         : url.startsWith('/api/categories')
           ? categories
-          : series
+          : url.startsWith('/api/reserves')
+            ? reserves
+            : series
     return Promise.resolve(
       init?.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response(JSON.stringify(body ?? {}), { status: 200 }),
     )
@@ -50,6 +55,14 @@ describe('TransactionsPage', () => {
 
     expect(within(await streamingRow()).getByText('wiederkehrend')).toBeInTheDocument()
     expect(within(screen.getByRole('row', { name: /Kino/ })).queryByText('wiederkehrend')).not.toBeInTheDocument()
+  })
+
+  it('shows the average monthly costs and the reserve of recurring expenses', async () => {
+    renderPage()
+
+    expect(
+      await screen.findByText('Wiederkehrende Ausgaben: Ø 35,00 € pro Monat, davon Rücklage 20,00 €.'),
+    ).toBeInTheDocument()
   })
 
   it('colors expenses red, shows the category without Ausgabe/Einnahme', async () => {
