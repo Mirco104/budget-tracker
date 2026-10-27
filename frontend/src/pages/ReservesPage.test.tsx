@@ -1,11 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
 import { ReservesPage } from './ReservesPage'
 
 const months = ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03',
   '2027-04', '2027-05', '2027-06', '2027-07', '2027-08', '2027-09']
+
+// Without income there are no shares (R14)
+const noShares = { incomeShare: null, expensesShare: null, surplusShare: null }
 
 // Fictional values of fixture F1 (spec section 12), shaped like the backend response.
 // January to August with rent and streaming, September additionally with groceries (fixture F1).
@@ -17,14 +20,15 @@ const history: HistoryMonth[] = ['2026-01', '2026-02', '2026-03', '2026-04', '20
         income: 0,
         expenses: 1914,
         surplus: -1914,
+        ...noShares,
         incomeCategories: [],
         expenseCategories: [
-          { name: 'Wohnen', amount: 900 },
-          { name: 'Lebensmittel', amount: 999 },
-          { name: 'Freizeit', amount: 15 },
+          { name: 'Wohnen', amount: 900, share: null },
+          { name: 'Lebensmittel', amount: 999, share: null },
+          { name: 'Freizeit', amount: 15, share: null },
         ],
       }
-    : { month, income: 0, expenses: 915, surplus: -915, incomeCategories: [], expenseCategories: [] },
+    : { month, income: 0, expenses: 915, surplus: -915, ...noShares, incomeCategories: [], expenseCategories: [] },
 )
 
 const reserves: ReserveData = {
@@ -34,6 +38,10 @@ const reserves: ReserveData = {
   averageSurplus: -1026,
   averageMonths: 9,
   history,
+  totalIncome: 0,
+  totalExpenses: 9234,
+  totalSurplus: -9234,
+  ...noShares,
   monthlyReserve: 20,
   reserveBalance: 240,
   reserves: [
@@ -61,6 +69,10 @@ const empty: ReserveData = {
   averageSurplus: null,
   averageMonths: 0,
   history: [],
+  totalIncome: null,
+  totalExpenses: null,
+  totalSurplus: null,
+  ...noShares,
   monthlyReserve: 0,
   reserveBalance: 0,
   reserves: [],
@@ -90,6 +102,8 @@ function tile(label: RegExp | string) {
 }
 
 describe('ReservesPage', () => {
+  beforeEach(() => localStorage.clear())
+
   it('shows the average expenses and how many months they cover', async () => {
     renderPage(reserves)
 
@@ -103,8 +117,8 @@ describe('ReservesPage', () => {
     const { container } = renderWithContainer(reserves)
 
     const table = within(await screen.findByRole('table', { name: 'Rückblick' }))
-    // Header, 9 months, average
-    expect(table.getAllByRole('row')).toHaveLength(11)
+    // Header, 9 months, average, total
+    expect(table.getAllByRole('row')).toHaveLength(12)
     const september = table.getByRole('row', { name: /September 2026/ })
     expect(within(september).getByText('1.914,00')).toBeInTheDocument()
     expect(within(september).getByText('-1.914,00')).toHaveClass('negative')
@@ -116,9 +130,88 @@ describe('ReservesPage', () => {
     fireEvent.click(within(september).getByRole('button', { name: /September 2026/ }))
     expect(within(table.getByRole('row', { name: /Lebensmittel/ })).getByText('999,00')).toBeInTheDocument()
     // The look back follows the average tile, before the reserve pot
-    const headings = Array.from(container.querySelectorAll('dt, caption, h3')).map((el) => el.textContent)
-    expect(headings.indexOf('Rückblick')).toBeGreaterThan(headings.findIndex((t) => t?.startsWith('Ø Ausgaben')))
-    expect(headings.indexOf('Rückblick')).toBeLessThan(headings.indexOf('Rücklagen'))
+    const headings = Array.from(container.querySelectorAll('dt, h3')).map((el) => el.textContent ?? '')
+    const lookBack = headings.findIndex((t) => t.endsWith('Rückblick'))
+    expect(lookBack).toBeGreaterThan(headings.findIndex((t) => t.startsWith('Ø Ausgaben')))
+    expect(lookBack).toBeLessThan(headings.indexOf('Rücklagen'))
+  })
+
+  it('sums the months of the look back in a total row', async () => {
+    renderPage(reserves)
+
+    const table = within(await screen.findByRole('table', { name: 'Rückblick' }))
+    const total = table.getByRole('row', { name: /^Gesamt/ })
+    expect(within(total).getByText('9.234,00')).toBeInTheDocument()
+    expect(within(total).getByText('-9.234,00')).toHaveClass('negative')
+  })
+
+  it('switches the look back to shares of the income of each month', async () => {
+    const withIncome: ReserveData = {
+      ...reserves,
+      history: [
+        {
+          month: '2026-09',
+          income: 3000,
+          expenses: 1000,
+          surplus: 2000,
+          incomeShare: 1,
+          expensesShare: 0.3333,
+          surplusShare: 0.6667,
+          incomeCategories: [{ name: 'Gehalt/Lohn (netto)', amount: 3000, share: 1 }],
+          expenseCategories: [{ name: 'Wohnen', amount: 900, share: 0.3 }],
+        },
+        { month: '2026-08', income: 0, expenses: 500, surplus: -500, ...noShares, incomeCategories: [], expenseCategories: [] },
+      ],
+      totalIncome: 3000,
+      totalExpenses: 1500,
+      totalSurplus: 1500,
+      incomeShare: 1,
+      expensesShare: 0.5,
+      surplusShare: 0.5,
+    }
+    renderPage(withIncome)
+
+    const table = within(await screen.findByRole('table', { name: 'Rückblick' }))
+    fireEvent.click(screen.getByRole('button', { name: '%' }))
+
+    expect(screen.getByRole('button', { name: '%' })).toHaveAttribute('aria-pressed', 'true')
+    expect(table.getByRole('columnheader', { name: 'Ausgaben (%)' })).toBeInTheDocument()
+    const september = table.getByRole('row', { name: /September 2026/ })
+    expect(within(september).getByText('100,00')).toBeInTheDocument()
+    expect(within(september).getByText('33,33')).toBeInTheDocument()
+    expect(within(september).getByText('66,67')).toHaveClass('positive')
+    // Without income in August the shares are empty
+    const august = within(table.getByRole('row', { name: /August 2026/ })).getAllByText('–')
+    expect(august).toHaveLength(3)
+    expect(august[2]).not.toHaveClass('negative')
+    expect(within(table.getByRole('row', { name: /^Gesamt/ })).getAllByText('50,00')).toHaveLength(2)
+
+    fireEvent.click(within(september).getByRole('button', { name: /September 2026/ }))
+    expect(within(table.getByRole('row', { name: /Wohnen/ })).getByText('30,00')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '€' }))
+    expect(within(september).getByText('1.000,00')).toBeInTheDocument()
+  })
+
+  it('collapses look back and forecast and remembers it', async () => {
+    renderPage(reserves)
+
+    const lookBack = await screen.findByRole('button', { name: /Rückblick/ })
+    expect(lookBack).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(lookBack)
+    fireEvent.click(screen.getByRole('button', { name: /Vorschau 12 Monate/ }))
+
+    expect(screen.queryByRole('table', { name: 'Rückblick' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Anzeige' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Vorschau 12 Monate' })).not.toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+
+    cleanup()
+    renderPage(reserves)
+    expect(await screen.findByRole('button', { name: /Rückblick/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: /Vorschau 12 Monate/ })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('button', { name: /Rückblick/ }))
+    expect(screen.getByRole('table', { name: 'Rückblick' })).toBeInTheDocument()
   })
 
   it('shows the reserve pot with what to put aside and what should be saved by now', async () => {
