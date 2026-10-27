@@ -144,3 +144,66 @@ export interface ProblemDetail {
   detail?: string
   errors?: FieldError[]
 }
+
+/** A rare expense in the reserve pot. amount is the cost (positive); nextDate is its next occurrence. */
+export interface ReserveLine {
+  recurringId: number
+  description: string
+  categoryName: string
+  amount: number
+  interval: RecurringInterval
+  nextDate: string
+  /** To put aside each month. */
+  monthly: number
+  /** What should be saved by now; the full amount in the month it is due. */
+  saved: number
+}
+
+/** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). amount is positive. */
+export interface ForecastEntry {
+  kind: 'SINGLE' | 'RECURRING'
+  id: number | null
+  recurringId: number | null
+  description: string
+  date: string
+  amount: number
+}
+
+export interface ForecastMonth {
+  month: string
+  total: number
+  entries: ForecastEntry[]
+}
+
+export interface CategoryAmount {
+  name: string
+  amount: number
+}
+
+/** A past month: income, expenses and surplus (income - expenses, may be negative), with the amounts per category. */
+export interface HistoryMonth {
+  month: string
+  income: number
+  expenses: number
+  surplus: number
+  incomeCategories: CategoryAmount[]
+  expenseCategories: CategoryAmount[]
+}
+
+/** Analysis of a month (R14). */
+export interface ReserveData {
+  month: string
+  /** Averages of the completed months counted; null when averageMonths is 0. */
+  averageIncome: number | null
+  averageExpenses: number | null
+  averageSurplus: number | null
+  /** Months in the average: the 12 before the month, fewer if the first entry is more recent. */
+  averageMonths: number
+  /** The months of the average, oldest first. */
+  history: HistoryMonth[]
+  monthlyReserve: number
+  reserveBalance: number
+  reserves: ReserveLine[]
+  /** The month and the following 11 months. */
+  forecast: ForecastMonth[]
+}

@@ -53,7 +53,7 @@ export function useRecurringTransactions(month: string) {
   return useQuery({ queryKey: ['recurring', month], queryFn: () => fetchRecurringTransactions(month) })
 }
 
-// A series affects many months, so all transaction lists, dashboards and series lists are refreshed.
+// A series affects many months, so all transaction lists, dashboards, series lists and reserves are refreshed.
 function useInvalidateAfterChange() {
   const queryClient = useQueryClient()
   return () =>
@@ -61,6 +61,7 @@ function useInvalidateAfterChange() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       queryClient.invalidateQueries({ queryKey: ['recurring'] }),
+      queryClient.invalidateQueries({ queryKey: ['reserves'] }),
     ])
 }
 

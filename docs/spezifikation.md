@@ -13,7 +13,7 @@ Stand: 23.10.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" (nu
 - Dashboard pro Monat: Einnahmen, Ausgaben, Überschuss; Budget-Tabelle mit Soll, Ist und Abweichung zum Soll je Gruppe und Kategorie; Umschalter € / % (Anteil an den Einnahmen)
 - Die Seite *Planung* zeigt, welcher Teil der Einnahmen nicht verplant ist
 - Bedienbar auch auf schmalen Bildschirmen (ab ca. 360 px Breite)
-- Auswertung: durchschnittliche monatliche Kosten und nötige Rücklagen für wiederkehrende Ausgaben
+- Auswertung: durchschnittliche Ausgaben der letzten 12 Monate, Rücklagen-Topf für seltene wiederkehrende Ausgaben und Vorschau der Ausgaben der nächsten 12 Monate
 
 **Bewusst draußen (im README als Ausblick):**
 - Alle Investment-Blätter (Sparplan, Prognosen, Freistellungsauftrag, Einmalzahlung)
@@ -40,7 +40,7 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 | R11 | **Vorzeichen:** Das Vorzeichen des Betrags entscheidet: positiv = Einnahme, negativ = Ausgabe. Ein Betrag von 0 ist ungültig. Kategorien haben keinen Typ. Im Formular wird der Betrag immer positiv eingegeben; ein Umschalter "Ausgabe / Einnahme" (Vorgabe: Ausgabe) setzt das Vorzeichen. | bewusste Abweichung vom Sheet (dort entschied die Kategorie) |
 | R12 | **Vorkommen wiederkehrender Transaktionen:** Eine wiederkehrende Transaktion hat ein Intervall (monatlich = 1, vierteljährlich = 3, halbjährlich = 6, jährlich = 12 Monate), ein Startdatum und optional ein Enddatum (einschließlich). Ihre Vorkommen liegen am Startdatum plus k × Intervall Monate (k = 0, 1, 2, …), jeweils am Tag des Startdatums; hat ein Monat diesen Tag nicht, am letzten Tag des Monats (31.01. → 28.02. bzw. 29.02., 30.04.; 29.02. → 28.02. in Nicht-Schaltjahren). Ein Vorkommen zählt, wenn es nicht nach dem Enddatum liegt und für sein Datum keine Ausnahme (R13) existiert. Vorkommen werden berechnet, nicht als Transaktionen gespeichert. | neu, nicht im Sheet |
 | R13 | **Vorkommen bearbeiten oder löschen:** Der Nutzer wählt "Nur dieser Eintrag" oder "Dieser und alle folgenden". Sei `d` das gewählte Vorkommen. **Nur dieser Eintrag:** Für `d` wird eine Ausnahme gespeichert, das Vorkommen zählt nicht mehr. Beim Bearbeiten wird zusätzlich eine normale Transaktion mit den geänderten Werten angelegt (Datum frei wählbar, Vorschlag `d`). **Dieser und alle folgenden:** Ist `d` das erste Vorkommen, wird die Serie selbst geändert bzw. gelöscht (beim Löschen samt ihrer Ausnahmen). Sonst wird das Enddatum der Serie auf den Tag vor `d` gesetzt, Ausnahmen ab `d` entfallen, und beim Bearbeiten entsteht eine neue Serie mit den geänderten Werten und derselben `seriesId`; ihr Startdatum (Vorschlag `d`) muss nach dem vorherigen Vorkommen liegen. Vergangene Vorkommen werden nie über die Serie rückwirkend geändert; eine Option "Alle Einträge" gibt es nicht. | neu, nicht im Sheet |
-| R14 | **Auswertung Rücklagen für M:** Eine Serie ist in M aktiv, wenn ihr Startdatum nicht nach dem letzten Tag von M und ihr Enddatum (falls gesetzt) nicht vor dem ersten Tag von M liegt. **Ø monatliche Kosten** = Summe von \|Betrag\| / Intervall in Monaten über alle in M aktiven Serien mit negativem Betrag. **Davon Rücklage** = derselbe Wert nur für Serien mit Intervall > 1 Monat; das ist der Betrag, der monatlich zurückgelegt werden muss. **Vorschau:** Für M und die folgenden 11 Monate je Monat die Summe von \|Betrag\| aller Vorkommen von Serien mit negativem Betrag (R12, Ausnahmen beachtet), mit Liste der Vorkommen. Einzelne Transaktionen und Serien mit positivem Betrag zählen nicht. | neu, nicht im Sheet |
+| R14 | **Auswertung für M:** **Ø Ausgaben:** Zeitraum sind die Monate M−12 bis M−1, frühestens ab dem Monat des ersten Eintrags (frühestes Datum einer Transaktion oder frühestes Startdatum einer Serie, beliebiges Vorzeichen). Sei `n` die Anzahl dieser Monate (0 bis 12). Ø Ausgaben = Summe von `A` (R2) dieser Monate / `n`; ebenso Ø Einnahmen (`E`) und Ø Überschuss (`E` − `A`, R7); bei `n` = 0 leer. **Rückblick:** Für jeden dieser `n` Monate (aufsteigend) Einnahmen `E(m)`, Ausgaben `A(m)` und Überschuss `E(m)` − `A(m)`, dazu die Einnahmen je Kategorie (`N(k)` > 0) und die Ausgaben je Kategorie (`I(k)` > 0); ein Monat ohne Einträge hat überall 0. **Rücklagen-Topf:** Für jede Serie mit negativem Betrag, Intervall `i` > 1 Monat und einem nächsten Vorkommen `d` in M bis M+11 (R12, Ausnahmen beachtet) sei `k` die Anzahl Monate von M bis zum Monat von `d` (0, wenn `d` in M liegt). **Pro Monat** = \|Betrag\| / `i`; **Angespart** = \|Betrag\| × max(0, `i` − `k`) / `i` (im Fälligkeitsmonat ist der Topf voll, danach beginnt er bei einer Monatsrate). **Monatlich zurücklegen** = Summe aller Pro-Monat-Werte; **Sollte jetzt angespart sein** = Summe aller Angespart-Werte. **Vorschau:** Für M und die folgenden 11 Monate je Monat alle Vorkommen von Serien mit negativem Betrag (R12, Ausnahmen beachtet) und alle einzelnen Transaktionen mit negativem Betrag, je mit \|Betrag\|, und ihre Summe. Einnahmen zählen nicht. | neu, nicht im Sheet |
 
 **Nicht übernehmen:** Die Hilfsblätter `IGNORE…` (Diagrammdaten, rechnet das Frontend selbst) sowie veraltete Formeln in `Dashboard_Budget` (Zeilen 38 und 48–55 der Einnahmenspalte verweisen auf ein nicht existierendes Blatt `Monatliche_Transaktionen`). Als Referenzwerte gelten die Formeln, nicht diese Reste.
 
@@ -61,7 +61,7 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 - **US7 Gruppensummen** nach R10 im Dashboard, als ein- und ausklappbare Zwischensummenzeilen.
 - **US7a Nicht verplant:** Als Nutzer sehe ich auf der Seite *Planung* für den gewählten Monat Einnahmen, verplantes Soll und den nicht verplanten Teil (R4).
 - **US8 Monatsnavigation** (vor/zurück) und Anzeige leerer Monate ohne Fehler.
-- **US13 Auswertung Rücklagen:** Als Nutzer sehe ich für den gewählten Monat die durchschnittlichen monatlichen Kosten meiner wiederkehrenden Ausgaben, davon die nötige monatliche Rücklage, und eine Vorschau der nächsten 12 Monate, die teure Monate sichtbar macht. *AK:* R14.
+- **US13 Auswertung:** Als Nutzer sehe ich für den gewählten Monat, wie viel ich in den letzten 12 Monaten durchschnittlich ausgegeben habe, mit einem Rückblick auf Einnahmen, Ausgaben und Überschuss je Monat, wie viel ich monatlich für seltene wiederkehrende Ausgaben zurücklegen sollte und wie viel dafür jetzt angespart sein sollte, sowie eine Vorschau aller gebuchten Ausgaben der nächsten 12 Monate, die teure Monate sichtbar macht. *AK:* R14; gibt es noch keine 12 abgeschlossenen Monate mit Einträgen, nennt die Seite die Anzahl der berücksichtigten Monate; ohne abgeschlossenen Monat zeigt sie "–" und einen Hinweis.
 
 ### Nice
 - **US9 Diagramm** (Soll gegen Ist je Gruppe) mit Recharts.
@@ -128,7 +128,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | POST | `/transactions` | Anlegen, Body `{amount, description, date, categoryId}` | 201 + Location, 400 |
 | PUT | `/transactions/{id}` | Ändern | 200, 404, 400 |
 | DELETE | `/transactions/{id}` | Löschen | 204, 404 |
-| GET | `/recurring-transactions?month=2026-10` | Serien, die in diesem Monat aktiv sind (R14), je mit `monthlyEquivalent` (\|Betrag\| / Intervall in Monaten, auf Cent gerundet) | 200, 400 (Monat fehlt/ungültig) |
+| GET | `/recurring-transactions?month=2026-10` | Serien, die in diesem Monat aktiv sind (Startdatum nicht nach dem letzten Tag, Enddatum nicht vor dem ersten Tag des Monats), je mit `monthlyEquivalent` (\|Betrag\| / Intervall in Monaten, auf Cent gerundet) | 200, 400 (Monat fehlt/ungültig) |
 | POST | `/recurring-transactions` | Anlegen, Body `{amount, description, categoryId, interval, startDate, endDate?}` | 201 + Location, 400 |
 | PUT | `/recurring-transactions/{id}/occurrences/{date}?scope=THIS` | Nur dieses Vorkommen ändern (R13), Body wie `POST /transactions` | 200, 404 (Serie oder Vorkommen unbekannt), 400 |
 | PUT | `/recurring-transactions/{id}/occurrences/{date}?scope=FOLLOWING` | Dieses und alle folgenden ändern (R13), Body wie `POST /recurring-transactions` | 200, 404, 400 |
@@ -159,14 +159,18 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 ```json
 {
   "month": "2026-10",
-  "averageMonthlyCosts": 935.00,
-  "reserve": 20.00,
-  "series":   [ { "id": 3, "description": "…", "categoryName": "…", "amount": -240.00, "interval": "YEARLY", "monthlyEquivalent": 20.00 } ],
-  "forecast": [ { "month": "2026-10", "total": 1140.00,
-                  "occurrences": [ { "recurringId": 3, "description": "…", "date": "2026-10-15", "amount": 240.00 } ] } ]
+  "averageIncome": 0.00, "averageExpenses": 1026.00, "averageSurplus": -1026.00, "averageMonths": 9,
+  "history":  [ { "month": "2026-09", "income": 0.00, "expenses": 1914.00, "surplus": -1914.00,
+                  "incomeCategories": [], "expenseCategories": [ { "name": "Wohnen", "amount": 900.00 }, … ] } ],
+  "monthlyReserve": 20.00, "reserveBalance": 240.00,
+  "reserves": [ { "recurringId": 3, "description": "…", "categoryName": "…", "amount": 240.00, "interval": "YEARLY",
+                  "nextDate": "2026-10-15", "monthly": 20.00, "saved": 240.00 } ],
+  "forecast": [ { "month": "2026-10", "total": 2636.49,
+                  "entries": [ { "kind": "RECURRING", "id": null, "recurringId": 3, "description": "…", "date": "2026-10-15", "amount": 240.00 },
+                               { "kind": "SINGLE", "id": 12, "recurringId": null, "description": "…", "date": "2026-10-02", "amount": 200.00 } ] } ]
 }
 ```
-`forecast` hat genau 12 Einträge (M bis M+11). Beträge in `forecast` sind Kosten und daher positiv.
+`averageIncome`, `averageExpenses` und `averageSurplus` sind `null`, wenn `averageMonths` 0 ist; `history` hat dann keine Einträge, sonst genau `averageMonths`. `forecast` hat genau 12 Einträge (M bis M+11). Beträge in `reserves` und `forecast` sind Kosten und daher positiv.
 
 ## 6. Architektur
 
@@ -174,7 +178,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 
 **Backend:** Schichten Controller → Service → Repository (Spring Data JPA, H2 als Datei-DB). **Die Berechnungen liegen in reinen Klassen** ohne Spring-Abhängigkeit: `RecurrenceSchedule` berechnet die Vorkommen einer Serie in einem Zeitraum (R12), `DashboardCalculator` nimmt Kategorien, Buchungen und Monat und liefert das Dashboard-DTO (R1 bis R10); Vorkommen wiederkehrender Transaktionen gehen dabei wie Transaktionen ein, weil sie mit vollem Betrag zählen (R1), `ReserveCalculator` liefert die Auswertung (R14). Die Aufteilung von Serien (R13) liegt im Service. Das hält die Regeln isoliert testbar (Single Responsibility, Dependency Inversion). DTOs als Java-Records, Entities nie direkt nach außen. `springdoc-openapi` erzeugt die API-Doku aus dem Code.
 
-**Frontend:** Reiter *Übersicht* · *Transaktionen* · *Planung*. *Übersicht* ist das Dashboard (Kacheln Einnahmen, Ausgaben, Überschuss; Budget-Tabelle mit ein- und ausklappbaren Gruppen; Einnahmen-Liste; Umschalter € / %), *Transaktionen* (ein Formular für einmalige und wiederkehrende Transaktionen mit "Wiederholen"; Monatsliste inkl. Vorkommen wiederkehrender Transaktionen; beim Bearbeiten oder Löschen eines Vorkommens fragt ein Dialog "Nur dieser Eintrag" oder "Dieser und alle folgenden"; Serien werden nur über ihre Vorkommen bearbeitet), *Planung* (Soll je Kategorie, mit "Nicht verplant", R4), später *Auswertung* (R14). Das Layout funktioniert ab ca. 360 px Breite: Kacheln untereinander, in Tabellen Beträge ohne Währungszeichen (Einheit im Spaltenkopf), unter 480 px ohne Spalte Soll; unter 600 px wird jede Transaktion als Karte gezeigt (Beschreibung und Betrag, darunter Datum und Kategorie, dann die Aktionen). Datenzugriff mit TanStack Query, API-Typen in `src/api/`, keine Fachlogik im Frontend (nur Anzeige und Formatierung, `Intl.NumberFormat('de-DE')`). Formulare mit einfacher Validierung (Betrag > 0, Pflichtfelder); der Umschalter "Ausgabe / Einnahme" setzt nur das Vorzeichen.
+**Frontend:** Reiter *Übersicht* · *Transaktionen* · *Planung* · *Auswertung*. *Übersicht* ist das Dashboard (Kacheln Einnahmen, Ausgaben, Überschuss; Budget-Tabelle mit ein- und ausklappbaren Gruppen; Einnahmen-Liste; Umschalter € / %), *Transaktionen* (ein Formular für einmalige und wiederkehrende Transaktionen mit "Wiederholen"; Monatsliste inkl. Vorkommen wiederkehrender Transaktionen; beim Bearbeiten oder Löschen eines Vorkommens fragt ein Dialog "Nur dieser Eintrag" oder "Dieser und alle folgenden"; Serien werden nur über ihre Vorkommen bearbeitet), *Planung* (Soll je Kategorie, mit "Nicht verplant", R4), *Auswertung* (Kachel Ø Ausgaben der letzten 12 Monate, darunter der Rückblick: Tabelle mit Einnahmen, Ausgaben und Überschuss je Monat, aufklappbar je Kategorie, mit Zeile Ø; Rücklagen-Topf mit den Kacheln "Monatlich zurücklegen" und "Sollte jetzt angespart sein" und einer Tabelle der seltenen Ausgaben; Vorschau aller Ausgaben über 12 Monate mit Balken je Monat, R14); *Transaktionen* zeigt zusätzlich eine Zeile mit dem monatlich zurückzulegenden und dem angesparten Betrag (Entscheidungen 15 und 16). Das Layout funktioniert ab ca. 360 px Breite: Kacheln untereinander, in Tabellen Beträge ohne Währungszeichen (Einheit im Spaltenkopf), unter 480 px ohne Spalte Soll; unter 600 px wird jede Transaktion als Karte gezeigt (Beschreibung und Betrag, darunter Datum und Kategorie, dann die Aktionen). Datenzugriff mit TanStack Query, API-Typen in `src/api/`, keine Fachlogik im Frontend (nur Anzeige und Formatierung, `Intl.NumberFormat('de-DE')`). Formulare mit einfacher Validierung (Betrag > 0, Pflichtfelder); der Umschalter "Ausgabe / Einnahme" setzt nur das Vorzeichen.
 
 ## 7. Teststrategie
 
@@ -190,7 +194,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   9. Vorzeichen (R2, R9, R10, R11): Erstattung mindert das Ist ihrer Kategorie; eine Kategorie mit Gruppe und positivem Netto zählt als Einnahme; Ausgaben einer Kategorie ohne Gruppe zählen zur Zeile "Ohne Gruppe"; Gruppensummen ergeben `P` und `A`
   10. Budget-Tabelle ohne Kategorien ohne Soll und ohne Ausgaben, Gruppen nur mit Kategorien (R10)
 - **Unit:** `RecurrenceSchedule` (R12): je Intervall die richtigen Vorkommen; Tag 31 und 29.02. auf den Monatsletzten; Enddatum einschließlich; Ausnahmen werden ausgelassen; kein Vorkommen vor dem Startdatum.
-- **Unit:** `ReserveCalculator` (R14): Ø-Kosten über alle Intervalle, Rücklage nur für Intervall > 1, Einnahmen-Serien und inaktive Serien zählen nicht, Vorschau über 12 Monate mit Ausnahmen.
+- **Unit:** `ReserveCalculator` (R14): Ø Ausgaben, Ø Einnahmen und Ø Überschuss über 12 Monate, über weniger Monate ab dem ersten Eintrag und leer ohne abgeschlossenen Monat; Rückblick mit denselben Monaten, fehlende Monate mit 0; Topf nur für Intervall > 1, angespart vor, im und nach dem Fälligkeitsmonat, Ausnahme auf dem nächsten Vorkommen, beendete Serie; Vorschau über 12 Monate mit einzelnen Ausgaben, ohne Einnahmen.
 - **Integration:** `@SpringBootTest` + MockMvc für Transaktion anlegen → Dashboard spiegelt es wider; Validierungsfehler (400, auch Betrag 0); Soll für Kategorien ohne Gruppe abgelehnt (409); Serie anlegen → Vorkommen in `/transactions` und `/dashboard`; R13 "Nur dieser Eintrag" (Ausnahme + Ersatz-Transaktion) und "Dieser und alle folgenden" (erstes Vorkommen: Serie geändert; späteres Vorkommen: Serie geteilt, frühere Monate unverändert); unbekanntes Vorkommen → 404.
 - **Frontend:** 2 bis 3 Vitest/Testing-Library-Tests (Formular-Validierung mit Umschalter, Dashboard rendert Werte inkl. Umschalter € / % und Einklappen, Planung zeigt "Nicht verplant", Formular mit "Wiederholen", Dialog für Bearbeiten eines Vorkommens).
 - **Referenzabgleich:** Eine Testfixture mit erfundenen Zahlen (Abschnitt 12).
@@ -254,7 +258,12 @@ Geklärt am 25.10.2026:
 
 Geklärt am 25.10.2026 (Navigation):
 
-14. **Eine Transaktion ist eine Transaktion:** Für den Nutzer ist es egal, ob eine Transaktion einmalig oder wiederkehrend ist. Deshalb gibt es nur ein Erfassungsformular mit der Option "Wiederholen"; der Reiter *Wiederkehrend* entfällt. Eine eigene Serienliste gibt es nicht, weil sie neben der Monatsliste mehr verwirrt als hilft: Eine Serie wird über ihre Vorkommen geändert ("Dieser und alle folgenden") oder beendet (Löschen "Dieser und alle folgenden" setzt das Enddatum). Den monatlichen Durchschnitt der Serien zeigt später die Auswertung (R14). Die getrennten APIs (`/transactions`, `/recurring-transactions`) bleiben, das Formular wählt je nach "Wiederholen" den Endpunkt. Eine bestehende einmalige Transaktion wird beim Bearbeiten nicht in eine Serie umgewandelt. Die Reiter heißen *Übersicht* (statt *Dashboard*, deutsche UI) und *Planung* (statt *Einstellungen*, denn dort wird das Soll geplant; der Name *Einstellungen* bleibt frei für spätere App-Einstellungen wie Kategorien, US10).
+14. **Eine Transaktion ist eine Transaktion:** Für den Nutzer ist es egal, ob eine Transaktion einmalig oder wiederkehrend ist. Deshalb gibt es nur ein Erfassungsformular mit der Option "Wiederholen"; der Reiter *Wiederkehrend* entfällt. Eine eigene Serienliste gibt es nicht, weil sie neben der Monatsliste mehr verwirrt als hilft: Eine Serie wird über ihre Vorkommen geändert ("Dieser und alle folgenden") oder beendet (Löschen "Dieser und alle folgenden" setzt das Enddatum). Den monatlichen Durchschnitt der Serien zeigt die Auswertung (R14). Die getrennten APIs (`/transactions`, `/recurring-transactions`) bleiben, das Formular wählt je nach "Wiederholen" den Endpunkt. Eine bestehende einmalige Transaktion wird beim Bearbeiten nicht in eine Serie umgewandelt. Die Reiter heißen *Übersicht* (statt *Dashboard*, deutsche UI) und *Planung* (statt *Einstellungen*, denn dort wird das Soll geplant; der Name *Einstellungen* bleibt frei für spätere App-Einstellungen wie Kategorien, US10).
+
+Geklärt am 26.10.2026:
+
+15. **Auswertung als eigener Reiter, Kurzfassung bei den Transaktionen:** Die Auswertung (R14, US13) steht im Reiter *Auswertung* mit Ø Ausgaben, Rücklagen-Topf und Vorschau über 12 Monate (Entscheidung 16). Weil man die wiederkehrenden Transaktionen auf der Seite *Transaktionen* pflegt, zeigt sie zusätzlich eine Zeile mit dem monatlich zurückzulegenden und dem angesparten Betrag; so sieht man sofort, wie sich eine neue oder geänderte Serie auswirkt. Die Zeile entfällt, wenn der Topf leer ist. Die Länge der Balken in der Vorschau (Summe des Monats im Verhältnis zum teuersten Monat) ist reine Anzeige.
+16. **Topf statt Ø Serienkosten** (26.10.2026, nach dem ersten Test): "Ø monatliche Kosten" und "davon Rücklage" waren schwer zu verstehen, weil sie nur Serien zählten und zwei ineinander verschachtelte Größen waren. Jetzt beantwortet die Auswertung drei einfache Fragen: Wie viel gebe ich im Schnitt aus? (Ø der echten Ausgaben `A` der letzten 12 abgeschlossenen Monate, wie im Dashboard; ein laufender Monat würde den Schnitt drücken.) Wie viel lege ich monatlich zurück, und wie viel sollte jetzt im Topf sein? (Rücklagen-Topf je seltener Ausgabe, im Fälligkeitsmonat voll.) Was wird wann abgebucht? (Vorschau mit allen gebuchten Ausgaben, auch einzelnen, die schon für später eingetragen sind.) Gibt es noch keine 12 Monate mit Einträgen, wird über die vorhandenen Monate gemittelt und deren Anzahl angezeigt, damit leere Monate vor dem ersten Eintrag den Schnitt nicht drücken.
 
 ## 12. Testfixture F1 und Sonderfall Einnahmen = 0
 
@@ -308,9 +317,10 @@ Kredite (kein Soll, keine Ausgaben) erscheint nicht in der Tabelle (R10).
 - Kategorien ohne Soll mit Ausgaben (Geschenke): Soll und Abweichung sind `null`, Ist ist ihr Ausgaben-Ist (20,00). Deshalb ergibt die Summe der Abweichungen je Kategorie (−6,49) nicht die Abweichung gesamt (−26,49); maßgeblich ist R6.
 
 **Erwartete Ergebnisse Auswertung (R14):**
-- Aktive Ausgaben-Serien: Wohnen 900,00 / 1 = 900,00 · Versicherungen 240,00 / 12 = 20,00 · Freizeit 15,00 / 1 = 15,00
-- Ø monatliche Kosten: 935,00 · davon Rücklage: 20,00
-- Vorschau: 2026-10: 1140,00 (Wohnen 900,00, Versicherungen 240,00; Freizeit ausgesetzt) · 2026-11 bis 2027-09: je 915,00
+- Ø Ausgaben: erster Eintrag ist die Serie Wohnen ab 2026-01, also `n` = 9 (2026-01 bis 2026-09). Je Monat Wohnen 900,00 + Freizeit 15,00 = 915,00, im September zusätzlich Lebensmittel 999,00: (9 × 915,00 + 999,00) / 9 = 1026,00
+- Rückblick: 2026-01 bis 2026-08 je Einnahmen 0,00, Ausgaben 915,00 (Wohnen 900,00, Freizeit 15,00), Überschuss −915,00; 2026-09 Ausgaben 1914,00 (zusätzlich Lebensmittel 999,00), Überschuss −1914,00 · Ø Einnahmen 0,00, Ø Überschuss −1026,00
+- Rücklagen-Topf: nur Versicherungen (jährlich), nächstes Vorkommen 2026-10-15, `k` = 0: pro Monat 240,00 / 12 = 20,00, angespart 240,00 · Monatlich zurücklegen 20,00 · Sollte jetzt angespart sein 240,00. Im November 2026 (nächstes Vorkommen 2027-10-15, `k` = 11): angespart 20,00
+- Vorschau: 2026-10: 2636,49 (Wohnen 900,00, Versicherungen 240,00, Freizeit ausgesetzt; einzelne Ausgaben 1496,49) · 2026-11 bis 2027-09: je 915,00
 
 **Rundung:** Geld mit Skala 2 (HALF_UP), Prozentwerte und Anteile mit Skala 4; nur im Endergebnis runden, nicht in Zwischensummen.
 
@@ -325,12 +335,12 @@ Umsetzung der Entscheidungen 6 bis 14. Jedes Arbeitspaket ist ein eigener Branch
 | 9 | Spezifikation und `CLAUDE.md` anpassen (dieser Stand) | Spec-PR |
 | 10 | Vorzeichen statt Kategorietyp (R2, R4 bis R11, US1 bis US3): Datenmodell, Seed, Validierung inkl. nicht buchbarer Rest-Kategorie, `DashboardCalculator`, Formular-Umschalter; `YearlyTransaction` entfernen (vorgezogen am 25.10.2026, weil ihre Beträge am Kategorietyp hingen) | Fixture F1 ohne wiederkehrende Transaktionen grün |
 | 11 | Wiederkehrende Transaktionen (R12, R13, US6, US6a): `RecurrenceSchedule`, Serien-API, Teilen und Ausnahmen, Vorkommen in `/transactions` und `/dashboard`, Seiten *Transaktionen* und *Wiederkehrend* | Fixture F1 Dashboard grün |
-| 12 | Auswertung Rücklagen (R14, US13): `ReserveCalculator`, `/reserves`, Seite *Auswertung*. Idee vom 25.10.2026, im Auswertungs-Branch zu klären: die monatlich nötigen Rücklagen (Ø Kosten, davon Rücklage) zusätzlich oder stattdessen kompakt auf der Seite *Transaktionen* zeigen, weil man dort die wiederkehrenden Transaktionen pflegt | Fixture F1 Auswertung grün |
+| 12 | Auswertung (R14, US13, Branch `feat/evaluation`): `ReserveCalculator`, `/reserves`, Seite *Auswertung*. Idee vom 25.10.2026, im Auswertungs-Branch zu klären: die monatlich nötigen Rücklagen (Ø Kosten, davon Rücklage) zusätzlich oder stattdessen kompakt auf der Seite *Transaktionen* zeigen, weil man dort die wiederkehrenden Transaktionen pflegt | Fixture F1 Auswertung grün |
 | 12a | Nicht verplant statt Rest-Kategorie (Entscheidung 12, R4 bis R7, R10): Rest-Kategorie, Gruppe REMAINDER und `system` entfernen, `DashboardCalculator`, Dashboard-Bezeichnungen | Fixture F1 grün |
 | 12b | Einfacheres Dashboard (Entscheidung 13, R4, R8 bis R10, US5, US7, US7a): Anteile im `DashboardCalculator`, Budget-Tabelle mit Gruppen, Umschalter € / %, "Nicht verplant" auf der Seite *Planung*, Layout für schmale Bildschirme | Fixture F1 grün |
 | 12c | Navigation (Entscheidung 14, US6): Formular mit "Wiederholen", keine eigene Serienliste, Transaktionen als Karten auf schmalen Bildschirmen, Reiter *Übersicht* · *Transaktionen* · *Planung* | Frontend-Tests grün |
 | 13 | README "Learnings und Entscheidungen" und Interview-Stichpunkte (AP 8) | README |
 
-**Stand 25.10.2026:** AP 9 bis 11 erledigt.
+**Stand 26.10.2026:** AP 9 bis 12c erledigt. Offen: AP 13.
 
 Getrennt davon und ohne fachliche Änderung: Upgrade auf Spring Boot 4.

@@ -39,6 +39,14 @@ export function formatMonth(month: string): string {
   return monthName.format(new Date(year, monthNumber - 1, 1))
 }
 
+const shortMonthName = new Intl.DateTimeFormat('de-DE', { month: 'short', year: 'numeric' })
+
+/** "2026-09" -> "Sept. 2026", for narrow table columns */
+export function formatMonthShort(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return shortMonthName.format(new Date(year, monthNumber - 1, 1))
+}
+
 export function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split('-')
   return `${day}.${month}.${year}`
