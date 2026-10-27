@@ -7,6 +7,7 @@ import {
   useUpdateOccurrenceFollowing,
   useUpdateOccurrenceThis,
 } from '../api/recurring'
+import { useReserves } from '../api/reserves'
 import {
   useCreateTransaction,
   useDeleteTransaction,
@@ -49,6 +50,8 @@ export function TransactionsPage({ month }: { month: string }) {
   const categories = useCategories(month)
   // Series active in the month; "Dieser und alle folgenden" prefills the form from them.
   const series = useRecurringTransactions(month)
+  // Compact reserve pot (R14), because series are maintained here; details on the Auswertung page.
+  const reserves = useReserves(month)
   const createTransaction = useCreateTransaction()
   const createSeries = useCreateRecurringTransaction()
   const updateTransaction = useUpdateTransaction()
@@ -231,6 +234,13 @@ export function TransactionsPage({ month }: { month: string }) {
       )}
 
       {deleteError && <p className="error">Löschen fehlgeschlagen: {deleteError.message}</p>}
+
+      {reserves.data && reserves.data.reserves.length > 0 && (
+        <p className="hint">
+          Rücklagen: monatlich {formatEuro(reserves.data.monthlyReserve)} zurücklegen, jetzt angespart{' '}
+          {formatEuro(reserves.data.reserveBalance)}.
+        </p>
+      )}
 
       {transactions.isPending && <p>Lade Transaktionen …</p>}
       {transactions.error && (

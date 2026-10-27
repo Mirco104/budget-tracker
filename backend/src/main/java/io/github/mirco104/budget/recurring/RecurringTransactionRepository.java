@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface RecurringTransactionRepository extends JpaRepository<RecurringTransaction, Long> {
 
-    /** Series active in the period: start not after "to", end (if set) not before "from" (R14). */
+    /** Series active in the period: start not after "to", end (if set) not before "from" */
     @EntityGraph(attributePaths = "category")
     @Query("""
             select r from RecurringTransaction r
@@ -16,4 +16,8 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
             order by r.startDate, r.id
             """)
     List<RecurringTransaction> findActiveBetween(LocalDate from, LocalDate to);
+
+    /** Start date of the earliest series, null without series. */
+    @Query("select min(r.startDate) from RecurringTransaction r")
+    LocalDate findMinStartDate();
 }

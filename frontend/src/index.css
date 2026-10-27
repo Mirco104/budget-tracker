@@ -329,3 +329,91 @@ form.transaction-form .sign-toggle label {
     max-width: none;
   }
 }
+
+.forecast-bar-cell {
+  width: 40%;
+}
+
+.forecast-bar {
+  display: block;
+  height: 10px;
+  border-radius: 2px;
+  background: #cf222e;
+}
+
+.forecast-entries {
+  margin: 4px 0;
+  padding-left: 16px;
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+.history caption {
+  text-align: left;
+  font-weight: bold;
+  padding-bottom: 4px;
+}
+
+.history tfoot th,
+.history tfoot td {
+  font-weight: bold;
+  border-top: 2px solid #d0d7de;
+}
+
+.history .history-month th {
+  font-weight: normal;
+}
+
+.month-short {
+  display: none;
+}
+
+.history .history-month button {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history .history-category td {
+  color: #57606a;
+  font-size: 0.9rem;
+}
+
+.history .history-category td:first-child {
+  padding-left: 24px;
+}
+
+.tile-note {
+  color: #57606a;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .col-optional {
+    display: none;
+  }
+
+  .month-long {
+    display: none;
+  }
+
+  .month-short {
+    display: inline;
+  }
+
+  .history {
+    font-size: 0.9rem;
+  }
+
+  .history .history-category td:first-child {
+    padding-left: 12px;
+  }
+
+  .forecast-bar-cell {
+    width: 25%;
+  }
+}

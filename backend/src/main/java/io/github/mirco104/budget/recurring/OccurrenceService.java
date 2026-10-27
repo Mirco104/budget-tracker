@@ -32,10 +32,7 @@ public class OccurrenceService {
         if (series.isEmpty()) {
             return List.of();
         }
-        Map<Long, Set<LocalDate>> exceptions = exceptionRepository.findByRecurringIn(series).stream()
-                .collect(Collectors.groupingBy(
-                        exception -> exception.getRecurring().getId(),
-                        Collectors.mapping(RecurringException::getOccurrenceDate, Collectors.toSet())));
+        Map<Long, Set<LocalDate>> exceptions = exceptionsBySeries(series);
         return series.stream()
                 .flatMap(recurring -> recurring.schedule(exceptions.getOrDefault(recurring.getId(), Set.of()))
                         .occurrencesBetween(from, to).stream()
@@ -48,5 +45,17 @@ public class OccurrenceService {
                                 recurring.getCategory().getName())))
                 .sorted(Comparator.comparing(Occurrence::date).thenComparing(Occurrence::recurringId))
                 .toList();
+    }
+
+    /** Suspended occurrence dates (R13) by series id; series without exceptions are missing from the map. */
+    @Transactional(readOnly = true)
+    public Map<Long, Set<LocalDate>> exceptionsBySeries(List<RecurringTransaction> series) {
+        if (series.isEmpty()) {
+            return Map.of();
+        }
+        return exceptionRepository.findByRecurringIn(series).stream()
+                .collect(Collectors.groupingBy(
+                        exception -> exception.getRecurring().getId(),
+                        Collectors.mapping(RecurringException::getOccurrenceDate, Collectors.toSet())));
     }
 }
