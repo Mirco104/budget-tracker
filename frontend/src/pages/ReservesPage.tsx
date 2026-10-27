@@ -1,5 +1,5 @@
 import { useReserves } from '../api/reserves'
-import type { ForecastMonth, ReserveData } from '../api/types'
+import type { CategoryAmount, ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
 import { formatAmount, formatDate, formatEuro, formatMonth } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 
@@ -32,6 +32,86 @@ function AverageExpenses({ data }: { data: ReserveData }) {
         </p>
       )}
     </>
+  )
+}
+
+function signClass(value: number | null): string | undefined {
+  if (value === null || value === 0) {
+    return undefined
+  }
+  return value < 0 ? 'negative' : 'positive'
+}
+
+function CategoryList({ title, items }: { title: string; items: CategoryAmount[] }) {
+  if (items.length === 0) {
+    return null
+  }
+  return (
+    <>
+      <p className="history-heading">{title}</p>
+      <ul className="forecast-entries">
+        {items.map((item) => (
+          <li key={item.name}>
+            {item.name}: {formatEuro(item.amount)}
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+function HistoryRow({ month }: { month: HistoryMonth }) {
+  const hasCategories = month.incomeCategories.length > 0 || month.expenseCategories.length > 0
+  return (
+    <tr>
+      <td>
+        {hasCategories ? (
+          <details>
+            <summary>{formatMonth(month.month)}</summary>
+            <CategoryList title="Einnahmen" items={month.incomeCategories} />
+            <CategoryList title="Ausgaben" items={month.expenseCategories} />
+          </details>
+        ) : (
+          formatMonth(month.month)
+        )}
+      </td>
+      <td className="number">{formatAmount(month.income)}</td>
+      <td className="number">{formatAmount(month.expenses)}</td>
+      <td className={`number ${signClass(month.surplus) ?? ''}`}>{formatAmount(month.surplus)}</td>
+    </tr>
+  )
+}
+
+/** The months of the average with income, expenses and surplus, and their averages in the footer. */
+function LookBack({ data }: { data: ReserveData }) {
+  if (data.history.length === 0) {
+    return null
+  }
+  return (
+    <table className="history">
+      <caption>Rückblick</caption>
+      <thead>
+        <tr>
+          <th>Monat</th>
+          <th className="number">Einnahmen (€)</th>
+          <th className="number">Ausgaben (€)</th>
+          <th className="number">Überschuss (€)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.history.map((m) => (
+          <HistoryRow key={m.month} month={m} />
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">Ø</th>
+          <td className="number">{formatAmount(data.averageIncome)}</td>
+          <td className="number">{formatAmount(data.averageExpenses)}</td>
+          <td className={`number ${signClass(data.averageSurplus) ?? ''}`}>{formatAmount(data.averageSurplus)}</td>
+        </tr>
+      </tfoot>
+    </table>
   )
 }
 
@@ -136,6 +216,7 @@ export function ReservesPage({ month }: { month: string }) {
     <section>
       <h2>Auswertung</h2>
       <AverageExpenses data={data} />
+      <LookBack data={data} />
 
       <h3>Rücklagen</h3>
       <ReservePot data={data} />
@@ -144,7 +225,7 @@ export function ReservesPage({ month }: { month: string }) {
       <p className="hint">
         Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne; teure Monate haben einen längeren Balken.
       </p>
-      <table className="forecast">
+      <table className="forecast" aria-label="Vorschau 12 Monate">
         <thead>
           <tr>
             <th>Monat</th>

@@ -1,10 +1,12 @@
 package io.github.mirco104.budget.reserve;
 
+import io.github.mirco104.budget.dashboard.DashboardResponse;
 import io.github.mirco104.budget.dashboard.DashboardService;
 import io.github.mirco104.budget.recurring.OccurrenceService;
 import io.github.mirco104.budget.recurring.RecurringTransaction;
 import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
-import io.github.mirco104.budget.reserve.ReserveCalculator.MonthExpenses;
+import io.github.mirco104.budget.reserve.ReserveResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;
 import io.github.mirco104.budget.transaction.TransactionRepository;
@@ -59,16 +61,31 @@ public class ReserveService {
                 .map(t -> new SingleData(t.getId(), t.getDescription(), t.getDate(), t.getAmount()))
                 .toList();
 
-        // Expense actual A per month (R2) comes from the dashboard, so the rule stays in one place
+        // Income E and expenses A per month (R2) come from the dashboard, so the rules stay in one place
         YearMonth firstEntryMonth = firstEntryMonth();
-        List<MonthExpenses> pastMonths = firstEntryMonth == null
+        List<PastMonth> pastMonths = firstEntryMonth == null
                 ? List.of()
                 : IntStream.rangeClosed(1, ReserveCalculator.AVERAGE_MONTHS)
                         .mapToObj(month::minusMonths)
                         .filter(past -> !past.isBefore(firstEntryMonth))
-                        .map(past -> new MonthExpenses(past, dashboardService.calculate(past).expenses().actual()))
+                        .map(this::pastMonth)
                         .toList();
         return calculator.calculate(seriesData, singles, pastMonths, firstEntryMonth, month);
+    }
+
+    private PastMonth pastMonth(YearMonth month) {
+        DashboardResponse dashboard = dashboardService.calculate(month);
+        return new PastMonth(
+                month,
+                dashboard.incomeTotal(),
+                dashboard.expenses().actual(),
+                dashboard.income().stream()
+                        .map(line -> new CategoryAmount(line.name(), line.actual()))
+                        .toList(),
+                dashboard.categories().stream()
+                        .filter(line -> line.actual().signum() > 0)
+                        .map(line -> new CategoryAmount(line.name(), line.actual()))
+                        .toList());
     }
 
     private YearMonth firstEntryMonth() {

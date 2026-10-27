@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.mirco104.budget.recurring.RecurringInterval;
-import io.github.mirco104.budget.reserve.ReserveCalculator.CategoryAmount;
+import io.github.mirco104.budget.reserve.ReserveResponse.CategoryAmount;
 import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;

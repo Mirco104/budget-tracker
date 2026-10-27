@@ -175,13 +175,32 @@ export interface ForecastMonth {
   entries: ForecastEntry[]
 }
 
+export interface CategoryAmount {
+  name: string
+  amount: number
+}
+
+/** A past month: income, expenses and surplus (income - expenses, may be negative), with the amounts per category. */
+export interface HistoryMonth {
+  month: string
+  income: number
+  expenses: number
+  surplus: number
+  incomeCategories: CategoryAmount[]
+  expenseCategories: CategoryAmount[]
+}
+
 /** Analysis of a month (R14). */
 export interface ReserveData {
   month: string
-  /** Average expenses of the completed months counted; null when averageMonths is 0. */
+  /** Averages of the completed months counted; null when averageMonths is 0. */
+  averageIncome: number | null
   averageExpenses: number | null
+  averageSurplus: number | null
   /** Months in the average: the 12 before the month, fewer if the first entry is more recent. */
   averageMonths: number
+  /** The months of the average, oldest first. */
+  history: HistoryMonth[]
   monthlyReserve: number
   reserveBalance: number
   reserves: ReserveLine[]

@@ -1,17 +1,39 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ForecastMonth, ReserveData } from '../api/types'
+import type { ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
 import { ReservesPage } from './ReservesPage'
 
 const months = ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03',
   '2027-04', '2027-05', '2027-06', '2027-07', '2027-08', '2027-09']
 
 // Fictional values of fixture F1 (spec section 12), shaped like the backend response.
+// January to August with rent and streaming, September additionally with groceries (fixture F1).
+const history: HistoryMonth[] = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07',
+  '2026-08', '2026-09'].map((month) =>
+  month === '2026-09'
+    ? {
+        month,
+        income: 0,
+        expenses: 1914,
+        surplus: -1914,
+        incomeCategories: [],
+        expenseCategories: [
+          { name: 'Wohnen', amount: 900 },
+          { name: 'Lebensmittel', amount: 999 },
+          { name: 'Freizeit', amount: 15 },
+        ],
+      }
+    : { month, income: 0, expenses: 915, surplus: -915, incomeCategories: [], expenseCategories: [] },
+)
+
 const reserves: ReserveData = {
   month: '2026-10',
+  averageIncome: 0,
   averageExpenses: 1026,
+  averageSurplus: -1026,
   averageMonths: 9,
+  history,
   monthlyReserve: 20,
   reserveBalance: 240,
   reserves: [
@@ -34,8 +56,11 @@ const reserves: ReserveData = {
 
 const empty: ReserveData = {
   month: '2026-10',
+  averageIncome: null,
   averageExpenses: null,
+  averageSurplus: null,
   averageMonths: 0,
+  history: [],
   monthlyReserve: 0,
   reserveBalance: 0,
   reserves: [],
@@ -45,6 +70,15 @@ const empty: ReserveData = {
 function renderPage(data: ReserveData) {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(data), { status: 200 }))))
   render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ReservesPage month="2026-10" />
+    </QueryClientProvider>,
+  )
+}
+
+function renderWithContainer(data: ReserveData) {
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(data), { status: 200 }))))
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ReservesPage month="2026-10" />
     </QueryClientProvider>,
@@ -65,6 +99,27 @@ describe('ReservesPage', () => {
     expect(screen.getByText('Es gibt erst seit 9 Monaten Einträge, daher zählen nur diese.')).toBeInTheDocument()
   })
 
+  it('looks back on income, expenses and surplus of the months of the average', async () => {
+    const { container } = renderWithContainer(reserves)
+
+    const table = within(await screen.findByRole('table', { name: 'Rückblick' }))
+    // Header, 9 months, average
+    expect(table.getAllByRole('row')).toHaveLength(11)
+    const september = table.getByRole('row', { name: /September 2026/ })
+    expect(within(september).getByText('1.914,00')).toBeInTheDocument()
+    expect(within(september).getByText('-1.914,00')).toHaveClass('negative')
+    const average = table.getByRole('row', { name: /^Ø/ })
+    expect(within(average).getByText('1.026,00')).toBeInTheDocument()
+    expect(within(average).getByText('-1.026,00')).toHaveClass('negative')
+
+    fireEvent.click(within(september).getByText('September 2026'))
+    expect(within(september).getByText('Lebensmittel: 999,00 €')).toBeVisible()
+    // The look back follows the average tile, before the reserve pot
+    const headings = Array.from(container.querySelectorAll('dt, caption, h3')).map((el) => el.textContent)
+    expect(headings.indexOf('Rückblick')).toBeGreaterThan(headings.findIndex((t) => t?.startsWith('Ø Ausgaben')))
+    expect(headings.indexOf('Rückblick')).toBeLessThan(headings.indexOf('Rücklagen'))
+  })
+
   it('shows the reserve pot with what to put aside and what should be saved by now', async () => {
     renderPage(reserves)
 
@@ -83,7 +138,7 @@ describe('ReservesPage', () => {
   it('shows a forecast of 12 months with single and recurring expenses', async () => {
     renderPage(reserves)
 
-    const table = (await screen.findByRole('columnheader', { name: 'Ausgaben (€)' })).closest('table') as HTMLElement
+    const table = await screen.findByRole('table', { name: 'Vorschau 12 Monate' })
     expect(within(table).getAllByRole('row')).toHaveLength(13)
     const october = within(table).getByRole('row', { name: /Oktober 2026/ })
     expect(within(october).getByText('1.340,00')).toBeInTheDocument()
@@ -99,5 +154,6 @@ describe('ReservesPage', () => {
     expect(screen.getByText(/Noch kein abgeschlossener Monat mit Einträgen/)).toBeInTheDocument()
     expect(screen.getByText(/Keine seltenen Ausgaben in den nächsten 12 Monaten/)).toBeInTheDocument()
     expect(screen.queryByText('Monatlich zurücklegen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Rückblick' })).not.toBeInTheDocument()
   })
 })
