@@ -48,25 +48,11 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$[0].name").value("Wohnen"))
                 .andExpect(jsonPath("$[0].type").doesNotExist())
                 .andExpect(jsonPath("$[0].system").doesNotExist())
-                .andExpect(jsonPath("$[0].group").value("FIXED"))
+                .andExpect(jsonPath("$[0].group").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         List<Integer> sortOrders = JsonPath.read(json, "$[*].sortOrder");
         assertThat(sortOrders).isSorted();
-    }
-
-    @Test
-    void ungroupedCategoriesHaveNoTarget() throws Exception {
-        String json = getCategories(MONTH)
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        List<Object> names = JsonPath.read(json, "$[?(@.group == null)].name");
-        List<Object> amounts = JsonPath.read(json, "$[?(@.group == null)].targetAmount");
-        List<Object> percents = JsonPath.read(json, "$[?(@.group == null)].targetPercent");
-        assertThat(names).hasSize(6);
-        assertThat(amounts).containsOnlyNulls();
-        assertThat(percents).containsOnlyNulls();
     }
 
     // --- PUT /api/categories/{id}/target (US2): success ---
@@ -258,18 +244,16 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
     }
 
-    // --- 409 ---
-
+    // R3: every category can have a target, also one that is typically used for income
     @Test
-    void rejectsTargetForUngroupedCategory() throws Exception {
+    void setsTargetForAnIncomeCategory() throws Exception {
         long id = categoryId("Nebenjob");
 
         putTarget(id, "{\"targetAmount\": 10}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.title").value("Konflikt"))
-                .andExpect(jsonPath("$.detail").value("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden."));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.targetAmount").value(10.00));
 
-        assertThat(categoryTargetRepository.findAll()).isEmpty();
+        assertThat(categoryTargetRepository.findAll()).hasSize(1);
     }
 
     private ResultActions getCategories(String month) throws Exception {

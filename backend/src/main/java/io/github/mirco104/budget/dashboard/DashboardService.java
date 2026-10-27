@@ -41,7 +41,6 @@ public class DashboardService {
                     return new CategoryData(
                             category.getId(),
                             category.getName(),
-                            category.getGroup(),
                             target == null ? null : target.targetAmount(),
                             target == null ? null : target.targetPercent());
                 })
@@ -50,9 +49,10 @@ public class DashboardService {
         Stream<TransactionData> singles = transactionRepository
                 .findByDateBetweenOrderByDateDescIdDesc(month.atDay(1), month.atEndOfMonth()).stream()
                 .map(transaction -> new TransactionData(
-                        transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate()));
+                        transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(), false));
         Stream<TransactionData> occurrences = occurrenceService.occurrencesIn(month).stream()
-                .map(occurrence -> new TransactionData(occurrence.categoryId(), occurrence.amount(), occurrence.date()));
+                .map(occurrence -> new TransactionData(
+                        occurrence.categoryId(), occurrence.amount(), occurrence.date(), true));
         List<TransactionData> transactions = Stream.concat(singles, occurrences).toList();
         return calculator.calculate(categories, transactions, month);
     }

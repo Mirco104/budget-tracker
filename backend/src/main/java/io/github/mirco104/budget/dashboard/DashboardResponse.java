@@ -1,6 +1,5 @@
 package io.github.mirco104.budget.dashboard;
 
-import io.github.mirco104.budget.category.CategoryGroup;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -9,6 +8,7 @@ import java.util.List;
  * difference is the deviation from the target (R5, R6), unplanned is the income without a target (R4).
  * Every ...Share and share is the amount as a share of the income, null without income or amount (R8).
  * categories[].actual is the expense actual I(k), income[].actual is the net N(k) (R2, R9).
+ * expenses.recurring is W, expenses.oneOff is A - W (R10).
  */
 public record DashboardResponse(
         String month,
@@ -20,27 +20,17 @@ public record DashboardResponse(
         BigDecimal surplus,
         String surplusLabel,
         BigDecimal surplusShare,
-        List<GroupLine> groups,
         List<CategoryLine> categories,
         List<IncomeLine> income) {
 
     public record Totals(
             BigDecimal target, BigDecimal actual, BigDecimal difference,
-            BigDecimal targetShare, BigDecimal actualShare, BigDecimal differenceShare) {
+            BigDecimal targetShare, BigDecimal actualShare, BigDecimal differenceShare,
+            BigDecimal recurring, BigDecimal oneOff, BigDecimal recurringShare, BigDecimal oneOffShare) {
     }
 
-    /**
-     * Sums of the expense lines in one group (R10); target counts missing targets as 0.
-     * Only groups with category lines are present; group null sums the ungrouped categories with expenses.
-     */
-    public record GroupLine(
-            CategoryGroup group, BigDecimal target, BigDecimal actual, BigDecimal difference,
-            BigDecimal targetShare, BigDecimal actualShare, BigDecimal differenceShare) {
-    }
-
-    /** group null for an ungrouped category with expenses. */
     public record CategoryLine(
-            long id, String name, CategoryGroup group, BigDecimal target, BigDecimal actual, BigDecimal difference,
+            long id, String name, BigDecimal target, BigDecimal actual, BigDecimal difference,
             BigDecimal targetShare, BigDecimal actualShare, BigDecimal differenceShare) {
     }
 
