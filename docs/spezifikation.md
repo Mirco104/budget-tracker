@@ -1,6 +1,6 @@
 # Spezifikation: Budget-Tracker (Web-App)
 
-Stand: 27.10.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" · Stack laut Stellenanzeige marcapo: Java + Spring Boot (REST) und TypeScript + React · MVP: ca. 8 h Arbeitszeit, fertig bis Di 20.10.2026 · Ausbau ab 23.10.2026 siehe Abschnitt 13 · Reale Nutzung mit mehreren Nutzern ab 27.10.2026 siehe Abschnitte 14 bis 16
+Stand: 27.10.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" · Stack: Java + Spring Boot (REST) und TypeScript + React · MVP: ca. 8 h Arbeitszeit, fertig bis Di 20.10.2026 · Ausbau ab 23.10.2026 siehe Abschnitt 13 · Reale Nutzung mit mehreren Nutzern ab 27.10.2026 siehe Abschnitte 14 bis 16
 
 ## 1. Ziel und Scope
 
@@ -382,7 +382,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | 5 | Frontend: Dashboard und Transaktionen (US5, US3) | 1,5 h | Durchgehender Ablauf |
 | 6 | Frontend: Einstellungen/Soll (US2), Monatsnavigation (US8) | 0,75 h | |
 | 7 | Jahrestransaktionen (US6), Gruppensummen (US7), falls Zeit | 0,75 h | Should-Features |
-| 8 | Tests ergänzen, Review der KI-Ergebnisse, README mit "Learnings und Entscheidungen" und Interview-Stichpunkten | 1,0 h | |
+| 8 | Tests ergänzen, Review der KI-Ergebnisse, README mit "Learnings und Entscheidungen" | 1,0 h | |
 | | **Summe** | **8,25 h** | |
 
 **Stand 23.10.2026:** AP 0 bis 7 erledigt (PR #1 bis #10). AP 8 offen: das README-Kapitel folgt nach dem Ausbau (Abschnitt 13), damit es die neuen Entscheidungen enthält.
@@ -532,7 +532,7 @@ Umsetzung der Entscheidungen 6 bis 17. Jedes Arbeitspaket ist ein eigener Branch
 | 12b | Einfacheres Dashboard (Entscheidung 13, R4, R8 bis R10, US5, US7, US7a): Anteile im `DashboardCalculator`, Budget-Tabelle mit Gruppen, Umschalter € / %, "Nicht verplant" auf der Seite *Planung*, Layout für schmale Bildschirme | Fixture F1 grün |
 | 12c | Navigation (Entscheidung 14, US6): Formular mit "Wiederholen", keine eigene Serienliste, Transaktionen als Karten auf schmalen Bildschirmen, Reiter *Übersicht* · *Transaktionen* · *Planung* | Frontend-Tests grün |
 | 12d | Keine Gruppen (Entscheidung 17, R3, R10, US1, US2, US5, US7): Feld `group` und 409 entfernen, Seed als flache Liste, `DashboardCalculator` ohne Gruppen und mit wiederkehrenden / einmaligen Ausgaben (Tests zuerst), Budget-Tabelle ohne Zwischensummen, Kachel Ausgaben mit "davon wiederkehrend / einmalig" | Fixture F1 grün |
-| 13 | README "Learnings und Entscheidungen" und Interview-Stichpunkte (AP 8) | README |
+| 13 | README "Learnings und Entscheidungen" (AP 8) | README |
 
 **Stand 27.10.2026:** AP 9 bis 12c erledigt. Offen: AP 12d und 13.
 
