@@ -1,8 +1,6 @@
 package io.github.mirco104.budget.dashboard;
 
-import io.github.mirco104.budget.category.CategoryGroup;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
-import io.github.mirco104.budget.dashboard.DashboardResponse.GroupLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.Totals;
 import java.math.BigDecimal;
@@ -13,10 +11,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
- * Dashboard math, rules R1–R11 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Dashboard math, rules R1–R12 from docs/spezifikation.md, section 2. No Spring dependencies.
  * Amounts carry their sign (R11). The net per category is rounded to cents; totals add up the rounded values.
  */
 public class DashboardCalculator {
@@ -24,18 +21,20 @@ public class DashboardCalculator {
     private static final int MONEY_SCALE = 2;
     private static final int RATIO_SCALE = 4;
 
-    /** group null means "ohne Gruppe". */
-    public record CategoryData(
-            long id, String name, CategoryGroup group, BigDecimal targetAmount, BigDecimal targetPercent) {
+    public record CategoryData(long id, String name, BigDecimal targetAmount, BigDecimal targetPercent) {
     }
 
-    /** amount is signed: positive is income, negative is expense (R11). */
-    public record TransactionData(long categoryId, BigDecimal amount, LocalDate date) {
+    /**
+     * amount is signed: positive is income, negative is expense (R11).
+     * recurring is true for an occurrence of a recurring transaction (R12), false for a single transaction.
+     */
+    public record TransactionData(long categoryId, BigDecimal amount, LocalDate date, boolean recurring) {
     }
 
     public DashboardResponse calculate(
             List<CategoryData> categories, List<TransactionData> transactions, YearMonth month) {
         Map<Long, BigDecimal> nets = netsByCategory(transactions, month);
+        Map<Long, BigDecimal> recurringExpenses = recurringExpensesByCategory(transactions, month);
 
         // R2
         BigDecimal incomeTotal = categories.stream()
@@ -43,19 +42,23 @@ public class DashboardCalculator {
                 .filter(net -> net.signum() > 0)
                 .reduce(zero(), BigDecimal::add);
 
-        // R3, R5, R6; R10: categories with a group and a target or expenses, plus ungrouped ones with expenses
+        // R3, R5, R6; R10: every category with a target or expenses, in input order
         List<CategoryLine> categoryLines = new ArrayList<>();
         BigDecimal expensesTarget = zero();
         BigDecimal expensesActual = zero();
+        BigDecimal expensesRecurring = zero();
         for (CategoryData category : categories) {
             BigDecimal actual = expenseOf(netOf(nets, category));
-            BigDecimal target = category.group() == null ? null : target(category, incomeTotal);
+            // R10: W(k) = min(I(k), V(k)), so a refund lowers the one-off part first
+            expensesRecurring = expensesRecurring.add(
+                    actual.min(recurringExpenses.getOrDefault(category.id(), zero())));
+            BigDecimal target = target(category, incomeTotal);
             if (target == null && actual.signum() == 0) {
                 continue;
             }
             BigDecimal difference = target == null ? null : target.subtract(actual);
             categoryLines.add(new CategoryLine(
-                    category.id(), category.name(), category.group(), target, actual, difference,
+                    category.id(), category.name(), target, actual, difference,
                     share(target, incomeTotal), share(actual, incomeTotal), share(difference, incomeTotal)));
             if (target != null) {
                 expensesTarget = expensesTarget.add(target);
@@ -63,6 +66,7 @@ public class DashboardCalculator {
             expensesActual = expensesActual.add(actual);
         }
         BigDecimal expensesDifference = expensesTarget.subtract(expensesActual);
+        BigDecimal expensesOneOff = expensesActual.subtract(expensesRecurring);
 
         // R4
         BigDecimal unplanned = incomeTotal.subtract(expensesTarget);
@@ -87,45 +91,16 @@ public class DashboardCalculator {
                 incomeTotal,
                 share(incomeTotal, incomeTotal),
                 new Totals(expensesTarget, expensesActual, expensesDifference, share(expensesTarget, incomeTotal),
-                        share(expensesActual, incomeTotal), share(expensesDifference, incomeTotal)),
+                        share(expensesActual, incomeTotal), share(expensesDifference, incomeTotal),
+                        expensesRecurring, expensesOneOff, share(expensesRecurring, incomeTotal),
+                        share(expensesOneOff, incomeTotal)),
                 unplanned,
                 unplannedLabel,
                 surplus,
                 surplusLabel,
                 share(surplus, incomeTotal),
-                groupLines(categoryLines, incomeTotal),
                 categoryLines,
                 incomeLines);
-    }
-
-    // R10: every group with category lines in enum order, summed from them; a missing target counts as 0 (like R6).
-    // Expenses of ungrouped categories get a line with group null, so the group totals add up to the expenses totals.
-    private static List<GroupLine> groupLines(List<CategoryLine> categoryLines, BigDecimal incomeTotal) {
-        List<GroupLine> groupLines = new ArrayList<>();
-        for (CategoryGroup group : CategoryGroup.values()) {
-            groupLine(group, categoryLines, incomeTotal).ifPresent(groupLines::add);
-        }
-        groupLine(null, categoryLines, incomeTotal).ifPresent(groupLines::add);
-        return groupLines;
-    }
-
-    private static Optional<GroupLine> groupLine(
-            CategoryGroup group, List<CategoryLine> categoryLines, BigDecimal incomeTotal) {
-        List<CategoryLine> lines = categoryLines.stream().filter(line -> line.group() == group).toList();
-        if (lines.isEmpty()) {
-            return Optional.empty();
-        }
-        BigDecimal target = zero();
-        BigDecimal actual = zero();
-        for (CategoryLine line : lines) {
-            if (line.target() != null) {
-                target = target.add(line.target());
-            }
-            actual = actual.add(line.actual());
-        }
-        BigDecimal difference = target.subtract(actual);
-        return Optional.of(new GroupLine(group, target, actual, difference, share(target, incomeTotal),
-                share(actual, incomeTotal), share(difference, incomeTotal)));
     }
 
     // R8: share of the income, empty without an amount or without income
@@ -147,6 +122,21 @@ public class DashboardCalculator {
         Map<Long, BigDecimal> nets = new HashMap<>();
         sums.forEach((categoryId, sum) -> nets.put(categoryId, money(sum)));
         return nets;
+    }
+
+    // R10: V(k) = sum of |amount| of the occurrences with a negative amount in the month, per category
+    private static Map<Long, BigDecimal> recurringExpensesByCategory(
+            List<TransactionData> transactions, YearMonth month) {
+        Map<Long, BigDecimal> sums = new HashMap<>();
+        for (TransactionData transaction : transactions) {
+            if (transaction.recurring() && transaction.amount().signum() < 0
+                    && YearMonth.from(transaction.date()).equals(month)) {
+                sums.merge(transaction.categoryId(), transaction.amount().negate(), BigDecimal::add);
+            }
+        }
+        Map<Long, BigDecimal> expenses = new HashMap<>();
+        sums.forEach((categoryId, sum) -> expenses.put(categoryId, money(sum)));
+        return expenses;
     }
 
     // R2: I(k) = -N(k) for a negative net, otherwise 0

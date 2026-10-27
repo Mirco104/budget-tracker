@@ -1,9 +1,7 @@
 import { useCategories, useUpdateTarget } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
-import type { CategoryGroup } from '../api/types'
 import { TargetRow } from '../components/TargetRow'
 import { formatEuro, formatMonth } from '../format'
-import { GROUP_LABELS, UNGROUPED_LABEL } from '../labels'
 
 /** Income of the month, planned targets and the unplanned rest (R4), taken from the dashboard. */
 function PlanningSummary({ month }: { month: string }) {
@@ -48,12 +46,6 @@ export function PlanningPage({ month }: { month: string }) {
     return <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>
   }
 
-  const ungrouped = categories.data.filter((c) => c.group === null)
-  const groups = (Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
-    group,
-    items: categories.data.filter((c) => c.group === group),
-  }))
-
   return (
     <section>
       <h2>Planung</h2>
@@ -67,29 +59,15 @@ export function PlanningPage({ month }: { month: string }) {
       </p>
       <PlanningSummary month={month} />
 
-      {groups.map(({ group, items }) => (
-        <section key={group}>
-          <h3>{GROUP_LABELS[group]}</h3>
-          {items.map((category) => (
-            <TargetRow
-              key={`${category.id}-${month}`}
-              category={category}
-              month={month}
-              onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
-            />
-          ))}
-        </section>
+      <h3>Kategorien</h3>
+      {categories.data.map((category) => (
+        <TargetRow
+          key={`${category.id}-${month}`}
+          category={category}
+          month={month}
+          onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
+        />
       ))}
-
-      <section>
-        <h3>{UNGROUPED_LABEL}</h3>
-        <p className="hint">Typisch für Einnahmen; ohne Soll.</p>
-        <ul>
-          {ungrouped.map((category) => (
-            <li key={category.id}>{category.name}</li>
-          ))}
-        </ul>
-      </section>
     </section>
   )
 }

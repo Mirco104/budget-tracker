@@ -6,9 +6,9 @@ import { PlanningPage } from './PlanningPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09' },
-  { id: 7, name: 'Lebensmittel', group: 'FLEXIBLE', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11' },
-  { id: 20, name: 'Gehalt/Lohn (netto)', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
+  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09' },
+  { id: 7, name: 'Lebensmittel', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11' },
+  { id: 20, name: 'Gehalt/Lohn (netto)', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
 // Only the fields the planning summary uses.
@@ -42,16 +42,20 @@ function putCalls(fetchMock: ReturnType<typeof renderPage>) {
 }
 
 describe('PlanningPage', () => {
-  it('shows categories by group with prefilled targets', async () => {
+  it('shows all categories as one list with prefilled targets', async () => {
     renderPage()
 
     const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    expect(screen.getByRole('heading', { name: 'Fixkosten' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Ohne Gruppe' })).toBeInTheDocument()
+    expect(screen.getAllByRole('form').map((form) => form.getAttribute('aria-label'))).toEqual([
+      'Wohnen',
+      'Lebensmittel',
+      'Gehalt/Lohn (netto)',
+    ])
+    expect(screen.queryByRole('heading', { name: 'Fixkosten' })).not.toBeInTheDocument()
     expect(within(wohnen).getByLabelText(/Soll \(€\)/)).toHaveValue('800,00')
     expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).getByLabelText(/Soll \(%\)/)).toHaveValue('15,00')
-
-    expect(screen.getByText('Gehalt/Lohn (netto)')).toBeInTheDocument()
+    // R3: every category can have a target, also an income category
+    expect(within(screen.getByRole('form', { name: 'Gehalt/Lohn (netto)' })).getByLabelText(/Soll \(€\)/)).toHaveValue('')
   })
 
   it('shows income, planned targets and the unplanned rest of the month', async () => {

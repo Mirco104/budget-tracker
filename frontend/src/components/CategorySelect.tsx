@@ -1,5 +1,4 @@
-import type { Category, CategoryGroup } from '../api/types'
-import { GROUP_LABELS, UNGROUPED_LABEL } from '../labels'
+import type { Category } from '../api/types'
 
 interface Props {
   categories: Category[]
@@ -9,29 +8,17 @@ interface Props {
   error?: string
 }
 
-/** Category dropdown, grouped like the planning page. */
+/** Category dropdown, in the order of the categories (sortOrder). */
 export function CategorySelect({ categories, value, onChange, error }: Props) {
-  const groups = [
-    ...(Object.keys(GROUP_LABELS) as CategoryGroup[]).map((group) => ({
-      label: GROUP_LABELS[group],
-      items: categories.filter((c) => c.group === group),
-    })),
-    { label: UNGROUPED_LABEL, items: categories.filter((c) => c.group === null) },
-  ].filter(({ items }) => items.length > 0)
-
   return (
     <label>
       Kategorie
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={error ? true : undefined}>
         <option value="">Bitte wählen</option>
-        {groups.map(({ label, items }) => (
-          <optgroup key={label} label={label}>
-            {items.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </optgroup>
+        {categories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
         ))}
       </select>
       {error && <span className="error">{error}</span>}

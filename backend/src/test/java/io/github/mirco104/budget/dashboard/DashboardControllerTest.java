@@ -62,11 +62,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
                 .andExpect(jsonPath("$.surplusShare").value(0.625))
-                .andExpect(jsonPath("$.groups[*].group", contains("FIXED")))
-                .andExpect(jsonPath("$.groups[0].target").value(800.00))
-                .andExpect(jsonPath("$.groups[0].actual").value(750.00))
-                .andExpect(jsonPath("$.groups[0].difference").value(50.00))
-                .andExpect(jsonPath("$.groups[0].actualShare").value(0.375))
+                .andExpect(jsonPath("$.groups").doesNotExist())
+                .andExpect(jsonPath("$.expenses.recurring").value(0.00))
+                .andExpect(jsonPath("$.expenses.oneOff").value(750.00))
+                .andExpect(jsonPath("$.expenses.oneOffShare").value(0.375))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(1.0)));
     }
 
@@ -84,7 +83,7 @@ class DashboardControllerTest {
     }
 
     @Test
-    void refundLowersActualOfItsCategoryAndUngroupedExpenseHasItsOwnGroupLine() throws Exception {
+    void refundLowersActualOfItsCategoryAndExpenseInIncomeCategoryIsListed() throws Exception {
         postTransaction("2000", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
         postTransaction("-100", "Einkauf", "2026-10-02", categoryId("Lebensmittel"));
         postTransaction("30", "Erstattung", "2026-10-03", categoryId("Lebensmittel"));
@@ -95,8 +94,6 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(2000.00))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Lebensmittel')].actual", contains(70.00)))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Nebenjob')].actual", contains(20.00)))
-                .andExpect(jsonPath("$.groups[1].group").doesNotExist())
-                .andExpect(jsonPath("$.groups[1].actual").value(20.00))
                 .andExpect(jsonPath("$.expenses.actual").value(90.00))
                 .andExpect(jsonPath("$.income[*].name", contains("Gehalt/Lohn (netto)")));
     }
@@ -110,7 +107,8 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.surplus").value(0.00))
                 .andExpect(jsonPath("$.surplusShare").doesNotExist())
                 .andExpect(jsonPath("$.categories", hasSize(0)))
-                .andExpect(jsonPath("$.groups", hasSize(0)))
+                .andExpect(jsonPath("$.expenses.recurring").value(0.00))
+                .andExpect(jsonPath("$.expenses.oneOff").value(0.00))
                 .andExpect(jsonPath("$.income", hasSize(0)));
     }
 
@@ -179,13 +177,10 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.surplusShare").value(0.1855))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(0.9375)))
                 .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0625)))
-                .andExpect(jsonPath("$.groups[0].target").value(1380.00))
-                .andExpect(jsonPath("$.groups[0].actual").value(1525.99))
-                .andExpect(jsonPath("$.groups[1].target").value(560.00))
-                .andExpect(jsonPath("$.groups[1].actual").value(440.50))
-                .andExpect(jsonPath("$.groups[2].target").value(640.00))
-                .andExpect(jsonPath("$.groups[2].actual").value(640.00))
-                .andExpect(jsonPath("$.groups", hasSize(3)));
+                .andExpect(jsonPath("$.expenses.recurring").value(1140.00))
+                .andExpect(jsonPath("$.expenses.oneOff").value(1466.49))
+                .andExpect(jsonPath("$.expenses.recurringShare").value(0.3563))
+                .andExpect(jsonPath("$.expenses.oneOffShare").value(0.4583));
 
         // An occurrence counts only in its own month (R1): November has rent and streaming, no insurance
         mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))

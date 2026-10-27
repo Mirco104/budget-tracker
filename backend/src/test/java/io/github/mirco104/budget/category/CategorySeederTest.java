@@ -27,16 +27,17 @@ class CategorySeederTest {
     }
 
     @Test
-    void seedsUniqueNamesIncludingRenamedIncomeCategories() {
-        List<String> names = categoryRepository.findAll().stream().map(Category::getName).toList();
+    void seedsUniqueNamesAsOneListInSpecOrder() {
+        List<String> names = categoryRepository.findAllByOrderBySortOrderAsc().stream()
+                .map(Category::getName)
+                .toList();
 
-        assertThat(names).doesNotHaveDuplicates()
-                .contains("Selbstständigkeit", "Einnahmen Selbstständigkeit", "Sonstige Einnahmen");
-        assertThat(categoryRepository.findAll())
-                .filteredOn(c -> c.getGroup() == null)
-                .extracting(Category::getName)
-                .containsExactlyInAnyOrder("Gehalt/Lohn (netto)", "Nebenjob", "Einnahmen Selbstständigkeit",
-                        "Kapitalerträge", "Staatliche Leistungen", "Sonstige Einnahmen");
+        assertThat(names).doesNotHaveDuplicates().containsExactly(
+                "Wohnen", "Nebenkosten", "Versicherungen", "Mobilität", "Kredite", "Spenden",
+                "Lebensmittel", "Freizeit", "Urlaub", "Persönlicher Bedarf", "Geschenke", "Gesundheit",
+                "Investitionen", "Selbstständigkeit",
+                "Gehalt/Lohn (netto)", "Nebenjob", "Einnahmen Selbstständigkeit",
+                "Kapitalerträge", "Staatliche Leistungen", "Sonstige Einnahmen");
     }
 
     @Test
