@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { useReserves } from '../api/reserves'
-import type { CategoryAmount, ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
-import { formatAmount, formatDate, formatEuro, formatMonth } from '../format'
+import type { ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
+import { formatAmount, formatDate, formatEuro, formatMonth, formatMonthShort } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 
 function averagePeriod(months: number): string {
@@ -42,43 +43,55 @@ function signClass(value: number | null): string | undefined {
   return value < 0 ? 'negative' : 'positive'
 }
 
-function CategoryList({ title, items }: { title: string; items: CategoryAmount[] }) {
-  if (items.length === 0) {
-    return null
-  }
+// The short form replaces the long one on narrow screens (CSS), so four columns fit into 360 px
+function MonthLabel({ month }: { month: string }) {
   return (
     <>
-      <p className="history-heading">{title}</p>
-      <ul className="forecast-entries">
-        {items.map((item) => (
-          <li key={item.name}>
-            {item.name}: {formatEuro(item.amount)}
-          </li>
-        ))}
-      </ul>
+      <span className="month-long">{formatMonth(month)}</span>
+      <span className="month-short">{formatMonthShort(month)}</span>
     </>
   )
 }
 
-function HistoryRow({ month }: { month: HistoryMonth }) {
+// Expanded like the groups in the dashboard: one row per category, its amount in the income or expense column
+function HistoryRows({ month }: { month: HistoryMonth }) {
+  const [open, setOpen] = useState(false)
   const hasCategories = month.incomeCategories.length > 0 || month.expenseCategories.length > 0
   return (
-    <tr>
-      <td>
-        {hasCategories ? (
-          <details>
-            <summary>{formatMonth(month.month)}</summary>
-            <CategoryList title="Einnahmen" items={month.incomeCategories} />
-            <CategoryList title="Ausgaben" items={month.expenseCategories} />
-          </details>
-        ) : (
-          formatMonth(month.month)
-        )}
-      </td>
-      <td className="number">{formatAmount(month.income)}</td>
-      <td className="number">{formatAmount(month.expenses)}</td>
-      <td className={`number ${signClass(month.surplus) ?? ''}`}>{formatAmount(month.surplus)}</td>
-    </tr>
+    <>
+      <tr className="history-month">
+        <th scope="row">
+          {hasCategories ? (
+            <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+              <span aria-hidden="true">{open ? '▾' : '▸'}</span> <MonthLabel month={month.month} />
+            </button>
+          ) : (
+            <MonthLabel month={month.month} />
+          )}
+        </th>
+        <td className="number">{formatAmount(month.income)}</td>
+        <td className="number">{formatAmount(month.expenses)}</td>
+        <td className={`number ${signClass(month.surplus) ?? ''}`}>{formatAmount(month.surplus)}</td>
+      </tr>
+      {open &&
+        month.incomeCategories.map((line) => (
+          <tr key={`income-${line.name}`} className="history-category">
+            <td>{line.name}</td>
+            <td className="number">{formatAmount(line.amount)}</td>
+            <td />
+            <td />
+          </tr>
+        ))}
+      {open &&
+        month.expenseCategories.map((line) => (
+          <tr key={`expense-${line.name}`} className="history-category">
+            <td>{line.name}</td>
+            <td />
+            <td className="number">{formatAmount(line.amount)}</td>
+            <td />
+          </tr>
+        ))}
+    </>
   )
 }
 
@@ -100,7 +113,7 @@ function LookBack({ data }: { data: ReserveData }) {
       </thead>
       <tbody>
         {data.history.map((m) => (
-          <HistoryRow key={m.month} month={m} />
+          <HistoryRows key={m.month} month={m} />
         ))}
       </tbody>
       <tfoot>

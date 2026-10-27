@@ -4,6 +4,7 @@ import {
   formatDate,
   formatEuro,
   formatMonth,
+  formatMonthShort,
   formatPercent,
   formatShare,
   parseAmountInput,
@@ -55,6 +56,13 @@ describe('formatting', () => {
     expect(formatMonth('2026-11')).toBe('November 2026')
     expect(formatMonth('2027-03')).toBe('März 2027')
   })
+
+describe('formatMonthShort', () => {
+  it('formats a month short for narrow columns', () => {
+    expect(formatMonthShort('2026-09')).toBe('Sept. 2026')
+    expect(formatMonthShort('2027-03')).toBe('März 2027')
+  })
+})
 })
 
 describe('shiftMonth', () => {

@@ -112,8 +112,9 @@ describe('ReservesPage', () => {
     expect(within(average).getByText('1.026,00')).toBeInTheDocument()
     expect(within(average).getByText('-1.026,00')).toHaveClass('negative')
 
-    fireEvent.click(within(september).getByText('September 2026'))
-    expect(within(september).getByText('Lebensmittel: 999,00 €')).toBeVisible()
+    expect(table.queryByRole('row', { name: /Lebensmittel/ })).not.toBeInTheDocument()
+    fireEvent.click(within(september).getByRole('button', { name: /September 2026/ }))
+    expect(within(table.getByRole('row', { name: /Lebensmittel/ })).getByText('999,00')).toBeInTheDocument()
     // The look back follows the average tile, before the reserve pot
     const headings = Array.from(container.querySelectorAll('dt, caption, h3')).map((el) => el.textContent)
     expect(headings.indexOf('Rückblick')).toBeGreaterThan(headings.findIndex((t) => t?.startsWith('Ø Ausgaben')))
