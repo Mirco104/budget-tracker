@@ -60,6 +60,15 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.month").value("2026-10"))
                 .andExpect(jsonPath("$.averageExpenses").value(1026.00))
                 .andExpect(jsonPath("$.averageMonths").value(9))
+                .andExpect(jsonPath("$.averageIncome").value(0.00))
+                .andExpect(jsonPath("$.averageSurplus").value(-1026.00))
+                .andExpect(jsonPath("$.history", hasSize(9)))
+                .andExpect(jsonPath("$.history[0].month").value("2026-01"))
+                .andExpect(jsonPath("$.history[8].month").value("2026-09"))
+                .andExpect(jsonPath("$.history[8].expenses").value(1914.00))
+                .andExpect(jsonPath("$.history[8].surplus").value(-1914.00))
+                .andExpect(jsonPath("$.history[8].expenseCategories[?(@.name == 'Lebensmittel')].amount",
+                        contains(999.00)))
                 .andExpect(jsonPath("$.monthlyReserve").value(20.00))
                 .andExpect(jsonPath("$.reserveBalance").value(240.00))
                 .andExpect(jsonPath("$.reserves[*].description", contains("Haftpflicht")))
@@ -102,11 +111,32 @@ class ReserveControllerTest {
     }
 
     @Test
+    void lookBackShowsIncomeExpensesAndSurplusOfPastMonths() throws Exception {
+        postTransaction("2500.00", "Gehalt", "2026-09-01", categoryId("Gehalt/Lohn (netto)"));
+        postTransaction("-800.00", "Miete", "2026-09-03", categoryId("Wohnen"));
+        postTransaction("-50.00", "Einkauf", "2026-10-02", categoryId("Lebensmittel"));
+
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.averageMonths").value(1))
+                .andExpect(jsonPath("$.history", hasSize(1)))
+                .andExpect(jsonPath("$.history[0].month").value("2026-09"))
+                .andExpect(jsonPath("$.history[0].income").value(2500.00))
+                .andExpect(jsonPath("$.history[0].expenses").value(800.00))
+                .andExpect(jsonPath("$.history[0].surplus").value(1700.00))
+                .andExpect(jsonPath("$.history[0].incomeCategories[0].name").value("Gehalt/Lohn (netto)"))
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].name").value("Wohnen"))
+                .andExpect(jsonPath("$.averageIncome").value(2500.00))
+                .andExpect(jsonPath("$.averageSurplus").value(1700.00));
+    }
+
+    @Test
     void showsEmptyMonthWithoutErrors() throws Exception {
         mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.averageExpenses").value(nullValue()))
                 .andExpect(jsonPath("$.averageMonths").value(0))
+                .andExpect(jsonPath("$.history", hasSize(0)))
                 .andExpect(jsonPath("$.monthlyReserve").value(0.00))
                 .andExpect(jsonPath("$.reserveBalance").value(0.00))
                 .andExpect(jsonPath("$.reserves", hasSize(0)))
