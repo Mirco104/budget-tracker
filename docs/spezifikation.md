@@ -24,7 +24,7 @@ Stand: 27.10.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" · 
 - Ausgaben teilen wie in Splitwise, zuerst ohne, später mit Verknüpfung zu anderen Nutzern (R16 bis R18, US17 bis US19)
 - Investment: Sparplan und Prognose, Einmalzahlungen, Freistellungsauftrag, Depot mit Positionen (R19 bis R22, US20 bis US23)
 
-**Bewusst draußen:**
+**Bewusst vorerst draußen:**
 - Mehrere Währungen, Anbindung an Banken und Import von Kontoauszügen, eigene Mobile-App (langfristig geplant; das Web-Layout ist schon jetzt für schmale Bildschirme ausgelegt)
 
 ## 2. Fachliche Regeln (aus den Formeln des Sheets abgeleitet)
