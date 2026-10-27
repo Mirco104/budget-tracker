@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useDashboard } from '../api/dashboard'
-import type { CategoryLine, GroupLine } from '../api/types'
+import type { CategoryLine } from '../api/types'
 import { formatAmount, formatEuro, formatPercent, formatShare } from '../format'
-import { GROUP_LABELS, UNGROUPED_LABEL } from '../labels'
 
 type Unit = 'euro' | 'percent'
 
@@ -10,10 +9,6 @@ type Line = Pick<CategoryLine, 'target' | 'actual' | 'difference' | 'targetShare
 
 function signClass(value: number | null): string | undefined {
   return value !== null && value < 0 ? 'negative' : undefined
-}
-
-function groupKey(line: GroupLine): string {
-  return line.group ?? 'UNGROUPED'
 }
 
 /** Soll, Ist and Abweichung cells; the Soll column is hidden on narrow screens. */
@@ -35,7 +30,6 @@ function AmountCells({ line, unit }: { line: Line; unit: Unit }) {
 export function DashboardPage({ month }: { month: string }) {
   const { data, isPending, error } = useDashboard(month)
   const [unit, setUnit] = useState<Unit>('euro')
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   if (isPending) {
     return <p>Lade Dashboard …</p>
@@ -47,18 +41,6 @@ export function DashboardPage({ month }: { month: string }) {
   const tile = (amount: number, share: number | null) =>
     unit === 'euro' ? formatEuro(amount) : formatPercent(share)
   const unitLabel = unit === 'euro' ? '€' : '%'
-
-  function toggleGroup(key: string) {
-    setCollapsed((current) => {
-      const next = new Set(current)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
 
   return (
     <section>
@@ -82,6 +64,13 @@ export function DashboardPage({ month }: { month: string }) {
         <div>
           <dt>Ausgaben</dt>
           <dd>{tile(data.expenses.actual, data.expenses.actualShare)}</dd>
+          {/* R10: recurring transactions are the fixed costs, single transactions the rest */}
+          <dd className="breakdown">
+            davon wiederkehrend <span>{tile(data.expenses.recurring, data.expenses.recurringShare)}</span>
+          </dd>
+          <dd className="breakdown">
+            davon einmalig <span>{tile(data.expenses.oneOff, data.expenses.oneOffShare)}</span>
+          </dd>
         </div>
         <div>
           <dt>{data.surplusLabel}</dt>
@@ -102,32 +91,14 @@ export function DashboardPage({ month }: { month: string }) {
               <th className="number">Abweichung ({unitLabel})</th>
             </tr>
           </thead>
-          {data.groups.map((group) => {
-            const key = groupKey(group)
-            const label = group.group ? GROUP_LABELS[group.group] : UNGROUPED_LABEL
-            const open = !collapsed.has(key)
-            return (
-              <tbody key={key}>
-                <tr className="group-row">
-                  <th scope="rowgroup">
-                    <button type="button" aria-expanded={open} onClick={() => toggleGroup(key)}>
-                      <span aria-hidden="true">{open ? '▾' : '▸'}</span> {label}
-                    </button>
-                  </th>
-                  <AmountCells line={group} unit={unit} />
-                </tr>
-                {open &&
-                  data.categories
-                    .filter((line) => line.group === group.group)
-                    .map((line) => (
-                      <tr key={line.id} className="category-row">
-                        <td>{line.name}</td>
-                        <AmountCells line={line} unit={unit} />
-                      </tr>
-                    ))}
-              </tbody>
-            )
-          })}
+          <tbody>
+            {data.categories.map((line) => (
+              <tr key={line.id}>
+                <td>{line.name}</td>
+                <AmountCells line={line} unit={unit} />
+              </tr>
+            ))}
+          </tbody>
           <tfoot>
             <tr>
               <th scope="row">Gesamt</th>

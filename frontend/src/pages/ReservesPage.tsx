@@ -95,7 +95,7 @@ function MonthLabel({ month }: { month: string }) {
   )
 }
 
-// Expanded like the groups in the dashboard: one row per category, its amount in the income or expense column
+// Expanded: one row per category, its amount in the income or expense column
 function HistoryRows({ month, unit }: { month: HistoryMonth; unit: Unit }) {
   const [open, setOpen] = useState(false)
   const hasCategories = month.incomeCategories.length > 0 || month.expenseCategories.length > 0

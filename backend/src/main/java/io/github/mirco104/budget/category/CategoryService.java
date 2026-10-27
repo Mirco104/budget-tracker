@@ -1,7 +1,6 @@
 package io.github.mirco104.budget.category;
 
 import io.github.mirco104.budget.category.TargetResolver.TargetEntry;
-import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import java.math.BigDecimal;
@@ -45,10 +44,6 @@ public class CategoryService {
     public CategoryResponse updateTarget(long id, YearMonth month, UpdateTargetRequest request) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Kategorie " + id + " wurde nicht gefunden."));
-
-        if (category.getGroup() == null) {
-            throw new ConflictException("Für Kategorien ohne Gruppe kann kein Soll festgelegt werden.");
-        }
 
         CategoryTarget target = categoryTargetRepository.findByCategoryIdAndValidFrom(id, month.atDay(1))
                 .orElseGet(() -> new CategoryTarget(category, month));

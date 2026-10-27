@@ -535,7 +535,7 @@ Umsetzung der Entscheidungen 6 bis 17. Jedes Arbeitspaket ist ein eigener Branch
 | 12d | Keine Gruppen (Entscheidung 17, R3, R10, US1, US2, US5, US7): Feld `group` und 409 entfernen, Seed als flache Liste, `DashboardCalculator` ohne Gruppen und mit wiederkehrenden / einmaligen Ausgaben (Tests zuerst), Budget-Tabelle ohne Zwischensummen, Kachel Ausgaben mit "davon wiederkehrend / einmalig" | Fixture F1 grün |
 | 13 | README "Learnings und Entscheidungen" (AP 8) | README |
 
-**Stand 27.10.2026:** AP 9 bis 12c erledigt. Offen: AP 12d und 13.
+**Stand 27.10.2026:** AP 9 bis 12d erledigt. Offen: AP 13.
 
 Getrennt davon und ohne fachliche Änderung: Upgrade auf Spring Boot 4.
 

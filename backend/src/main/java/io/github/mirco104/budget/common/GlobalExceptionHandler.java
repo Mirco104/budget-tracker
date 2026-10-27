@@ -32,11 +32,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Nicht gefunden", ex.getMessage());
     }
 
-    @ExceptionHandler(ConflictException.class)
-    public ProblemDetail handleConflict(ConflictException ex) {
-        return problem(HttpStatus.CONFLICT, "Konflikt", ex.getMessage());
-    }
-
     @ExceptionHandler(InvalidFieldException.class)
     public ProblemDetail handleInvalidField(InvalidFieldException ex) {
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, BAD_REQUEST_TITLE, "Die Eingaben sind ungültig.");
