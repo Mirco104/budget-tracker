@@ -5,7 +5,7 @@ import io.github.mirco104.budget.dashboard.DashboardService;
 import io.github.mirco104.budget.recurring.OccurrenceService;
 import io.github.mirco104.budget.recurring.RecurringTransaction;
 import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
-import io.github.mirco104.budget.reserve.ReserveResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.ReserveCalculator.CategoryData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;
@@ -80,11 +80,11 @@ public class ReserveService {
                 dashboard.incomeTotal(),
                 dashboard.expenses().actual(),
                 dashboard.income().stream()
-                        .map(line -> new CategoryAmount(line.name(), line.actual()))
+                        .map(line -> new CategoryData(line.name(), line.actual()))
                         .toList(),
                 dashboard.categories().stream()
                         .filter(line -> line.actual().signum() > 0)
-                        .map(line -> new CategoryAmount(line.name(), line.actual()))
+                        .map(line -> new CategoryData(line.name(), line.actual()))
                         .toList());
     }
 
