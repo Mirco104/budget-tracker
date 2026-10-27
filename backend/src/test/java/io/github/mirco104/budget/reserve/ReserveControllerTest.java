@@ -135,6 +135,7 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.totalIncome").value(2500.00))
                 .andExpect(jsonPath("$.totalExpenses").value(800.00))
                 .andExpect(jsonPath("$.totalSurplus").value(1700.00))
+                .andExpect(jsonPath("$.incomeShare").value(1.0))
                 .andExpect(jsonPath("$.expensesShare").value(0.32))
                 .andExpect(jsonPath("$.surplusShare").value(0.68));
     }

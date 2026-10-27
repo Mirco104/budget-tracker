@@ -9,8 +9,9 @@ import java.util.List;
 /**
  * Analysis for one month (R14, spec section 5). averageIncome, averageExpenses and averageSurplus average the
  * completed months counted (averageMonths, 0 to 12), null without such a month; history lists these months.
- * totalIncome, totalExpenses and totalSurplus sum them, also null without such a month; expensesShare and
- * surplusShare are the shares of the totals (and so of the averages) in totalIncome, null when it is 0.
+ * totalIncome, totalExpenses and totalSurplus sum them, also null without such a month; incomeShare,
+ * expensesShare and surplusShare are the shares of the totals (and so of the averages) in totalIncome, null when
+ * it is 0.
  * monthlyReserve and reserveBalance sum the reserve pot. forecast has exactly 12 months (the month and the
  * following 11). Amounts in reserves and forecast are costs, so positive.
  */
@@ -24,6 +25,7 @@ public record ReserveResponse(
         BigDecimal totalIncome,
         BigDecimal totalExpenses,
         BigDecimal totalSurplus,
+        BigDecimal incomeShare,
         BigDecimal expensesShare,
         BigDecimal surplusShare,
         BigDecimal monthlyReserve,

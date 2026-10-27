@@ -227,6 +227,7 @@ class ReserveCalculatorTest {
         assertThat(response.totalExpenses()).isEqualByComparingTo("1500.00");
         assertThat(response.totalSurplus()).isEqualByComparingTo("1500.00");
         assertThat(response.totalExpenses().scale()).isEqualTo(2);
+        assertThat(response.incomeShare()).isEqualByComparingTo("1");
         assertThat(response.expensesShare()).isEqualByComparingTo("0.5000");
         assertThat(response.surplusShare()).isEqualByComparingTo("0.5000");
         assertThat(response.history().get(1).expensesShare()).isNull();
@@ -238,11 +239,13 @@ class ReserveCalculatorTest {
         assertThat(empty.totalIncome()).isNull();
         assertThat(empty.totalExpenses()).isNull();
         assertThat(empty.totalSurplus()).isNull();
+        assertThat(empty.incomeShare()).isNull();
         assertThat(empty.expensesShare()).isNull();
         assertThat(empty.surplusShare()).isNull();
 
         ReserveResponse withoutIncome = onlyAverage(month("2026-09"), expenses("2026-09", "100.00"));
         assertThat(withoutIncome.totalExpenses()).isEqualByComparingTo("100.00");
+        assertThat(withoutIncome.incomeShare()).isNull();
         assertThat(withoutIncome.expensesShare()).isNull();
         assertThat(withoutIncome.surplusShare()).isNull();
     }

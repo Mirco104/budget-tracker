@@ -112,7 +112,8 @@ public class ReserveCalculator {
                 .mapToObj(i -> forecastMonth(expenseSeries, singles, month.plusMonths(i)))
                 .toList();
         return new ReserveResponse(month.toString(), averageIncome, averageExpenses, averageSurplus, averageMonths,
-                history, totalIncome, totalExpenses, totalSurplus, share(totalExpenses, totalIncome),
+                history, totalIncome, totalExpenses, totalSurplus, share(totalIncome, totalIncome),
+                share(totalExpenses, totalIncome),
                 share(totalSurplus, totalIncome), money(monthlyReserve), money(reserveBalance), reserves, forecast);
     }
 
