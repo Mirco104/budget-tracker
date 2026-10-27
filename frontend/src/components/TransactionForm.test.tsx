@@ -1,12 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Category } from '../api/types'
 import { TransactionForm, type RepeatOption, type TransactionFormValues } from './TransactionForm'
 
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', group: 'FIXED', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null },
-  { id: 20, name: 'Gehalt', group: null, sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
+  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null },
+  { id: 20, name: 'Gehalt', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
 ]
 
 function renderForm(
@@ -195,11 +195,16 @@ describe('TransactionForm', () => {
     expect(screen.getByLabelText(/^Datum \(erste Abbuchung\)/)).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('groups the categories like the planning page', () => {
+  it('lists the categories without groups', () => {
     renderForm()
 
-    expect(screen.getByRole('group', { name: 'Fixkosten' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Ohne Gruppe' })).toBeInTheDocument()
+    const select = screen.getByLabelText('Kategorie')
+    expect(within(select).queryByRole('group')).not.toBeInTheDocument()
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Bitte wählen',
+      'Wohnen',
+      'Gehalt',
+    ])
   })
 
   it('shows field errors returned by the server', async () => {

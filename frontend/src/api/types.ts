@@ -1,12 +1,8 @@
 // Mirrors of the backend DTOs (Java records). Money and ratios arrive as JSON numbers.
 
-export type CategoryGroup = 'FIXED' | 'FLEXIBLE' | 'SAVINGS'
-
 export interface Category {
   id: number
   name: string
-  /** null means "ohne Gruppe" (typically income). */
-  group: CategoryGroup | null
   sortOrder: number
   targetAmount: number | null
   targetPercent: number | null
@@ -80,29 +76,24 @@ interface Shares {
   differenceShare: number | null
 }
 
-/** difference is the deviation from the target (target - actual). */
+/**
+ * difference is the deviation from the target (target - actual).
+ * recurring is the part of the expenses from recurring transactions, oneOff the rest; together they are actual.
+ */
 export interface Totals extends Shares {
   target: number
   actual: number
   difference: number
+  recurring: number
+  oneOff: number
+  recurringShare: number | null
+  oneOffShare: number | null
 }
 
-/**
- * Sums of the expense lines in one group; a missing target counts as 0.
- * Only groups with category lines are present; group null sums the ungrouped categories with expenses.
- */
-export interface GroupLine extends Shares {
-  group: CategoryGroup | null
-  target: number
-  actual: number
-  difference: number
-}
-
-/** actual is the expense of the category (positive). group is null for an ungrouped category with expenses. */
+/** actual is the expense of the category (positive). */
 export interface CategoryLine extends Shares {
   id: number
   name: string
-  group: CategoryGroup | null
   target: number | null
   actual: number
   difference: number | null
@@ -128,7 +119,6 @@ export interface DashboardData {
   surplus: number
   surplusLabel: string
   surplusShare: number | null
-  groups: GroupLine[]
   categories: CategoryLine[]
   income: IncomeLine[]
 }
