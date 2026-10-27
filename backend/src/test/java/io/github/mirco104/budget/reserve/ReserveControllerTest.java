@@ -127,7 +127,17 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.history[0].incomeCategories[0].name").value("Gehalt/Lohn (netto)"))
                 .andExpect(jsonPath("$.history[0].expenseCategories[0].name").value("Wohnen"))
                 .andExpect(jsonPath("$.averageIncome").value(2500.00))
-                .andExpect(jsonPath("$.averageSurplus").value(1700.00));
+                .andExpect(jsonPath("$.averageSurplus").value(1700.00))
+                .andExpect(jsonPath("$.history[0].incomeShare").value(1.0))
+                .andExpect(jsonPath("$.history[0].expensesShare").value(0.32))
+                .andExpect(jsonPath("$.history[0].surplusShare").value(0.68))
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].share").value(0.32))
+                .andExpect(jsonPath("$.totalIncome").value(2500.00))
+                .andExpect(jsonPath("$.totalExpenses").value(800.00))
+                .andExpect(jsonPath("$.totalSurplus").value(1700.00))
+                .andExpect(jsonPath("$.incomeShare").value(1.0))
+                .andExpect(jsonPath("$.expensesShare").value(0.32))
+                .andExpect(jsonPath("$.surplusShare").value(0.68));
     }
 
     @Test
@@ -137,6 +147,7 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.averageExpenses").value(nullValue()))
                 .andExpect(jsonPath("$.averageMonths").value(0))
                 .andExpect(jsonPath("$.history", hasSize(0)))
+                .andExpect(jsonPath("$.totalExpenses").value(nullValue()))
                 .andExpect(jsonPath("$.monthlyReserve").value(0.00))
                 .andExpect(jsonPath("$.reserveBalance").value(0.00))
                 .andExpect(jsonPath("$.reserves", hasSize(0)))

@@ -168,14 +168,22 @@ export interface ForecastMonth {
 export interface CategoryAmount {
   name: string
   amount: number
+  /** Share of the income of the month (R14); null when it is 0. */
+  share: number | null
 }
 
-/** A past month: income, expenses and surplus (income - expenses, may be negative), with the amounts per category. */
+/**
+ * A past month: income, expenses and surplus (income - expenses, may be negative), with the amounts per category.
+ * The shares are parts of the income of the month, null when it is 0.
+ */
 export interface HistoryMonth {
   month: string
   income: number
   expenses: number
   surplus: number
+  incomeShare: number | null
+  expensesShare: number | null
+  surplusShare: number | null
   incomeCategories: CategoryAmount[]
   expenseCategories: CategoryAmount[]
 }
@@ -191,6 +199,14 @@ export interface ReserveData {
   averageMonths: number
   /** The months of the average, oldest first. */
   history: HistoryMonth[]
+  /** Sums over the history; null when averageMonths is 0. */
+  totalIncome: number | null
+  totalExpenses: number | null
+  totalSurplus: number | null
+  /** Shares of the totals (and the averages) in totalIncome; null when it is 0 or missing. */
+  incomeShare: number | null
+  expensesShare: number | null
+  surplusShare: number | null
   monthlyReserve: number
   reserveBalance: number
   reserves: ReserveLine[]

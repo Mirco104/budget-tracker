@@ -170,7 +170,8 @@ form.transaction-form .sign-toggle label {
   align-items: center;
 }
 
-.dashboard-header {
+.dashboard-header,
+.section-header {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -333,10 +334,14 @@ form.transaction-form .sign-toggle label {
   color: #57606a;
 }
 
-.history caption {
+.collapse-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
   text-align: left;
-  font-weight: bold;
-  padding-bottom: 4px;
+  cursor: pointer;
 }
 
 .history tfoot th,

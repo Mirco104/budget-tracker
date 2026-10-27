@@ -1,8 +1,50 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useReserves } from '../api/reserves'
 import type { ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
-import { formatAmount, formatDate, formatEuro, formatMonth, formatMonthShort } from '../format'
+import { formatAmount, formatDate, formatEuro, formatMonth, formatMonthShort, formatShare } from '../format'
 import { INTERVAL_LABELS } from '../labels'
+
+type Unit = 'euro' | 'percent'
+
+// Storage can be missing or blocked (private window); the sections are then simply open
+function readOpen(key: string): boolean {
+  try {
+    return localStorage.getItem(key) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+function writeOpen(key: string, open: boolean) {
+  try {
+    localStorage.setItem(key, String(open))
+  } catch {
+    // Not remembered, but the section still opens and closes
+  }
+}
+
+/** A section with a heading that opens and closes it; the browser remembers the state. */
+function Collapsible({ id, title, actions, children }: { id: string; title: string; actions?: ReactNode; children: ReactNode }) {
+  const key = `budget.reserves.${id}.open`
+  const [open, setOpen] = useState(() => readOpen(key))
+  function toggle() {
+    writeOpen(key, !open)
+    setOpen(!open)
+  }
+  return (
+    <>
+      <div className="section-header">
+        <h3>
+          <button type="button" className="collapse-toggle" aria-expanded={open} onClick={toggle}>
+            <span aria-hidden="true">{open ? '▾' : '▸'}</span> {title}
+          </button>
+        </h3>
+        {open && actions}
+      </div>
+      {open && children}
+    </>
+  )
+}
 
 function averagePeriod(months: number): string {
   return months === 1 ? 'letzter Monat' : `letzte ${months} Monate`
@@ -54,9 +96,10 @@ function MonthLabel({ month }: { month: string }) {
 }
 
 // Expanded: one row per category, its amount in the income or expense column
-function HistoryRows({ month }: { month: HistoryMonth }) {
+function HistoryRows({ month, unit }: { month: HistoryMonth; unit: Unit }) {
   const [open, setOpen] = useState(false)
   const hasCategories = month.incomeCategories.length > 0 || month.expenseCategories.length > 0
+  const value = (amount: number, share: number | null) => (unit === 'euro' ? formatAmount(amount) : formatShare(share))
   return (
     <>
       <tr className="history-month">
@@ -69,15 +112,17 @@ function HistoryRows({ month }: { month: HistoryMonth }) {
             <MonthLabel month={month.month} />
           )}
         </th>
-        <td className="number">{formatAmount(month.income)}</td>
-        <td className="number">{formatAmount(month.expenses)}</td>
-        <td className={`number ${signClass(month.surplus) ?? ''}`}>{formatAmount(month.surplus)}</td>
+        <td className="number">{value(month.income, month.incomeShare)}</td>
+        <td className="number">{value(month.expenses, month.expensesShare)}</td>
+        <td className={`number ${signClass(unit === 'euro' ? month.surplus : month.surplusShare) ?? ''}`}>
+          {value(month.surplus, month.surplusShare)}
+        </td>
       </tr>
       {open &&
         month.incomeCategories.map((line) => (
           <tr key={`income-${line.name}`} className="history-category">
             <td>{line.name}</td>
-            <td className="number">{formatAmount(line.amount)}</td>
+            <td className="number">{value(line.amount, line.share)}</td>
             <td />
             <td />
           </tr>
@@ -87,7 +132,7 @@ function HistoryRows({ month }: { month: HistoryMonth }) {
           <tr key={`expense-${line.name}`} className="history-category">
             <td>{line.name}</td>
             <td />
-            <td className="number">{formatAmount(line.amount)}</td>
+            <td className="number">{value(line.amount, line.share)}</td>
             <td />
           </tr>
         ))}
@@ -95,36 +140,69 @@ function HistoryRows({ month }: { month: HistoryMonth }) {
   )
 }
 
-/** The months of the average with income, expenses and surplus, and their averages in the footer. */
+// Average and total have the same shares, as the backend delivers them once for both rows
+function FooterRow({ label, data, unit, income, expenses, surplus }: {
+  label: string
+  data: ReserveData
+  unit: Unit
+  income: number | null
+  expenses: number | null
+  surplus: number | null
+}) {
+  const percent = unit === 'percent'
+  return (
+    <tr>
+      <th scope="row">{label}</th>
+      <td className="number">{percent ? formatShare(data.incomeShare) : formatAmount(income)}</td>
+      <td className="number">{percent ? formatShare(data.expensesShare) : formatAmount(expenses)}</td>
+      <td className={`number ${signClass(percent ? data.surplusShare : surplus) ?? ''}`}>
+        {percent ? formatShare(data.surplusShare) : formatAmount(surplus)}
+      </td>
+    </tr>
+  )
+}
+
+/** The months of the average with income, expenses and surplus, their averages and totals in the footer. */
 function LookBack({ data }: { data: ReserveData }) {
+  const [unit, setUnit] = useState<Unit>('euro')
   if (data.history.length === 0) {
     return null
   }
+  const suffix = unit === 'euro' ? '(€)' : '(%)'
+  const toggle = (
+    <div className="unit-toggle" role="group" aria-label="Anzeige">
+      <button type="button" aria-pressed={unit === 'euro'} onClick={() => setUnit('euro')}>
+        €
+      </button>
+      <button type="button" aria-pressed={unit === 'percent'} onClick={() => setUnit('percent')}>
+        %
+      </button>
+    </div>
+  )
   return (
-    <table className="history">
-      <caption>Rückblick</caption>
-      <thead>
-        <tr>
-          <th>Monat</th>
-          <th className="number">Einnahmen (€)</th>
-          <th className="number">Ausgaben (€)</th>
-          <th className="number">Überschuss (€)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.history.map((m) => (
-          <HistoryRows key={m.month} month={m} />
-        ))}
-      </tbody>
-      <tfoot>
-        <tr>
-          <th scope="row">Ø</th>
-          <td className="number">{formatAmount(data.averageIncome)}</td>
-          <td className="number">{formatAmount(data.averageExpenses)}</td>
-          <td className={`number ${signClass(data.averageSurplus) ?? ''}`}>{formatAmount(data.averageSurplus)}</td>
-        </tr>
-      </tfoot>
-    </table>
+    <Collapsible id="lookBack" title="Rückblick" actions={toggle}>
+      <table className="history" aria-label="Rückblick">
+        <thead>
+          <tr>
+            <th>Monat</th>
+            <th className="number">Einnahmen {suffix}</th>
+            <th className="number">Ausgaben {suffix}</th>
+            <th className="number">Überschuss {suffix}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.history.map((m) => (
+            <HistoryRows key={m.month} month={m} unit={unit} />
+          ))}
+        </tbody>
+        <tfoot>
+          <FooterRow label="Ø" data={data} unit={unit} income={data.averageIncome}
+            expenses={data.averageExpenses} surplus={data.averageSurplus} />
+          <FooterRow label="Gesamt" data={data} unit={unit} income={data.totalIncome}
+            expenses={data.totalExpenses} surplus={data.totalSurplus} />
+        </tfoot>
+      </table>
+    </Collapsible>
   )
 }
 
@@ -234,24 +312,25 @@ export function ReservesPage({ month }: { month: string }) {
       <h3>Rücklagen</h3>
       <ReservePot data={data} />
 
-      <h3>Vorschau 12 Monate</h3>
-      <p className="hint">
-        Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne; teure Monate haben einen längeren Balken.
-      </p>
-      <table className="forecast" aria-label="Vorschau 12 Monate">
-        <thead>
-          <tr>
-            <th>Monat</th>
-            <th className="number">Ausgaben (€)</th>
-            <th className="forecast-bar-cell" aria-hidden="true" />
-          </tr>
-        </thead>
-        <tbody>
-          {data.forecast.map((m) => (
-            <ForecastRow key={m.month} month={m} largest={largest} />
-          ))}
-        </tbody>
-      </table>
+      <Collapsible id="forecast" title="Vorschau 12 Monate">
+        <p className="hint">
+          Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne; teure Monate haben einen längeren Balken.
+        </p>
+        <table className="forecast" aria-label="Vorschau 12 Monate">
+          <thead>
+            <tr>
+              <th>Monat</th>
+              <th className="number">Ausgaben (€)</th>
+              <th className="forecast-bar-cell" aria-hidden="true" />
+            </tr>
+          </thead>
+          <tbody>
+            {data.forecast.map((m) => (
+              <ForecastRow key={m.month} month={m} largest={largest} />
+            ))}
+          </tbody>
+        </table>
+      </Collapsible>
     </section>
   )
 }
