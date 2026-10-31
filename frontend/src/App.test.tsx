@@ -47,13 +47,13 @@ describe('App', () => {
     expect(monthInput).toHaveValue(current)
   })
 
-  it('has the tabs Übersicht, Transaktionen and Planung', () => {
+  it('has the tabs Übersicht, Transaktionen, Planung, Auswertung and Einstellungen', () => {
     renderApp()
 
     expect(screen.getByRole('button', { name: 'Übersicht' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('button', { name: 'Transaktionen' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Wiederkehrend' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Einstellungen' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Einstellungen' })).toBeInTheDocument()
   })
 
   it('keeps the month selection on the planning page', () => {
@@ -62,5 +62,14 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Planung' }))
 
     expect(screen.getByLabelText('Monat')).toBeInTheDocument()
+  })
+  // US10: settings do not depend on a month
+  it('hides the month selection on the settings page', () => {
+    renderApp()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }))
+
+    expect(screen.getByRole('heading', { name: 'Einstellungen' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Monat')).not.toBeInTheDocument()
   })
 })

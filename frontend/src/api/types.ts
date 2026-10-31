@@ -8,6 +8,19 @@ export interface Category {
   targetPercent: number | null
   /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
   targetValidFrom: string | null
+  /** Archived categories are hidden in forms and planning (US10). */
+  archived: boolean
+}
+
+export interface CategoryInput {
+  name: string
+}
+
+/** A sortOrder that another category has swaps the two categories (US10). */
+export interface CategoryUpdate {
+  name: string
+  sortOrder: number
+  archived: boolean
 }
 
 /** targetPercent is a fraction of income (0..1). null clears the value. */
