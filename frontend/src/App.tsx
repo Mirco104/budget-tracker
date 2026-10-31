@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlanningPage } from './pages/PlanningPage'
-import { ReservesPage } from './pages/ReservesPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
+
+// Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
+const ReservesPage = lazy(() => import('./pages/ReservesPage').then((module) => ({ default: module.ReservesPage })))
 
 type Page = 'dashboard' | 'transactions' | 'planning' | 'reserves' | 'settings'
 
@@ -83,7 +85,11 @@ function App() {
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
       {page === 'planning' && month && <PlanningPage month={month} />}
-      {page === 'reserves' && month && <ReservesPage month={month} />}
+      {page === 'reserves' && month && (
+        <Suspense fallback={<p>Lade Auswertung …</p>}>
+          <ReservesPage month={month} />
+        </Suspense>
+      )}
       {page === 'settings' && <SettingsPage />}
     </main>
   )

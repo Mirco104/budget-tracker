@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * Analysis for one month (R14, spec section 5). averageIncome, averageExpenses and averageSurplus average the
- * completed months counted (averageMonths, 0 to 12), null without such a month; history lists these months.
+ * completed months counted (averageMonths, 0 to the chosen period), null without such a month; history lists these months.
  * totalIncome, totalExpenses and totalSurplus sum them, also null without such a month; incomeShare,
  * expensesShare and surplusShare are the shares of the totals (and so of the averages) in totalIncome, null when
  * it is 0.
