@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import App from './App'
 
@@ -63,6 +63,20 @@ describe('App', () => {
 
     expect(screen.getByLabelText('Monat')).toBeInTheDocument()
   })
+  // The analysis page is loaded on first use, because of the chart library
+  it('loads the analysis page when its tab is opened', async () => {
+    renderApp()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auswertung' }))
+
+    expect(screen.getByText('Lade Auswertung …')).toBeInTheDocument()
+    // Transforming Recharts for the first import takes a while in the test environment
+    await waitFor(
+      () => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/reserves\?month=.*&months=12$/), expect.anything()),
+      { timeout: 5000 },
+    )
+  })
+
   // US10: settings do not depend on a month
   it('hides the month selection on the settings page', () => {
     renderApp()
