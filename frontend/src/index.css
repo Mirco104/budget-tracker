@@ -373,6 +373,10 @@ form.transaction-form .sign-toggle label {
   font-weight: normal;
 }
 
+.history .history-month.expandable {
+  cursor: pointer;
+}
+
 .month-short {
   display: none;
 }

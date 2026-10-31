@@ -175,6 +175,22 @@ describe('ReservesPage', () => {
     expect(screen.queryByRole('img', { name: /Diagramm/ })).not.toBeInTheDocument()
   })
 
+  it('opens and closes a month with a click anywhere in its row', async () => {
+    renderPage(reserves)
+
+    const table = within(await screen.findByRole('table', { name: 'Rückblick' }))
+    const september = table.getByRole('row', { name: /September 2026/ })
+    const button = within(september).getByRole('button', { name: /September 2026/ })
+
+    fireEvent.click(within(september).getByText('1.914,00'))
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    expect(table.getByRole('row', { name: /Lebensmittel/ })).toBeInTheDocument()
+
+    fireEvent.click(within(september).getByText('-1.914,00'))
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(table.queryByRole('row', { name: /Lebensmittel/ })).not.toBeInTheDocument()
+  })
+
   it('marks all rows of a month while the mouse is over one of them', async () => {
     renderPage(reserves)
 

@@ -141,10 +141,16 @@ function HistoryRows({ month, unit, active, onActive }: {
   const highlight = active ? ' highlighted' : ''
   return (
     <>
-      <tr className={`history-month${highlight}`} {...hover}>
+      {/* A click anywhere in the row opens it; the button keeps it reachable by keyboard, and its click bubbles
+          up to the row */}
+      <tr
+        className={`history-month${hasCategories ? ' expandable' : ''}${highlight}`}
+        onClick={hasCategories ? () => setOpen(!open) : undefined}
+        {...hover}
+      >
         <th scope="row">
           {hasCategories ? (
-            <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+            <button type="button" aria-expanded={open}>
               <span aria-hidden="true">{open ? '▾' : '▸'}</span> <MonthLabel month={month.month} />
             </button>
           ) : (
