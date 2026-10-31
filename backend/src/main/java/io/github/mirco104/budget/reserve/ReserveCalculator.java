@@ -29,7 +29,8 @@ import java.util.stream.Stream;
 public class ReserveCalculator {
 
     static final int FORECAST_MONTHS = 12;
-    static final int AVERAGE_MONTHS = 12;
+    static final int MIN_PERIOD = 1;
+    static final int MAX_PERIOD = 120;
 
     private static final int MONEY_SCALE = 2;
     private static final int RATIO_SCALE = 4;
@@ -59,12 +60,12 @@ public class ReserveCalculator {
 
     /**
      * pastMonths holds months before M (missing months count as 0); firstEntryMonth is the month of the
-     * earliest transaction or series start, null without any entry.
+     * earliest transaction or series start, null without any entry. period is the chosen period x in months.
      */
     public ReserveResponse calculate(List<SeriesData> series, List<SingleData> singles,
-            List<PastMonth> pastMonths, YearMonth firstEntryMonth, YearMonth month) {
-        // Average and look back: M-12 to M-1, but not before the first entry
-        YearMonth from = month.minusMonths(AVERAGE_MONTHS);
+            List<PastMonth> pastMonths, YearMonth firstEntryMonth, YearMonth month, int period) {
+        // Average and look back: M-x to M-1, but not before the first entry
+        YearMonth from = month.minusMonths(period);
         if (firstEntryMonth != null && firstEntryMonth.isAfter(from)) {
             from = firstEntryMonth;
         }

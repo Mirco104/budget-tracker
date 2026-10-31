@@ -66,11 +66,22 @@ class ReserveCalculatorTest {
     }
 
     private ReserveResponse onlySeries(YearMonth month, SeriesData... series) {
-        return calculator.calculate(List.of(series), List.of(), List.of(), null, month);
+        return calculator.calculate(List.of(series), List.of(), List.of(), null, month, 12);
     }
 
     private ReserveResponse onlyAverage(YearMonth firstEntry, PastMonth... months) {
-        return calculator.calculate(List.of(), List.of(), List.of(months), firstEntry, OCTOBER);
+        return averageOver(12, firstEntry, months);
+    }
+
+    private ReserveResponse averageOver(int period, YearMonth firstEntry, PastMonth... months) {
+        return calculator.calculate(List.of(), List.of(), List.of(months), firstEntry, OCTOBER, period);
+    }
+
+    // 100.00 expenses and 1000.00 income in each of the 24 months before October 2026, 400.00 in September
+    private static PastMonth[] twoYears() {
+        return IntStream.rangeClosed(1, 24)
+                .mapToObj(i -> past(OCTOBER.minusMonths(i).toString(), "1000.00", i == 1 ? "400.00" : "100.00"))
+                .toArray(PastMonth[]::new);
     }
 
     private static List<String> totals(ReserveResponse response) {
@@ -130,6 +141,79 @@ class ReserveCalculatorTest {
         assertThat(onlyAverage(null).averageIncome()).isNull();
         assertThat(onlyAverage(null).averageSurplus()).isNull();
         assertThat(onlyAverage(null).history()).isEmpty();
+    }
+
+    // --- chosen period ---
+
+    @Test
+    void averagesAndLooksBackOverThreeSixAndTwentyFourMonths() {
+        ReserveResponse three = averageOver(3, month("2024-01"), twoYears());
+        assertThat(three.averageMonths()).isEqualTo(3);
+        assertThat(three.history()).extracting(HistoryMonth::month).containsExactly("2026-07", "2026-08", "2026-09");
+        // (2 × 100 + 400) / 3
+        assertThat(three.averageExpenses()).isEqualByComparingTo("200.00");
+
+        ReserveResponse six = averageOver(6, month("2024-01"), twoYears());
+        assertThat(six.averageMonths()).isEqualTo(6);
+        assertThat(six.history()).first().extracting(HistoryMonth::month).isEqualTo("2026-04");
+        assertThat(six.averageExpenses()).isEqualByComparingTo("150.00");
+
+        ReserveResponse twentyFour = averageOver(24, month("2024-01"), twoYears());
+        assertThat(twentyFour.averageMonths()).isEqualTo(24);
+        assertThat(twentyFour.history()).first().extracting(HistoryMonth::month).isEqualTo("2024-10");
+        // (23 × 100 + 400) / 24
+        assertThat(twentyFour.averageExpenses()).isEqualByComparingTo("112.50");
+    }
+
+    @Test
+    void everyPeriodStartsAtTheFirstEntryAtTheEarliest() {
+        // First entry in August: two months count, whatever the period
+        ReserveResponse three = averageOver(3, month("2026-08"), twoYears());
+        assertThat(three.averageMonths()).isEqualTo(2);
+        assertThat(three.history()).extracting(HistoryMonth::month).containsExactly("2026-08", "2026-09");
+        assertThat(three.averageExpenses()).isEqualByComparingTo("250.00");
+
+        ReserveResponse twentyFour = averageOver(24, month("2025-10"), twoYears());
+        assertThat(twentyFour.averageMonths()).isEqualTo(12);
+        assertThat(twentyFour.history()).first().extracting(HistoryMonth::month).isEqualTo("2025-10");
+        // (11 × 100 + 400) / 12
+        assertThat(twentyFour.averageExpenses()).isEqualByComparingTo("125.00");
+    }
+
+    @Test
+    void anyOtherPeriodWorksTheSameWay() {
+        ReserveResponse one = averageOver(1, month("2024-01"), twoYears());
+        assertThat(one.history()).extracting(HistoryMonth::month).containsExactly("2026-09");
+        assertThat(one.averageExpenses()).isEqualByComparingTo("400.00");
+
+        ReserveResponse seven = averageOver(7, month("2024-01"), twoYears());
+        assertThat(seven.averageMonths()).isEqualTo(7);
+        assertThat(seven.history()).first().extracting(HistoryMonth::month).isEqualTo("2026-03");
+        // (6 × 100 + 400) / 7
+        assertThat(seven.averageExpenses()).isEqualByComparingTo("142.86");
+    }
+
+    @Test
+    void totalsAndSharesFollowTheChosenPeriod() {
+        ReserveResponse six = averageOver(6, month("2024-01"), twoYears());
+
+        assertThat(six.totalIncome()).isEqualByComparingTo("6000.00");
+        assertThat(six.totalExpenses()).isEqualByComparingTo("900.00");
+        assertThat(six.totalSurplus()).isEqualByComparingTo("5100.00");
+        assertThat(six.expensesShare()).isEqualByComparingTo("0.1500");
+        assertThat(six.surplusShare()).isEqualByComparingTo("0.8500");
+    }
+
+    @Test
+    void forecastAndPotLookTwelveMonthsAheadWhateverThePeriod() {
+        SeriesData insurance = series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-12-15", null);
+
+        ReserveResponse response = calculator.calculate(
+                List.of(insurance), List.of(), List.of(twoYears()), month("2024-01"), OCTOBER, 3);
+
+        assertThat(response.forecast()).hasSize(12);
+        assertThat(response.monthlyReserve()).isEqualByComparingTo("20.00");
+        assertThat(response.reserveBalance()).isEqualByComparingTo("200.00");
     }
 
     // --- look back over the months of the average ---
@@ -343,7 +427,7 @@ class ReserveCalculatorTest {
                 List.of(single(7, "Geschenke", "2026-12-20", "-50.00"),
                         single(8, "Erstattung", "2026-12-21", "30.00"),
                         single(9, "Zu spät", "2027-10-01", "-80.00")),
-                List.of(), null, OCTOBER);
+                List.of(), null, OCTOBER, 12);
 
         assertThat(totals(response).subList(0, 3)).containsExactly("15.00", "15.00", "65.00");
         assertThat(response.forecast().get(2).entries()).containsExactly(
@@ -384,7 +468,7 @@ class ReserveCalculatorTest {
                         series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
                         series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null),
                         series(3, "Fitness", "-15.00", RecurringInterval.MONTHLY, "2026-01-05", null, "2026-10-05")),
-                singles, past, month("2026-01"), OCTOBER);
+                singles, past, month("2026-01"), OCTOBER, 12);
 
         assertThat(response.month()).isEqualTo("2026-10");
         assertThat(response.averageMonths()).isEqualTo(9);

@@ -320,6 +320,25 @@ form.transaction-form .sign-toggle label {
   width: 40%;
 }
 
+.period-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* The hidden Recharts tooltip keeps its last position and would widen the page on narrow screens */
+.history-chart {
+  width: 100%;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+/* A mouse click focuses the chart for keyboard use; the outline stays only for keyboard focus */
+.history-chart :focus:not(:focus-visible) {
+  outline: none;
+}
+
 .forecast-bar {
   display: block;
   height: 10px;
@@ -354,6 +373,10 @@ form.transaction-form .sign-toggle label {
   font-weight: normal;
 }
 
+.history .history-month.expandable {
+  cursor: pointer;
+}
+
 .month-short {
   display: none;
 }
@@ -366,6 +389,11 @@ form.transaction-form .sign-toggle label {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* Marked together with its bars in the chart */
+.history tr.highlighted > * {
+  background: #eaeef2;
 }
 
 .history .history-category td {

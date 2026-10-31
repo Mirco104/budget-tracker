@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.reserve;
 
+import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.dashboard.DashboardResponse;
 import io.github.mirco104.budget.dashboard.DashboardService;
 import io.github.mirco104.budget.recurring.OccurrenceService;
@@ -39,7 +40,11 @@ public class ReserveService {
     }
 
     @Transactional(readOnly = true)
-    public ReserveResponse calculate(YearMonth month) {
+    public ReserveResponse calculate(YearMonth month, int period) {
+        if (period < ReserveCalculator.MIN_PERIOD || period > ReserveCalculator.MAX_PERIOD) {
+            throw new InvalidFieldException("months", "Der Zeitraum muss zwischen "
+                    + ReserveCalculator.MIN_PERIOD + " und " + ReserveCalculator.MAX_PERIOD + " Monaten liegen.");
+        }
         // Forecast period M..M+11: every series active somewhere in it and every single transaction in it
         LocalDate forecastStart = month.atDay(1);
         LocalDate forecastEnd = month.plusMonths(ReserveCalculator.FORECAST_MONTHS - 1).atEndOfMonth();
@@ -65,12 +70,12 @@ public class ReserveService {
         YearMonth firstEntryMonth = firstEntryMonth();
         List<PastMonth> pastMonths = firstEntryMonth == null
                 ? List.of()
-                : IntStream.rangeClosed(1, ReserveCalculator.AVERAGE_MONTHS)
+                : IntStream.rangeClosed(1, period)
                         .mapToObj(month::minusMonths)
                         .filter(past -> !past.isBefore(firstEntryMonth))
                         .map(this::pastMonth)
                         .toList();
-        return calculator.calculate(seriesData, singles, pastMonths, firstEntryMonth, month);
+        return calculator.calculate(seriesData, singles, pastMonths, firstEntryMonth, month, period);
     }
 
     private PastMonth pastMonth(YearMonth month) {
