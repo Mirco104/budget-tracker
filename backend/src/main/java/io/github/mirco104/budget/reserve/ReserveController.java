@@ -18,7 +18,8 @@ public class ReserveController {
     }
 
     @GetMapping
-    public ReserveResponse get(@RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
-        return reserveService.calculate(month);
+    public ReserveResponse get(@RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month,
+            @RequestParam(defaultValue = "12") int months) {
+        return reserveService.calculate(month, months);
     }
 }
