@@ -183,20 +183,24 @@ export function CategorySettings() {
         vergangene Monate zeigen sie weiter.
       </p>
       <NewCategoryForm />
-      {active.map((category, index) => (
-        <CategoryRow
-          key={`${category.id}-${category.name}`}
-          category={category}
-          previous={active[index - 1]}
-          next={active[index + 1]}
-        />
-      ))}
+      <div className="category-list">
+        {active.map((category, index) => (
+          <CategoryRow
+            key={`${category.id}-${category.name}`}
+            category={category}
+            previous={active[index - 1]}
+            next={active[index + 1]}
+          />
+        ))}
+      </div>
       {archived.length > 0 && (
         <>
           <h4>Archiviert</h4>
-          {archived.map((category) => (
-            <CategoryRow key={`${category.id}-${category.name}`} category={category} />
-          ))}
+          <div className="category-list">
+            {archived.map((category) => (
+              <CategoryRow key={`${category.id}-${category.name}`} category={category} />
+            ))}
+          </div>
         </>
       )}
     </section>

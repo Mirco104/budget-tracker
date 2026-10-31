@@ -95,7 +95,8 @@ public class CategoryService {
         if (transactionRepository.existsByCategoryId(id)
                 || recurringTransactionRepository.existsByCategoryId(id)
                 || categoryTargetRepository.existsByCategoryId(id)) {
-            throw new ConflictException("Die Kategorie wird noch verwendet. Archiviere sie stattdessen.");
+            throw new ConflictException(
+                    "Es gibt Einträge unter dieser Kategorie. Die Kategorie kann nur archiviert werden.");
         }
         categoryRepository.delete(category);
     }

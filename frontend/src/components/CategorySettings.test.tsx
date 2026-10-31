@@ -86,14 +86,14 @@ describe('CategorySettings', () => {
   it('shows the conflict when a used category is deleted', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderSettings(() =>
-      json({ status: 409, title: 'Konflikt', detail: 'Die Kategorie wird noch verwendet. Archiviere sie stattdessen.' }, 409),
+      json({ status: 409, title: 'Konflikt', detail: 'Es gibt Einträge unter dieser Kategorie. Die Kategorie kann nur archiviert werden.' }, 409),
     )
     const freizeit = await screen.findByRole('form', { name: 'Freizeit' })
 
     fireEvent.click(within(freizeit).getByRole('button', { name: 'Löschen' }))
 
     expect(
-      await within(freizeit).findByText('Die Kategorie wird noch verwendet. Archiviere sie stattdessen.'),
+      await within(freizeit).findByText('Es gibt Einträge unter dieser Kategorie. Die Kategorie kann nur archiviert werden.'),
     ).toBeInTheDocument()
   })
 })

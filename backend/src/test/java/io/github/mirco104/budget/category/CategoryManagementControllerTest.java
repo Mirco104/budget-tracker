@@ -28,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 class CategoryManagementControllerTest {
 
     private static final String MONTH = "2026-10";
-    private static final String IN_USE = "Die Kategorie wird noch verwendet. Archiviere sie stattdessen.";
+    private static final String IN_USE =
+            "Es gibt Einträge unter dieser Kategorie. Die Kategorie kann nur archiviert werden.";
 
     @Autowired
     private MockMvc mockMvc;
