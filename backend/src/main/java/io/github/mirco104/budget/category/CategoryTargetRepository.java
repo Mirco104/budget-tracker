@@ -10,4 +10,6 @@ public interface CategoryTargetRepository extends JpaRepository<CategoryTarget, 
     List<CategoryTarget> findByValidFromLessThanEqual(LocalDate date);
 
     Optional<CategoryTarget> findByCategoryIdAndValidFrom(Long categoryId, LocalDate validFrom);
+
+    boolean existsByCategoryId(Long categoryId);
 }

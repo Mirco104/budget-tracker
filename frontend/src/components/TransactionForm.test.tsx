@@ -5,8 +5,9 @@ import type { Category } from '../api/types'
 import { TransactionForm, type RepeatOption, type TransactionFormValues } from './TransactionForm'
 
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null },
-  { id: 20, name: 'Gehalt', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null },
+  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false },
+  { id: 20, name: 'Gehalt', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false },
+  { id: 30, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true },
 ]
 
 function renderForm(
@@ -204,6 +205,24 @@ describe('TransactionForm', () => {
       'Bitte wählen',
       'Wohnen',
       'Gehalt',
+    ])
+  })
+
+  // US10: an archived category stays selectable for an entry that already uses it
+  it('keeps the archived category of an edited entry', () => {
+    renderForm(
+      vi.fn(),
+      { amount: -100, description: 'Rate', date: '2026-10-05', categoryId: 30, repeat: 'NONE', endDate: null },
+      'none',
+    )
+
+    const select = screen.getByLabelText('Kategorie')
+    expect(select).toHaveValue('30')
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Bitte wählen',
+      'Wohnen',
+      'Gehalt',
+      'Kredite',
     ])
   })
 

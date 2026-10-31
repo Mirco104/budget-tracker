@@ -14,7 +14,8 @@ public record CategoryResponse(
         int sortOrder,
         BigDecimal targetAmount,
         BigDecimal targetPercent,
-        YearMonth targetValidFrom) {
+        YearMonth targetValidFrom,
+        boolean archived) {
 
     static CategoryResponse from(Category category, TargetEntry target) {
         return new CategoryResponse(
@@ -23,6 +24,7 @@ public record CategoryResponse(
                 category.getSortOrder(),
                 target == null ? null : target.targetAmount(),
                 target == null ? null : target.targetPercent(),
-                target == null ? null : target.validFrom());
+                target == null ? null : target.validFrom(),
+                category.isArchived());
     }
 }

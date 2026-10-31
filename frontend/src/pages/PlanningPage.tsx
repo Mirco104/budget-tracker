@@ -60,7 +60,7 @@ export function PlanningPage({ month }: { month: string }) {
       <PlanningSummary month={month} />
 
       <h3>Kategorien</h3>
-      {categories.data.map((category) => (
+      {categories.data.filter((category) => !category.archived).map((category) => (
         <TargetRow
           key={`${category.id}-${month}`}
           category={category}

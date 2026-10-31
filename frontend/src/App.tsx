@@ -3,9 +3,10 @@ import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { ReservesPage } from './pages/ReservesPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 
-type Page = 'dashboard' | 'transactions' | 'planning' | 'reserves'
+type Page = 'dashboard' | 'transactions' | 'planning' | 'reserves' | 'settings'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -43,7 +44,15 @@ function App() {
         >
           Auswertung
         </button>
-        <span className="month-nav">
+        <button
+          type="button"
+          aria-current={page === 'settings' ? 'page' : undefined}
+          onClick={() => setPage('settings')}
+        >
+          Einstellungen
+        </button>
+        {page !== 'settings' && (
+          <span className="month-nav">
             <button
               type="button"
               aria-label="Vorheriger Monat"
@@ -67,13 +76,15 @@ function App() {
             <button type="button" disabled={month === currentMonth()} onClick={() => setMonth(currentMonth())}>
               Aktueller Monat
             </button>
-        </span>
+          </span>
+        )}
       </nav>
 
       {page === 'dashboard' && month && <DashboardPage month={month} />}
       {page === 'transactions' && month && <TransactionsPage month={month} />}
       {page === 'planning' && month && <PlanningPage month={month} />}
       {page === 'reserves' && month && <ReservesPage month={month} />}
+      {page === 'settings' && <SettingsPage />}
     </main>
   )
 }

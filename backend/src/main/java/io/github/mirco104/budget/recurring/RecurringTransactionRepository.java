@@ -20,4 +20,6 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
     /** Start date of the earliest series, null without series. */
     @Query("select min(r.startDate) from RecurringTransaction r")
     LocalDate findMinStartDate();
+
+    boolean existsByCategoryId(Long categoryId);
 }

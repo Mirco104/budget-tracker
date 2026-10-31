@@ -83,7 +83,7 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 - **US13 Auswertung:** Als Nutzer sehe ich für den gewählten Monat, wie viel ich in den letzten 12 Monaten durchschnittlich ausgegeben habe, mit einem Rückblick auf Einnahmen, Ausgaben und Überschuss je Monat, wie viel ich monatlich für seltene wiederkehrende Ausgaben zurücklegen sollte und wie viel dafür jetzt angespart sein sollte, sowie eine Vorschau aller gebuchten Ausgaben der nächsten 12 Monate, die teure Monate sichtbar macht. *AK:* R14; gibt es noch keine 12 abgeschlossenen Monate mit Einträgen, nennt die Seite die Anzahl der berücksichtigten Monate; ohne abgeschlossenen Monat zeigt sie "–" und einen Hinweis. *Erweiterung (AP 16):* Der Zeitraum für Ø und Rückblick ist wählbar (3, 6, 12 oder 24 Monate, Vorgabe 12); über der Rückblick-Tabelle zeigt ein Balkendiagramm (Recharts) Einnahmen und Ausgaben je Monat (ersetzt US9); ungültiger Zeitraum in der API → 400. *Erweiterung (AP 15a):* Ein Umschalter am Rückblick zeigt seine Werte in € oder in % der Einnahmen des jeweiligen Monats (wie US5); unter der Ø-Zeile steht eine Zeile Gesamt mit den Summen des Zeitraums; Rückblick und Vorschau lassen sich einklappen, der Browser merkt sich den Zustand (Vorgabe offen). *AK:* bei Einnahmen = 0 zeigen die Prozentwerte "–"; Rücklagen, Vorschau und Ø Ausgaben bleiben in €.
 
 ### Ausbau ab 27.10.2026: Must (Voraussetzung für die reale Nutzung)
-- **US10 Kategorien verwalten** (früher Nice): Als Nutzer lege ich unter *Einstellungen › Kategorien* Kategorien an, benenne sie um, ändere ihre Reihenfolge, archiviere oder lösche sie. *AK:* Name 1 bis 50 Zeichen, eindeutig je Nutzer (sonst 409); Löschen nur ohne Transaktionen, Serien und Soll-Einträge, sonst 409 mit dem Hinweis, die Kategorie zu archivieren; eine archivierte Kategorie fehlt in den Formularen und auf der Seite *Planung*, vergangene Monate in *Übersicht* und *Auswertung* zeigen sie weiter korrekt; eine neue Kategorie steht am Ende der Reihenfolge.
+- **US10 Kategorien verwalten** (früher Nice): Als Nutzer lege ich unter *Einstellungen › Kategorien* Kategorien an, benenne sie um, ändere ihre Reihenfolge, archiviere oder lösche sie. *AK:* Name 1 bis 50 Zeichen, eindeutig je Nutzer (sonst 409); Löschen nur ohne Transaktionen, Serien und Soll-Einträge, sonst 409 mit dem Hinweis, die Kategorie zu archivieren; eine archivierte Kategorie fehlt in den Formularen und auf der Seite *Planung*, vergangene Monate in *Übersicht* und *Auswertung* zeigen sie weiter korrekt; eine neue Kategorie steht am Ende der Reihenfolge. Buchungen auf einer archivierten Kategorie bleiben erlaubt, damit bestehende Einträge bearbeitet werden können; das Formular zeigt sie nur, wenn sie schon gewählt ist. Gleiche Namen werden ohne Beachtung der Groß- und Kleinschreibung erkannt.
 - **US11 Flyway-Migrationen** statt Seeder (früher Nice). *AK:* Das Schema entsteht nur aus Migrationen; eine gemergte Migration wird nie geändert; die Standard-Kategorien legt der Service beim Anlegen eines Nutzers an (US15), nicht eine Migration.
 - **US14 Anmelden und Abmelden:** Als Nutzer melde ich mich mit E-Mail und Passwort an und wieder ab. *AK:* R15; falsche Angaben ergeben eine allgemeine Fehlermeldung (ohne Hinweis, ob die E-Mail existiert); nach 5 Fehlversuchen in 15 Minuten wird die Anmeldung für diese E-Mail 15 Minuten gesperrt; die Sitzung läuft nach 30 Tagen ohne Nutzung ab.
 - **US15 Einladung:** Als Admin erzeuge ich einen Einladungslink und schicke ihn selbst weiter (kein Mailversand durch die App). Wer den Link öffnet, legt E-Mail, Anzeigename und Passwort fest und erhält die Standard-Kategorien (Seed, Abschnitt 4) ohne Beträge. *AK:* Link einmalig nutzbar und 7 Tage gültig (sonst 410); E-Mail eindeutig (409); Passwort mindestens 12 Zeichen. Der erste Admin wird beim ersten Start aus Umgebungsvariablen angelegt.
@@ -228,7 +228,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 
 | Methode | Pfad | Zweck | Erfolg |
 |---|---|---|---|
-| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`) | 200, 400 (Monat fehlt/ungültig) |
+| GET | `/categories?month=2026-10` | Alle Kategorien, sortiert, mit dem in diesem Monat gültigen Soll (`targetAmount`, `targetPercent`, `targetValidFrom`) und `archived` (ab AP 15) | 200, 400 (Monat fehlt/ungültig) |
 | PUT | `/categories/{id}/target?month=2026-11` | Soll ab diesem Monat, Body `{targetAmount?, targetPercent?}` | 200, 404, 400 (auch Monat fehlt/ungültig) |
 | GET | `/transactions?month=2026-10` | Einträge eines Monats: Transaktionen (`kind: "SINGLE"`, `id`) und Vorkommen wiederkehrender Transaktionen (`kind: "RECURRING"`, `recurringId`, `occurrenceDate`), je mit `amount` (mit Vorzeichen), `description`, `date`, Kategorie | 200, 400 (Monat fehlt/ungültig) |
 | POST | `/transactions` | Anlegen, Body `{amount, description, date, categoryId}` | 201 + Location, 400 |
@@ -255,7 +255,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | GET | `/account/export` | Alle eigenen Daten als JSON (US16) | 200 |
 | DELETE | `/account` | Konto samt Daten löschen, Body `{password}` (US16) | 204, 400 |
 | POST | `/categories` | Kategorie anlegen, Body `{name}` (US10) | 201 + Location, 400, 409 |
-| PUT | `/categories/{id}` | Ändern, Body `{name, sortOrder, archived}` | 200, 404, 400, 409 |
+| PUT | `/categories/{id}` | Ändern, Body `{name, sortOrder, archived}`; hat eine andere Kategorie schon diese `sortOrder`, tauschen die beiden ihre Plätze (verschieben um eine Position) | 200, 404, 400, 409 |
 | DELETE | `/categories/{id}` | Löschen (nur unbenutzt, US10) | 204, 404, 409 |
 | GET/POST | `/persons` | Personen lesen/anlegen (US17) | 200 / 201, 400, 409 |
 | PUT/DELETE | `/persons/{id}` | Umbenennen/Löschen | 200 / 204, 404, 409 |
@@ -558,6 +558,8 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 23 | Investment I3: Freistellungsauftrag (R21, US22); vorher Blatt "Freistellungsauftrag" analysieren | Tests grün |
 | 24 | Teilen Stufe 2 mit verknüpften Nutzern (US24): eigene Spec-Runde | Spec-PR, dann Umsetzung |
 | 25 | Investment I4: Depot mit Positionen (R22, US23): eigene Spec-Runde (Kursquelle) | Spec-PR, dann Umsetzung |
+
+**Stand 31.10.2026:** AP 14, 15 und 15a erledigt.
 
 **Erste Nutzung im Bekanntenkreis:** nach AP 19. AP 15 und 16 können davor oder parallel laufen, AP 20 bis 25 kommen danach.
 

@@ -14,4 +14,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** Date of the earliest transaction, null without transactions. */
     @Query("select min(t.date) from Transaction t")
     LocalDate findMinDate();
+
+    boolean existsByCategoryId(Long categoryId);
 }
