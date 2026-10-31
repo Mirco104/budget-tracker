@@ -559,7 +559,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 24 | Teilen Stufe 2 mit verknüpften Nutzern (US24): eigene Spec-Runde | Spec-PR, dann Umsetzung |
 | 25 | Investment I4: Depot mit Positionen (R22, US23): eigene Spec-Runde (Kursquelle) | Spec-PR, dann Umsetzung |
 
-**Stand 31.10.2026:** AP 14, 15 und 15a erledigt.
+**Stand 31.10.2026:** AP 14, 15, 15a und 16 erledigt.
 
 **Erste Nutzung im Bekanntenkreis:** nach AP 19. AP 15 und 16 können davor oder parallel laufen, AP 20 bis 25 kommen danach.
 
