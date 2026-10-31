@@ -26,6 +26,13 @@ export function formatAmount(value: number | null): string {
   return value === null ? EMPTY : decimal.format(value)
 }
 
+const wholeNumber = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 })
+
+/** For chart axes: whole numbers without unit ("1.914"). */
+export function formatWholeNumber(value: number): string {
+  return wholeNumber.format(value)
+}
+
 /** Ratio as percent number without the % sign, see formatAmount. */
 export function formatShare(value: number | null): string {
   return value === null ? EMPTY : decimal.format(value * 100)

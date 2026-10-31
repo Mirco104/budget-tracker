@@ -136,6 +136,45 @@ describe('ReservesPage', () => {
     expect(lookBack).toBeLessThan(headings.indexOf('Rücklagen'))
   })
 
+  it('loads the average and look back for the chosen period', async () => {
+    const sixMonths: ReserveData = { ...reserves, averageMonths: 6, history: history.slice(3) }
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(new Response(JSON.stringify(url.includes('months=6') ? sixMonths : reserves), { status: 200 })),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ReservesPage month="2026-10" />
+      </QueryClientProvider>,
+    )
+
+    const select = await screen.findByRole('combobox', { name: 'Zeitraum' })
+    expect(select).toHaveValue('12')
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      '3 Monate', '6 Monate', '12 Monate', '24 Monate',
+    ])
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/reserves?month=2026-10&months=12', expect.anything())
+
+    fireEvent.change(select, { target: { value: '6' } })
+
+    expect(await screen.findByText(/letzte 6 Monate/)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/reserves?month=2026-10&months=6', expect.anything())
+    // Six months with entries fill the chosen period, so there is no hint about fewer months
+    expect(screen.queryByText(/daher zählen nur diese/)).not.toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Rückblick' })).getAllByRole('row')).toHaveLength(9)
+  })
+
+  it('shows a chart of income and expenses above the look back', async () => {
+    renderPage(reserves)
+
+    const chart = await screen.findByRole('img', { name: 'Diagramm Einnahmen und Ausgaben je Monat' })
+    const table = screen.getByRole('table', { name: 'Rückblick' })
+    expect(chart.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /Rückblick/ }))
+    expect(screen.queryByRole('img', { name: /Diagramm/ })).not.toBeInTheDocument()
+  })
+
   it('sums the months of the look back in a total row', async () => {
     renderPage(reserves)
 
@@ -249,5 +288,6 @@ describe('ReservesPage', () => {
     expect(screen.getByText(/Keine seltenen Ausgaben in den nächsten 12 Monaten/)).toBeInTheDocument()
     expect(screen.queryByText('Monatlich zurücklegen')).not.toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Rückblick' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Diagramm/ })).not.toBeInTheDocument()
   })
 })

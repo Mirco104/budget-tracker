@@ -1,10 +1,23 @@
 import { useState, type ReactNode } from 'react'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useReserves } from '../api/reserves'
 import type { ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
-import { formatAmount, formatDate, formatEuro, formatMonth, formatMonthShort, formatShare } from '../format'
+import {
+  formatAmount,
+  formatDate,
+  formatEuro,
+  formatMonth,
+  formatMonthShort,
+  formatShare,
+  formatWholeNumber,
+} from '../format'
 import { INTERVAL_LABELS } from '../labels'
 
 type Unit = 'euro' | 'percent'
+
+// The API takes any period from 1 to 120 months (R14); the page offers this selection
+const PERIODS = [3, 6, 12, 24]
+const DEFAULT_PERIOD = 12
 
 // Storage can be missing or blocked (private window); the sections are then simply open
 function readOpen(key: string): boolean {
@@ -50,7 +63,22 @@ function averagePeriod(months: number): string {
   return months === 1 ? 'letzter Monat' : `letzte ${months} Monate`
 }
 
-function AverageExpenses({ data }: { data: ReserveData }) {
+function PeriodSelect({ period, onChange }: { period: number; onChange: (period: number) => void }) {
+  return (
+    <label className="period-select">
+      Zeitraum
+      <select value={period} onChange={(e) => onChange(Number(e.target.value))}>
+        {PERIODS.map((months) => (
+          <option key={months} value={months}>
+            {months} Monate
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function AverageExpenses({ data, period }: { data: ReserveData; period: number }) {
   return (
     <>
       <dl className="summary">
@@ -68,7 +96,7 @@ function AverageExpenses({ data }: { data: ReserveData }) {
           Eintrag.
         </p>
       )}
-      {data.averageMonths > 0 && data.averageMonths < 12 && (
+      {data.averageMonths > 0 && data.averageMonths < period && (
         <p className="hint">
           Es gibt erst seit {data.averageMonths === 1 ? 'einem Monat' : `${data.averageMonths} Monaten`} Einträge,
           daher zählen nur diese.
@@ -162,6 +190,33 @@ function FooterRow({ label, data, unit, income, expenses, surplus }: {
   )
 }
 
+const INCOME_COLOR = '#1a7f37'
+const EXPENSE_COLOR = '#cf222e'
+
+/** Income and expenses per month of the look back, always in euros. */
+function HistoryChart({ history }: { history: HistoryMonth[] }) {
+  return (
+    <div className="history-chart" role="img" aria-label="Diagramm Einnahmen und Ausgaben je Monat">
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="month" tickFormatter={formatMonthShort} fontSize={12} />
+          <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
+          {/* Income before expenses, as in the table; Recharts would sort them by name */}
+          <Tooltip
+            labelFormatter={(month) => formatMonth(String(month))}
+            formatter={(value) => formatEuro(Number(value))}
+            itemSorter={(item) => (item.dataKey === 'income' ? 0 : 1)}
+          />
+          <Legend itemSorter={null} />
+          <Bar dataKey="income" name="Einnahmen" fill={INCOME_COLOR} />
+          <Bar dataKey="expenses" name="Ausgaben" fill={EXPENSE_COLOR} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 /** The months of the average with income, expenses and surplus, their averages and totals in the footer. */
 function LookBack({ data }: { data: ReserveData }) {
   const [unit, setUnit] = useState<Unit>('euro')
@@ -181,6 +236,7 @@ function LookBack({ data }: { data: ReserveData }) {
   )
   return (
     <Collapsible id="lookBack" title="Rückblick" actions={toggle}>
+      <HistoryChart history={data.history} />
       <table className="history" aria-label="Rückblick">
         <thead>
           <tr>
@@ -290,9 +346,13 @@ function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number
   )
 }
 
-/** Analysis (R14, US13): average expenses, reserve pot for rare expenses and a 12-month forecast. */
+/**
+ * Analysis (R14, US13): average expenses and look back over a chosen period, reserve pot for rare expenses and a
+ * 12-month forecast.
+ */
 export function ReservesPage({ month }: { month: string }) {
-  const { data, isPending, error } = useReserves(month)
+  const [period, setPeriod] = useState(DEFAULT_PERIOD)
+  const { data, isPending, error } = useReserves(month, period)
 
   if (isPending) {
     return <p>Lade Auswertung …</p>
@@ -306,7 +366,8 @@ export function ReservesPage({ month }: { month: string }) {
   return (
     <section>
       <h2>Auswertung</h2>
-      <AverageExpenses data={data} />
+      <PeriodSelect period={period} onChange={setPeriod} />
+      <AverageExpenses data={data} period={period} />
       <LookBack data={data} />
 
       <h3>Rücklagen</h3>
