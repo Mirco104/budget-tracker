@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useReserves } from '../api/reserves'
 import type { ForecastMonth, HistoryMonth, ReserveData } from '../api/types'
 import {
@@ -123,14 +123,25 @@ function MonthLabel({ month }: { month: string }) {
   )
 }
 
-// Expanded: one row per category, its amount in the income or expense column
-function HistoryRows({ month, unit }: { month: HistoryMonth; unit: Unit }) {
+// Expanded: one row per category, its amount in the income or expense column. Hovering any row of the month
+// marks it here and in the chart.
+function HistoryRows({ month, unit, active, onActive }: {
+  month: HistoryMonth
+  unit: Unit
+  active: boolean
+  onActive: (month: string | null) => void
+}) {
   const [open, setOpen] = useState(false)
   const hasCategories = month.incomeCategories.length > 0 || month.expenseCategories.length > 0
   const value = (amount: number, share: number | null) => (unit === 'euro' ? formatAmount(amount) : formatShare(share))
+  const hover = {
+    onMouseEnter: () => onActive(month.month),
+    onMouseLeave: () => onActive(null),
+  }
+  const highlight = active ? ' highlighted' : ''
   return (
     <>
-      <tr className="history-month">
+      <tr className={`history-month${highlight}`} {...hover}>
         <th scope="row">
           {hasCategories ? (
             <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -148,7 +159,7 @@ function HistoryRows({ month, unit }: { month: HistoryMonth; unit: Unit }) {
       </tr>
       {open &&
         month.incomeCategories.map((line) => (
-          <tr key={`income-${line.name}`} className="history-category">
+          <tr key={`income-${line.name}`} className={`history-category${highlight}`} {...hover}>
             <td>{line.name}</td>
             <td className="number">{value(line.amount, line.share)}</td>
             <td />
@@ -157,7 +168,7 @@ function HistoryRows({ month, unit }: { month: HistoryMonth; unit: Unit }) {
         ))}
       {open &&
         month.expenseCategories.map((line) => (
-          <tr key={`expense-${line.name}`} className="history-category">
+          <tr key={`expense-${line.name}`} className={`history-category${highlight}`} {...hover}>
             <td>{line.name}</td>
             <td />
             <td className="number">{value(line.amount, line.share)}</td>
@@ -193,12 +204,25 @@ function FooterRow({ label, data, unit, income, expenses, surplus }: {
 const INCOME_COLOR = '#1a7f37'
 const EXPENSE_COLOR = '#cf222e'
 
-/** Income and expenses per month of the look back, always in euros. */
-function HistoryChart({ history }: { history: HistoryMonth[] }) {
+// Other months fade while one month is marked
+const FADED_OPACITY = 0.3
+
+/** Income and expenses per month of the look back, always in euros. The marked month is shared with the table. */
+function HistoryChart({ history, active, onActive }: {
+  history: HistoryMonth[]
+  active: string | null
+  onActive: (month: string | null) => void
+}) {
+  const opacity = (month: string) => (active === null || active === month ? 1 : FADED_OPACITY)
   return (
     <div className="history-chart" role="img" aria-label="Diagramm Einnahmen und Ausgaben je Monat">
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <BarChart
+          data={history}
+          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          onMouseMove={(state) => onActive(state.activeLabel === undefined ? null : String(state.activeLabel))}
+          onMouseLeave={() => onActive(null)}
+        >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="month" tickFormatter={formatMonthShort} fontSize={12} />
           <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
@@ -207,10 +231,19 @@ function HistoryChart({ history }: { history: HistoryMonth[] }) {
             labelFormatter={(month) => formatMonth(String(month))}
             formatter={(value) => formatEuro(Number(value))}
             itemSorter={(item) => (item.dataKey === 'income' ? 0 : 1)}
+            cursor={false}
           />
           <Legend itemSorter={null} />
-          <Bar dataKey="income" name="Einnahmen" fill={INCOME_COLOR} />
-          <Bar dataKey="expenses" name="Ausgaben" fill={EXPENSE_COLOR} />
+          <Bar dataKey="income" name="Einnahmen" fill={INCOME_COLOR}>
+            {history.map((m) => (
+              <Cell key={m.month} fillOpacity={opacity(m.month)} />
+            ))}
+          </Bar>
+          <Bar dataKey="expenses" name="Ausgaben" fill={EXPENSE_COLOR}>
+            {history.map((m) => (
+              <Cell key={m.month} fillOpacity={opacity(m.month)} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -220,6 +253,7 @@ function HistoryChart({ history }: { history: HistoryMonth[] }) {
 /** The months of the average with income, expenses and surplus, their averages and totals in the footer. */
 function LookBack({ data }: { data: ReserveData }) {
   const [unit, setUnit] = useState<Unit>('euro')
+  const [active, setActive] = useState<string | null>(null)
   if (data.history.length === 0) {
     return null
   }
@@ -236,7 +270,7 @@ function LookBack({ data }: { data: ReserveData }) {
   )
   return (
     <Collapsible id="lookBack" title="Rückblick" actions={toggle}>
-      <HistoryChart history={data.history} />
+      <HistoryChart history={data.history} active={active} onActive={setActive} />
       <table className="history" aria-label="Rückblick">
         <thead>
           <tr>
@@ -248,7 +282,7 @@ function LookBack({ data }: { data: ReserveData }) {
         </thead>
         <tbody>
           {data.history.map((m) => (
-            <HistoryRows key={m.month} month={m} unit={unit} />
+            <HistoryRows key={m.month} month={m} unit={unit} active={active === m.month} onActive={setActive} />
           ))}
         </tbody>
         <tfoot>

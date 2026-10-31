@@ -334,6 +334,11 @@ form.transaction-form .sign-toggle label {
   overflow: hidden;
 }
 
+/* A mouse click focuses the chart for keyboard use; the outline stays only for keyboard focus */
+.history-chart :focus:not(:focus-visible) {
+  outline: none;
+}
+
 .forecast-bar {
   display: block;
   height: 10px;
@@ -380,6 +385,11 @@ form.transaction-form .sign-toggle label {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* Marked together with its bars in the chart */
+.history tr.highlighted > * {
+  background: #eaeef2;
 }
 
 .history .history-category td {

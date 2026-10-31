@@ -175,6 +175,23 @@ describe('ReservesPage', () => {
     expect(screen.queryByRole('img', { name: /Diagramm/ })).not.toBeInTheDocument()
   })
 
+  it('marks all rows of a month while the mouse is over one of them', async () => {
+    renderPage(reserves)
+
+    const table = within(await screen.findByRole('table', { name: 'Rückblick' }))
+    const september = table.getByRole('row', { name: /September 2026/ })
+    fireEvent.click(within(september).getByRole('button', { name: /September 2026/ }))
+    const groceries = table.getByRole('row', { name: /Lebensmittel/ })
+
+    fireEvent.mouseEnter(groceries)
+    expect(september).toHaveClass('highlighted')
+    expect(groceries).toHaveClass('highlighted')
+    expect(table.getByRole('row', { name: /August 2026/ })).not.toHaveClass('highlighted')
+
+    fireEvent.mouseLeave(groceries)
+    expect(september).not.toHaveClass('highlighted')
+  })
+
   it('sums the months of the look back in a total row', async () => {
     renderPage(reserves)
 
