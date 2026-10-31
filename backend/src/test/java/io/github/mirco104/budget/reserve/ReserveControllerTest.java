@@ -154,6 +154,56 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.forecast", hasSize(12)));
     }
 
+    // --- chosen period (R14) ---
+
+    @Test
+    void averagesAndLooksBackOverTheChosenPeriod() throws Exception {
+        postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2026-01-01");
+        postTransaction("-999.00", "Einkauf September", "2026-09-30", categoryId("Lebensmittel"));
+
+        // (6 × 900 + 999) / 6
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", "6"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.averageMonths").value(6))
+                .andExpect(jsonPath("$.history", hasSize(6)))
+                .andExpect(jsonPath("$.history[0].month").value("2026-04"))
+                .andExpect(jsonPath("$.averageExpenses").value(1066.50))
+                .andExpect(jsonPath("$.totalExpenses").value(6399.00))
+                .andExpect(jsonPath("$.forecast", hasSize(12)));
+
+        // Without the parameter 12 months, limited by the first entry in January
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
+                .andExpect(jsonPath("$.averageMonths").value(9))
+                .andExpect(jsonPath("$.history[0].month").value("2026-01"));
+
+        // 24 months are limited by the first entry as well
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", "24"))
+                .andExpect(jsonPath("$.averageMonths").value(9));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1", "120"})
+    void acceptsThePeriodBounds(String months) throws Exception {
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", months))
+                .andExpect(status().isOk());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "121"})
+    void rejectsPeriodOutsideTheBounds(String months) throws Exception {
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", months))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Ungültige Anfrage"))
+                .andExpect(jsonPath("$.errors[0].field").value("months"));
+    }
+
+    @Test
+    void rejectsPeriodThatIsNoNumber() throws Exception {
+        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", "zwölf"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
+    }
+
     // --- validation ---
 
     @ParameterizedTest
