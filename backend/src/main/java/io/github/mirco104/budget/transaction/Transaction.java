@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.transaction;
 
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -36,10 +37,16 @@ public class Transaction {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    // R15: every transaction belongs to one user
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
+
     protected Transaction() {
     }
 
-    public Transaction(BigDecimal amount, String description, LocalDate date, Category category) {
+    public Transaction(User owner, BigDecimal amount, String description, LocalDate date, Category category) {
+        this.owner = owner;
         update(amount, description, date, category);
     }
 

@@ -1,5 +1,7 @@
 package io.github.mirco104.budget.common;
 
+import io.github.mirco104.budget.auth.InvalidCredentialsException;
+import io.github.mirco104.budget.auth.LoginLockedException;
 import java.util.List;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
@@ -35,6 +37,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex) {
         return problem(HttpStatus.CONFLICT, "Konflikt", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
+        return problem(HttpStatus.UNAUTHORIZED, "Anmeldung fehlgeschlagen", ex.getMessage());
+    }
+
+    @ExceptionHandler(LoginLockedException.class)
+    public ProblemDetail handleLoginLocked(LoginLockedException ex) {
+        return problem(HttpStatus.TOO_MANY_REQUESTS, "Anmeldung gesperrt", ex.getMessage());
     }
 
     @ExceptionHandler(InvalidFieldException.class)

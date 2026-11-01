@@ -12,25 +12,40 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.category.CategoryRepository;
+import io.github.mirco104.budget.user.User;
+import io.github.mirco104.budget.user.UserService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest
-@AutoConfigureMockMvc
 @Transactional
 class TransactionControllerTest {
 
     @Autowired
+    private WebApplicationContext context;
+
+    @Autowired
+    private UserService userService;
+
     private MockMvc mockMvc;
+    private User user;
+
+    @BeforeEach
+    void signIn() {
+        user = TestUsers.create(userService, "person-b@example.test");
+        mockMvc = TestUsers.mockMvcFor(context, user);
+    }
 
     @Autowired
     private CategoryRepository categoryRepository;
@@ -281,7 +296,7 @@ class TransactionControllerTest {
     }
 
     private long categoryId(String name) {
-        return categoryRepository.findAll().stream()
+        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
                 .filter(c -> c.getName().equals(name))
                 .findFirst().orElseThrow()
                 .getId();

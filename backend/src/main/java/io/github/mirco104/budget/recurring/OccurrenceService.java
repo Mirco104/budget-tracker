@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.recurring;
 
+import io.github.mirco104.budget.user.CurrentUser;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Comparator;
@@ -16,11 +17,14 @@ public class OccurrenceService {
 
     private final RecurringTransactionRepository recurringRepository;
     private final RecurringExceptionRepository exceptionRepository;
+    private final CurrentUser currentUser;
 
     public OccurrenceService(
-            RecurringTransactionRepository recurringRepository, RecurringExceptionRepository exceptionRepository) {
+            RecurringTransactionRepository recurringRepository, RecurringExceptionRepository exceptionRepository,
+            CurrentUser currentUser) {
         this.recurringRepository = recurringRepository;
         this.exceptionRepository = exceptionRepository;
+        this.currentUser = currentUser;
     }
 
     /** Occurrences in the month, oldest first. */
@@ -28,7 +32,7 @@ public class OccurrenceService {
     public List<Occurrence> occurrencesIn(YearMonth month) {
         LocalDate from = month.atDay(1);
         LocalDate to = month.atEndOfMonth();
-        List<RecurringTransaction> series = recurringRepository.findActiveBetween(from, to);
+        List<RecurringTransaction> series = recurringRepository.findActiveBetween(currentUser.get(), from, to);
         if (series.isEmpty()) {
             return List.of();
         }

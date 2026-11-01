@@ -226,3 +226,16 @@ export interface ReserveData {
   /** The month and the following 11 months. */
   forecast: ForecastMonth[]
 }
+
+/** The signed-in user (US14). */
+export interface Me {
+  id: number
+  email: string
+  displayName: string
+  role: 'USER' | 'ADMIN'
+}
+
+export interface LoginInput {
+  email: string
+  password: string
+}

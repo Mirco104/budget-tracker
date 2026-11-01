@@ -7,6 +7,7 @@ import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.transaction.TransactionRequest;
 import io.github.mirco104.budget.transaction.TransactionResponse;
 import io.github.mirco104.budget.transaction.TransactionService;
+import io.github.mirco104.budget.user.CurrentUser;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -28,20 +29,22 @@ public class RecurringTransactionService {
     private final RecurringExceptionRepository exceptionRepository;
     private final CategoryService categoryService;
     private final TransactionService transactionService;
+    private final CurrentUser currentUser;
 
     public RecurringTransactionService(
             RecurringTransactionRepository recurringRepository, RecurringExceptionRepository exceptionRepository,
-            CategoryService categoryService, TransactionService transactionService) {
+            CategoryService categoryService, TransactionService transactionService, CurrentUser currentUser) {
         this.recurringRepository = recurringRepository;
         this.exceptionRepository = exceptionRepository;
         this.categoryService = categoryService;
         this.transactionService = transactionService;
+        this.currentUser = currentUser;
     }
 
     /** Series active in the month (R14). */
     @Transactional(readOnly = true)
     public List<RecurringTransactionResponse> findActive(YearMonth month) {
-        return recurringRepository.findActiveBetween(month.atDay(1), month.atEndOfMonth()).stream()
+        return recurringRepository.findActiveBetween(currentUser.get(), month.atDay(1), month.atEndOfMonth()).stream()
                 .map(RecurringTransactionResponse::from)
                 .toList();
     }
@@ -50,6 +53,7 @@ public class RecurringTransactionService {
     public RecurringTransactionResponse create(RecurringTransactionRequest request) {
         Category category = validate(request);
         RecurringTransaction recurring = new RecurringTransaction(
+                currentUser.get(),
                 UUID.randomUUID(),
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
@@ -99,6 +103,7 @@ public class RecurringTransactionService {
         }
         endBefore(recurring, occurrence);
         RecurringTransaction following = new RecurringTransaction(
+                currentUser.get(),
                 recurring.getSeriesId(),
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
@@ -128,9 +133,9 @@ public class RecurringTransactionService {
         exceptionRepository.deleteByRecurringAndOccurrenceDateGreaterThanEqual(recurring, occurrence);
     }
 
-    // 404 for an unknown series and for a date that is not a counting occurrence of it
+    // 404 for an unknown or another user's series (R15) and for a date that is not a counting occurrence of it
     private RecurringTransaction findOccurrence(long id, LocalDate occurrence) {
-        RecurringTransaction recurring = recurringRepository.findById(id)
+        RecurringTransaction recurring = recurringRepository.findByIdAndOwner(id, currentUser.get())
                 .orElseThrow(() -> new NotFoundException(
                         "Wiederkehrende Transaktion " + id + " wurde nicht gefunden."));
         if (!scheduleOf(recurring).isOccurrence(occurrence)) {

@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.recurring;
 
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,6 +41,11 @@ public class RecurringTransaction {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    // R15: every series belongs to one user
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
+
     // "interval" is an SQL keyword
     @Enumerated(EnumType.STRING)
     @Column(name = "recurrence_interval", nullable = false, length = 20)
@@ -54,8 +60,9 @@ public class RecurringTransaction {
     }
 
     public RecurringTransaction(
-            UUID seriesId, BigDecimal amount, String description, Category category, RecurringInterval interval,
+            User owner, UUID seriesId, BigDecimal amount, String description, Category category, RecurringInterval interval,
             LocalDate startDate, LocalDate endDate) {
+        this.owner = owner;
         this.seriesId = seriesId;
         update(amount, description, category, interval, startDate, endDate);
     }

@@ -11,6 +11,7 @@ import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;
 import io.github.mirco104.budget.transaction.TransactionRepository;
+import io.github.mirco104.budget.user.CurrentUser;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -28,15 +29,17 @@ public class ReserveService {
     private final TransactionRepository transactionRepository;
     private final OccurrenceService occurrenceService;
     private final DashboardService dashboardService;
+    private final CurrentUser currentUser;
     private final ReserveCalculator calculator = new ReserveCalculator();
 
     public ReserveService(
             RecurringTransactionRepository recurringRepository, TransactionRepository transactionRepository,
-            OccurrenceService occurrenceService, DashboardService dashboardService) {
+            OccurrenceService occurrenceService, DashboardService dashboardService, CurrentUser currentUser) {
         this.recurringRepository = recurringRepository;
         this.transactionRepository = transactionRepository;
         this.occurrenceService = occurrenceService;
         this.dashboardService = dashboardService;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
@@ -48,7 +51,7 @@ public class ReserveService {
         // Forecast period M..M+11: every series active somewhere in it and every single transaction in it
         LocalDate forecastStart = month.atDay(1);
         LocalDate forecastEnd = month.plusMonths(ReserveCalculator.FORECAST_MONTHS - 1).atEndOfMonth();
-        List<RecurringTransaction> series = recurringRepository.findActiveBetween(forecastStart, forecastEnd);
+        List<RecurringTransaction> series = recurringRepository.findActiveBetween(currentUser.get(), forecastStart, forecastEnd);
         Map<Long, Set<LocalDate>> exceptions = occurrenceService.exceptionsBySeries(series);
         List<SeriesData> seriesData = series.stream()
                 .map(recurring -> new SeriesData(
@@ -62,7 +65,7 @@ public class ReserveService {
                         exceptions.getOrDefault(recurring.getId(), Set.of())))
                 .toList();
         List<SingleData> singles = transactionRepository
-                .findByDateBetweenOrderByDateDescIdDesc(forecastStart, forecastEnd).stream()
+                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), forecastStart, forecastEnd).stream()
                 .map(t -> new SingleData(t.getId(), t.getDescription(), t.getDate(), t.getAmount()))
                 .toList();
 
@@ -94,7 +97,9 @@ public class ReserveService {
     }
 
     private YearMonth firstEntryMonth() {
-        return Stream.of(transactionRepository.findMinDate(), recurringRepository.findMinStartDate())
+        return Stream.of(
+                        transactionRepository.findMinDate(currentUser.get()),
+                        recurringRepository.findMinStartDate(currentUser.get()))
                 .filter(date -> date != null)
                 .min(LocalDate::compareTo)
                 .map(YearMonth::from)

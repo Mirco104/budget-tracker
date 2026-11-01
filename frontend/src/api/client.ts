@@ -9,12 +9,24 @@ export class ApiError extends Error {
   }
 }
 
+/** The token the backend puts in the XSRF-TOKEN cookie; writing calls send it back as a header (section 15). */
+function csrfToken(): string | undefined {
+  const cookie = document.cookie.split('; ').find((entry) => entry.startsWith('XSRF-TOKEN='))
+  return cookie ? decodeURIComponent(cookie.slice('XSRF-TOKEN='.length)) : undefined
+}
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method ?? 'GET'
+  const token = method === 'GET' ? undefined : csrfToken()
   let response: Response
   try {
     response = await fetch(`/api${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-XSRF-TOKEN': token } : {}),
+        ...init?.headers,
+      },
     })
   } catch {
     throw new ApiError({ detail: 'Der Server ist nicht erreichbar.' })

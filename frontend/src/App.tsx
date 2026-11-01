@@ -1,6 +1,9 @@
 import { lazy, Suspense, useState } from 'react'
+import { useLogout, useMe } from './api/auth'
+import type { Me } from './api/types'
 import { currentMonth, shiftMonth } from './format'
 import { DashboardPage } from './pages/DashboardPage'
+import { LoginPage } from './pages/LoginPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
@@ -10,13 +13,34 @@ const ReservesPage = lazy(() => import('./pages/ReservesPage').then((module) => 
 
 type Page = 'dashboard' | 'transactions' | 'planning' | 'reserves' | 'settings'
 
+/** Every page needs a signed-in user; without one the login page shows (US14). */
 function App() {
-  const [page, setPage] = useState<Page>('dashboard')
-  const [month, setMonth] = useState(currentMonth)
+  const me = useMe()
 
   return (
     <main>
       <h1>Budget-Tracker</h1>
+      {me.isPending && <p>Lade …</p>}
+      {me.error && <p className="error">Der Server ist nicht erreichbar: {me.error.message}</p>}
+      {me.data === null && <LoginPage />}
+      {me.data && <SignedIn me={me.data} />}
+    </main>
+  )
+}
+
+function SignedIn({ me }: { me: Me }) {
+  const logout = useLogout()
+  const [page, setPage] = useState<Page>('dashboard')
+  const [month, setMonth] = useState(currentMonth)
+
+  return (
+    <>
+      <p className="account">
+        Angemeldet als {me.displayName}{' '}
+        <button type="button" disabled={logout.isPending} onClick={() => logout.mutate()}>
+          Abmelden
+        </button>
+      </p>
       <nav>
         <button
           type="button"
@@ -91,7 +115,7 @@ function App() {
         </Suspense>
       )}
       {page === 'settings' && <SettingsPage />}
-    </main>
+    </>
   )
 }
 
