@@ -35,7 +35,7 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardResponse calculate(YearMonth month) {
         Map<Long, TargetEntry> targets = categoryService.targetsInEffect(month);
-        List<CategoryData> categories = categoryRepository.findAllByOrderBySortOrderAsc().stream()
+        List<CategoryData> categories = categoryRepository.findAllByOrderBySortOrderAscIdAsc().stream()
                 .map(category -> {
                     TargetEntry target = targets.get(category.getId());
                     return new CategoryData(

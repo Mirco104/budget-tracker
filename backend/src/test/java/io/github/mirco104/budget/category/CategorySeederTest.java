@@ -28,7 +28,7 @@ class CategorySeederTest {
 
     @Test
     void seedsUniqueNamesAsOneListInSpecOrder() {
-        List<String> names = categoryRepository.findAllByOrderBySortOrderAsc().stream()
+        List<String> names = categoryRepository.findAllByOrderBySortOrderAscIdAsc().stream()
                 .map(Category::getName)
                 .toList();
 

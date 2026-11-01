@@ -255,7 +255,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | GET | `/account/export` | Alle eigenen Daten als JSON (US16) | 200 |
 | DELETE | `/account` | Konto samt Daten löschen, Body `{password}` (US16) | 204, 400 |
 | POST | `/categories` | Kategorie anlegen, Body `{name}` (US10) | 201 + Location, 400, 409 |
-| PUT | `/categories/{id}` | Ändern, Body `{name, sortOrder, archived}`; hat eine andere Kategorie schon diese `sortOrder`, tauschen die beiden ihre Plätze (verschieben um eine Position) | 200, 404, 400, 409 |
+| PUT | `/categories/{id}` | Ändern, Body `{name, sortOrder, archived}`; hat eine andere Kategorie schon diese `sortOrder`, nimmt die Kategorie ihren Platz ein (verschieben um eine Position); danach werden alle Kategorien neu durchnummeriert (10, 20, …), was auch gleiche `sortOrder` repariert | 200, 404, 400, 409 |
 | DELETE | `/categories/{id}` | Löschen (nur unbenutzt, US10) | 204, 404, 409 |
 | GET/POST | `/persons` | Personen lesen/anlegen (US17) | 200 / 201, 400, 409 |
 | PUT/DELETE | `/persons/{id}` | Umbenennen/Löschen | 200 / 204, 404, 409 |

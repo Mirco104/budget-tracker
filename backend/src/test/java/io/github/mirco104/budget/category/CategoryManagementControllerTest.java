@@ -127,6 +127,63 @@ class CategoryManagementControllerTest {
     }
 
     @Test
+    void renamesAndMovesInOneRequestAndRenumbersAllCategories() throws Exception {
+        Category wohnen = category("Wohnen");
+        Category nebenkosten = category("Nebenkosten");
+
+        putCategory(wohnen.getId(), "Miete", nebenkosten.getSortOrder(), false)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Miete"))
+                .andExpect(jsonPath("$.sortOrder").value(20));
+
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[0].name").value("Nebenkosten"))
+                .andExpect(jsonPath("$[1].name").value("Miete"))
+                .andExpect(jsonPath("$[*].sortOrder", contains(
+                        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200)));
+    }
+
+    @Test
+    void repairsDuplicateSortOrdersOnTheNextChange() throws Exception {
+        // Two categories with the same sortOrder, as left behind by two overlapping requests
+        Category wohnen = category("Wohnen");
+        Category nebenkosten = category("Nebenkosten");
+        nebenkosten.moveTo(wohnen.getSortOrder());
+        categoryRepository.flush();
+
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[0].name").value("Wohnen"))
+                .andExpect(jsonPath("$[1].name").value("Nebenkosten"));
+
+        putCategory(wohnen.getId(), "Miete", wohnen.getSortOrder(), false)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sortOrder").value(10));
+
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[0].name").value("Miete"))
+                .andExpect(jsonPath("$[1].name").value("Nebenkosten"))
+                .andExpect(jsonPath("$[1].sortOrder").value(20))
+                .andExpect(jsonPath("$[2].sortOrder").value(30));
+
+        putCategory(wohnen.getId(), "Miete", 20, false)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sortOrder").value(20));
+    }
+
+    @Test
+    void keepsTheOrderWhenOnlyTheNameChanges() throws Exception {
+        Category wohnen = category("Wohnen");
+
+        putCategory(wohnen.getId(), "Miete", wohnen.getSortOrder(), false)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sortOrder").value(wohnen.getSortOrder()));
+
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[0].name").value("Miete"))
+                .andExpect(jsonPath("$[1].name").value("Nebenkosten"));
+    }
+
+    @Test
     void archivesAndReactivatesCategory() throws Exception {
         Category category = category("Kredite");
 

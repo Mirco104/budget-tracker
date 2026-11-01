@@ -6,11 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
-    List<Category> findAllByOrderBySortOrderAsc();
+    /** Ties on sortOrder (left by overlapping moves before they were renumbered) are broken by id. */
+    List<Category> findAllByOrderBySortOrderAscIdAsc();
 
     Optional<Category> findTopByOrderBySortOrderDesc();
-
-    Optional<Category> findFirstBySortOrderAndIdNot(int sortOrder, Long id);
 
     boolean existsByNameIgnoreCase(String name);
 

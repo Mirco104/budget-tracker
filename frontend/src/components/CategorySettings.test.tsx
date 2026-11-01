@@ -80,7 +80,29 @@ describe('CategorySettings', () => {
 
     fireEvent.click(within(screen.getByRole('form', { name: 'Wohnen' })).getByRole('button', { name: 'Nach unten' }))
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(2))
-    expect(JSON.parse(writeCalls(fetchMock)[1][1]?.body as string)).toMatchObject({ name: 'Wohnen', sortOrder: 20 })
+    // The mock still answers with the old name; the row sends the name it shows
+    expect(JSON.parse(writeCalls(fetchMock)[1][1]?.body as string)).toMatchObject({ name: 'Miete', sortOrder: 20 })
+  })
+
+  it('sends a typed name and the move in one request when an arrow is clicked without Enter', async () => {
+    let answer: (response: Response) => void = () => {}
+    const fetchMock = renderSettings(() => new Promise((resolve) => (answer = resolve)))
+    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
+
+    fireEvent.change(within(wohnen).getByLabelText('Name'), { target: { value: 'Miete' } })
+    fireEvent.click(within(wohnen).getByRole('button', { name: 'Nach unten' }))
+    // The clicked button is disabled while saving, so the focus leaves the row
+    await waitFor(() => expect(within(wohnen).getByRole('button', { name: 'Nach unten' })).toBeDisabled())
+    fireEvent.blur(wohnen, { relatedTarget: null })
+    answer(new Response(JSON.stringify({ ...categories[0], name: 'Miete', sortOrder: 20 })))
+
+    await waitFor(() => expect(within(wohnen).getByRole('button', { name: 'Nach unten' })).toBeEnabled())
+    expect(writeCalls(fetchMock)).toHaveLength(1)
+    expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({
+      name: 'Miete',
+      sortOrder: 20,
+      archived: false,
+    })
   })
 
   it('shows the conflict when a used category is deleted', async () => {
