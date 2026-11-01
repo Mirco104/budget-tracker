@@ -1,16 +1,8 @@
 import { useState, type FocusEvent, type FormEvent } from 'react'
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
-import { ApiError } from '../api/client'
+import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
 import { currentMonth } from '../format'
-
-/** First field message of a 400, otherwise the problem detail (e.g. the 409 texts). */
-function errorText(error: unknown, fallback: string): string {
-  if (error instanceof ApiError && error.problem.errors?.length) {
-    return error.problem.errors[0].message
-  }
-  return error instanceof Error ? error.message : fallback
-}
 
 function NewCategoryForm() {
   const create = useCreateCategory()

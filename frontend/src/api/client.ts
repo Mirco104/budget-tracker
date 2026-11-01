@@ -41,3 +41,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return (await response.json()) as T
 }
+
+/** First field message of a 400, otherwise the problem detail (e.g. the 409 and 410 texts). */
+export function errorText(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.problem.errors?.length) {
+    return error.problem.errors[0].message
+  }
+  return error instanceof Error ? error.message : fallback
+}

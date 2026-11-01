@@ -503,15 +503,29 @@ form.transaction-form .sign-toggle label {
   margin: -8px 0 8px;
 }
 
-.login form {
+/* Login, invitation and account forms: one field per line */
+.stacked-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
   max-width: 320px;
+  margin-bottom: 16px;
 }
 
-.login label {
+.stacked-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.invitation-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.invitation-link input {
+  flex: 1 1 240px;
+  min-width: 0;
 }
