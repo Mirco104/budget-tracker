@@ -63,6 +63,14 @@ describe('SettingsPage', () => {
     expect(screen.queryByRole('form', { name: 'Passwort ändern' })).not.toBeInTheDocument()
   })
 
+  it('has no e-mail button for the system admin', () => {
+    renderSettings({ ...admin, role: 'SYSTEM_ADMIN' })
+
+    expect(screen.queryByRole('button', { name: 'E-Mail ändern' })).not.toBeInTheDocument()
+    expect(screen.getByText('Als Systemadmin über ADMIN_EMAIL festgelegt.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Anzeigename ändern' })).toBeInTheDocument()
+  })
+
   it('changes the display name and shows the message after closing the form', async () => {
     const fetchMock = renderSettings(user, () => json({ ...user, displayName: 'Person B neu' }))
 

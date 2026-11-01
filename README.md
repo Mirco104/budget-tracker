@@ -29,20 +29,20 @@ Das Backend läuft auf http://localhost:8080. API-Doku: http://localhost:8080/sw
 
 ### Anmeldung und erster Admin
 
-Die App ist nur angemeldet nutzbar (US14). Gibt es noch keinen Nutzer, legt das Backend beim Start den ersten Admin aus Umgebungsvariablen an (US15), samt Standard-Kategorien. Die Werte stehen nie im Repo:
+Die App ist nur angemeldet nutzbar (US14). Der Systemadmin ist immer das Konto mit der E-Mail aus `ADMIN_EMAIL` (US25). Das Backend prüft das bei jedem Start: Fehlt das Konto, legt es dieses mit `ADMIN_PASSWORD` und den Standard-Kategorien an; gibt es das Konto schon, wird es Systemadmin und behält sein Passwort; ein bisheriger Systemadmin mit anderer E-Mail wird Admin. Die Werte stehen nie im Repo:
 
 ```bash
 cd backend
 ADMIN_EMAIL=<e-mail> ADMIN_PASSWORD=<mindestens-12-zeichen> ADMIN_DISPLAY_NAME=<name> ./mvnw spring-boot:run
 ```
 
-Unter Windows (PowerShell) vorher `$env:ADMIN_EMAIL="<e-mail>"` usw. setzen; `start.cmd` und `start.sh` übernehmen die Variablen aus der Umgebung. Fehlen sie und gibt es keinen Nutzer, meldet das Log eine Warnung, und niemand kann sich anmelden. Nach 5 falschen Passwörtern in 15 Minuten ist die Anmeldung für diese E-Mail 15 Minuten gesperrt; ein Neustart hebt die Sperre auf.
+Unter Windows (PowerShell) vorher `$env:ADMIN_EMAIL="<e-mail>"` usw. setzen; `start.cmd` und `start.sh` übernehmen die Variablen aus der Umgebung. Fehlt `ADMIN_EMAIL`, ändert sich nichts; gibt es dann keinen Systemadmin, meldet das Log eine Warnung. Die E-Mail des Systemadmins lässt sich in der App nicht ändern, nur über `ADMIN_EMAIL` und einen Neustart. Nach 5 falschen Passwörtern in 15 Minuten ist die Anmeldung für diese E-Mail 15 Minuten gesperrt; ein Neustart hebt die Sperre auf.
 
 Die Migration `V2` löscht beim ersten Start alle Daten von vor dem Benutzersystem, weil sie keinem Nutzer gehören.
 
 Zum Testen im Heimnetz, etwa am Handy über `http://<IP-des-PCs>:5173`, ist das Session-Cookie vorerst ohne `Secure`-Flag, sonst verwirft der Browser es über HTTP. **Vor der Veröffentlichung muss es wieder an** (`SESSION_COOKIE_SECURE=true`, zusammen mit HTTPS, AP 19). Bis dahin nur Testdaten verwenden.
 
-Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Einstellungen › Einladungen* einen Link und schickt ihn selbst weiter, die App versendet keine E-Mails. Der Link ist einmal nutzbar und 7 Tage gültig. Unter *Einstellungen › Konto* ändert jeder Nutzer Passwort und E-Mail-Adresse, exportiert seine Daten als JSON und löscht sein Konto samt aller Daten (US16). Admins sehen unter *Einstellungen › Nutzer* alle Konten mit letzter Anmeldung (ohne Finanzdaten) und machen andere zu Admins oder Usern (US25). Der beim ersten Start angelegte Admin ist der Systemadmin: Ihn kann niemand herabstufen, und er kann sein Konto nicht löschen.
+Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Einstellungen › Einladungen* einen Link und schickt ihn selbst weiter, die App versendet keine E-Mails. Der Link ist einmal nutzbar und 7 Tage gültig. Unter *Einstellungen › Konto* ändert jeder Nutzer Passwort und E-Mail-Adresse, exportiert seine Daten als JSON und löscht sein Konto samt aller Daten (US16). Admins sehen unter *Einstellungen › Nutzer* alle Konten mit letzter Anmeldung (ohne Finanzdaten) und machen andere zu Admins oder Usern (US25). Den Systemadmin kann niemand herabstufen, und er kann sein Konto nicht löschen.
 
 ### Datenbank und Migrationen
 

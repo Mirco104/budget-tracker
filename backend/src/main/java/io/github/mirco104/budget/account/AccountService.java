@@ -85,10 +85,16 @@ public class AccountService {
         return user;
     }
 
-    /** 400 on password if it is wrong, 409 if another account has the e-mail (ignoring case). */
+    /**
+     * 400 on password if it is wrong, 409 if another account has the e-mail (ignoring case) and for the system admin,
+     * whose e-mail only ADMIN_EMAIL sets (US25).
+     */
     @Transactional
     public User changeEmail(ChangeEmailRequest request) {
         User user = signedInUser();
+        if (user.getRole() == Role.SYSTEM_ADMIN) {
+            throw new ConflictException("Die E-Mail des Systemadmins wird über ADMIN_EMAIL festgelegt.");
+        }
         checkPassword(user, request.password(), "password");
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         userRepository.findByEmail(email)

@@ -164,6 +164,8 @@ function PasswordForm({ onDone, onCancel }: EditProps) {
 interface RowProps {
   label: string
   value: string
+  /** Without it the row has no "Ändern" button, only this note. */
+  fixedNote?: string
   editing: boolean
   message: string | null
   onEdit: () => void
@@ -172,18 +174,19 @@ interface RowProps {
 }
 
 /** One value of the account with its "Ändern" button; the form opens below it. */
-function AccountRow({ label, value, editing, message, onEdit, children }: RowProps) {
+function AccountRow({ label, value, fixedNote, editing, message, onEdit, children }: RowProps) {
   return (
     <div className="account-entry">
       <div className="account-row">
         <span className="account-label">{label}</span>
         <span className="account-value">{value}</span>
-        {!editing && (
+        {!editing && !fixedNote && (
           <button type="button" aria-label={`${label} ändern`} onClick={onEdit}>
             Ändern
           </button>
         )}
       </div>
+      {fixedNote && <p className="hint">{fixedNote}</p>}
       {editing && children}
       {!editing && message && (
         <p className="hint" role="status">
@@ -228,6 +231,8 @@ function AccountDetails({ me }: { me: Me }) {
       <AccountRow
         label="E-Mail"
         value={me.email}
+        // The system admin's e-mail comes only from ADMIN_EMAIL (US25)
+        fixedNote={me.role === 'SYSTEM_ADMIN' ? 'Als Systemadmin über ADMIN_EMAIL festgelegt.' : undefined}
         editing={editing === 'email'}
         message={messageFor('email')}
         onEdit={() => edit('email')}

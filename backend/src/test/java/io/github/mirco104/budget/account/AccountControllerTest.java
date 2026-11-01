@@ -221,6 +221,19 @@ class AccountControllerTest {
         login(TestUsers.PASSWORD).andExpect(status().isUnauthorized());
     }
 
+    // US25: only ADMIN_EMAIL sets the system admin's e-mail
+    @Test
+    void theSystemAdminCannotChangeTheEmail() throws Exception {
+        User systemAdmin = userRepository.findByEmail("person-a@example.test").orElseThrow();
+
+        TestUsers.mockMvcFor(context, systemAdmin).perform(put("/api/account/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"admin-neu@example.test\", \"password\": \"%s\"}"
+                                .formatted(TestUsers.PASSWORD)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Die E-Mail des Systemadmins wird über ADMIN_EMAIL festgelegt."));
+    }
+
     // US25: there is always one system admin
     @Test
     void theSystemAdminCannotDeleteTheAccount() throws Exception {
