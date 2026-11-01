@@ -65,12 +65,18 @@ function CategoryRow({ category, previous, next }: RowProps) {
   const [error, setError] = useState<string | null>(null)
   const busy = update.isPending || remove.isPending
 
+  // A typed but unsaved name goes along with a move or archive, so one click is one request
   async function send(changes: Partial<CategoryUpdate>) {
     setError(null)
     try {
       await update.mutateAsync({
         id: category.id,
-        input: { name: category.name, sortOrder: category.sortOrder, archived: category.archived, ...changes },
+        input: {
+          name: name.trim() || category.name,
+          sortOrder: category.sortOrder,
+          archived: category.archived,
+          ...changes,
+        },
       })
     } catch (e) {
       setError(errorText(e, 'Speichern fehlgeschlagen.'))
@@ -78,7 +84,8 @@ function CategoryRow({ category, previous, next }: RowProps) {
   }
 
   function saveName() {
-    if (name.trim() === category.name) {
+    // The running request already carries the name (the clicked button is disabled, so the focus left the row)
+    if (busy || name.trim() === category.name) {
       return
     }
     if (name.trim() === '') {
