@@ -319,7 +319,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 
 ## 6. Architektur
 
-**Repo (Monorepo):** `/backend` (Maven, Java 21, Spring Boot 3), `/frontend` (Vite, React, TypeScript), `/docs` (diese Spezifikation, ADRs), `.github/workflows`, `CLAUDE.md`, `README.md`.
+**Repo (Monorepo):** `/backend` (Maven, Java 21, Spring Boot 4), `/frontend` (Vite, React, TypeScript), `/docs` (diese Spezifikation, ADRs), `.github/workflows`, `CLAUDE.md`, `README.md`.
 
 **Backend:** Schichten Controller → Service → Repository (Spring Data JPA, H2 als Datei-DB). **Die Berechnungen liegen in reinen Klassen** ohne Spring-Abhängigkeit: `RecurrenceSchedule` berechnet die Vorkommen einer Serie in einem Zeitraum (R12), `DashboardCalculator` nimmt Kategorien, Buchungen und Monat und liefert das Dashboard-DTO (R1 bis R10); Vorkommen wiederkehrender Transaktionen gehen dabei wie Transaktionen ein, weil sie mit vollem Betrag zählen (R1), bleiben aber als Vorkommen erkennbar, damit der Rechner die wiederkehrenden Ausgaben (R10) bestimmen kann, `ReserveCalculator` liefert die Auswertung (R14). Die Aufteilung von Serien (R13) liegt im Service. Das hält die Regeln isoliert testbar (Single Responsibility, Dependency Inversion). DTOs als Java-Records, Entities nie direkt nach außen. `springdoc-openapi` erzeugt die API-Doku aus dem Code.
 
@@ -537,7 +537,7 @@ Umsetzung der Entscheidungen 6 bis 17. Jedes Arbeitspaket ist ein eigener Branch
 
 **Stand 27.10.2026:** AP 9 bis 12d erledigt. Offen: AP 13.
 
-Getrennt davon und ohne fachliche Änderung: Upgrade auf Spring Boot 4.
+Getrennt davon und ohne fachliche Änderung: Upgrade auf Spring Boot 4 (erledigt am 01.11.2026, vor AP 18, damit die Security-Konfiguration gleich für Spring Security 7 entsteht).
 
 ## 14. Ausbau ab 27.10.2026: reale Nutzung
 
