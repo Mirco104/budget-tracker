@@ -559,7 +559,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 24 | Teilen Stufe 2 mit verknüpften Nutzern (US24): eigene Spec-Runde | Spec-PR, dann Umsetzung |
 | 25 | Investment I4: Depot mit Positionen (R22, US23): eigene Spec-Runde (Kursquelle) | Spec-PR, dann Umsetzung |
 
-**Stand 01.11.2026:** AP 14, 15, 15a, 16 und 17 erledigt. AP 18 in zwei PRs: 18a (Spring Security, `User`, `owner` an allen Entitäten, Seed je Nutzer, Anmeldeseite) erledigt; 18b (Einladung US15, Konto US16) offen.
+**Stand 01.11.2026:** AP 14 bis 18 erledigt. AP 18 kam in zwei PRs: 18a (Spring Security, `User`, `owner` an allen Entitäten, Seed je Nutzer, Anmeldeseite) und 18b (Einladung US15, Konto US16).
 
 **Erste Nutzung im Bekanntenkreis:** nach AP 19. AP 15 und 16 können davor oder parallel laufen, AP 20 bis 25 kommen danach.
 
