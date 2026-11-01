@@ -42,9 +42,9 @@ public class SecurityConfig {
     public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        // US15: the invited person has no account yet; only an admin creates links
+                        // US15: the invited person has no account yet. Admin-only calls check the role in the
+                        // service against the database (CurrentUser.requireAdmin), so role changes apply at once.
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/accept").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/invitations").hasRole("ADMIN")
                         .requestMatchers("/api/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
                         .requestMatchers("/api/**").authenticated()

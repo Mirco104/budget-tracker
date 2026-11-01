@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import { useCreateInvitation } from '../api/invitations'
 import type { Invitation } from '../api/types'
@@ -27,6 +27,7 @@ export function InvitationSettings({ senderName }: { senderName: string }) {
   const [invitation, setInvitation] = useState<Invitation | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const linkField = useRef<HTMLInputElement>(null)
 
   async function handleCreate() {
     setError(null)
@@ -38,12 +39,39 @@ export function InvitationSettings({ senderName }: { senderName: string }) {
     }
   }
 
-  async function handleCopy(link: string) {
+  // Copies by selecting the link field; works without the clipboard API (plain HTTP, embedded browsers)
+  function copyFromField(): boolean {
+    const field = linkField.current
+    if (!field) {
+      return false
+    }
+    field.focus()
+    field.select()
     try {
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
+      return document.execCommand('copy')
     } catch {
-      setError('Kopieren nicht möglich. Bitte den Link markieren und kopieren.')
+      return false
+    }
+  }
+
+  async function handleCopy(link: string) {
+    setError(null)
+    let copiedNow = false
+    // The clipboard API only exists in a secure context (HTTPS or localhost) and may still be denied
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(link)
+        copiedNow = true
+      } catch {
+        copiedNow = false
+      }
+    }
+    if (!copiedNow) {
+      copiedNow = copyFromField()
+    }
+    setCopied(copiedNow)
+    if (!copiedNow) {
+      setError('Kopieren nicht möglich. Der Link ist markiert, bitte mit Strg+C bzw. lange tippen kopieren.')
     }
   }
 
@@ -59,7 +87,13 @@ export function InvitationSettings({ senderName }: { senderName: string }) {
       </button>
       {invitation && (
         <div className="invitation-link">
-          <input aria-label="Einladungslink" readOnly value={invitation.link} onFocus={(e) => e.target.select()} />
+          <input
+            ref={linkField}
+            aria-label="Einladungslink"
+            readOnly
+            value={invitation.link}
+            onFocus={(e) => e.target.select()}
+          />
           <button type="button" onClick={() => void handleCopy(invitation.link)}>
             {copied ? 'Kopiert' : 'Kopieren'}
           </button>

@@ -86,10 +86,11 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 - **US10 Kategorien verwalten** (früher Nice): Als Nutzer lege ich unter *Einstellungen › Kategorien* Kategorien an, benenne sie um, ändere ihre Reihenfolge, archiviere oder lösche sie. *AK:* Name 1 bis 50 Zeichen, eindeutig je Nutzer (sonst 409); Löschen nur ohne Transaktionen, Serien und Soll-Einträge, sonst 409 mit dem Hinweis, die Kategorie zu archivieren; eine archivierte Kategorie fehlt in den Formularen und auf der Seite *Planung*, vergangene Monate in *Übersicht* und *Auswertung* zeigen sie weiter korrekt; eine neue Kategorie steht am Ende der Reihenfolge. Buchungen auf einer archivierten Kategorie bleiben erlaubt, damit bestehende Einträge bearbeitet werden können; das Formular zeigt sie nur, wenn sie schon gewählt ist. Gleiche Namen werden ohne Beachtung der Groß- und Kleinschreibung erkannt.
 - **US11 Flyway-Migrationen** statt Seeder (früher Nice). *AK:* Das Schema entsteht nur aus Migrationen; eine gemergte Migration wird nie geändert; die Standard-Kategorien legt der Service beim Anlegen eines Nutzers an (US15), nicht eine Migration.
 - **US14 Anmelden und Abmelden:** Als Nutzer melde ich mich mit E-Mail und Passwort an und wieder ab. *AK:* R15; falsche Angaben ergeben eine allgemeine Fehlermeldung (ohne Hinweis, ob die E-Mail existiert); nach 5 Fehlversuchen in 15 Minuten wird die Anmeldung für diese E-Mail 15 Minuten gesperrt; die Sitzung läuft nach 30 Tagen ohne Nutzung ab.
-- **US15 Einladung:** Als Admin erzeuge ich einen Einladungslink und schicke ihn selbst weiter (kein Mailversand durch die App). Wer den Link öffnet, legt E-Mail, Anzeigename und Passwort fest und erhält die Standard-Kategorien (Seed, Abschnitt 4) ohne Beträge. *AK:* Link einmalig nutzbar und 7 Tage gültig (sonst 410); E-Mail eindeutig (409); Passwort mindestens 12 Zeichen. Der erste Admin wird beim ersten Start aus Umgebungsvariablen angelegt.
-- **US16 Konto:** Als Nutzer ändere ich mein Passwort (altes Passwort nötig), exportiere alle meine Daten (JSON) und lösche mein Konto samt allen Daten. *AK:* Löschen erfordert die Eingabe des Passworts; danach existieren keine Daten des Nutzers mehr.
+- **US15 Einladung:** Als Admin erzeuge ich einen Einladungslink und schicke ihn selbst weiter (kein Mailversand durch die App). Wer den Link öffnet, legt E-Mail, Anzeigename und Passwort fest und erhält die Standard-Kategorien (Seed, Abschnitt 4) ohne Beträge. *AK:* Link einmalig nutzbar und 7 Tage gültig (sonst 410); E-Mail eindeutig (409); Passwort mindestens 12 Zeichen. Der Systemadmin kommt aus Umgebungsvariablen (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_DISPLAY_NAME`, siehe US25).
+- **US16 Konto:** Als Nutzer sehe ich unter *Einstellungen › Konto* meinen Anzeigenamen und meine E-Mail-Adresse und ändere sie und mein Passwort jeweils über "Ändern" (Anzeigename 1 bis 50 Zeichen ohne Passwort; E-Mail mit Passwort, außer beim Systemadmin, dessen E-Mail nur `ADMIN_EMAIL` festlegt (409); Passwort mit altem Passwort), exportiere alle meine Daten (JSON) und lösche mein Konto samt allen Daten. *AK:* Löschen erfordert die Eingabe des Passworts; danach existieren keine Daten des Nutzers mehr. Neue E-Mail eindeutig (409, ohne Groß-/Kleinschreibung) und gültig (400). Der Systemadmin kann sein Konto nicht löschen (409), damit es immer einen gibt.
 
 ### Ausbau ab 27.10.2026: Should
+- **US25 Nutzerübersicht:** Als Admin sehe ich unter *Einstellungen › Nutzer* alle Konten mit Anzeigename, E-Mail, Rolle, Anlagedatum und letzter Anmeldung ("noch nie" ohne Anmeldung), aber keine Finanzdaten (R15 gilt weiter für alle Budgetdaten). Ich mache einen User zum Admin und einen Admin zum User. *AK:* Nur Admins und der Systemadmin (sonst 403); der Systemadmin bleibt immer Systemadmin (409), die Rolle `SYSTEM_ADMIN` lässt sich nicht vergeben (400); die eigene Rolle lässt sich nicht ändern (409); eine Rollenänderung gilt ab der nächsten Anfrage, ohne neue Anmeldung; die eigene Zeile zeigt den Namen mit "(Du)". **Systemadmin** ist immer das Konto mit der E-Mail aus `ADMIN_EMAIL`; das Backend prüft das bei jedem Start: Gibt es das Konto nicht, legt es dieses mit `ADMIN_PASSWORD` und den Standard-Kategorien an; gibt es ein Konto mit dieser E-Mail, wird es Systemadmin und behält sein Passwort; ein bisheriger Systemadmin mit anderer E-Mail wird Admin. Ohne `ADMIN_EMAIL` ändert sich nichts (Warnung im Log, wenn es keinen Systemadmin gibt).
 - **US17 Personen:** Als Nutzer lege ich unter *Einstellungen › Personen* Personen an, mit denen ich Ausgaben teile (nur Name, eindeutig je Nutzer), und benenne sie um. *AK:* Löschen nur bei Saldo 0 und ohne geteilte Einträge, sonst 409.
 - **US18 Ausgabe teilen:** Als Nutzer teile ich im Transaktionsformular eine einmalige oder wiederkehrende Ausgabe: Gesamtbetrag, wer bezahlt hat, Beteiligte und Aufteilung (Beträge, gleichmäßig oder Prozent), z. B. "200 € meines Anteils von 500 €". *AK:* R16, R17; das Formular zeigt meinen Anteil, bevor gespeichert wird; im Budget und in der Monatsliste steht mein Anteil, die Liste kennzeichnet geteilte Einträge ("geteilt, gesamt 500,00"); R13 behält die Aufteilung (R18).
 - **US19 Salden und Ausgleich:** Als Nutzer sehe ich auf der Seite *Teilen* je Person den Saldo ("schuldet dir" / "du schuldest") und die geteilten Einträge und erfasse einen Ausgleich (Betrag, Richtung, Datum). *AK:* R18; Werte entsprechen der Testfixture F2 (Abschnitt 12); ein Ausgleich erscheint nicht im Dashboard.
@@ -153,8 +154,9 @@ User
   email         String, eindeutig (klein geschrieben gespeichert)
   passwordHash  String                 (BCrypt oder Argon2, nie das Passwort)
   displayName   String, 1..50
-  role          USER | ADMIN
+  role          USER | ADMIN | SYSTEM_ADMIN   (genau ein SYSTEM_ADMIN: das Konto mit der E-Mail aus `ADMIN_EMAIL`, US25)
   createdAt     Instant
+  lastLoginAt   Instant, nullable      (jede erfolgreiche Anmeldung, auch nach dem Annehmen einer Einladung)
 
 Invitation                             (US15)
   id            Long, PK
@@ -253,7 +255,11 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | POST | `/invitations/{token}/accept` | Einladung annehmen, Body `{email, displayName, password}` | 201, 404, 410 (abgelaufen/benutzt), 409, 400 |
 | PUT | `/account/password` | Passwort ändern, Body `{currentPassword, newPassword}` (US16) | 204, 400 |
 | GET | `/account/export` | Alle eigenen Daten als JSON (US16) | 200 |
-| DELETE | `/account` | Konto samt Daten löschen, Body `{password}` (US16) | 204, 400 |
+| DELETE | `/account` | Konto samt Daten löschen, Body `{password}` (US16) | 204, 400, 409 (Systemadmin) |
+| PUT | `/account/email` | E-Mail ändern, Body `{email, password}` (US16) | 200, 400, 409 |
+| PUT | `/account/display-name` | Anzeigenamen ändern, Body `{displayName}` (US16) | 200, 400 |
+| GET | `/users` | Alle Konten ohne Finanzdaten, nur Admins (US25) | 200, 403 |
+| PUT | `/users/{id}/role` | Rolle ändern, Body `{role: USER\|ADMIN}`, nur Admins (US25) | 200, 400, 403, 404, 409 |
 | POST | `/categories` | Kategorie anlegen, Body `{name}` (US10) | 201 + Location, 400, 409 |
 | PUT | `/categories/{id}` | Ändern, Body `{name, sortOrder, archived}`; hat eine andere Kategorie schon diese `sortOrder`, nimmt die Kategorie ihren Platz ein (verschieben um eine Position); danach werden alle Kategorien neu durchnummeriert (10, 20, …), was auch gleiche `sortOrder` repariert | 200, 404, 400, 409 |
 | DELETE | `/categories/{id}` | Löschen (nur unbenutzt, US10) | 204, 404, 409 |
@@ -551,6 +557,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 16 | Auswertung mit wählbarem Zeitraum und Diagramm (R14, US13, Entscheidung 23) | Fixture F1 grün, Tests für 3/6/24 Monate |
 | 17 | Flyway und PostgreSQL-Profil (US11, Entscheidung 20): Ausgangsmigration aus dem aktuellen Schema; der Seeder bleibt bis AP 18 und wird dort zum Seed je neuem Nutzer (US15), weil es vorher keinen Nutzer gibt, an dem er hängen könnte | Tests auf Flyway-Schema grün, mit H2 und in der CI mit PostgreSQL |
 | 18 | Benutzersystem und Mandantentrennung (R15, US14 bis US16, Entscheidungen 18 und 19): Spring Security, `User`, `Invitation`, `owner` an allen Entitäten, Seed je Nutzer, Anmeldeseite, Konto | Integrationstests R15 grün |
+| 18c | Nutzerübersicht und Rollen (US25): Rolle `SYSTEM_ADMIN`, letzte Anmeldung, Seite *Einstellungen › Nutzer*; E-Mail und Anzeigenamen ändern (US16) | Integrationstests grün |
 | 19 | Betrieb (Abschnitt 15, Entscheidung 21): Dockerfile, `docker-compose.yml`, `.env.example`, Health-Check, Backup-Skript, Impressum und Datenschutzhinweis als Platzhalter | Image baut in der CI |
 | 20 | Teilen Stufe 1 (R16 bis R18, US17 bis US19, Entscheidung 22): `SplitCalculator`, `BalanceCalculator`, Personen, Aufteilung für Transaktionen und Serien, Seite *Teilen* | Fixture F2 grün |
 | 21 | Investment I1: Sparplan und Prognose (R19, US20); vorher Formeln des Blatts "Sparplan"/"Prognosen" analysieren und R19 präzisieren | Fixture F3 grün |
@@ -559,7 +566,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 24 | Teilen Stufe 2 mit verknüpften Nutzern (US24): eigene Spec-Runde | Spec-PR, dann Umsetzung |
 | 25 | Investment I4: Depot mit Positionen (R22, US23): eigene Spec-Runde (Kursquelle) | Spec-PR, dann Umsetzung |
 
-**Stand 01.11.2026:** AP 14 bis 18 erledigt. AP 18 kam in zwei PRs: 18a (Spring Security, `User`, `owner` an allen Entitäten, Seed je Nutzer, Anmeldeseite) und 18b (Einladung US15, Konto US16).
+**Stand 01.11.2026:** AP 14 bis 18 erledigt. AP 18 kam in zwei PRs: 18a (Spring Security, `User`, `owner` an allen Entitäten, Seed je Nutzer, Anmeldeseite) und 18b (Einladung US15, Konto US16). AP 18c (Nutzerübersicht US25) vor AP 19 eingeschoben.
 
 **Erste Nutzung im Bekanntenkreis:** nach AP 19. AP 15 und 16 können davor oder parallel laufen, AP 20 bis 25 kommen danach.
 
