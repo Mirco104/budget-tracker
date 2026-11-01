@@ -7,6 +7,8 @@ import io.github.mirco104.budget.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Locale;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,18 +29,21 @@ public class AuthService {
     private final LoginAttempts loginAttempts;
     private final CurrentUser currentUser;
     private final UserRepository userRepository;
+    private final Clock clock;
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
     public AuthService(
             AuthenticationManager authenticationManager, LoginAttempts loginAttempts, CurrentUser currentUser,
-            UserRepository userRepository) {
+            UserRepository userRepository, Clock clock) {
         this.authenticationManager = authenticationManager;
         this.loginAttempts = loginAttempts;
         this.currentUser = currentUser;
         this.userRepository = userRepository;
+        this.clock = clock;
     }
 
     /** 401 for wrong e-mail or password (same text), 429 while the e-mail is locked, even with the right password. */
+    @Transactional
     public void login(LoginRequest login, HttpServletRequest request, HttpServletResponse response) {
         String email = login.email().trim().toLowerCase(Locale.ROOT);
         if (loginAttempts.isLocked(email)) {
@@ -53,6 +58,7 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
         loginAttempts.reset(email);
+        recordLogin(((AppUserDetails) authentication.getPrincipal()).id());
         signIn(authentication, request, response);
     }
 
@@ -70,10 +76,17 @@ public class AuthService {
     }
 
     /** Signs in a user who just set their password, e.g. after accepting an invitation (US15). */
+    @Transactional
     public void signIn(User user, HttpServletRequest request, HttpServletResponse response) {
+        recordLogin(user.getId());
         AppUserDetails details = AppUserDetails.from(user);
         signIn(UsernamePasswordAuthenticationToken.authenticated(details, null, details.getAuthorities()),
                 request, response);
+    }
+
+    // For the user overview (US25)
+    private void recordLogin(Long userId) {
+        userRepository.findById(userId).ifPresent(user -> user.recordLogin(Instant.now(clock)));
     }
 
     // A new session id on every sign-in against session fixation

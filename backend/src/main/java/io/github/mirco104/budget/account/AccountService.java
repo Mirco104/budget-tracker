@@ -9,6 +9,7 @@ import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.category.CategoryTarget;
 import io.github.mirco104.budget.category.CategoryTargetRepository;
 import io.github.mirco104.budget.category.TargetResolver.TargetEntry;
+import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.invitation.InvitationRepository;
 import io.github.mirco104.budget.recurring.RecurringException;
@@ -17,6 +18,7 @@ import io.github.mirco104.budget.recurring.RecurringTransaction;
 import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
+import io.github.mirco104.budget.user.Role;
 import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserRepository;
 import io.github.mirco104.budget.user.UserService;
@@ -24,13 +26,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** US16: change the password, export all own data, delete the account with all data. */
+/** US16: change the password and the e-mail, export all own data, delete the account with all data. */
 @Service
 public class AccountService {
 
@@ -75,6 +78,21 @@ public class AccountService {
         user.changePasswordHash(passwordEncoder.encode(request.newPassword()));
     }
 
+    /** 400 on password if it is wrong, 409 if another account has the e-mail (ignoring case). */
+    @Transactional
+    public User changeEmail(ChangeEmailRequest request) {
+        User user = signedInUser();
+        checkPassword(user, request.password(), "password");
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        userRepository.findByEmail(email)
+                .filter(other -> !other.getId().equals(user.getId()))
+                .ifPresent(other -> {
+                    throw new ConflictException("Diese E-Mail-Adresse ist schon registriert.");
+                });
+        user.changeEmail(email);
+        return user;
+    }
+
     @Transactional(readOnly = true)
     public AccountExport export() {
         User user = signedInUser();
@@ -113,6 +131,10 @@ public class AccountService {
     public void delete(DeleteAccountRequest request) {
         User user = signedInUser();
         checkPassword(user, request.password(), "password");
+        // There is always one system admin (US25)
+        if (user.getRole() == Role.SYSTEM_ADMIN) {
+            throw new ConflictException("Der Systemadmin kann sein Konto nicht löschen.");
+        }
         exceptionRepository.deleteByOwner(user);
         recurringRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);

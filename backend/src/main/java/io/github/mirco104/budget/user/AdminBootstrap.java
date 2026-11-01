@@ -8,7 +8,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Creates the first admin from environment variables on the first start (US15). Logs no values. */
+/** Creates the system admin from environment variables on the first start (US15, US25). Logs no values. */
 @Component
 public class AdminBootstrap implements ApplicationRunner {
 
@@ -42,7 +42,7 @@ public class AdminBootstrap implements ApplicationRunner {
             log.warn("No user exists and ADMIN_EMAIL / ADMIN_PASSWORD are not set, so nobody can sign in.");
             return;
         }
-        userService.create(email, displayName.isBlank() ? "Admin" : displayName, password, Role.ADMIN);
+        userService.create(email, displayName.isBlank() ? "Admin" : displayName, password, Role.SYSTEM_ADMIN);
         log.info("Created the first admin from ADMIN_EMAIL.");
     }
 }
