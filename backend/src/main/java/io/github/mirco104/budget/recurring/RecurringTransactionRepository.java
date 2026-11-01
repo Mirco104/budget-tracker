@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 /** Every query is scoped to the owner (R15). */
@@ -27,4 +28,13 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
     LocalDate findMinStartDate(User owner);
 
     boolean existsByCategoryId(Long categoryId);
+
+    /** US16: all series of the user, for the export. */
+    @EntityGraph(attributePaths = "category")
+    List<RecurringTransaction> findByOwnerOrderByStartDateAscIdAsc(User owner);
+
+    /** US16: deleting an account; the exceptions must be gone first. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from RecurringTransaction r where r.owner = :owner")
+    void deleteByOwner(User owner);
 }

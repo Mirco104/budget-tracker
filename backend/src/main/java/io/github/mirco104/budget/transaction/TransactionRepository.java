@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 /** Every query is scoped to the owner (R15). */
@@ -21,4 +22,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     LocalDate findMinDate(User owner);
 
     boolean existsByCategoryId(Long categoryId);
+
+    /** US16: all transactions of the user, for the export. */
+    @EntityGraph(attributePaths = "category")
+    List<Transaction> findByOwnerOrderByDateAscIdAsc(User owner);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Transaction t where t.owner = :owner")
+    void deleteByOwner(User owner);
 }

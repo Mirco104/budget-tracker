@@ -49,6 +49,10 @@ public class User {
         this.createdAt = createdAt;
     }
 
+    public void changePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public Long getId() {
         return id;
     }
