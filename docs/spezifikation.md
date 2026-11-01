@@ -549,7 +549,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 15 | Kategorien verwalten (US10): API, Seite *Einstellungen › Kategorien*, `archived` | Integrationstests grün |
 | 15a | Auswertung: Umschalter € / % und Gesamt-Zeile im Rückblick, Rückblick und Vorschau einklappbar (R14, US13, Entscheidung 25) | Fixture F1 grün, Tests für Anteile und Summen |
 | 16 | Auswertung mit wählbarem Zeitraum und Diagramm (R14, US13, Entscheidung 23) | Fixture F1 grün, Tests für 3/6/24 Monate |
-| 17 | Flyway und PostgreSQL-Profil (US11, Entscheidung 20): Ausgangsmigration aus dem aktuellen Schema, Seeder entfernen | Tests auf Flyway-Schema grün |
+| 17 | Flyway und PostgreSQL-Profil (US11, Entscheidung 20): Ausgangsmigration aus dem aktuellen Schema; der Seeder bleibt bis AP 18 und wird dort zum Seed je neuem Nutzer (US15), weil es vorher keinen Nutzer gibt, an dem er hängen könnte | Tests auf Flyway-Schema grün, mit H2 und in der CI mit PostgreSQL |
 | 18 | Benutzersystem und Mandantentrennung (R15, US14 bis US16, Entscheidungen 18 und 19): Spring Security, `User`, `Invitation`, `owner` an allen Entitäten, Seed je Nutzer, Anmeldeseite, Konto | Integrationstests R15 grün |
 | 19 | Betrieb (Abschnitt 15, Entscheidung 21): Dockerfile, `docker-compose.yml`, `.env.example`, Health-Check, Backup-Skript, Impressum und Datenschutzhinweis als Platzhalter | Image baut in der CI |
 | 20 | Teilen Stufe 1 (R16 bis R18, US17 bis US19, Entscheidung 22): `SplitCalculator`, `BalanceCalculator`, Personen, Aufteilung für Transaktionen und Serien, Seite *Teilen* | Fixture F2 grün |
@@ -559,7 +559,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 | 24 | Teilen Stufe 2 mit verknüpften Nutzern (US24): eigene Spec-Runde | Spec-PR, dann Umsetzung |
 | 25 | Investment I4: Depot mit Positionen (R22, US23): eigene Spec-Runde (Kursquelle) | Spec-PR, dann Umsetzung |
 
-**Stand 31.10.2026:** AP 14, 15, 15a und 16 erledigt.
+**Stand 01.11.2026:** AP 14, 15, 15a, 16 und 17 erledigt.
 
 **Erste Nutzung im Bekanntenkreis:** nach AP 19. AP 15 und 16 können davor oder parallel laufen, AP 20 bis 25 kommen danach.
 

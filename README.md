@@ -27,6 +27,19 @@ cd backend
 
 Das Backend läuft auf http://localhost:8080. API-Doku: http://localhost:8080/swagger-ui.html. Die H2-Datenbank liegt lokal unter `backend/data/` und wird nicht eingecheckt.
 
+### Datenbank und Migrationen
+
+Das Schema entsteht nur aus den Flyway-Migrationen in `backend/src/main/resources/db/migration` (US11). Sie laufen beim Start automatisch; Hibernate prüft das Schema nur (`ddl-auto=validate`). Eine Migration, die schon in `main` ist, wird nie geändert; jede Änderung am Schema ist eine neue Datei `V<n>__<beschreibung>.sql`.
+
+Eine lokale H2-Datenbank von vor der Umstellung auf Flyway lässt sich nicht weiterverwenden: einmal `backend/data/` löschen, beim nächsten Start entsteht sie neu.
+
+Mit PostgreSQL statt H2 (Profil `postgres`, Verbindung nur über Umgebungsvariablen):
+
+```bash
+cd backend
+SPRING_PROFILES_ACTIVE=postgres DB_URL=jdbc:postgresql://localhost:5432/budget DB_USERNAME=budget DB_PASSWORD=<passwort> ./mvnw spring-boot:run
+```
+
 Build und Tests:
 
 ```bash
@@ -55,4 +68,4 @@ npm run build
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) baut und testet Backend und Frontend bei jedem Push auf `main` und bei jedem Pull Request.
+GitHub Actions (`.github/workflows/ci.yml`) baut und testet Backend und Frontend bei jedem Push auf `main` und bei jedem Pull Request. Die Backend-Tests laufen zweimal: mit H2 und mit PostgreSQL.
