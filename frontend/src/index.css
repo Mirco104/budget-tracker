@@ -534,6 +534,16 @@ form.transaction-form .sign-toggle label {
   align-items: center;
 }
 
+.button-link {
+  padding: 1px 6px;
+  border: 1px solid #8c959f;
+  border-radius: 3px;
+  background: #f6f8fa;
+  color: inherit;
+  font-size: 13.33px;
+  text-decoration: none;
+}
+
 .invitation-link input {
   flex: 1 1 240px;
   min-width: 0;

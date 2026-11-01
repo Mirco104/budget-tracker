@@ -10,7 +10,7 @@ export function SettingsPage({ me }: { me: Me }) {
       <h2>Einstellungen</h2>
       <CategorySettings />
       <AccountSettings />
-      {me.role === 'ADMIN' && <InvitationSettings />}
+      {me.role === 'ADMIN' && <InvitationSettings senderName={me.displayName} />}
     </section>
   )
 }

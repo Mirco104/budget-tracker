@@ -45,6 +45,13 @@ describe('SettingsPage', () => {
 
     expect(await screen.findByLabelText('Einladungslink')).toHaveValue('http://localhost:5173/?einladung=token-abc')
     expect(screen.getByText(/Gültig bis 08\.11\.2026/)).toBeInTheDocument()
+
+    const mailto = screen.getByRole('link', { name: 'Per E-Mail senden' }).getAttribute('href') ?? ''
+    expect(mailto).toMatch(/^mailto:\?subject=Einladung%20zum%20Budget-Tracker&body=/)
+    const body = decodeURIComponent(mailto.slice(mailto.indexOf('body=') + 'body='.length))
+    expect(body).toContain('http://localhost:5173/?einladung=token-abc')
+    expect(body).toContain('gültig bis 08.11.2026')
+    expect(body).toMatch(/Person A$/)
   })
 
   it('changes the password and shows a wrong current password', async () => {
