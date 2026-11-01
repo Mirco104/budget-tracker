@@ -1,6 +1,57 @@
 import { useState, type FormEvent } from 'react'
-import { useChangePassword, useDeleteAccount, useExportAccount } from '../api/account'
+import { useChangeEmail, useChangePassword, useDeleteAccount, useExportAccount } from '../api/account'
 import { errorText } from '../api/client'
+
+function EmailForm({ currentEmail }: { currentEmail: string }) {
+  const change = useChangeEmail()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (email.trim() === '' || password === '') {
+      setMessage({ text: 'Bitte neue E-Mail-Adresse und Passwort eingeben.', error: true })
+      return
+    }
+    try {
+      await change.mutateAsync({ email: email.trim(), password })
+      setEmail('')
+      setPassword('')
+      setMessage({ text: 'Die E-Mail-Adresse ist geändert.', error: false })
+    } catch (e) {
+      setMessage({ text: errorText(e, 'Ändern fehlgeschlagen.'), error: true })
+    }
+  }
+
+  return (
+    <form className="stacked-form" aria-label="E-Mail ändern" noValidate onSubmit={handleSubmit}>
+      <h4>E-Mail ändern</h4>
+      <p className="hint">Aktuell: {currentEmail}</p>
+      <label>
+        Neue E-Mail-Adresse
+        <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <label>
+        Passwort
+        <input
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </label>
+      <button type="submit" disabled={change.isPending}>
+        E-Mail ändern
+      </button>
+      {message && (
+        <p className={message.error ? 'error' : 'hint'} role={message.error ? 'alert' : 'status'}>
+          {message.text}
+        </p>
+      )}
+    </form>
+  )
+}
 
 function PasswordForm() {
   const change = useChangePassword()
@@ -137,10 +188,11 @@ function DeleteForm() {
 }
 
 /** Settings › Konto (US16). */
-export function AccountSettings() {
+export function AccountSettings({ email }: { email: string }) {
   return (
     <section>
       <h3>Konto</h3>
+      <EmailForm currentEmail={email} />
       <PasswordForm />
       <ExportButton />
       <DeleteForm />

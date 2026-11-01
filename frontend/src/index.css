@@ -438,7 +438,8 @@ form.transaction-form .sign-toggle label {
 
 /* Settings › Kategorien (US10); on narrow screens the buttons wrap below the name. */
 .category-new,
-.category-row {
+.category-row,
+.user-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -525,6 +526,21 @@ form.transaction-form .sign-toggle label {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.user-row {
+  align-items: center;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.user-row .user-name {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.user-row .user-name span {
+  display: block;
 }
 
 .invitation-link {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Me } from '../api/types'
 import { SettingsPage } from './SettingsPage'
@@ -30,10 +30,34 @@ function writeCalls(fetchMock: ReturnType<typeof renderSettings>) {
 }
 
 describe('SettingsPage', () => {
-  it('shows invitations only to admins', () => {
+  it('shows users and invitations to admins and the system admin, not to users', () => {
     renderSettings(user)
     expect(screen.getByRole('heading', { name: 'Konto' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Einladungen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Nutzer' })).not.toBeInTheDocument()
+    cleanup()
+
+    renderSettings({ ...admin, role: 'SYSTEM_ADMIN' })
+    expect(screen.getByRole('heading', { name: 'Einladungen' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Nutzer' })).toBeInTheDocument()
+  })
+
+  it('changes the e-mail with the password and shows the current one', async () => {
+    const fetchMock = renderSettings(user, () =>
+      json({ status: 409, detail: 'Diese E-Mail-Adresse ist schon registriert.' }, 409),
+    )
+    const form = screen.getByRole('form', { name: 'E-Mail ändern' })
+    expect(within(form).getByText('Aktuell: person-b@example.test')).toBeInTheDocument()
+
+    fireEvent.change(within(form).getByLabelText('Neue E-Mail-Adresse'), { target: { value: ' admin@example.test ' } })
+    fireEvent.change(within(form).getByLabelText('Passwort'), { target: { value: 'test-only-password' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'E-Mail ändern' }))
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Diese E-Mail-Adresse ist schon registriert.')
+    const [url, init] = writeCalls(fetchMock)[0]
+    expect(url).toBe('/api/account/email')
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(init?.body as string)).toEqual({ email: 'admin@example.test', password: 'test-only-password' })
   })
 
   it('creates an invitation link for an admin', async () => {
