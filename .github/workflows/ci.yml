@@ -20,6 +20,40 @@ jobs:
           cache: maven
       - run: ./mvnw -B verify
 
+  # Same tests against PostgreSQL, so the Flyway migrations also work in production (Entscheidung 20)
+  backend-postgres:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: budget
+          POSTGRES_USER: budget
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U budget"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Environment variables outrank application-test.properties
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/budget
+      SPRING_DATASOURCE_USERNAME: budget
+      SPRING_DATASOURCE_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: ./mvnw -B verify
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
