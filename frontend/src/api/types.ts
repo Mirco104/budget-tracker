@@ -239,3 +239,21 @@ export interface LoginInput {
   email: string
   password: string
 }
+
+/** US15: the link the admin passes on; expiresAt is an ISO instant. */
+export interface Invitation {
+  link: string
+  expiresAt: string
+}
+
+export interface AcceptInvitationInput {
+  email: string
+  displayName: string
+  password: string
+}
+
+/** US16 */
+export interface ChangePasswordInput {
+  currentPassword: string
+  newPassword: string
+}

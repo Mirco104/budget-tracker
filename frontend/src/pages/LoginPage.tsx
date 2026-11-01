@@ -24,9 +24,9 @@ export function LoginPage() {
   }
 
   return (
-    <section className="login">
+    <section>
       <h2>Anmelden</h2>
-      <form noValidate onSubmit={handleSubmit}>
+      <form className="stacked-form" noValidate onSubmit={handleSubmit}>
         <label>
           E-Mail
           <input

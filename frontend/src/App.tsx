@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import { useLogout, useMe } from './api/auth'
 import type { Me } from './api/types'
 import { currentMonth, shiftMonth } from './format'
+import { AcceptInvitationPage } from './pages/AcceptInvitationPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { PlanningPage } from './pages/PlanningPage'
@@ -13,9 +14,29 @@ const ReservesPage = lazy(() => import('./pages/ReservesPage').then((module) => 
 
 type Page = 'dashboard' | 'transactions' | 'planning' | 'reserves' | 'settings'
 
+// US15: an invitation link opens the app with ?einladung=<token>
+function invitationToken(): string | null {
+  return new URLSearchParams(window.location.search).get('einladung')
+}
+
 /** Every page needs a signed-in user; without one the login page shows (US14). */
 function App() {
   const me = useMe()
+  const [token, setToken] = useState(invitationToken)
+
+  function handleAccepted() {
+    window.history.replaceState(null, '', window.location.pathname)
+    setToken(null)
+  }
+
+  if (token) {
+    return (
+      <main>
+        <h1>Budget-Tracker</h1>
+        <AcceptInvitationPage token={token} onAccepted={handleAccepted} />
+      </main>
+    )
+  }
 
   return (
     <main>
@@ -114,7 +135,7 @@ function SignedIn({ me }: { me: Me }) {
           <ReservesPage month={month} />
         </Suspense>
       )}
-      {page === 'settings' && <SettingsPage />}
+      {page === 'settings' && <SettingsPage me={me} />}
     </>
   )
 }

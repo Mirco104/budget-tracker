@@ -22,7 +22,11 @@ public final class TestUsers {
     }
 
     public static User create(UserService userService, String email) {
-        return userService.create(email, email.substring(0, email.indexOf('@')), PASSWORD, Role.USER);
+        return create(userService, email, Role.USER);
+    }
+
+    public static User create(UserService userService, String email, Role role) {
+        return userService.create(email, email.substring(0, email.indexOf('@')), PASSWORD, role);
     }
 
     /** Every request is signed in as the user and carries a CSRF token. */

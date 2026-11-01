@@ -59,6 +59,11 @@ export function formatDate(isoDate: string): string {
   return `${day}.${month}.${year}`
 }
 
+/** An ISO instant in local time, e.g. "08.11.2026, 18:12". */
+export function formatDateTime(isoInstant: string): string {
+  return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(isoInstant))
+}
+
 /** Parses German amount input ("12,50", "1.234,5") into a number, or null if the format is invalid. */
 export function parseAmountInput(input: string): number | null {
   const trimmed = input.trim()

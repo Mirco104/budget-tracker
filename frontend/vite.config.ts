@@ -7,7 +7,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
+      // Keeps the Host header of the frontend, so links the backend builds (invitations, US15) point here
+      '/api': { target: 'http://localhost:8080', changeOrigin: false },
     },
   },
   test: {
