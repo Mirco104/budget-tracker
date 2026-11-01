@@ -40,6 +40,8 @@ Unter Windows (PowerShell) vorher `$env:ADMIN_EMAIL="<e-mail>"` usw. setzen; `st
 
 Die Migration `V2` löscht beim ersten Start alle Daten von vor dem Benutzersystem, weil sie keinem Nutzer gehören.
 
+Zum Testen im Heimnetz, etwa am Handy über `http://<IP-des-PCs>:5173`, ist das Session-Cookie vorerst ohne `Secure`-Flag, sonst verwirft der Browser es über HTTP. **Vor der Veröffentlichung muss es wieder an** (`SESSION_COOKIE_SECURE=true`, zusammen mit HTTPS, AP 19). Bis dahin nur Testdaten verwenden.
+
 Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Einstellungen › Einladungen* einen Link und schickt ihn selbst weiter, die App versendet keine E-Mails. Der Link ist einmal nutzbar und 7 Tage gültig. Unter *Einstellungen › Konto* ändert jeder Nutzer sein Passwort, exportiert seine Daten als JSON und löscht sein Konto samt aller Daten (US16).
 
 ### Datenbank und Migrationen

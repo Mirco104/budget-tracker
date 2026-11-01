@@ -580,7 +580,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 
 **Sicherheit:**
 - Passwörter nur als Hash (BCrypt oder Argon2), mindestens 12 Zeichen.
-- Session-Cookie `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz für schreibende Aufrufe; Ablauf nach 30 Tagen ohne Nutzung.
+- Session-Cookie `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz für schreibende Aufrufe; Ablauf nach 30 Tagen ohne Nutzung. Bis AP 19 ist `Secure` abgeschaltet (Vorgabe `SESSION_COOKIE_SECURE=false`), damit die App im Heimnetz über HTTP testbar ist; siehe Abschnitt 16.
 - Sperre nach 5 fehlgeschlagenen Anmeldungen in 15 Minuten (US14).
 - Mandantentrennung nach R15, durch Integrationstests für jeden Endpunkt abgesichert.
 - Security-Header (Content-Security-Policy, `X-Content-Type-Options`, `Referrer-Policy`).
@@ -592,6 +592,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 
 ## 16. Offene Punkte
 
+- **Vor der Veröffentlichung (spätestens mit AP 19):** Session-Cookie wieder mit `Secure` (`SESSION_COOKIE_SECURE=true` bzw. Vorgabe in `application.properties` auf `true`), nur zusammen mit HTTPS. Bis dahin geht das Cookie im Heimnetz unverschlüsselt über HTTP; die App enthält deshalb nur Testdaten.
 - Plattform für den Betrieb (Entscheidung 21).
 - Konkrete Formeln der Investment-Blätter (vor AP 21 und 23 aus dem Sheet ableiten); Fixture F3.
 - Teilen mit verknüpften Nutzern (US24) und Depot mit Positionen (US23, Kursquelle): eigene Spec-Runden.
