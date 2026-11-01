@@ -9,6 +9,7 @@ import io.github.mirco104.budget.transaction.TransactionRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,7 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public List<CategoryResponse> findAll(YearMonth month) {
         Map<Long, TargetEntry> targets = targetsInEffect(month);
-        return categoryRepository.findAllByOrderBySortOrderAsc().stream()
+        return categoryRepository.findAllByOrderBySortOrderAscIdAsc().stream()
                 .map(category -> CategoryResponse.from(category, targets.get(category.getId())))
                 .toList();
     }
@@ -66,8 +67,9 @@ public class CategoryService {
     }
 
     /**
-     * US10: renames, moves and archives. If another category has the requested sortOrder, the two swap places, so
-     * moving by one position is a single call.
+     * US10: renames, moves and archives. If another category has the requested sortOrder, the category takes its
+     * place, so moving to a neighbour's sortOrder swaps the two in a single call. Afterwards all categories are
+     * renumbered in steps of 10, which also repairs equal sortOrders.
      */
     @Transactional
     public CategoryResponse update(long id, UpdateCategoryRequest request) {
@@ -77,11 +79,18 @@ public class CategoryService {
             throw nameTaken(name);
         }
 
+        List<Category> ordered = new ArrayList<>(categoryRepository.findAllByOrderBySortOrderAscIdAsc());
         int sortOrder = request.sortOrder();
         if (sortOrder != category.getSortOrder()) {
-            categoryRepository.findFirstBySortOrderAndIdNot(sortOrder, id)
-                    .ifPresent(other -> other.moveTo(category.getSortOrder()));
-            category.moveTo(sortOrder);
+            int target = indexOfOther(ordered, sortOrder, category);
+            ordered.remove(category);
+            if (target < 0) {
+                target = (int) ordered.stream().filter(other -> other.getSortOrder() <= sortOrder).count();
+            }
+            ordered.add(target, category);
+        }
+        for (int i = 0; i < ordered.size(); i++) {
+            ordered.get(i).moveTo((i + 1) * SORT_ORDER_STEP);
         }
         category.rename(name);
         category.setArchived(request.archived());
@@ -123,6 +132,17 @@ public class CategoryService {
     private Category find(long id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Kategorie " + id + " wurde nicht gefunden."));
+    }
+
+    /** Position of another category with this sortOrder, -1 if there is none. */
+    private static int indexOfOther(List<Category> ordered, int sortOrder, Category category) {
+        for (int i = 0; i < ordered.size(); i++) {
+            Category other = ordered.get(i);
+            if (other != category && other.getSortOrder() == sortOrder) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static ConflictException nameTaken(String name) {
