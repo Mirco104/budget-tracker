@@ -42,16 +42,53 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Nutzer' })).toBeInTheDocument()
   })
 
-  it('changes the e-mail with the password and shows the current one', async () => {
+  it('shows name and e-mail and opens a form only after Ändern', () => {
+    renderSettings(user)
+
+    expect(screen.getByText('Person B')).toBeInTheDocument()
+    expect(screen.getByText('person-b@example.test')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'E-Mail ändern' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'E-Mail ändern' }))
+    const form = screen.getByRole('form', { name: 'E-Mail ändern' })
+    expect(within(form).getByLabelText('Neue E-Mail-Adresse')).toHaveValue('person-b@example.test')
+    expect(screen.queryByRole('button', { name: 'E-Mail ändern' })).not.toBeInTheDocument()
+
+    // Opening another form closes this one
+    fireEvent.click(screen.getByRole('button', { name: 'Passwort ändern' }))
+    expect(screen.queryByRole('form', { name: 'E-Mail ändern' })).not.toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'Passwort ändern' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    expect(screen.queryByRole('form', { name: 'Passwort ändern' })).not.toBeInTheDocument()
+  })
+
+  it('changes the display name and shows the message after closing the form', async () => {
+    const fetchMock = renderSettings(user, () => json({ ...user, displayName: 'Person B neu' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Anzeigename ändern' }))
+    const form = screen.getByRole('form', { name: 'Anzeigename ändern' })
+    fireEvent.change(within(form).getByLabelText('Neuer Anzeigename'), { target: { value: ' Person B neu ' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Der Anzeigename ist geändert.')
+    expect(screen.queryByRole('form', { name: 'Anzeigename ändern' })).not.toBeInTheDocument()
+    const [url, init] = writeCalls(fetchMock)[0]
+    expect(url).toBe('/api/account/display-name')
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(init?.body as string)).toEqual({ displayName: 'Person B neu' })
+  })
+
+  it('changes the e-mail with the password and shows a taken address', async () => {
     const fetchMock = renderSettings(user, () =>
       json({ status: 409, detail: 'Diese E-Mail-Adresse ist schon registriert.' }, 409),
     )
+    fireEvent.click(screen.getByRole('button', { name: 'E-Mail ändern' }))
     const form = screen.getByRole('form', { name: 'E-Mail ändern' })
-    expect(within(form).getByText('Aktuell: person-b@example.test')).toBeInTheDocument()
 
     fireEvent.change(within(form).getByLabelText('Neue E-Mail-Adresse'), { target: { value: ' admin@example.test ' } })
-    fireEvent.change(within(form).getByLabelText('Passwort'), { target: { value: 'test-only-password' } })
-    fireEvent.click(within(form).getByRole('button', { name: 'E-Mail ändern' }))
+    fireEvent.change(within(form).getByLabelText('Passwort zur Bestätigung'), { target: { value: 'test-only-password' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('Diese E-Mail-Adresse ist schon registriert.')
     const [url, init] = writeCalls(fetchMock)[0]
@@ -82,11 +119,12 @@ describe('SettingsPage', () => {
     const fetchMock = renderSettings(user, () =>
       json({ status: 400, errors: [{ field: 'currentPassword', message: 'Das Passwort ist falsch.' }] }, 400),
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Passwort ändern' }))
     const form = screen.getByRole('form', { name: 'Passwort ändern' })
 
     fireEvent.change(within(form).getByLabelText('Bisheriges Passwort'), { target: { value: 'wrong-password' } })
     fireEvent.change(within(form).getByLabelText(/Neues Passwort/), { target: { value: 'new-test-password' } })
-    fireEvent.click(within(form).getByRole('button', { name: 'Passwort ändern' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('Das Passwort ist falsch.')
     const [url, init] = writeCalls(fetchMock)[0]

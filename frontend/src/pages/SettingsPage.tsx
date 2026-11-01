@@ -10,7 +10,7 @@ export function SettingsPage({ me }: { me: Me }) {
     <section>
       <h2>Einstellungen</h2>
       <CategorySettings />
-      <AccountSettings email={me.email} />
+      <AccountSettings me={me} />
       {/* Display only; the backend checks the role on every call */}
       {me.role !== 'USER' && <UserSettings me={me} />}
       {me.role !== 'USER' && <InvitationSettings senderName={me.displayName} />}

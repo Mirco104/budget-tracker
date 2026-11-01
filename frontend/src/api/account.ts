@@ -7,6 +7,10 @@ export function changePassword(input: ChangePasswordInput): Promise<void> {
   return request<void>('/account/password', { method: 'PUT', body: JSON.stringify(input) })
 }
 
+export function changeDisplayName(displayName: string): Promise<Me> {
+  return request<Me>('/account/display-name', { method: 'PUT', body: JSON.stringify({ displayName }) })
+}
+
 export function changeEmail(input: ChangeEmailInput): Promise<Me> {
   return request<Me>('/account/email', { method: 'PUT', body: JSON.stringify(input) })
 }
@@ -24,17 +28,24 @@ export function useChangePassword() {
   return useMutation({ mutationFn: changePassword })
 }
 
-// The e-mail shows in the account section and the user overview
-export function useChangeEmail() {
+// Name and e-mail show in the header, the account section and the user overview
+function useInvalidateAfterAccountChange() {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: changeEmail,
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['me'] }),
-        queryClient.invalidateQueries({ queryKey: ['users'] }),
-      ]),
-  })
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['me'] }),
+      queryClient.invalidateQueries({ queryKey: ['users'] }),
+    ])
+}
+
+export function useChangeDisplayName() {
+  const onSuccess = useInvalidateAfterAccountChange()
+  return useMutation({ mutationFn: changeDisplayName, onSuccess })
+}
+
+export function useChangeEmail() {
+  const onSuccess = useInvalidateAfterAccountChange()
+  return useMutation({ mutationFn: changeEmail, onSuccess })
 }
 
 export function useExportAccount() {
