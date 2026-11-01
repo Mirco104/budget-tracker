@@ -1,20 +1,19 @@
 package io.github.mirco104.budget.category;
 
+import io.github.mirco104.budget.user.User;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Seeds the default categories from the spec (section 4) as one flat list when the table is empty.
+ * The default categories from the spec (section 4) as one flat list, created for every new user (US15).
  * Targets stay empty; the user sets them in the app.
  */
 @Component
-public class CategorySeeder implements ApplicationRunner {
+public class DefaultCategories {
 
-    private static final List<String> NAMES = List.of(
+    static final List<String> NAMES = List.of(
             "Wohnen", "Nebenkosten", "Versicherungen", "Mobilität", "Kredite", "Spenden",
             "Lebensmittel", "Freizeit", "Urlaub", "Persönlicher Bedarf", "Geschenke", "Gesundheit",
             "Investitionen", "Selbstständigkeit",
@@ -23,20 +22,15 @@ public class CategorySeeder implements ApplicationRunner {
 
     private final CategoryRepository categoryRepository;
 
-    public CategorySeeder(CategoryRepository categoryRepository) {
+    public DefaultCategories(CategoryRepository categoryRepository) {
         this.categoryRepository = categoryRepository;
     }
 
-    @Override
     @Transactional
-    public void run(ApplicationArguments args) {
-        if (categoryRepository.count() > 0) {
-            return;
-        }
-
+    public void seedFor(User owner) {
         List<Category> categories = new ArrayList<>();
         for (String name : NAMES) {
-            categories.add(new Category(name, (categories.size() + 1) * 10));
+            categories.add(new Category(owner, name, (categories.size() + 1) * 10));
         }
         categoryRepository.saveAll(categories);
     }

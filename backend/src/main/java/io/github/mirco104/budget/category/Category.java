@@ -1,16 +1,20 @@
 package io.github.mirco104.budget.category;
 
 import jakarta.persistence.Column;
+import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.ColumnDefault;
 
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = "name"))
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"owner_id", "name"}))
 public class Category {
 
     @Id
@@ -19,6 +23,11 @@ public class Category {
 
     @Column(nullable = false, length = 100)
     private String name;
+
+    // R15: every category belongs to one user
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
 
     @Column(nullable = false)
     private int sortOrder;
@@ -31,7 +40,8 @@ public class Category {
     protected Category() {
     }
 
-    public Category(String name, int sortOrder) {
+    public Category(User owner, String name, int sortOrder) {
+        this.owner = owner;
         this.name = name;
         this.sortOrder = sortOrder;
     }

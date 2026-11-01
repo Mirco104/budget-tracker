@@ -4,6 +4,7 @@ import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.recurring.OccurrenceService;
+import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
@@ -19,13 +20,15 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final CategoryService categoryService;
     private final OccurrenceService occurrenceService;
+    private final CurrentUser currentUser;
 
     public TransactionService(
             TransactionRepository transactionRepository, CategoryService categoryService,
-            OccurrenceService occurrenceService) {
+            OccurrenceService occurrenceService, CurrentUser currentUser) {
         this.transactionRepository = transactionRepository;
         this.categoryService = categoryService;
         this.occurrenceService = occurrenceService;
+        this.currentUser = currentUser;
     }
 
     // A transaction belongs to the month of its date (spec 11.3); occurrences of recurring ones are added (R12).
@@ -33,7 +36,8 @@ public class TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> findByMonth(YearMonth month) {
         Stream<TransactionResponse> singles = transactionRepository
-                .findByDateBetweenOrderByDateDescIdDesc(month.atDay(1), month.atEndOfMonth()).stream()
+                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), month.atDay(1), month.atEndOfMonth())
+                .stream()
                 .map(TransactionResponse::from);
         Stream<TransactionResponse> occurrences = occurrenceService.occurrencesIn(month).stream()
                 .map(TransactionResponse::from);
@@ -46,6 +50,7 @@ public class TransactionService {
     public TransactionResponse create(TransactionRequest request) {
         checkAmount(request.amount());
         Transaction transaction = new Transaction(
+                currentUser.get(),
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
@@ -77,8 +82,9 @@ public class TransactionService {
         }
     }
 
+    // Another user's transaction is 404 like an unknown one (R15)
     private Transaction findTransaction(long id) {
-        return transactionRepository.findById(id)
+        return transactionRepository.findByIdAndOwner(id, currentUser.get())
                 .orElseThrow(() -> new NotFoundException("Transaktion " + id + " wurde nicht gefunden."));
     }
 }
