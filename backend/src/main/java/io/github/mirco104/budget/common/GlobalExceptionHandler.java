@@ -39,6 +39,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Konflikt", ex.getMessage());
     }
 
+    @ExceptionHandler(GoneException.class)
+    public ProblemDetail handleGone(GoneException ex) {
+        return problem(HttpStatus.GONE, "Nicht mehr gültig", ex.getMessage());
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
         return problem(HttpStatus.UNAUTHORIZED, "Anmeldung fehlgeschlagen", ex.getMessage());

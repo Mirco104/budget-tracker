@@ -1,6 +1,8 @@
 package io.github.mirco104.budget.auth;
 
+import io.github.mirco104.budget.user.AppUserDetails;
 import io.github.mirco104.budget.user.CurrentUser;
+import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -65,6 +67,13 @@ public class AuthService {
     @Transactional(readOnly = true)
     public MeResponse me() {
         return MeResponse.from(userRepository.findById(currentUser.details().id()).orElseThrow());
+    }
+
+    /** Signs in a user who just set their password, e.g. after accepting an invitation (US15). */
+    public void signIn(User user, HttpServletRequest request, HttpServletResponse response) {
+        AppUserDetails details = AppUserDetails.from(user);
+        signIn(UsernamePasswordAuthenticationToken.authenticated(details, null, details.getAuthorities()),
+                request, response);
     }
 
     // A new session id on every sign-in against session fixation
