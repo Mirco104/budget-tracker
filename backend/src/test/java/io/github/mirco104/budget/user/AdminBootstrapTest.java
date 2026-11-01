@@ -24,10 +24,10 @@ class AdminBootstrapTest {
     private CategoryRepository categoryRepository;
 
     @Test
-    void createsTheFirstAdminWithDefaultCategories() {
+    void createsTheSystemAdminWithDefaultCategories() {
         User admin = userRepository.findByEmail("person-a@example.test").orElseThrow();
 
-        assertThat(admin.getRole()).isEqualTo(Role.ADMIN);
+        assertThat(admin.getRole()).isEqualTo(Role.SYSTEM_ADMIN);
         assertThat(admin.getDisplayName()).isEqualTo("Person A");
         assertThat(admin.getPasswordHash()).startsWith("$2").doesNotContain("test-only-password");
         assertThat(categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(admin)).hasSize(20);
