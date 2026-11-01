@@ -42,7 +42,7 @@ Die Migration `V2` löscht beim ersten Start alle Daten von vor dem Benutzersyst
 
 Zum Testen im Heimnetz, etwa am Handy über `http://<IP-des-PCs>:5173`, ist das Session-Cookie vorerst ohne `Secure`-Flag, sonst verwirft der Browser es über HTTP. **Vor der Veröffentlichung muss es wieder an** (`SESSION_COOKIE_SECURE=true`, zusammen mit HTTPS, AP 19). Bis dahin nur Testdaten verwenden.
 
-Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Einstellungen › Einladungen* einen Link und schickt ihn selbst weiter, die App versendet keine E-Mails. Der Link ist einmal nutzbar und 7 Tage gültig. Unter *Einstellungen › Konto* ändert jeder Nutzer sein Passwort, exportiert seine Daten als JSON und löscht sein Konto samt aller Daten (US16).
+Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Einstellungen › Einladungen* einen Link und schickt ihn selbst weiter, die App versendet keine E-Mails. Der Link ist einmal nutzbar und 7 Tage gültig. Unter *Einstellungen › Konto* ändert jeder Nutzer Passwort und E-Mail-Adresse, exportiert seine Daten als JSON und löscht sein Konto samt aller Daten (US16). Admins sehen unter *Einstellungen › Nutzer* alle Konten mit letzter Anmeldung (ohne Finanzdaten) und machen andere zu Admins oder Usern (US25). Der beim ersten Start angelegte Admin ist der Systemadmin: Ihn kann niemand herabstufen, und er kann sein Konto nicht löschen.
 
 ### Datenbank und Migrationen
 
