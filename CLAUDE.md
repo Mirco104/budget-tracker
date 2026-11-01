@@ -5,14 +5,15 @@ Budget tracker web app: set target budgets per category, record income and expen
 
 ## Stack
 - Backend: Java 21, Spring Boot 4.x, Maven, Spring Web, Spring Data JPA, Spring Security, Flyway, PostgreSQL (production), H2 (tests and local dev), Bean Validation, springdoc-openapi, JUnit 5, AssertJ, MockMvc
-- Frontend: Vite, React, TypeScript (strict), TanStack Query, Vitest, Testing Library, ESLint
-- CI: GitHub Actions
-- Layout: `/backend`, `/frontend`, `/docs`, `.github/workflows`
-- Planned (add only in the named work package): Docker image and `docker-compose.yml` (AP 19); Recharts (AP 16)
+- Frontend: Vite, React, TypeScript (strict), TanStack Query, Recharts, Vitest, Testing Library, ESLint
+- CI: GitHub Actions, Dependabot
+- Operations: Docker image (`Dockerfile`), `docker-compose.yml` with PostgreSQL and optional Caddy, Spring Boot Actuator health (see `docs/betrieb.md`)
+- Layout: `/backend`, `/frontend`, `/docs`, `/scripts`, `.github/workflows`
 
 ## Commands
 - Backend: `cd backend && ./mvnw -B verify` (build and tests), `./mvnw spring-boot:run`
 - Frontend: `cd frontend && npm ci && npm run lint && npm test && npm run build`, `npm run dev`
+- Docker: `docker compose up -d --build` (values from `.env`, template `.env.example`), `scripts/backup.sh`, `scripts/restore.sh <dump>`
 
 ## Language
 - UI text: German
