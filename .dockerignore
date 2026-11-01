@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.env
+.env.*
+backups
+docs
+frontend/node_modules
+frontend/dist
+frontend/coverage
+backend/target
+backend/data
