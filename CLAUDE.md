@@ -4,11 +4,11 @@
 Budget tracker web app: set target budgets per category, record income and expenses, see a monthly dashboard with target vs. actual. Started as an 8-hour practice project; it is now being prepared for real use by several people (first privately among friends, maybe public later), with user accounts, shared expenses and an investment part. The source of truth for behavior is `docs/spezifikation.md` (rules R1–R22, user stories US1–US24, work packages in sections 13 and 14, operations in section 15). Read the relevant section before every task.
 
 ## Stack
-- Backend: Java 21, Spring Boot 4.x, Maven, Spring Web, Spring Data JPA, H2 (file DB), Bean Validation, springdoc-openapi, JUnit 5, AssertJ, MockMvc
+- Backend: Java 21, Spring Boot 4.x, Maven, Spring Web, Spring Data JPA, Spring Security, Flyway, PostgreSQL (production), H2 (tests and local dev), Bean Validation, springdoc-openapi, JUnit 5, AssertJ, MockMvc
 - Frontend: Vite, React, TypeScript (strict), TanStack Query, Vitest, Testing Library, ESLint
 - CI: GitHub Actions
 - Layout: `/backend`, `/frontend`, `/docs`, `.github/workflows`
-- Planned (add only in the named work package): Flyway and PostgreSQL for production, H2 for tests and local dev (AP 17); Spring Security (AP 18); Docker image and `docker-compose.yml` (AP 19); Recharts (AP 16)
+- Planned (add only in the named work package): Docker image and `docker-compose.yml` (AP 19); Recharts (AP 16)
 
 ## Commands
 - Backend: `cd backend && ./mvnw -B verify` (build and tests), `./mvnw spring-boot:run`

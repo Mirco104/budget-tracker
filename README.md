@@ -27,6 +27,19 @@ cd backend
 
 Das Backend läuft auf http://localhost:8080. API-Doku: http://localhost:8080/swagger-ui.html. Die H2-Datenbank liegt lokal unter `backend/data/` und wird nicht eingecheckt.
 
+### Anmeldung und erster Admin
+
+Die App ist nur angemeldet nutzbar (US14). Gibt es noch keinen Nutzer, legt das Backend beim Start den ersten Admin aus Umgebungsvariablen an (US15), samt Standard-Kategorien. Die Werte stehen nie im Repo:
+
+```bash
+cd backend
+ADMIN_EMAIL=<e-mail> ADMIN_PASSWORD=<mindestens-12-zeichen> ADMIN_DISPLAY_NAME=<name> ./mvnw spring-boot:run
+```
+
+Unter Windows (PowerShell) vorher `$env:ADMIN_EMAIL="<e-mail>"` usw. setzen; `start.cmd` und `start.sh` übernehmen die Variablen aus der Umgebung. Fehlen sie und gibt es keinen Nutzer, meldet das Log eine Warnung, und niemand kann sich anmelden. Nach 5 falschen Passwörtern in 15 Minuten ist die Anmeldung für diese E-Mail 15 Minuten gesperrt; ein Neustart hebt die Sperre auf.
+
+Die Migration `V2` löscht beim ersten Start alle Daten von vor dem Benutzersystem, weil sie keinem Nutzer gehören.
+
 ### Datenbank und Migrationen
 
 Das Schema entsteht nur aus den Flyway-Migrationen in `backend/src/main/resources/db/migration` (US11). Sie laufen beim Start automatisch; Hibernate prüft das Schema nur (`ddl-auto=validate`). Eine Migration, die schon in `main` ist, wird nie geändert; jede Änderung am Schema ist eine neue Datei `V<n>__<beschreibung>.sql`.
