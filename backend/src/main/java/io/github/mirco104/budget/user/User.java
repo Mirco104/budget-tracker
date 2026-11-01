@@ -61,6 +61,10 @@ public class User {
         this.email = email;
     }
 
+    public void changeDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
     public void changeRole(Role role) {
         this.role = role;
     }

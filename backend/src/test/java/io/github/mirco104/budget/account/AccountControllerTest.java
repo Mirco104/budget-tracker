@@ -112,6 +112,30 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.errors[0].field").value("newPassword"));
     }
 
+    // --- PUT /api/account/display-name ---
+
+    @Test
+    void changesTheDisplayNameWithoutPassword() throws Exception {
+        asB.perform(put("/api/account/display-name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\": \"  Person B neu  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Person B neu"));
+
+        assertThat(userRepository.findById(b.getId()).orElseThrow().getDisplayName()).isEqualTo("Person B neu");
+    }
+
+    @Test
+    void rejectsAnEmptyOrTooLongDisplayName() throws Exception {
+        asB.perform(put("/api/account/display-name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\": \"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("displayName"));
+        asB.perform(put("/api/account/display-name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\": \"%s\"}".formatted("x".repeat(51))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].message").value("Der Anzeigename darf höchstens 50 Zeichen haben."));
+    }
+
     // --- PUT /api/account/email ---
 
     @Test

@@ -34,6 +34,11 @@ public class AccountController {
         accountService.changePassword(request);
     }
 
+    @PutMapping("/display-name")
+    public MeResponse changeDisplayName(@Valid @RequestBody ChangeDisplayNameRequest request) {
+        return MeResponse.from(accountService.changeDisplayName(request));
+    }
+
     @PutMapping("/email")
     public MeResponse changeEmail(@Valid @RequestBody ChangeEmailRequest request) {
         return MeResponse.from(accountService.changeEmail(request));

@@ -33,7 +33,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** US16: change the password and the e-mail, export all own data, delete the account with all data. */
+/** US16: change display name, e-mail and password, export all own data, delete the account with all data. */
 @Service
 public class AccountService {
 
@@ -76,6 +76,13 @@ public class AccountService {
                     "Das Passwort muss mindestens " + UserService.MIN_PASSWORD_LENGTH + " Zeichen haben.");
         }
         user.changePasswordHash(passwordEncoder.encode(request.newPassword()));
+    }
+
+    @Transactional
+    public User changeDisplayName(ChangeDisplayNameRequest request) {
+        User user = signedInUser();
+        user.changeDisplayName(request.displayName().trim());
+        return user;
     }
 
     /** 400 on password if it is wrong, 409 if another account has the e-mail (ignoring case). */
