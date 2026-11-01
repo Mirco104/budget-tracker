@@ -512,6 +512,15 @@ form.transaction-form .sign-toggle label {
   margin-bottom: 16px;
 }
 
+.stacked-form h4,
+.stacked-form p {
+  margin: 0;
+}
+
+.stacked-form h4 {
+  margin-top: 8px;
+}
+
 .stacked-form label {
   display: flex;
   flex-direction: column;
