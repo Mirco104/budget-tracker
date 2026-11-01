@@ -98,6 +98,23 @@ describe('App', () => {
     expect(screen.queryByLabelText('Monat')).not.toBeInTheDocument()
   })
 
+  // Section 15: imprint and privacy notice, also without sign-in
+  it('links to the imprint and the privacy notice on the login page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => json({ status: 401, title: 'Nicht angemeldet' }, 401)),
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <App />
+      </QueryClientProvider>,
+    )
+
+    await screen.findByRole('heading', { name: 'Anmelden' })
+    expect(screen.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', '/impressum.html')
+    expect(screen.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', '/datenschutz.html')
+  })
+
   // US14
   it('shows the login page without a session and signs out again', async () => {
     let signedIn = false
