@@ -112,6 +112,57 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.errors[0].field").value("newPassword"));
     }
 
+    // --- PUT /api/account/display-name ---
+
+    @Test
+    void changesTheDisplayNameWithoutPassword() throws Exception {
+        asB.perform(put("/api/account/display-name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\": \"  Person B neu  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Person B neu"));
+
+        assertThat(userRepository.findById(b.getId()).orElseThrow().getDisplayName()).isEqualTo("Person B neu");
+    }
+
+    @Test
+    void rejectsAnEmptyOrTooLongDisplayName() throws Exception {
+        asB.perform(put("/api/account/display-name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\": \"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("displayName"));
+        asB.perform(put("/api/account/display-name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\": \"%s\"}".formatted("x".repeat(51))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].message").value("Der Anzeigename darf höchstens 50 Zeichen haben."));
+    }
+
+    // --- PUT /api/account/email ---
+
+    @Test
+    void changesTheEmailSoTheNewOneSignsIn() throws Exception {
+        changeEmail("Person-B-Neu@Example.test", TestUsers.PASSWORD)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("person-b-neu@example.test"));
+
+        loginAs("person-b-neu@example.test", TestUsers.PASSWORD).andExpect(status().isNoContent());
+        login(TestUsers.PASSWORD).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void rejectsAWrongPasswordATakenAndAnInvalidEmail() throws Exception {
+        changeEmail("person-b-neu@example.test", "wrong-password-123")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("password"));
+        changeEmail("Person-C@example.test", TestUsers.PASSWORD)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Diese E-Mail-Adresse ist schon registriert."));
+        changeEmail("no-email", TestUsers.PASSWORD)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("email"));
+        // The own address again is fine
+        changeEmail(EMAIL, TestUsers.PASSWORD).andExpect(status().isOk());
+    }
+
     // --- GET /api/account/export ---
 
     @Test
@@ -170,6 +221,32 @@ class AccountControllerTest {
         login(TestUsers.PASSWORD).andExpect(status().isUnauthorized());
     }
 
+    // US25: only ADMIN_EMAIL sets the system admin's e-mail
+    @Test
+    void theSystemAdminCannotChangeTheEmail() throws Exception {
+        User systemAdmin = userRepository.findByEmail("person-a@example.test").orElseThrow();
+
+        TestUsers.mockMvcFor(context, systemAdmin).perform(put("/api/account/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"admin-neu@example.test\", \"password\": \"%s\"}"
+                                .formatted(TestUsers.PASSWORD)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Die E-Mail des Systemadmins wird über ADMIN_EMAIL festgelegt."));
+    }
+
+    // US25: there is always one system admin
+    @Test
+    void theSystemAdminCannotDeleteTheAccount() throws Exception {
+        User systemAdmin = userRepository.findByEmail("person-a@example.test").orElseThrow();
+
+        TestUsers.mockMvcFor(context, systemAdmin).perform(delete("/api/account")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\": \"%s\"}".formatted(TestUsers.PASSWORD)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Der Systemadmin kann sein Konto nicht löschen."));
+        assertThat(userRepository.findById(systemAdmin.getId())).isPresent();
+    }
+
     private boolean isOwnedByB(Long categoryId) {
         return categoryRepository.findByIdAndOwner(categoryId, b).isPresent();
     }
@@ -200,6 +277,17 @@ class AccountControllerTest {
     private ResultActions changePassword(String current, String next) throws Exception {
         return asB.perform(put("/api/account/password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"currentPassword\": \"%s\", \"newPassword\": \"%s\"}".formatted(current, next)));
+    }
+
+    private ResultActions changeEmail(String email, String password) throws Exception {
+        return asB.perform(put("/api/account/email").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\": \"%s\", \"password\": \"%s\"}".formatted(email, password)));
+    }
+
+    private ResultActions loginAs(String email, String password) throws Exception {
+        return anonymous.perform(post("/api/auth/login").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\": \"%s\", \"password\": \"%s\"}".formatted(email, password)));
     }
 
     private ResultActions login(String password) throws Exception {

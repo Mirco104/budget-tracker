@@ -41,7 +41,8 @@ public class InvitationService {
         byte[] bytes = new byte[TOKEN_BYTES];
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        return invitationRepository.save(new Invitation(token, currentUser.get(), Instant.now(clock).plus(VALIDITY)));
+        User admin = currentUser.requireAdmin();
+        return invitationRepository.save(new Invitation(token, admin, Instant.now(clock).plus(VALIDITY)));
     }
 
     /** 404 for an unknown link, 410 for an expired or used one; 409 and 400 come from {@link UserService}. */

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.mirco104.budget.TestUsers;
+import io.github.mirco104.budget.user.UserRepository;
 import io.github.mirco104.budget.user.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class AuthControllerTest {
     @Autowired
     private LoginAttempts loginAttempts;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @BeforeEach
     void createUser() {
         TestUsers.create(userService, EMAIL);
@@ -59,6 +63,19 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.role").value("USER"))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());
         org.assertj.core.api.Assertions.assertThat(session.getId()).isNotEqualTo(before);
+    }
+
+    // US25: the user overview shows the last sign-in
+    @Test
+    void recordsOnlySuccessfulSignIns() throws Exception {
+        login(new MockHttpSession(), EMAIL, "wrong-password-123").andExpect(status().isUnauthorized());
+        org.assertj.core.api.Assertions.assertThat(userRepository.findByEmail(EMAIL).orElseThrow().getLastLoginAt())
+                .isNull();
+
+        login(new MockHttpSession(), EMAIL, TestUsers.PASSWORD).andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(userRepository.findByEmail(EMAIL).orElseThrow().getLastLoginAt())
+                .isNotNull();
     }
 
     @Test

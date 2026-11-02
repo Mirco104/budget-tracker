@@ -32,11 +32,14 @@ public class User {
     private String displayName;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 20)
     private Role role;
 
     @Column(nullable = false)
     private Instant createdAt;
+
+    // Last successful sign-in, for the user overview (US25)
+    private Instant lastLoginAt;
 
     protected User() {
     }
@@ -51,6 +54,23 @@ public class User {
 
     public void changePasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    /** Expects the e-mail in lower case, like {@link UserService}. */
+    public void changeEmail(String email) {
+        this.email = email;
+    }
+
+    public void changeDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
+    public void recordLogin(Instant at) {
+        this.lastLoginAt = at;
     }
 
     public Long getId() {
@@ -75,5 +95,9 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getLastLoginAt() {
+        return lastLoginAt;
     }
 }

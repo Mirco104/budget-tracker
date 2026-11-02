@@ -227,12 +227,31 @@ export interface ReserveData {
   forecast: ForecastMonth[]
 }
 
+/** SYSTEM_ADMIN is the admin created on the first start; nobody can demote it (US25). */
+export type Role = 'USER' | 'ADMIN' | 'SYSTEM_ADMIN'
+
 /** The signed-in user (US14). */
 export interface Me {
   id: number
   email: string
   displayName: string
-  role: 'USER' | 'ADMIN'
+  role: Role
+}
+
+/** One account in the user overview (US25); instants as ISO strings, lastLoginAt null without a sign-in. */
+export interface UserSummary {
+  id: number
+  email: string
+  displayName: string
+  role: Role
+  createdAt: string
+  lastLoginAt: string | null
+}
+
+/** US16 */
+export interface ChangeEmailInput {
+  email: string
+  password: string
 }
 
 export interface LoginInput {

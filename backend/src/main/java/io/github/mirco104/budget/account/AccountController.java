@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.account;
 
 import io.github.mirco104.budget.auth.AuthService;
+import io.github.mirco104.budget.auth.MeResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -31,6 +32,16 @@ public class AccountController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         accountService.changePassword(request);
+    }
+
+    @PutMapping("/display-name")
+    public MeResponse changeDisplayName(@Valid @RequestBody ChangeDisplayNameRequest request) {
+        return MeResponse.from(accountService.changeDisplayName(request));
+    }
+
+    @PutMapping("/email")
+    public MeResponse changeEmail(@Valid @RequestBody ChangeEmailRequest request) {
+        return MeResponse.from(accountService.changeEmail(request));
     }
 
     @GetMapping("/export")
