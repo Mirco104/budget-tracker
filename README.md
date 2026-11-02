@@ -94,4 +94,6 @@ docker compose --profile https up -d --build
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) baut und testet Backend und Frontend bei jedem Push auf `main` und bei jedem Pull Request. Die Backend-Tests laufen zweimal: mit H2 und mit PostgreSQL; zusätzlich baut die CI das Docker-Image. Dependabot hält Maven, npm, GitHub Actions und die Docker-Images aktuell.
+GitHub Actions (`.github/workflows/ci.yml`) baut und testet Backend und Frontend bei jedem Push auf `main` und bei jedem Pull Request. Die Backend-Tests laufen zweimal: mit H2 und mit PostgreSQL; zusätzlich baut die CI das Docker-Image. Bei jedem Pull Request spielt der Job `update-test` ein Update durch: Er startet `main` mit erfundenen Testdaten, aktualisiert mit demselben Datenbank-Volume auf den Stand des PRs und prüft, dass alle Daten noch stimmen. Lokal geht das genauso mit `node scripts/update-test.mjs seed|check <datei>` gegen eine laufende App.
+
+Dependabot hält Maven, npm, GitHub Actions und die Docker-Images aktuell. Kleine Updates kommen gebündelt als ein PR je Ökosystem; Major-Versionen von Java, Node und PostgreSQL schlägt er nicht vor, weil sie bewusst umgestellt werden.

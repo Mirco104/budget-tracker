@@ -362,13 +362,14 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   - **Integration Mandantentrennung (R15):** Für jeden Endpunkt sieht Nutzer B die Daten von Nutzer A nicht (404 in der URL, 400 als Verweis); ohne Anmeldung 401; ohne CSRF-Token 403.
   - **Integration Benutzer:** Einladung annehmen (einmalig, abgelaufen → 410), Anmeldung mit Sperre nach Fehlversuchen, Konto löschen entfernt alle Daten.
   - **Migrationen:** Die Tests laufen gegen das Schema aus Flyway, nicht gegen ein von Hibernate erzeugtes.
+  - **Update-Test (CI, jeder PR):** Der Stand des Ziel-Branches startet mit Docker Compose und bekommt erfundene Testdaten über die API (Person A mit Soll, Transaktionen und Serien, Person B über eine Einladung); danach wird mit demselben Datenbank-Volume auf den Stand des PRs aktualisiert. Die App muss starten, und Dashboard, Monatsliste und Rücklagen beider Nutzer müssen unverändert sein (`scripts/update-test.mjs`). Das fängt ab, was Tests auf einer leeren Datenbank nicht sehen: eine Migration, die an vorhandenen Daten scheitert, oder ein neues Major-Release von PostgreSQL, das das alte Datenverzeichnis nicht lesen kann.
 
 ## 8. CI/CD und Git
 
 - GitHub Actions bei Push und PR: Backend `mvn -B verify`; Frontend `npm ci`, `npm run lint`, `npm test`, `npm run build`.
 - `main` ist geschützt (PR nötig, Checks `backend` und `frontend` grün, kein Force-Push, kein Löschen). Je Feature ein Branch `feat/<name>` und ein PR mit Kurzbeschreibung: Ziel, Spec-Bezug (z. B. US3), was die KI erzeugt hat, was ich geändert habe.
 - Commits in kleinen Schritten, aussagekräftig (Conventional Commits).
-- Ab AP 19: CI baut zusätzlich das Docker-Image; Dependabot hält Maven, npm und GitHub Actions aktuell. Ein Deployment aus der CI kommt erst, wenn die Plattform feststeht (Entscheidung 21).
+- Ab AP 19: CI baut zusätzlich das Docker-Image und spielt bei jedem PR ein Update mit Testdaten durch (Update-Test, Abschnitt 7); Dependabot hält Maven, npm, GitHub Actions und die Docker-Images aktuell, mit einem gemeinsamen PR für kleine Updates je Ökosystem. Major-Versionen von Java, Node und PostgreSQL schlägt Dependabot nicht vor; sie werden bewusst umgestellt, PostgreSQL mit Dump und Restore. Ein Deployment aus der CI kommt erst, wenn die Plattform feststeht (Entscheidung 21).
 
 ## 9. Arbeitsweise mit Claude Code
 
