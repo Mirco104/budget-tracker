@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.user.UserRepository;
 import io.github.mirco104.budget.user.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,13 @@ class AuthControllerTest {
     @BeforeEach
     void createUser() {
         TestUsers.create(userService, EMAIL);
+        loginAttempts.reset(EMAIL);
+        loginAttempts.reset("unknown@example.test");
+    }
+
+    // The lock lives in memory and outlasts this class; other classes sign in as the same person
+    @AfterEach
+    void releaseTheLock() {
         loginAttempts.reset(EMAIL);
         loginAttempts.reset("unknown@example.test");
     }
