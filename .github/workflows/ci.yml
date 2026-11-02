@@ -77,3 +77,40 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build -t budget-tracker .
+
+  # Plays an update on the server (spec section 7): start the target branch with test data, then update to
+  # this pull request with the same database volume and check that the app starts and the data is unchanged.
+  # Catches what tests on an empty database cannot, e.g. a PostgreSQL major version or a migration that fails
+  # on existing rows.
+  update-test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE_PROJECT_NAME: budget
+      DB_PASSWORD: ci-only-password
+      ADMIN_EMAIL: person-a@example.test
+      ADMIN_PASSWORD: test-only-password
+      ADMIN_DISPLAY_NAME: Person A
+      SESSION_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+      - uses: actions/checkout@v7
+        with:
+          path: pr
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Start the target branch
+        run: docker compose -f base/docker-compose.yml up -d --build --wait --wait-timeout 300
+      - name: Create test data
+        run: node pr/scripts/update-test.mjs seed snapshot.json
+      - name: Update to this pull request
+        run: docker compose -f pr/docker-compose.yml up -d --build --wait --wait-timeout 300
+      - name: Check the data
+        run: node pr/scripts/update-test.mjs check snapshot.json
+      - name: Logs
+        if: failure()
+        run: docker compose -f pr/docker-compose.yml logs
