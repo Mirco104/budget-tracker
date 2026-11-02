@@ -10,7 +10,7 @@ cd budget-tracker
 cp .env.example .env
 ```
 
-In `.env` jeden Platzhalter ersetzen: ein langes Datenbank-Passwort, E-Mail, Passwort (mindestens 12 Zeichen) und Anzeigename des ersten Admins und die Domain. `.env` nie einchecken.
+In `.env` jeden Platzhalter ersetzen: ein langes Datenbank-Passwort, E-Mail, Passwort (mindestens 12 Zeichen) und Anzeigename des Systemadmins (US25) und die Domain. `.env` nie einchecken.
 
 Die Domain muss per DNS auf den Server zeigen, Ports 80 und 443 müssen offen sein. Dann:
 
@@ -18,7 +18,7 @@ Die Domain muss per DNS auf den Server zeigen, Ports 80 und 443 müssen offen se
 docker compose --profile https up -d --build
 ```
 
-Caddy holt das Zertifikat von Let's Encrypt automatisch und leitet HTTP auf HTTPS um. Die App selbst lauscht nur auf `127.0.0.1:8080`, von außen ist sie nur über Caddy erreichbar. Beim ersten Start legt sie den Admin aus `.env` an; danach kommen weitere Nutzer nur über Einladungen (US15). Die Admin-Werte können danach aus `.env` entfernt werden.
+Caddy holt das Zertifikat von Let's Encrypt automatisch und leitet HTTP auf HTTPS um. Die App selbst lauscht nur auf `127.0.0.1:8080`, von außen ist sie nur über Caddy erreichbar. Beim ersten Start legt sie den Systemadmin aus `.env` an; danach kommen weitere Nutzer nur über Einladungen (US15). Systemadmin ist bei jedem Start das Konto mit der E-Mail aus `ADMIN_EMAIL` (US25), deshalb bleibt `ADMIN_EMAIL` in `.env` stehen. `ADMIN_PASSWORD` wirkt nur, wenn das Konto neu angelegt wird; danach kann es aus `.env` entfernt werden. Das Passwort ändert der Systemadmin in der App unter *Einstellungen › Konto*.
 
 Status prüfen:
 
