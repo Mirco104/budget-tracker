@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.mirco104.budget.TestUsers;
+import io.github.mirco104.budget.auth.LoginAttempts;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.category.CategoryTargetRepository;
 import io.github.mirco104.budget.invitation.InvitationRepository;
@@ -74,6 +75,9 @@ class AccountControllerTest {
     @Autowired
     private InvitationRepository invitationRepository;
 
+    @Autowired
+    private LoginAttempts loginAttempts;
+
     private User b;
     private User c;
     private MockMvc asB;
@@ -81,6 +85,9 @@ class AccountControllerTest {
 
     @BeforeEach
     void createUsersWithData() throws Exception {
+        // The login lock lives in memory and is shared with other test classes in the same context;
+        // the sign-ins with the old password below count as failures
+        loginAttempts.reset(EMAIL);
         // B is an admin, so the delete also covers the invitations B created
         b = TestUsers.create(userService, EMAIL, Role.ADMIN);
         c = TestUsers.create(userService, "person-c@example.test");
