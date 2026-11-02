@@ -40,7 +40,7 @@ Unter Windows (PowerShell) vorher `$env:ADMIN_EMAIL="<e-mail>"` usw. setzen; `st
 
 Die Migration `V2` löscht beim ersten Start alle Daten von vor dem Benutzersystem, weil sie keinem Nutzer gehören.
 
-Zum Testen im Heimnetz, etwa am Handy über `http://<IP-des-PCs>:5173`, ist das Session-Cookie vorerst ohne `Secure`-Flag, sonst verwirft der Browser es über HTTP. **Vor der Veröffentlichung muss es wieder an** (`SESSION_COOKIE_SECURE=true`, zusammen mit HTTPS, AP 19). Bis dahin nur Testdaten verwenden.
+Zum Testen im Heimnetz, etwa am Handy über `http://<IP-des-PCs>:5173`, ist das Session-Cookie in der lokalen Entwicklung ohne `Secure`-Flag, sonst verwirft der Browser es über HTTP. Im Betrieb (Profil `postgres`, Docker) ist es an. Lokal nur Testdaten verwenden.
 
 Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Einstellungen › Einladungen* einen Link und schickt ihn selbst weiter, die App versendet keine E-Mails. Der Link ist einmal nutzbar und 7 Tage gültig. Unter *Einstellungen › Konto* ändert jeder Nutzer Passwort und E-Mail-Adresse, exportiert seine Daten als JSON und löscht sein Konto samt aller Daten (US16). Admins sehen unter *Einstellungen › Nutzer* alle Konten mit letzter Anmeldung (ohne Finanzdaten) und machen andere zu Admins oder Usern (US25). Den Systemadmin kann niemand herabstufen, und er kann sein Konto nicht löschen.
 
@@ -83,6 +83,15 @@ npm test
 npm run build
 ```
 
+## Betrieb mit Docker
+
+Für den Betrieb gibt es ein Docker-Image mit Backend und Frontend und eine `docker-compose.yml` mit PostgreSQL und optional Caddy für HTTPS. Einrichten, Update, Backup und Wiederherstellung: [docs/betrieb.md](docs/betrieb.md).
+
+```bash
+cp .env.example .env
+docker compose --profile https up -d --build
+```
+
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) baut und testet Backend und Frontend bei jedem Push auf `main` und bei jedem Pull Request. Die Backend-Tests laufen zweimal: mit H2 und mit PostgreSQL.
+GitHub Actions (`.github/workflows/ci.yml`) baut und testet Backend und Frontend bei jedem Push auf `main` und bei jedem Pull Request. Die Backend-Tests laufen zweimal: mit H2 und mit PostgreSQL; zusätzlich baut die CI das Docker-Image. Dependabot hält Maven, npm, GitHub Actions und die Docker-Images aktuell.

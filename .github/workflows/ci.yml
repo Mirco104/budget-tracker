@@ -70,3 +70,10 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # The image for operations (Entscheidung 21); built only, not pushed or deployed
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t budget-tracker .

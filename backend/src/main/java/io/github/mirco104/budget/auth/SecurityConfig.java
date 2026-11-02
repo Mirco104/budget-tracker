@@ -47,7 +47,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/accept").permitAll()
                         .requestMatchers("/api/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
-                        .requestMatchers("/api/**").authenticated()
+                        // Health check of the container (section 15); it shows only the status
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers("/api/**", "/actuator/**").authenticated()
                         // The built frontend (AP 19)
                         .anyRequest().permitAll())
                 // XSRF-TOKEN cookie, sent back by the frontend as X-XSRF-TOKEN on writing calls

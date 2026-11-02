@@ -34,6 +34,7 @@ function App() {
       <main>
         <h1>Budget-Tracker</h1>
         <AcceptInvitationPage token={token} onAccepted={handleAccepted} />
+        <LegalLinks />
       </main>
     )
   }
@@ -45,7 +46,18 @@ function App() {
       {me.error && <p className="error">Der Server ist nicht erreichbar: {me.error.message}</p>}
       {me.data === null && <LoginPage />}
       {me.data && <SignedIn me={me.data} />}
+      <LegalLinks />
     </main>
+  )
+}
+
+// Static pages in public/, reachable with and without sign-in (section 15)
+function LegalLinks() {
+  return (
+    <footer className="legal">
+      <a href="/impressum.html">Impressum</a>
+      <a href="/datenschutz.html">Datenschutz</a>
+    </footer>
   )
 }
 
