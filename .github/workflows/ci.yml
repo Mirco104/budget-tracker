@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -102,7 +102,7 @@ jobs:
           path: pr
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
       - name: Start the target branch
         run: docker compose -f base/docker-compose.yml up -d --build --wait --wait-timeout 300
       - name: Create test data

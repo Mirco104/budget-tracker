@@ -1,7 +1,7 @@
 # One image for the whole app (Entscheidung 21): Spring Boot serves the built frontend.
 # Tests are not run here; the CI runs them before.
 
-FROM node:24.11.1-alpine AS frontend
+FROM node:26.13.0-alpine AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
