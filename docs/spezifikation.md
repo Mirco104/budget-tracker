@@ -592,7 +592,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 
 ## 16. Offene Punkte
 
-- **Vor der ersten Nutzung:** Wiederherstellung aus einem Backup einmal testen und in `docs/betrieb.md` vermerken; HTTPS mit Caddy auf dem Server mit echter Domain prüfen.
+- **Vor der ersten Nutzung:** HTTPS mit Caddy auf dem Server mit echter Domain prüfen (lokal mit `DOMAIN=localhost` getestet, siehe `docs/betrieb.md`).
 - Plattform für den Betrieb (Entscheidung 21).
 - Konkrete Formeln der Investment-Blätter (vor AP 21 und 23 aus dem Sheet ableiten); Fixture F3.
 - Teilen mit verknüpften Nutzern (US24) und Depot mit Positionen (US23, Kursquelle): eigene Spec-Runden.

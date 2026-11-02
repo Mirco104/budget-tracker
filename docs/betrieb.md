@@ -72,9 +72,20 @@ Das Ziel muss in der EU liegen (Abschnitt 15) und die Kopien dort ebenfalls aufr
 scripts/restore.sh backups/budget-<Datum>.dump
 ```
 
-Das Skript stoppt die App, ersetzt alle Daten in der Datenbank durch den Stand des Dumps und startet die App wieder.
+Das Skript stoppt die App, ersetzt alle Daten in der Datenbank durch den Stand des Dumps und startet die App wieder. Weil die App neu startet, müssen sich alle Nutzer neu anmelden.
 
-Die Wiederherstellung ist noch nicht getestet (Abschnitt 16 der Spezifikation); das folgt vor der ersten Nutzung.
+Getestet am 02.11.2026 mit Docker Desktop und Testdaten: Backup erstellt und kopiert, eine Transaktion gelöscht, wiederhergestellt; die Transaktion war wieder da. Dumps älter als 7 Tage wurden gelöscht, jüngere blieben.
+
+## HTTPS lokal ausprobieren
+
+Mit `DOMAIN=localhost` nutzt Caddy eine eigene lokale Zertifizierungsstelle statt Let's Encrypt (der Browser warnt, `curl -k` geht):
+
+```bash
+DOMAIN=localhost docker compose --profile https up -d
+curl -k https://localhost/actuator/health
+```
+
+So geprüft am 02.11.2026: HTTP leitet auf HTTPS um, das Session-Cookie ist `Secure; HttpOnly; SameSite=Lax`, Einladungslinks beginnen mit `https://`.
 
 ## Logs
 
