@@ -8,7 +8,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM eclipse-temurin:21.0.9_10-jdk-alpine AS backend
+FROM eclipse-temurin:24.0.2_12-jdk-alpine AS backend
 WORKDIR /build
 COPY backend/mvnw backend/pom.xml ./
 COPY backend/.mvn .mvn
@@ -17,7 +17,7 @@ COPY backend/src src
 COPY --from=frontend /build/dist src/main/resources/static
 RUN ./mvnw -B -q package -DskipTests && cp target/budget-*.jar app.jar
 
-FROM eclipse-temurin:21.0.9_10-jre-alpine
+FROM eclipse-temurin:24.0.2_12-jre-alpine
 RUN addgroup -S budget && adduser -S budget -G budget
 WORKDIR /app
 COPY --from=backend /build/app.jar app.jar
