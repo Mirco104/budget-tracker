@@ -37,13 +37,19 @@ public class Category {
     @ColumnDefault("false")
     private boolean archived;
 
+    // A key from CategoryIcons (US28)
+    @Column(nullable = false, length = 20)
+    @ColumnDefault("'tag'")
+    private String icon;
+
     protected Category() {
     }
 
-    public Category(User owner, String name, int sortOrder) {
+    public Category(User owner, String name, int sortOrder, String icon) {
         this.owner = owner;
         this.name = name;
         this.sortOrder = sortOrder;
+        this.icon = icon;
     }
 
     public Long getId() {
@@ -60,6 +66,14 @@ public class Category {
 
     public boolean isArchived() {
         return archived;
+    }
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void changeIcon(String icon) {
+        this.icon = icon;
     }
 
     public void rename(String name) {

@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.category;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
@@ -240,6 +241,76 @@ class CategoryManagementControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.name == 'Geschenke')].actual", contains(20.00)));
     }
 
+    // --- Icons (US28) ---
+
+    @Test
+    void newCategoryWithoutIconGetsTag() throws Exception {
+        postCategory("{\"name\": \"Haustier\"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.icon").value("tag"));
+    }
+
+    @Test
+    void createsCategoryWithIcon() throws Exception {
+        postCategory("{\"name\": \"Haustier\", \"icon\": \"heart\"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.icon").value("heart"));
+
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[?(@.name == 'Haustier')].icon", contains("heart")));
+    }
+
+    @Test
+    void rejectsUnknownIconOnCreate() throws Exception {
+        postCategory("{\"name\": \"Haustier\", \"icon\": \"rocket\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("icon"))
+                .andExpect(jsonPath("$.errors[0].message").value("Das Icon gibt es nicht."));
+    }
+
+    @Test
+    void changesIcon() throws Exception {
+        Category category = category("Urlaub");
+
+        putCategory(category.getId(), "{\"name\": \"Urlaub\", \"sortOrder\": %d, \"archived\": false, \"icon\": \"car\"}"
+                        .formatted(category.getSortOrder()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.icon").value("car"));
+    }
+
+    @Test
+    void keepsIconWhenUpdateHasNone() throws Exception {
+        Category category = category("Urlaub");
+
+        putCategory(category.getId(), "Ferien", category.getSortOrder(), false)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.icon").value("suitcase"));
+    }
+
+    @Test
+    void rejectsUnknownIconOnUpdate() throws Exception {
+        Category category = category("Urlaub");
+
+        putCategory(category.getId(), "{\"name\": \"Urlaub\", \"sortOrder\": %d, \"archived\": false, \"icon\": \"\"}"
+                        .formatted(category.getSortOrder()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("icon"));
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[?(@.name == 'Urlaub')].icon", contains("suitcase")));
+    }
+
+    // R15: another user's category is 404, also when only the icon changes
+    @Test
+    void returns404WhenChangingIconOfAnotherUsersCategory() throws Exception {
+        User other = TestUsers.create(userService, "person-c@example.test");
+        Category foreign = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).getFirst();
+
+        putCategory(foreign.getId(), "{\"name\": \"Wohnen\", \"sortOrder\": 10, \"archived\": false, \"icon\": \"car\"}")
+                .andExpect(status().isNotFound());
+        assertThat(categoryRepository.findById(foreign.getId()).orElseThrow().getIcon())
+                .isEqualTo("home");
+    }
+
     // --- DELETE /api/categories/{id} ---
 
     @Test
@@ -301,9 +372,11 @@ class CategoryManagementControllerTest {
     }
 
     private ResultActions putCategory(long id, String name, int sortOrder, boolean archived) throws Exception {
-        return mockMvc.perform(put("/api/categories/{id}", id)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\": \"%s\", \"sortOrder\": %d, \"archived\": %b}".formatted(name, sortOrder, archived)));
+        return putCategory(id, "{\"name\": \"%s\", \"sortOrder\": %d, \"archived\": %b}".formatted(name, sortOrder, archived));
+    }
+
+    private ResultActions putCategory(long id, String body) throws Exception {
+        return mockMvc.perform(put("/api/categories/{id}", id).contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     private ResultActions postTransaction(long categoryId, String date) throws Exception {

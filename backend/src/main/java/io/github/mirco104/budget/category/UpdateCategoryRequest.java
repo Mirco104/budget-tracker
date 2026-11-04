@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-/** US10: a sortOrder that another category has swaps the two categories. */
+/** US10: a sortOrder that another category has swaps the two categories. Without an icon it stays (US28). */
 public record UpdateCategoryRequest(
         @NotBlank(message = "Der Name ist Pflicht.")
         @Size(max = 50, message = "Der Name darf höchstens 50 Zeichen haben.")
@@ -14,5 +14,7 @@ public record UpdateCategoryRequest(
         Integer sortOrder,
 
         @NotNull(message = "Archiviert ist Pflicht.")
-        Boolean archived) {
+        Boolean archived,
+
+        String icon) {
 }

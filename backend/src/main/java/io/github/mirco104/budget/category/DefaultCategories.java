@@ -13,12 +13,31 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class DefaultCategories {
 
-    static final List<String> NAMES = List.of(
-            "Wohnen", "Nebenkosten", "Versicherungen", "Mobilität", "Kredite", "Spenden",
-            "Lebensmittel", "Freizeit", "Urlaub", "Persönlicher Bedarf", "Geschenke", "Gesundheit",
-            "Investitionen", "Selbstständigkeit",
-            "Gehalt/Lohn (netto)", "Nebenjob", "Einnahmen Selbstständigkeit",
-            "Kapitalerträge", "Staatliche Leistungen", "Sonstige Einnahmen");
+    /** Name and icon (US28) of each default category, in their order. */
+    record DefaultCategory(String name, String icon) {
+    }
+
+    static final List<DefaultCategory> CATEGORIES = List.of(
+            new DefaultCategory("Wohnen", "home"),
+            new DefaultCategory("Nebenkosten", "bolt"),
+            new DefaultCategory("Versicherungen", "shield"),
+            new DefaultCategory("Mobilität", "car"),
+            new DefaultCategory("Kredite", "card"),
+            new DefaultCategory("Spenden", "heart"),
+            new DefaultCategory("Lebensmittel", "cart"),
+            new DefaultCategory("Freizeit", "music"),
+            new DefaultCategory("Urlaub", "suitcase"),
+            new DefaultCategory("Persönlicher Bedarf", "bag"),
+            new DefaultCategory("Geschenke", "gift"),
+            new DefaultCategory("Gesundheit", "pulse"),
+            new DefaultCategory("Investitionen", "trend"),
+            new DefaultCategory("Selbstständigkeit", "briefcase"),
+            new DefaultCategory("Gehalt/Lohn (netto)", "wallet"),
+            new DefaultCategory("Nebenjob", "laptop"),
+            new DefaultCategory("Einnahmen Selbstständigkeit", "receipt"),
+            new DefaultCategory("Kapitalerträge", "coins"),
+            new DefaultCategory("Staatliche Leistungen", "landmark"),
+            new DefaultCategory("Sonstige Einnahmen", "plus"));
 
     private final CategoryRepository categoryRepository;
 
@@ -29,8 +48,8 @@ public class DefaultCategories {
     @Transactional
     public void seedFor(User owner) {
         List<Category> categories = new ArrayList<>();
-        for (String name : NAMES) {
-            categories.add(new Category(owner, name, (categories.size() + 1) * 10));
+        for (DefaultCategory category : CATEGORIES) {
+            categories.add(new Category(owner, category.name(), (categories.size() + 1) * 10, category.icon()));
         }
         categoryRepository.saveAll(categories);
     }
