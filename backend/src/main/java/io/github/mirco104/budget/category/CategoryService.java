@@ -11,8 +11,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +46,10 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public List<CategoryResponse> findAll(YearMonth month) {
         Map<Long, TargetEntry> targets = targetsInEffect(month);
+        Set<Long> incomeOnly = incomeOnlyIds();
         return findAllOrdered().stream()
-                .map(category -> CategoryResponse.from(category, targets.get(category.getId())))
+                .map(category -> CategoryResponse.from(
+                        category, targets.get(category.getId()), incomeOnly.contains(category.getId())))
                 .toList();
     }
 
@@ -74,7 +80,8 @@ public class CategoryService {
                 .map(last -> last.getSortOrder() + SORT_ORDER_STEP)
                 .orElse(SORT_ORDER_STEP);
         Category category = categoryRepository.save(new Category(currentUser.get(), name, sortOrder));
-        return CategoryResponse.from(category, null);
+        // A new category has no entries yet (R24)
+        return CategoryResponse.from(category, null, false);
     }
 
     /**
@@ -105,7 +112,7 @@ public class CategoryService {
         }
         category.rename(name);
         category.setArchived(request.archived());
-        return CategoryResponse.from(category, targetsInEffect(YearMonth.now()).get(id));
+        return CategoryResponse.from(category, targetsInEffect(YearMonth.now()).get(id), incomeOnlyIds().contains(id));
     }
 
     /** US10: only an unused category can be deleted; otherwise 409 with the hint to archive it. */
@@ -130,7 +137,26 @@ public class CategoryService {
                 .orElseGet(() -> new CategoryTarget(category, month));
         target.update(scale(request.targetAmount(), 2), scale(request.targetPercent(), 4));
         categoryTargetRepository.save(target);
-        return CategoryResponse.from(category, target.toEntry());
+        return CategoryResponse.from(category, target.toEntry(), incomeOnlyIds().contains(id));
+    }
+
+    /**
+     * R24: categories with at least one transaction or series where every amount is positive. The smallest amount
+     * over both decides: above zero means only income.
+     */
+    private Set<Long> incomeOnlyIds() {
+        Map<Long, BigDecimal> minimum = new HashMap<>();
+        Stream.concat(
+                        transactionRepository.findMinAmountPerCategory(currentUser.get()).stream(),
+                        recurringTransactionRepository.findMinAmountPerCategory(currentUser.get()).stream())
+                .forEach(row -> minimum.merge((Long) row[0], (BigDecimal) row[1], BigDecimal::min));
+        Set<Long> ids = new HashSet<>();
+        minimum.forEach((id, amount) -> {
+            if (amount.signum() > 0) {
+                ids.add(id);
+            }
+        });
+        return ids;
     }
 
     /** The category for a booking; 400 on field categoryId if it is unknown or another user's (R15). */

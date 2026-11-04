@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -23,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -269,6 +271,70 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.targetAmount").value(10.00));
 
         assertThat(categoryTargetRepository.findAll()).hasSize(1);
+    }
+
+    // --- incomeOnly (R24, decision 33) ---
+
+    @Test
+    void marksCategoriesWhoseEntriesAreAllPositive() throws Exception {
+        postCreated("/api/transactions", """
+                {"amount": 2000, "description": "Gehalt", "date": "2026-10-01", "categoryId": %d}
+                """.formatted(categoryId("Gehalt/Lohn (netto)")));
+        postCreated("/api/recurring-transactions", """
+                {"amount": 300, "description": "Nebenjob", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2026-01-15"}
+                """.formatted(categoryId("Nebenjob")));
+        // An expense and a refund: not only income
+        postCreated("/api/transactions", """
+                {"amount": -50, "description": "Einkauf", "date": "2026-10-02", "categoryId": %d}
+                """.formatted(categoryId("Lebensmittel")));
+        postCreated("/api/transactions", """
+                {"amount": 20, "description": "Erstattung", "date": "2026-10-03", "categoryId": %d}
+                """.formatted(categoryId("Lebensmittel")));
+        // Positive transactions but a negative series
+        postCreated("/api/transactions", """
+                {"amount": 100, "description": "Rückzahlung", "date": "2026-10-04", "categoryId": %d}
+                """.formatted(categoryId("Kredite")));
+        postCreated("/api/recurring-transactions", """
+                {"amount": -200, "description": "Rate", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2026-01-01"}
+                """.formatted(categoryId("Kredite")));
+
+        getCategories(MONTH)
+                .andExpect(status().isOk())
+                .andExpect(incomeOnly("Gehalt/Lohn (netto)", true))
+                .andExpect(incomeOnly("Nebenjob", true))
+                .andExpect(incomeOnly("Lebensmittel", false))
+                .andExpect(incomeOnly("Kredite", false))
+                // Without entries a category is not "only income"
+                .andExpect(incomeOnly("Sonstige Einnahmen", false));
+    }
+
+    @Test
+    void anotherUsersEntriesDoNotCount() throws Exception {
+        User other = TestUsers.create(userService, "person-c@example.test");
+        long otherGehalt = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).stream()
+                .filter(c -> c.getName().equals("Gehalt/Lohn (netto)"))
+                .findFirst().orElseThrow().getId();
+        TestUsers.mockMvcFor(context, other).perform(post("/api/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": 2000, "description": "Gehalt", "date": "2026-10-01", "categoryId": %d}
+                                """.formatted(otherGehalt)))
+                .andExpect(status().isCreated());
+
+        getCategories(MONTH).andExpect(incomeOnly("Gehalt/Lohn (netto)", false));
+    }
+
+    private void postCreated(String path, String body) throws Exception {
+        mockMvc.perform(post(path)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+    }
+
+    private static ResultMatcher incomeOnly(String name, boolean expected) {
+        return jsonPath("$[?(@.name == '" + name + "')].incomeOnly", contains(expected));
     }
 
     private ResultActions getCategories(String month) throws Exception {

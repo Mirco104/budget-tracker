@@ -29,6 +29,10 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
 
     boolean existsByCategoryId(Long categoryId);
 
+    /** R24: the smallest amount per category, as rows [category id, min(amount)]. */
+    @Query("select r.category.id, min(r.amount) from RecurringTransaction r where r.owner = :owner group by r.category.id")
+    List<Object[]> findMinAmountPerCategory(User owner);
+
     /** US16: all series of the user, for the export. */
     @EntityGraph(attributePaths = "category")
     List<RecurringTransaction> findByOwnerOrderByStartDateAscIdAsc(User owner);
