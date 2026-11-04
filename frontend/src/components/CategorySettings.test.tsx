@@ -6,9 +6,9 @@ import { CategorySettings } from './CategorySettings'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', sortOrder: 10, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 2, name: 'Freizeit', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 3, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', sortOrder: 10, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 2, name: 'Freizeit', icon: 'music', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 3, name: 'Kredite', icon: 'card', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
 function json(body: unknown, status = 200) {
@@ -76,6 +76,7 @@ describe('CategorySettings', () => {
       name: 'Miete',
       sortOrder: 10,
       archived: false,
+      icon: 'home',
     })
 
     fireEvent.click(within(screen.getByRole('form', { name: 'Wohnen' })).getByRole('button', { name: 'Nach unten' }))
@@ -102,7 +103,44 @@ describe('CategorySettings', () => {
       name: 'Miete',
       sortOrder: 20,
       archived: false,
+      icon: 'home',
     })
+  })
+
+  it('shows the icon of each category and changes it from the picker', async () => {
+    const fetchMock = renderSettings()
+    const freizeit = await screen.findByRole('form', { name: 'Freizeit' })
+    const iconButton = within(freizeit).getByRole('button', { name: 'Icon ändern (Musik)' })
+    expect(iconButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(iconButton)
+    const picker = within(freizeit).getByRole('group', { name: 'Icon wählen' })
+    expect(within(picker).getAllByRole('button')).toHaveLength(21)
+    expect(within(picker).getByRole('button', { name: 'Musik' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(within(picker).getByRole('button', { name: 'Koffer' }))
+
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    const [url, init] = writeCalls(fetchMock)[0]
+    expect(url).toBe('/api/categories/2')
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(init?.body as string)).toEqual({ name: 'Freizeit', sortOrder: 20, archived: false, icon: 'suitcase' })
+    expect(within(freizeit).queryByRole('group', { name: 'Icon wählen' })).not.toBeInTheDocument()
+  })
+
+  it('closes the picker with Escape or the current icon without saving', async () => {
+    const fetchMock = renderSettings()
+    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
+    const iconButton = within(wohnen).getByRole('button', { name: 'Icon ändern (Haus)' })
+
+    fireEvent.click(iconButton)
+    fireEvent.keyDown(within(wohnen).getByRole('button', { name: 'Blitz' }), { key: 'Escape' })
+    expect(within(wohnen).queryByRole('group', { name: 'Icon wählen' })).not.toBeInTheDocument()
+
+    fireEvent.click(iconButton)
+    fireEvent.click(within(wohnen).getByRole('button', { name: 'Haus' }))
+    expect(within(wohnen).queryByRole('group', { name: 'Icon wählen' })).not.toBeInTheDocument()
+    expect(writeCalls(fetchMock)).toHaveLength(0)
   })
 
   it('shows the conflict when a used category is deleted', async () => {

@@ -142,5 +142,12 @@ if (command === 'seed') {
     console.error(`The data changed with the update.\nBefore:\n${before}\nAfter:\n${after}`)
     process.exit(1)
   }
+  // US28: categories created before the icons got the icon of their default name from the migration
+  const categories = await (await new Client().signIn(personA)).request('GET', `/api/categories?month=${month}`)
+  const wohnen = categories.find((category) => category.name === 'Wohnen')
+  if (wohnen?.icon !== 'home') {
+    console.error(`Expected the icon "home" for Wohnen after the update, got ${JSON.stringify(wohnen?.icon)}.`)
+    process.exit(1)
+  }
   console.log('Data unchanged after the update.')
 }

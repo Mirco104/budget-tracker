@@ -3,6 +3,8 @@
 export interface Category {
   id: number
   name: string
+  /** Icon key from the fixed list (US28); the frontend draws unknown keys as "tag". */
+  icon: string
   sortOrder: number
   targetAmount: number | null
   targetPercent: number | null
@@ -14,15 +16,18 @@ export interface Category {
   incomeOnly: boolean
 }
 
+/** Without an icon the category gets "tag" (US28). */
 export interface CategoryInput {
   name: string
+  icon?: string
 }
 
-/** A sortOrder that another category has swaps the two categories (US10). */
+/** A sortOrder that another category has swaps the two categories (US10). Without an icon it stays (US28). */
 export interface CategoryUpdate {
   name: string
   sortOrder: number
   archived: boolean
+  icon?: string
 }
 
 /** targetPercent is a fraction of income (0..1). null clears the value. */

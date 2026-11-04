@@ -24,7 +24,7 @@ class MigrationTest {
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.info().applied()).extracting(MigrationInfo::getScript)
                 .contains("V1__initial_schema.sql", "V2__users_and_owner.sql", "V3__invitations.sql",
-                        "V4__system_admin_and_last_login.sql");
+                        "V4__system_admin_and_last_login.sql", "V5__category_icons.sql");
     }
 
     @Test

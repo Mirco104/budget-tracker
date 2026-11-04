@@ -76,10 +76,11 @@ public class CategoryService {
         if (categoryRepository.existsByOwnerAndNameIgnoreCase(currentUser.get(), name)) {
             throw nameTaken(name);
         }
+        String icon = request.icon() == null ? CategoryIcons.DEFAULT : knownIcon(request.icon());
         int sortOrder = categoryRepository.findTopByOwnerOrderBySortOrderDesc(currentUser.get())
                 .map(last -> last.getSortOrder() + SORT_ORDER_STEP)
                 .orElse(SORT_ORDER_STEP);
-        Category category = categoryRepository.save(new Category(currentUser.get(), name, sortOrder));
+        Category category = categoryRepository.save(new Category(currentUser.get(), name, sortOrder, icon));
         // A new category has no entries yet (R24)
         return CategoryResponse.from(category, null, false);
     }
@@ -96,6 +97,7 @@ public class CategoryService {
         if (categoryRepository.existsByOwnerAndNameIgnoreCaseAndIdNot(currentUser.get(), name, id)) {
             throw nameTaken(name);
         }
+        String icon = request.icon() == null ? category.getIcon() : knownIcon(request.icon());
 
         List<Category> ordered = new ArrayList<>(findAllOrdered());
         int sortOrder = request.sortOrder();
@@ -112,6 +114,7 @@ public class CategoryService {
         }
         category.rename(name);
         category.setArchived(request.archived());
+        category.changeIcon(icon);
         return CategoryResponse.from(category, targetsInEffect(YearMonth.now()).get(id), incomeOnlyIds().contains(id));
     }
 
@@ -181,6 +184,14 @@ public class CategoryService {
             }
         }
         return -1;
+    }
+
+    /** US28: an icon key outside the fixed list is 400 on field icon. */
+    private static String knownIcon(String icon) {
+        if (!CategoryIcons.isKnown(icon)) {
+            throw new InvalidFieldException("icon", "Das Icon gibt es nicht.");
+        }
+        return icon;
     }
 
     private static ConflictException nameTaken(String name) {

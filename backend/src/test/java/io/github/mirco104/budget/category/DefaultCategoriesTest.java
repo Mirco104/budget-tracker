@@ -42,6 +42,23 @@ class DefaultCategoriesTest {
         assertThat(names).doesNotContain("Sonstiges (berechneter Rest)");
     }
 
+    // US28: icons of the default categories (section 4)
+    @Test
+    void seedsMatchingIcons() {
+        User user = TestUsers.create(userService, "person-b@example.test");
+
+        List<String> icons = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+                .map(Category::getIcon)
+                .toList();
+
+        assertThat(icons).containsExactly(
+                "home", "bolt", "shield", "car", "card", "heart",
+                "cart", "music", "suitcase", "bag", "gift", "pulse",
+                "trend", "briefcase",
+                "wallet", "laptop", "receipt",
+                "coins", "landmark", "plus");
+    }
+
     @Test
     void seedsOwnCategoriesWithoutTargetsForEveryUser() {
         User b = TestUsers.create(userService, "person-b@example.test");

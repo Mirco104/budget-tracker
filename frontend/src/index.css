@@ -915,6 +915,60 @@ h3 + .target-row {
   }
 }
 
+/* Category icon (US28): a line icon in a tinted circle, in the color of the surrounding text */
+.category-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.category-icon-button {
+  width: 44px;
+  flex: none;
+}
+
+.category-icon-button:hover:not(:disabled) .category-icon,
+.category-icon-button[aria-expanded='true'] .category-icon {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+/* Icon picker below the row; wraps to as many columns as fit, so it also works at 360 px */
+.icon-picker {
+  display: grid;
+  flex-basis: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.icon-picker button {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0;
+  border-color: transparent;
+  background: none;
+}
+
+.icon-picker button[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.icon-picker button[aria-pressed='true'] .category-icon {
+  background: none;
+  color: var(--primary);
+}
+
 /* Settings › Kategorien (US10); on narrow screens the buttons wrap below the name. */
 .category-new,
 .category-row,

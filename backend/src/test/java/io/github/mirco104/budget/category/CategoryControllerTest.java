@@ -63,6 +63,7 @@ class CategoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(20)))
                 .andExpect(jsonPath("$[0].name").value("Wohnen"))
+                .andExpect(jsonPath("$[0].icon").value("home"))
                 .andExpect(jsonPath("$[0].type").doesNotExist())
                 .andExpect(jsonPath("$[0].system").doesNotExist())
                 .andExpect(jsonPath("$[0].group").doesNotExist())
