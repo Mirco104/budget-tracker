@@ -6,11 +6,11 @@ import { PlanningPage } from './PlanningPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', archived: false, incomeOnly: false },
-  { id: 7, name: 'Lebensmittel', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt/Lohn (netto)', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'tag', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', archived: false, incomeOnly: false },
+  { id: 7, name: 'Lebensmittel', icon: 'tag', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt/Lohn (netto)', icon: 'tag', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
   // US10: archived categories are not planned
-  { id: 30, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 30, name: 'Kredite', icon: 'tag', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
 // Only the fields the planning summary uses.

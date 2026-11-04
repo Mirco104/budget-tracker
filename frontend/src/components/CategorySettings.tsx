@@ -1,8 +1,10 @@
-import { useState, type FocusEvent, type FormEvent } from 'react'
+import { useState, type FocusEvent, type FormEvent, type KeyboardEvent } from 'react'
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
 import { currentMonth } from '../format'
+import { CategoryIcon } from './ui/CategoryIcon'
+import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
 
 function NewCategoryForm() {
   const create = useCreateCategory()
@@ -43,6 +45,39 @@ function NewCategoryForm() {
   )
 }
 
+interface IconPickerProps {
+  icon: string
+  onPick: (icon: string) => void
+  onClose: () => void
+}
+
+/** The fixed list of icons as a grid of buttons (US28); the current one is pressed. Escape closes it. */
+function IconPicker({ icon, onPick, onClose }: IconPickerProps) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      onClose()
+    }
+  }
+
+  return (
+    <div className="icon-picker" role="group" aria-label="Icon wählen" onKeyDown={handleKeyDown}>
+      {CATEGORY_ICON_KEYS.map((key) => (
+        <button
+          key={key}
+          type="button"
+          aria-label={categoryIconLabel(key)}
+          title={categoryIconLabel(key)}
+          aria-pressed={key === icon}
+          onClick={() => onPick(key)}
+        >
+          <CategoryIcon icon={key} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface RowProps {
   category: Category
   previous?: Category
@@ -55,6 +90,7 @@ function CategoryRow({ category, previous, next }: RowProps) {
   const remove = useDeleteCategory()
   const [name, setName] = useState(category.name)
   const [error, setError] = useState<string | null>(null)
+  const [picking, setPicking] = useState(false)
   const busy = update.isPending || remove.isPending
 
   // A typed but unsaved name goes along with a move or archive, so one click is one request
@@ -67,6 +103,7 @@ function CategoryRow({ category, previous, next }: RowProps) {
           name: name.trim() || category.name,
           sortOrder: category.sortOrder,
           archived: category.archived,
+          icon: category.icon,
           ...changes,
         },
       })
@@ -99,6 +136,13 @@ function CategoryRow({ category, previous, next }: RowProps) {
     }
   }
 
+  function pickIcon(icon: string) {
+    setPicking(false)
+    if (icon !== category.icon) {
+      void send({ icon })
+    }
+  }
+
   function handleBlur(event: FocusEvent<HTMLFormElement>) {
     if (!event.currentTarget.contains(event.relatedTarget)) {
       saveName()
@@ -118,6 +162,16 @@ function CategoryRow({ category, previous, next }: RowProps) {
       onSubmit={handleSubmit}
       onBlur={handleBlur}
     >
+      <button
+        type="button"
+        className="icon-button category-icon-button"
+        aria-label={`Icon ändern (${categoryIconLabel(category.icon)})`}
+        aria-expanded={picking}
+        disabled={busy}
+        onClick={() => setPicking(!picking)}
+      >
+        <CategoryIcon icon={category.icon} />
+      </button>
       <input
         aria-label="Name"
         value={name}
@@ -154,12 +208,13 @@ function CategoryRow({ category, previous, next }: RowProps) {
           Löschen
         </button>
       </span>
+      {picking && <IconPicker icon={category.icon} onPick={pickIcon} onClose={() => setPicking(false)} />}
       {error && <p className="error">{error}</p>}
     </form>
   )
 }
 
-/** Settings › Kategorien (US10): create, rename, reorder, archive and delete. */
+/** Settings › Kategorien (US10, US28): create, rename, pick an icon, reorder, archive and delete. */
 export function CategorySettings() {
   const categories = useCategories(currentMonth())
 
@@ -177,7 +232,8 @@ export function CategorySettings() {
     <section>
       <h3>Kategorien</h3>
       <p className="hint">
-        Namen werden gespeichert, sobald du ein Feld verlässt oder Enter drückst. Löschen geht nur, solange eine
+        Namen werden gespeichert, sobald du ein Feld verlässt oder Enter drückst. Ein Klick auf das Icon zeigt die
+        Auswahl. Löschen geht nur, solange eine
         Kategorie unbenutzt ist; sonst archiviere sie. Archivierte Kategorien fehlen im Formular und in der Planung,
         vergangene Monate zeigen sie weiter.
       </p>

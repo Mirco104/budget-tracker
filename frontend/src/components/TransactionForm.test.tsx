@@ -5,9 +5,9 @@ import type { Category } from '../api/types'
 import { TransactionForm, type RepeatOption, type TransactionFormValues } from './TransactionForm'
 
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 30, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'tag', sortOrder: 1, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt', icon: 'tag', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 30, name: 'Kredite', icon: 'tag', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
 function renderForm(
