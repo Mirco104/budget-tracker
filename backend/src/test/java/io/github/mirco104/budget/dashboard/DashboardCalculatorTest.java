@@ -7,6 +7,8 @@ import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
+import io.github.mirco104.budget.dashboard.DashboardResponse.MonthState;
+import io.github.mirco104.budget.dashboard.IncomeAverage.Result;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -14,13 +16,14 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rules R1–R11 from docs/spezifikation.md, section 2. Test cases follow section 7, the reference fixture follows
+ * Rules R1–R11 and R23 from docs/spezifikation.md, section 2. Test cases follow section 7, the reference fixture follows
  * section 12 (F1).
  */
 class DashboardCalculatorTest {
 
     private static final YearMonth OCTOBER = YearMonth.of(2026, 10);
     private static final LocalDate IN_OCTOBER = LocalDate.of(2026, 10, 15);
+    private static final YearMonth NOVEMBER = YearMonth.of(2026, 11);
 
     private static final long WOHNEN = 1;
     private static final long NEBENKOSTEN = 2;
@@ -111,7 +114,7 @@ class DashboardCalculatorTest {
     }
 
     @Test
-    void differenceTotalIsTargetMinusActualAndSurplusIsUnplannedPlusDifference() {
+    void differenceTotalIsTargetMinusActual() {
         DashboardResponse result = calculate(
                 List.of(category(WOHNEN, "800", null), category(LEBENSMITTEL, "300", null),
                         noTarget(GEHALT)),
@@ -424,6 +427,119 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().oneOff()).isEqualByComparingTo("0.00");
     }
 
+    // --- Ø income as the basis (R3, R4, R8, R23, decision 26) ---
+
+    @Test
+    void percentTargetUsesTheAverageIncomeNotTheIncomeOfTheMonth() {
+        DashboardResponse result = calculate(
+                List.of(category(LEBENSMITTEL, null, "0.10"), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "1000")),
+                average("2850.00"), NOVEMBER);
+
+        assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("285.00");
+        // The share stays relative to the income of the month (R8)
+        assertThat(category(result, LEBENSMITTEL).targetShare()).isEqualByComparingTo("0.2850");
+    }
+
+    @Test
+    void withoutAverageIncomeAPercentTargetIsNoTargetAndEuroTargetsStay() {
+        DashboardResponse result = calculate(
+                List.of(category(WOHNEN, "900", null), category(LEBENSMITTEL, null, "0.15"),
+                        category(MOBILITAET, "60", "0.50"), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "2000")),
+                Result.EMPTY, NOVEMBER);
+
+        assertThat(category(result, WOHNEN).target()).isEqualByComparingTo("900.00");
+        assertThat(category(result, MOBILITAET).target()).isEqualByComparingTo("60.00");
+        assertThat(result.categories()).extracting(CategoryLine::id).doesNotContain(LEBENSMITTEL);
+        assertThat(result.expenses().target()).isEqualByComparingTo("960.00");
+        assertThat(result.unplanned()).isNull();
+        assertThat(result.unplannedLabel()).isNull();
+        assertThat(result.averageIncome()).isNull();
+        assertThat(result.averageIncomeMonths()).isZero();
+        assertThat(result.averageIncomeFrom()).isNull();
+        assertThat(result.averageIncomeShare()).isNull();
+    }
+
+    @Test
+    void unplannedIsAverageIncomeMinusTargets() {
+        DashboardResponse result = calculate(
+                List.of(category(WOHNEN, "900", null), category(LEBENSMITTEL, null, "0.10"), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "500")),
+                average("2000.00"), NOVEMBER);
+
+        // 2000 - 900 - 200; the income of the month (500) does not matter
+        assertThat(result.unplanned()).isEqualByComparingTo("900.00");
+        assertThat(result.unplannedLabel()).isEqualTo("Nicht verplant");
+    }
+
+    @Test
+    void averageIncomeComesWithItsPeriodAndItsShareOfTheIncome() {
+        DashboardResponse result = calculate(
+                List.of(noTarget(GEHALT)),
+                List.of(booking(GEHALT, "2400")),
+                new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)), NOVEMBER);
+
+        assertThat(result.averageIncome()).isEqualByComparingTo("3000.00");
+        assertThat(result.averageIncomeMonths()).isEqualTo(9);
+        assertThat(result.averageIncomeFrom()).isEqualTo("2026-01");
+        assertThat(result.averageIncomeTo()).isEqualTo("2026-09");
+        assertThat(result.averageIncomeShare()).isEqualByComparingTo("1.2500");
+    }
+
+    @Test
+    void averageIncomeWithoutIncomeHasNoShare() {
+        DashboardResponse result = calculate(List.of(noTarget(GEHALT)), List.of(), average("3000.00"), NOVEMBER);
+
+        assertThat(result.averageIncomeShare()).isNull();
+    }
+
+    // --- Labels by month (R7, decision 27) ---
+
+    @Test
+    void pastMonthShowsSurplusOrLoss() {
+        DashboardResponse surplus = calculate(List.of(noTarget(GEHALT)), List.of(booking(GEHALT, "100")),
+                average("100.00"), NOVEMBER);
+        DashboardResponse loss = calculate(List.of(noTarget(WOHNEN)), List.of(booking(WOHNEN, "-100")),
+                average("100.00"), NOVEMBER);
+
+        assertThat(surplus.monthState()).isEqualTo(MonthState.PAST);
+        assertThat(surplus.surplusLabel()).isEqualTo("Monatlicher Überschuss");
+        assertThat(loss.surplusLabel()).isEqualTo("Monatlicher Verlust");
+    }
+
+    @Test
+    void currentMonthShowsWhatIsStillFreeOrOverrun() {
+        DashboardResponse free = calculate(List.of(noTarget(GEHALT)), List.of(booking(GEHALT, "100")),
+                average("100.00"), OCTOBER);
+        DashboardResponse overrun = calculate(List.of(noTarget(WOHNEN)), List.of(booking(WOHNEN, "-100")),
+                average("100.00"), OCTOBER);
+
+        assertThat(free.monthState()).isEqualTo(MonthState.CURRENT);
+        assertThat(free.surplusLabel()).isEqualTo("Noch frei");
+        assertThat(overrun.surplusLabel()).isEqualTo("Überschritten");
+        // The amount keeps its sign; the page shows it without minus sign
+        assertThat(overrun.surplus()).isEqualByComparingTo("-100.00");
+    }
+
+    @Test
+    void futureMonthAlsoShowsWhatIsStillFree() {
+        DashboardResponse result = calculate(List.of(noTarget(GEHALT)), List.of(booking(GEHALT, "100")),
+                average("100.00"), YearMonth.of(2026, 9));
+
+        assertThat(result.monthState()).isEqualTo(MonthState.FUTURE);
+        assertThat(result.surplusLabel()).isEqualTo("Noch frei");
+    }
+
+    @Test
+    void incomeOfAMonthIsTheSumOfThePositiveNets() {
+        BigDecimal income = DashboardCalculator.incomeOf(List.of(
+                booking(GEHALT, "2000"), booking(NEBENJOB, "300"), booking(LEBENSMITTEL, "-50"),
+                booking(LEBENSMITTEL, "20"), booking(GEHALT, "999", LocalDate.of(2026, 9, 30))), OCTOBER);
+
+        assertThat(income).isEqualByComparingTo("2300.00");
+    }
+
     // --- Reference fixture F1 (section 12) ---
 
     @Test
@@ -442,7 +558,8 @@ class DashboardCalculatorTest {
                         noTarget(GEHALT),
                         noTarget(NEBENJOB)),
                 List.of(
-                        booking(GEHALT, "3000.00"),
+                        // Since decision 26 the salary is a monthly series from 2026-01
+                        occurrence(GEHALT, "3000.00", LocalDate.of(2026, 10, 1)),
                         booking(NEBENJOB, "200.00"),
                         booking(NEBENKOSTEN, "-200.00"),
                         booking(NEBENKOSTEN, "-140.00"),
@@ -457,32 +574,39 @@ class DashboardCalculatorTest {
                         occurrence(WOHNEN, "-900.00", LocalDate.of(2026, 10, 1)),
                         occurrence(VERSICHERUNGEN, "-240.00", LocalDate.of(2026, 10, 15)),
                         // Must be ignored
-                        booking(LEBENSMITTEL, "-999.00", LocalDate.of(2026, 9, 30))));
+                        booking(LEBENSMITTEL, "-999.00", LocalDate.of(2026, 9, 30))),
+                // R23: salary 3000.00 in 2026-01 to 2026-09; today is 2026-10-20
+                new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)),
+                OCTOBER);
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("3200.00");
+        assertThat(result.averageIncome()).isEqualByComparingTo("3000.00");
+        assertThat(result.averageIncomeMonths()).isEqualTo(9);
+        assertThat(result.averageIncomeShare()).isEqualByComparingTo("0.9375");
 
         assertLine(result, WOHNEN, "900.00", "900.00", "0.00");
-        assertLine(result, NEBENKOSTEN, "320.00", "340.00", "-20.00");
+        assertLine(result, NEBENKOSTEN, "300.00", "340.00", "-40.00");
         assertLine(result, VERSICHERUNGEN, "100.00", "240.00", "-140.00");
         assertLine(result, MOBILITAET, "60.00", "45.99", "14.01");
         assertLine(result, LEBENSMITTEL, "400.00", "420.50", "-20.50");
-        assertLine(result, FREIZEIT, "160.00", "0.00", "160.00");
+        assertLine(result, FREIZEIT, "150.00", "0.00", "150.00");
         assertLine(result, GESCHENKE, null, "20.00", null);
-        assertLine(result, INVESTITIONEN, "640.00", "640.00", "0.00");
+        assertLine(result, INVESTITIONEN, "600.00", "640.00", "-40.00");
 
-        assertThat(result.expenses().target()).isEqualByComparingTo("2580.00");
+        assertThat(result.expenses().target()).isEqualByComparingTo("2510.00");
         assertThat(result.expenses().actual()).isEqualByComparingTo("2606.49");
-        assertThat(result.expenses().difference()).isEqualByComparingTo("-26.49");
-        assertThat(result.unplanned()).isEqualByComparingTo("620.00");
+        assertThat(result.expenses().difference()).isEqualByComparingTo("-96.49");
+        assertThat(result.unplanned()).isEqualByComparingTo("490.00");
 
         assertThat(result.surplus()).isEqualByComparingTo("593.51");
-        assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
+        assertThat(result.monthState()).isEqualTo(MonthState.CURRENT);
+        assertThat(result.surplusLabel()).isEqualTo("Noch frei");
         assertThat(result.surplusShare()).isEqualByComparingTo("0.1855");
 
         assertThat(result.categories()).extracting(CategoryLine::id).doesNotContain(KREDITE);
-        assertThat(result.expenses().targetShare()).isEqualByComparingTo("0.8063");
+        assertThat(result.expenses().targetShare()).isEqualByComparingTo("0.7844");
         assertThat(result.expenses().actualShare()).isEqualByComparingTo("0.8145");
-        assertThat(result.expenses().differenceShare()).isEqualByComparingTo("-0.0083");
+        assertThat(result.expenses().differenceShare()).isEqualByComparingTo("-0.0302");
         assertThat(category(result, WOHNEN).targetShare()).isEqualByComparingTo("0.2813");
         assertThat(category(result, WOHNEN).actualShare()).isEqualByComparingTo("0.2813");
 
@@ -501,8 +625,23 @@ class DashboardCalculatorTest {
 
     // --- Helpers ---
 
+    /**
+     * October as a past month (today in November); Ē equals the income of October, so the cases from before
+     * decision 26 keep their numbers. Cases about R23 pass their own average.
+     */
     private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions) {
-        return calculator.calculate(categories, transactions, OCTOBER);
+        BigDecimal income = DashboardCalculator.incomeOf(transactions, OCTOBER);
+        return calculate(categories, transactions,
+                new Result(income, 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9)), NOVEMBER);
+    }
+
+    private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions,
+            Result average, YearMonth currentMonth) {
+        return calculator.calculate(categories, transactions, OCTOBER, average, currentMonth);
+    }
+
+    private static Result average(String amount) {
+        return new Result(new BigDecimal(amount), 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9));
     }
 
     private static CategoryData category(long id, String amount, String percent) {

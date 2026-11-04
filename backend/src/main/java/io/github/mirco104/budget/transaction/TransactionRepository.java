@@ -23,6 +23,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     boolean existsByCategoryId(Long categoryId);
 
+    /** R24: the smallest amount per category, as rows [category id, min(amount)]. */
+    @Query("select t.category.id, min(t.amount) from Transaction t where t.owner = :owner group by t.category.id")
+    List<Object[]> findMinAmountPerCategory(User owner);
+
     /** US16: all transactions of the user, for the export. */
     @EntityGraph(attributePaths = "category")
     List<Transaction> findByOwnerOrderByDateAscIdAsc(User owner);

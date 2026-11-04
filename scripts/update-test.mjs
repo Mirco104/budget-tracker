@@ -106,11 +106,17 @@ async function snapshot() {
     const dashboard = await client.request('GET', `/api/dashboard?month=${month}`)
     const entries = await client.request('GET', `/api/transactions?month=${month}`)
     const reserves = await client.request('GET', `/api/reserves?month=${month}`)
+    const categories = await client.request('GET', `/api/categories?month=${month}`)
     result[name] = {
       incomeTotal: dashboard.incomeTotal,
       expenses: dashboard.expenses.actual,
       recurring: dashboard.expenses.recurring,
-      target: dashboard.expenses.target,
+      // The stored targets, not the calculated target total: a percent target is calculated from the average
+      // income since decision 26 (spec R23), so the total may change on purpose when that rule changes
+      targets: categories
+        .filter((category) => category.targetAmount !== null || category.targetPercent !== null)
+        .map((category) => `${category.name} ${category.targetAmount} ${category.targetPercent}`)
+        .sort(),
       surplus: dashboard.surplus,
       entries: entries.map((entry) => `${entry.date} ${entry.amount} ${entry.description}`).sort(),
       monthlyReserve: reserves.monthlyReserve,

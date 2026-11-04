@@ -6,7 +6,7 @@ import { TransactionsPage } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 6, name: 'Freizeit', sortOrder: 6, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false },
+  { id: 6, name: 'Freizeit', sortOrder: 6, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
 ]
 
 const transactions: Transaction[] = [

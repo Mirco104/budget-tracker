@@ -6,7 +6,7 @@ import java.time.YearMonth;
 
 /**
  * Target values are the ones in effect for the requested month (R3); targetValidFrom is the month they were set
- * for, or null without a target entry.
+ * for, or null without a target entry. incomeOnly: the category has entries and all of them are positive (R24).
  */
 public record CategoryResponse(
         Long id,
@@ -15,9 +15,10 @@ public record CategoryResponse(
         BigDecimal targetAmount,
         BigDecimal targetPercent,
         YearMonth targetValidFrom,
-        boolean archived) {
+        boolean archived,
+        boolean incomeOnly) {
 
-    static CategoryResponse from(Category category, TargetEntry target) {
+    static CategoryResponse from(Category category, TargetEntry target, boolean incomeOnly) {
         return new CategoryResponse(
                 category.getId(),
                 category.getName(),
@@ -25,6 +26,7 @@ public record CategoryResponse(
                 target == null ? null : target.targetAmount(),
                 target == null ? null : target.targetPercent(),
                 target == null ? null : target.validFrom(),
-                category.isArchived());
+                category.isArchived(),
+                incomeOnly);
     }
 }
