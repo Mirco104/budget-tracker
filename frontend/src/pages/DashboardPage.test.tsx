@@ -7,8 +7,14 @@ import { DashboardPage } from './DashboardPage'
 // Fictional values, shaped like the backend response.
 const dashboard: DashboardData = {
   month: '2026-10',
+  monthState: 'PAST',
   incomeTotal: 2000,
   incomeTotalShare: 1,
+  averageIncome: 2000,
+  averageIncomeMonths: 12,
+  averageIncomeFrom: '2025-10',
+  averageIncomeTo: '2026-09',
+  averageIncomeShare: 1,
   expenses: {
     target: 960,
     actual: 895,

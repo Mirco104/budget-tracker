@@ -6,15 +6,16 @@ import { PlanningPage } from './PlanningPage'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', archived: false },
-  { id: 7, name: 'Lebensmittel', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', archived: false },
-  { id: 20, name: 'Gehalt/Lohn (netto)', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false },
+  { id: 1, name: 'Wohnen', sortOrder: 1, targetAmount: 800, targetPercent: null, targetValidFrom: '2026-09', archived: false, incomeOnly: false },
+  { id: 7, name: 'Lebensmittel', sortOrder: 7, targetAmount: null, targetPercent: 0.15, targetValidFrom: '2026-11', archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt/Lohn (netto)', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
   // US10: archived categories are not planned
-  { id: 30, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true },
+  { id: 30, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
 // Only the fields the planning summary uses.
-const dashboard = { incomeTotal: 3200, expenses: { target: 3000 }, unplanned: 200, unplannedLabel: 'Nicht verplant' }
+const average = { averageIncome: 3200, averageIncomeMonths: 9, averageIncomeFrom: '2026-02', averageIncomeTo: '2026-10' }
+const dashboard = { incomeTotal: 1000, ...average, expenses: { target: 3000 }, unplanned: 200, unplannedLabel: 'Nicht verplant' }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -60,30 +61,43 @@ describe('PlanningPage', () => {
     expect(within(screen.getByRole('form', { name: 'Gehalt/Lohn (netto)' })).getByLabelText(/Soll \(€\)/)).toHaveValue('')
   })
 
-  it('shows income, planned targets and the unplanned rest of the month', async () => {
+  // R4, R23: planned against the average income of the months before, not the income of the month
+  it('shows the average income, planned targets and the unplanned rest', async () => {
     const fetchMock = renderPage()
 
     const unplanned = await screen.findByText('Nicht verplant', { selector: 'dt' })
     expect(unplanned.nextSibling).toHaveTextContent('200,00 €')
     expect(unplanned.nextSibling).not.toHaveClass('negative')
     expect(screen.getByText('Verplant', { selector: 'dt' }).nextSibling).toHaveTextContent('3.000,00 €')
-    expect(screen.getByText('Einnahmen November 2026').nextSibling).toHaveTextContent('3.200,00 €')
+    const average = screen.getByText('Ø Einnahmen', { selector: 'dt' })
+    expect(average.nextSibling).toHaveTextContent('3.200,00 €')
+    expect(screen.getByText('Februar 2026 – Oktober 2026, 9 Monate')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-11', expect.anything())
-    expect(screen.queryByText(/noch keine Einnahmen gebucht/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Noch kein abgeschlossener Monat/)).not.toBeInTheDocument()
   })
 
   it('shows an over-planned month in red without minus sign', async () => {
-    renderPage(undefined, { incomeTotal: 3200, expenses: { target: 3300 }, unplanned: -100, unplannedLabel: 'Überplant' })
+    renderPage(undefined, { incomeTotal: 3200, ...average, expenses: { target: 3300 }, unplanned: -100, unplannedLabel: 'Überplant' })
 
     const overPlanned = await screen.findByText('Überplant', { selector: 'dt' })
     expect(overPlanned.nextSibling).toHaveTextContent(/^100,00\s€$/)
     expect(overPlanned.nextSibling).toHaveClass('negative')
   })
 
-  it('says so when the month has no income yet', async () => {
-    renderPage(undefined, { incomeTotal: 0, expenses: { target: 800 }, unplanned: -800, unplannedLabel: 'Überplant' })
+  it('says so when no earlier month counts for the average income yet', async () => {
+    renderPage(undefined, {
+      incomeTotal: 2000,
+      averageIncome: null,
+      averageIncomeMonths: 0,
+      averageIncomeFrom: null,
+      averageIncomeTo: null,
+      expenses: { target: 800 },
+      unplanned: null,
+      unplannedLabel: null,
+    })
 
-    expect(await screen.findByText(/noch keine Einnahmen gebucht/)).toBeInTheDocument()
+    expect(await screen.findByText(/Noch kein abgeschlossener Monat mit Einträgen/)).toBeInTheDocument()
+    expect(screen.queryByText('Verplant', { selector: 'dt' })).not.toBeInTheDocument()
   })
 
   it('loads the targets of the selected month and says from when they apply', async () => {

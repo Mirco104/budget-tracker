@@ -6,9 +6,9 @@ import { CategorySettings } from './CategorySettings'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', sortOrder: 10, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false },
-  { id: 2, name: 'Freizeit', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false },
-  { id: 3, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true },
+  { id: 1, name: 'Wohnen', sortOrder: 10, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 2, name: 'Freizeit', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 3, name: 'Kredite', sortOrder: 30, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
 function json(body: unknown, status = 200) {

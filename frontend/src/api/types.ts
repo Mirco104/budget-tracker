@@ -10,6 +10,8 @@ export interface Category {
   targetValidFrom: string | null
   /** Archived categories are hidden in forms and planning (US10). */
   archived: boolean
+  /** The category has entries and all of them are positive (R24). */
+  incomeOnly: boolean
 }
 
 export interface CategoryInput {
@@ -122,14 +124,23 @@ export interface IncomeLine {
 
 export interface DashboardData {
   month: string
+  /** The month compared with today (R7). */
+  monthState: 'PAST' | 'CURRENT' | 'FUTURE'
   incomeTotal: number
   incomeTotalShare: number | null
+  /** Ø income of the months before (R23) from averageIncomeFrom to averageIncomeTo; null when no month counts. */
+  averageIncome: number | null
+  averageIncomeMonths: number
+  averageIncomeFrom: string | null
+  averageIncomeTo: string | null
+  averageIncomeShare: number | null
   expenses: Totals
-  /** Income without a target: income minus the target total; negative when over-planned. */
-  unplanned: number
-  /** "Nicht verplant" or "Überplant" (negative unplanned). */
-  unplannedLabel: string
+  /** Ø income minus the target total (R4); negative when over-planned, null without Ø income. */
+  unplanned: number | null
+  /** "Nicht verplant" or "Überplant"; null without Ø income. */
+  unplannedLabel: string | null
   surplus: number
+  /** "Monatlicher Überschuss"/"Monatlicher Verlust" for a past month, "Noch frei"/"Überschritten" otherwise (R7). */
   surplusLabel: string
   surplusShare: number | null
   categories: CategoryLine[]
