@@ -16,6 +16,8 @@ import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserService;
+import java.time.Clock;
+import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ class DashboardControllerTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @Autowired
+    private Clock clock;
+
     // --- GET /api/dashboard (US5) ---
 
     @Test
@@ -72,8 +77,12 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.expenses.target").value(800.00))
                 .andExpect(jsonPath("$.expenses.actual").value(750.00))
                 .andExpect(jsonPath("$.expenses.difference").value(50.00))
-                .andExpect(jsonPath("$.unplanned").value(1200.00))
-                .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
+                // R4, R23: the only month before October since the first entry is September, without income
+                .andExpect(jsonPath("$.averageIncome").value(0.00))
+                .andExpect(jsonPath("$.averageIncomeMonths").value(1))
+                .andExpect(jsonPath("$.unplanned").value(-800.00))
+                .andExpect(jsonPath("$.unplannedLabel").value("Überplant"))
+                .andExpect(jsonPath("$.monthState").value("PAST"))
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
                 .andExpect(jsonPath("$.surplusShare").value(0.625))
@@ -139,7 +148,6 @@ class DashboardControllerTest {
         putTarget(categoryId("Freizeit"), "2026-10", "{\"targetPercent\": 0.05}");
         putTarget(categoryId("Investitionen"), "2026-10", "{\"targetPercent\": 0.20}");
 
-        postTransaction("3000.00", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
         postTransaction("200.00", "Nebenjob", "2026-10-10", categoryId("Nebenjob"));
         postTransaction("-200.00", "Strom", "2026-10-02", categoryId("Nebenkosten"));
         postTransaction("-140.00", "Wasser", "2026-10-03", categoryId("Nebenkosten"));
@@ -152,6 +160,8 @@ class DashboardControllerTest {
         postTransaction("-20.00", "Geschenk", "2026-10-20", categoryId("Geschenke"));
         postTransaction("-999.00", "Einkauf September", "2026-09-30", categoryId("Lebensmittel"));
 
+        // Since decision 26 the salary is a monthly series, so Ē(2026-10) is 3000.00 over 2026-01 to 2026-09 (R23)
+        postSeries("3000.00", "Gehalt", categoryId("Gehalt/Lohn (netto)"), "MONTHLY", "2026-01-01");
         postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2026-01-01");
         postSeries("-240.00", "Haftpflicht", categoryId("Versicherungen"), "YEARLY", "2026-10-15");
         long streaming = postSeries("-15.00", "Streaming", categoryId("Freizeit"), "MONTHLY", "2026-01-05");
@@ -162,10 +172,15 @@ class DashboardControllerTest {
         mockMvc.perform(get("/api/dashboard").param("month", "2026-10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.incomeTotal").value(3200.00))
+                .andExpect(jsonPath("$.averageIncome").value(3000.00))
+                .andExpect(jsonPath("$.averageIncomeMonths").value(9))
+                .andExpect(jsonPath("$.averageIncomeFrom").value("2026-01"))
+                .andExpect(jsonPath("$.averageIncomeTo").value("2026-09"))
+                .andExpect(jsonPath("$.averageIncomeShare").value(0.9375))
                 .andExpect(line("Wohnen", "target", 900.00)).andExpect(line("Wohnen", "actual", 900.00))
                 .andExpect(line("Wohnen", "difference", 0.00))
-                .andExpect(line("Nebenkosten", "target", 320.00)).andExpect(line("Nebenkosten", "actual", 340.00))
-                .andExpect(line("Nebenkosten", "difference", -20.00))
+                .andExpect(line("Nebenkosten", "target", 300.00)).andExpect(line("Nebenkosten", "actual", 340.00))
+                .andExpect(line("Nebenkosten", "difference", -40.00))
                 .andExpect(line("Versicherungen", "target", 100.00))
                 .andExpect(line("Versicherungen", "actual", 240.00))
                 .andExpect(line("Versicherungen", "difference", -140.00))
@@ -174,20 +189,23 @@ class DashboardControllerTest {
                 .andExpect(line("Lebensmittel", "target", 400.00))
                 .andExpect(line("Lebensmittel", "actual", 420.50))
                 .andExpect(line("Lebensmittel", "difference", -20.50))
-                .andExpect(line("Freizeit", "target", 160.00)).andExpect(line("Freizeit", "actual", 0.00))
-                .andExpect(line("Freizeit", "difference", 160.00))
+                .andExpect(line("Freizeit", "target", 150.00)).andExpect(line("Freizeit", "actual", 0.00))
+                .andExpect(line("Freizeit", "difference", 150.00))
                 .andExpect(line("Geschenke", "target", null)).andExpect(line("Geschenke", "actual", 20.00))
                 .andExpect(line("Geschenke", "difference", null))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Kredite')]", hasSize(0)))
-                .andExpect(line("Investitionen", "target", 640.00))
+                .andExpect(line("Investitionen", "target", 600.00))
                 .andExpect(line("Investitionen", "actual", 640.00))
-                .andExpect(line("Investitionen", "difference", 0.00))
-                .andExpect(jsonPath("$.expenses.target").value(2580.00))
+                .andExpect(line("Investitionen", "difference", -40.00))
+                .andExpect(jsonPath("$.expenses.target").value(2510.00))
                 .andExpect(jsonPath("$.expenses.actual").value(2606.49))
-                .andExpect(jsonPath("$.expenses.difference").value(-26.49))
-                .andExpect(jsonPath("$.unplanned").value(620.00))
+                .andExpect(jsonPath("$.expenses.difference").value(-96.49))
+                .andExpect(jsonPath("$.expenses.targetShare").value(0.7844))
+                .andExpect(jsonPath("$.expenses.differenceShare").value(-0.0302))
+                .andExpect(jsonPath("$.unplanned").value(490.00))
                 .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
                 .andExpect(jsonPath("$.surplus").value(593.51))
+                // The fixture's "today" is 2026-10-20 ("Noch frei", unit test); these tests run later, so October is past
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
                 .andExpect(jsonPath("$.surplusShare").value(0.1855))
                 .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(0.9375)))
@@ -202,6 +220,52 @@ class DashboardControllerTest {
                 .andExpect(line("Wohnen", "actual", 900.00))
                 .andExpect(line("Versicherungen", "actual", 0.00))
                 .andExpect(line("Freizeit", "actual", 15.00));
+    }
+
+    // --- Ø income and labels relative to today (R7, R23, decision 26 and 27) ---
+
+    @Test
+    void percentTargetOfTheCurrentMonthUsesTheIncomeOfTheMonthsBefore() throws Exception {
+        YearMonth current = YearMonth.now(clock);
+        long gehalt = categoryId("Gehalt/Lohn (netto)");
+        postSeries("2000.00", "Gehalt", gehalt, "MONTHLY", current.minusMonths(3).atDay(1).toString());
+        // A bonus in the current month does not count for Ē (R23)
+        postTransaction("5000.00", "Bonus", current.atDay(2).toString(), gehalt);
+        putTarget(categoryId("Lebensmittel"), current.toString(), "{\"targetPercent\": 0.10}");
+
+        mockMvc.perform(get("/api/dashboard").param("month", current.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.monthState").value("CURRENT"))
+                .andExpect(jsonPath("$.incomeTotal").value(7000.00))
+                .andExpect(jsonPath("$.averageIncome").value(2000.00))
+                .andExpect(jsonPath("$.averageIncomeMonths").value(3))
+                .andExpect(jsonPath("$.averageIncomeFrom").value(current.minusMonths(3).toString()))
+                .andExpect(jsonPath("$.averageIncomeTo").value(current.minusMonths(1).toString()))
+                .andExpect(line("Lebensmittel", "target", 200.00))
+                .andExpect(jsonPath("$.unplanned").value(1800.00))
+                .andExpect(jsonPath("$.surplusLabel").value("Noch frei"));
+
+        // A future month uses only the months before today's month as well
+        mockMvc.perform(get("/api/dashboard").param("month", current.plusMonths(2).toString()))
+                .andExpect(jsonPath("$.monthState").value("FUTURE"))
+                .andExpect(jsonPath("$.averageIncome").value(2000.00))
+                .andExpect(jsonPath("$.averageIncomeTo").value(current.minusMonths(1).toString()));
+    }
+
+    @Test
+    void withoutAnEarlierMonthAPercentTargetHasNoValue() throws Exception {
+        YearMonth current = YearMonth.now(clock);
+        postTransaction("2000.00", "Gehalt", current.atDay(1).toString(), categoryId("Gehalt/Lohn (netto)"));
+        putTarget(categoryId("Lebensmittel"), current.toString(), "{\"targetPercent\": 0.10}");
+        putTarget(categoryId("Wohnen"), current.toString(), "{\"targetAmount\": 800}");
+
+        mockMvc.perform(get("/api/dashboard").param("month", current.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.averageIncome").value(nullValue()))
+                .andExpect(jsonPath("$.averageIncomeMonths").value(0))
+                .andExpect(jsonPath("$.unplanned").value(nullValue()))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Lebensmittel')]", hasSize(0)))
+                .andExpect(line("Wohnen", "target", 800.00));
     }
 
     // --- GET /api/dashboard (US5): validation ---

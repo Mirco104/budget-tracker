@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,7 +69,7 @@ public class ReserveService {
                 .toList();
 
         // Income E and expenses A per month (R2) come from the dashboard, so the rules stay in one place
-        YearMonth firstEntryMonth = firstEntryMonth();
+        YearMonth firstEntryMonth = dashboardService.firstEntryMonth();
         List<PastMonth> pastMonths = firstEntryMonth == null
                 ? List.of()
                 : IntStream.rangeClosed(1, period)
@@ -82,7 +81,7 @@ public class ReserveService {
     }
 
     private PastMonth pastMonth(YearMonth month) {
-        DashboardResponse dashboard = dashboardService.calculate(month);
+        DashboardResponse dashboard = dashboardService.actuals(month);
         return new PastMonth(
                 month,
                 dashboard.incomeTotal(),
@@ -94,15 +93,5 @@ public class ReserveService {
                         .filter(line -> line.actual().signum() > 0)
                         .map(line -> new CategoryData(line.name(), line.actual()))
                         .toList());
-    }
-
-    private YearMonth firstEntryMonth() {
-        return Stream.of(
-                        transactionRepository.findMinDate(currentUser.get()),
-                        recurringRepository.findMinStartDate(currentUser.get()))
-                .filter(date -> date != null)
-                .min(LocalDate::compareTo)
-                .map(YearMonth::from)
-                .orElse(null);
     }
 }
