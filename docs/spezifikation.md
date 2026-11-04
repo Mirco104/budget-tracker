@@ -709,4 +709,4 @@ Umsetzung der Entscheidungen 26 bis 33, vor AP 20. Ziel: Die App soll ohne Erkl�
 
 **Reihenfolge:** 19b vor allen anderen Oberflächen-APs; 19c vor 19e und 19f; 19d vor 19e, 19g, 19i und 19j, weil diese Icons zeigen (bis dahin ein Platzhalter-Icon). 19c, 19d, 19h und 19i ändern das Backend und können parallel zu den Oberflächen-APs laufen, wenn sie unterschiedliche Dateien betreffen. AP 13 (README "Learnings und Entscheidungen") folgt nach 19j, damit es die Überarbeitung enthält.
 
-**Stand 04.11.2026:** AP 19a erledigt (dieser Stand). Offen: AP 19b bis 19j.
+**Stand 04.11.2026:** AP 19a bis 19d erledigt. Offen: AP 19e bis 19j.
