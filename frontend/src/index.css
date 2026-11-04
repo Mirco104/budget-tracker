@@ -514,6 +514,14 @@ th.number {
   font-variant-numeric: tabular-nums;
 }
 
+/* A small note below a tile value, e.g. the period of the Ø income */
+.summary dd.tile-note {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 /* "davon wiederkehrend / einmalig" below the expenses total */
 .summary dd.breakdown {
   display: flex;
