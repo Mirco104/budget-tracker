@@ -2,6 +2,8 @@ import { useCategories, useUpdateTarget } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
 import type { DashboardData } from '../api/types'
 import { TargetRow } from '../components/TargetRow'
+import { MonthNav } from '../components/ui/MonthNav'
+import { PageHeader } from '../components/ui/PageHeader'
 import { formatEuro, formatMonth } from '../format'
 
 /** Ø income (R23), planned targets and the unplanned rest (R4) for the month, taken from the dashboard. */
@@ -51,7 +53,22 @@ function averagePeriod(data: DashboardData): string {
   return `${period}, ${months}`
 }
 
-export function PlanningPage({ month }: { month: string }) {
+interface Props {
+  month: string
+  /** Shows the month navigation in the page header. */
+  onMonthChange?: (month: string) => void
+}
+
+export function PlanningPage({ month, onMonthChange }: Props) {
+  return (
+    <section>
+      <PageHeader title="Planung">{onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}</PageHeader>
+      <PlanningContent month={month} />
+    </section>
+  )
+}
+
+function PlanningContent({ month }: { month: string }) {
   const categories = useCategories(month)
   const updateTarget = useUpdateTarget()
 
@@ -63,8 +80,7 @@ export function PlanningPage({ month }: { month: string }) {
   }
 
   return (
-    <section>
-      <h2>Planung</h2>
+    <>
       <p className="hint">
         Soll je Kategorie in Euro oder in Prozent der durchschnittlichen Einnahmen der letzten 12 Monate. Ist beides gesetzt, gilt der Euro-Wert. Änderungen
         werden automatisch gespeichert, sobald du ein Feld verlässt oder Enter drückst.
@@ -84,6 +100,6 @@ export function PlanningPage({ month }: { month: string }) {
           onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
         />
       ))}
-    </section>
+    </>
   )
 }

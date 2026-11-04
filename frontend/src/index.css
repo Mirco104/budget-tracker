@@ -1,42 +1,200 @@
+/* Design foundation (AP 19b, decision 32): all colors, radii and shadows as variables, light and dark. */
 :root {
-  font-family: system-ui, sans-serif;
-  color: #1f2328;
-  background: #ffffff;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #f7f9fb;
+  --surface-3: #eef1f4;
+  --ink: #17202b;
+  --muted: #5b6573;
+  --line: #e3e7ec;
+  --line-strong: #d5dbe2;
+  --primary: #2f5bd3;
+  --primary-hover: #2649ae;
+  --primary-soft: #eaf0fc;
+  --on-primary: #ffffff;
+  --warn: #b54708;
+  --warn-soft: #fff4ec;
+  --income: #1c6e8c;
+  --danger: #b42318;
+  --danger-soft: #fef3f2;
+  --chart-income: #1c6e8c;
+  --chart-expense: #e08a3c;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 3px rgb(23 32 43 / 0.12);
+  --shadow-menu: 0 12px 32px rgb(23 32 43 / 0.16);
+  --header-height: 64px;
+
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f141a;
+    --surface: #18202a;
+    --surface-2: #1f2833;
+    --surface-3: #263140;
+    --ink: #e6eaf0;
+    --muted: #a3adba;
+    --line: #2c3643;
+    --line-strong: #3a4553;
+    --primary: #7b9cf2;
+    --primary-hover: #97b2f5;
+    --primary-soft: #1e2b4a;
+    --on-primary: #0f141a;
+    --warn: #f0a060;
+    --warn-soft: #3a2616;
+    --income: #5fb3cf;
+    --danger: #f2877d;
+    --danger-soft: #3a1e1c;
+    --chart-income: #5fb3cf;
+    --chart-expense: #e8a86b;
+    --shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+    --shadow-menu: 0 12px 32px rgb(0 0 0 / 0.5);
+  }
 }
 
 body {
   margin: 0;
+  background: var(--bg);
 }
 
-main {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 16px;
+/* Base elements, so every page gets the same look without extra classes */
+h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
 }
 
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 16px;
+h2 {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
 }
 
-nav button[aria-current='page'] {
-  font-weight: bold;
+h3 {
+  margin: 24px 0 12px;
+  font-size: 1.15rem;
+}
+
+h4 {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+}
+
+a {
+  color: var(--primary);
+}
+
+button,
+.button-link {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+.button-link:hover {
+  background: var(--surface-2);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button[type='submit'],
+button.primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+button[type='submit']:hover:not(:disabled),
+button.primary:hover:not(:disabled) {
+  border-color: var(--primary-hover);
+  background: var(--primary-hover);
+}
+
+button.danger {
+  border-color: var(--danger);
+  background: var(--surface);
+  color: var(--danger);
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+input:not([type='checkbox'], [type='radio']),
+select,
+textarea {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
 table {
   width: 100%;
-  border-collapse: collapse;
   margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--surface);
 }
 
 th,
 td {
-  padding: 4px 8px;
-  border-bottom: 1px solid #d0d7de;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
   text-align: left;
+}
+
+thead th {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+tbody tr:last-child > * {
+  border-bottom: none;
 }
 
 td.number,
@@ -45,28 +203,314 @@ th.number {
   font-variant-numeric: tabular-nums;
 }
 
+.card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
 .negative {
-  color: #cf222e;
+  color: var(--warn);
+}
+
+.positive {
+  color: var(--income);
 }
 
 .error {
-  color: #cf222e;
+  color: var(--danger);
 }
 
+.hint {
+  color: var(--muted);
+}
+
+/* App shell (US29): header with tabs and account menu; below 720 px the tabs become a bar at the bottom */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.app-header-inner {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  max-width: 1040px;
+  height: var(--header-height);
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.95rem;
+}
+
+.tabs {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.tab {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.tab[aria-current='page'] {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.account-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.avatar:hover:not(:disabled) {
+  background: var(--primary-soft);
+  filter: brightness(0.96);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 240px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.menu-head {
+  margin-bottom: 6px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.menu-head strong,
+.menu-head span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.menu-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+.content {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+  box-sizing: border-box;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.month-nav {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.month-nav .month-label {
+  min-width: 140px;
+  padding: 0 6px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+/* Login and invitation: one centered card */
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  min-height: 100vh;
+  padding: 48px 16px;
+  box-sizing: border-box;
+}
+
+.auth-page .card {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+}
+
+.auth-page .stacked-form {
+  max-width: none;
+}
+
+.auth-page .stacked-form input {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --header-height: 56px;
+  }
+
+  .app-header-inner {
+    padding: 0 12px 0 16px;
+  }
+
+  .tabs {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    gap: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .tab {
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    min-width: 0;
+    min-height: 60px;
+    padding: 0 2px;
+    font-size: 0.75rem;
+  }
+
+  .tab[aria-current='page'] {
+    background: none;
+  }
+
+  .content {
+    padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Dashboard tiles */
 .summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 8px 24px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin: 0 0 24px;
+}
+
+.summary > div {
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .summary dt {
-  color: #57606a;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .summary dd {
-  margin: 0;
-  font-size: 1.25rem;
+  margin: 2px 0 0;
+  font-size: 1.6rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -75,49 +519,63 @@ th.number {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  max-width: 260px;
-  font-size: 0.875rem;
-  color: #57606a;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 form.transaction-form {
   display: grid;
-  gap: 8px;
-  max-width: 400px;
+  gap: 12px;
+  max-width: 440px;
   margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+form.transaction-form h3 {
+  margin: 0;
 }
 
 form.transaction-form label {
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .sign-toggle {
   display: flex;
   gap: 16px;
   margin: 0;
-  padding: 4px 8px 8px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
+  padding: 4px 12px 10px;
 }
 
 form.transaction-form .sign-toggle label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-}
-
-.hint {
-  color: #57606a;
+  gap: 6px;
 }
 
 .target-row {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) repeat(2, minmax(120px, 160px)) minmax(140px, 1fr);
-  gap: 8px;
+  gap: 12px;
   align-items: start;
-  padding: 6px 0;
-  border-bottom: 1px solid #d0d7de;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-top: none;
+  background: var(--surface);
+}
+
+h3 + .target-row {
+  border-top: 1px solid var(--line);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.target-row:last-child {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .target-row label {
@@ -140,11 +598,11 @@ form.transaction-form .sign-toggle label {
 /* Offset by one label line so name and button sit level with the inputs. */
 .target-name,
 .target-actions {
-  padding-top: calc(1.25rem + 2px);
+  padding-top: calc(1.25rem + 12px);
 }
 
 .target-name {
-  line-height: 1.5rem;
+  font-weight: 600;
 }
 
 @media (max-width: 600px) {
@@ -155,19 +613,12 @@ form.transaction-form .sign-toggle label {
   .target-name {
     grid-column: 1 / -1;
     padding-top: 0;
-    font-weight: bold;
   }
 
   .target-actions {
     grid-column: 1 / -1;
     padding-top: 0;
   }
-}
-
-.month-nav {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
 }
 
 .dashboard-header,
@@ -179,50 +630,45 @@ form.transaction-form .sign-toggle label {
   justify-content: space-between;
 }
 
+/* Segmented control, e.g. € / % */
 .unit-toggle {
   display: inline-flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface-3);
 }
 
 .unit-toggle button {
   min-width: 44px;
-  padding: 6px 12px;
-  border: 1px solid #d0d7de;
-  background: #ffffff;
-  cursor: pointer;
+  min-height: 38px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
 }
 
-.unit-toggle button:first-child {
-  border-radius: 6px 0 0 6px;
-}
-
-.unit-toggle button:last-child {
-  border-left: none;
-  border-radius: 0 6px 6px 0;
+.unit-toggle button:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
 }
 
 .unit-toggle button[aria-pressed='true'] {
-  background: #1f2328;
-  color: #ffffff;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }
 
 .budget tfoot th,
 .budget tfoot td {
   font-weight: bold;
-}
-
-.budget tfoot th,
-.budget tfoot td {
-  border-top: 2px solid #1f2328;
+  border-top: 2px solid var(--ink);
 }
 
 @media (max-width: 480px) {
-  main {
-    padding: 16px 12px;
-  }
-
   th,
   td {
-    padding: 4px;
+    padding: 8px 6px;
   }
 
   .col-target {
@@ -233,24 +679,28 @@ form.transaction-form .sign-toggle label {
 .badge {
   display: inline-block;
   margin-left: 8px;
-  padding: 0 6px;
-  border: 1px solid #d0d7de;
-  border-radius: 10px;
-  color: #57606a;
-  font-size: 0.8rem;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .scope-dialog {
   max-width: 480px;
   margin-bottom: 24px;
-  padding: 8px 16px 16px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background: #f6f8fa;
+  padding: 8px 20px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
 }
 
-.positive {
-  color: #1a7f37;
+.scope-dialog div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* Below 600 px every transaction is a small card: description and amount, then date and category, then actions. */
@@ -271,8 +721,12 @@ form.transaction-form .sign-toggle label {
       'date category category'
       'actions actions actions';
     gap: 2px 8px;
-    padding: 8px 0;
-    border-bottom: 1px solid #d0d7de;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .transactions tbody tr:last-child {
+    border-bottom: none;
   }
 
   .transactions td {
@@ -292,7 +746,7 @@ form.transaction-form .sign-toggle label {
 
   .transactions .tx-date,
   .transactions .tx-category {
-    color: #57606a;
+    color: var(--muted);
     font-size: 0.875rem;
   }
 
@@ -308,12 +762,16 @@ form.transaction-form .sign-toggle label {
     grid-area: actions;
     display: flex;
     gap: 8px;
-    margin-top: 4px;
+    margin-top: 6px;
   }
 
   form.transaction-form {
     max-width: none;
   }
+}
+
+.tx-actions {
+  white-space: nowrap;
 }
 
 .forecast-bar-cell {
@@ -331,7 +789,12 @@ form.transaction-form .sign-toggle label {
 .history-chart {
   width: 100%;
   margin-bottom: 16px;
+  padding: 16px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* A mouse click focuses the chart for keyboard use; the outline stays only for keyboard focus */
@@ -342,18 +805,19 @@ form.transaction-form .sign-toggle label {
 .forecast-bar {
   display: block;
   height: 10px;
-  border-radius: 2px;
-  background: #cf222e;
+  border-radius: 99px;
+  background: var(--chart-expense);
 }
 
 .forecast-entries {
   margin: 4px 0;
   padding-left: 16px;
   font-size: 0.9rem;
-  color: #57606a;
+  color: var(--muted);
 }
 
 .collapse-toggle {
+  min-height: 0;
   padding: 0;
   border: none;
   background: none;
@@ -363,10 +827,14 @@ form.transaction-form .sign-toggle label {
   cursor: pointer;
 }
 
+.collapse-toggle:hover:not(:disabled) {
+  background: none;
+}
+
 .history tfoot th,
 .history tfoot td {
   font-weight: bold;
-  border-top: 2px solid #d0d7de;
+  border-top: 2px solid var(--line-strong);
 }
 
 .history .history-month th {
@@ -382,6 +850,7 @@ form.transaction-form .sign-toggle label {
 }
 
 .history .history-month button {
+  min-height: 0;
   padding: 0;
   border: none;
   background: none;
@@ -393,21 +862,23 @@ form.transaction-form .sign-toggle label {
 
 /* Marked together with its bars in the chart */
 .history tr.highlighted > * {
-  background: #eaeef2;
+  background: var(--primary-soft);
 }
 
 .history .history-category td {
-  color: #57606a;
+  color: var(--muted);
   font-size: 0.9rem;
+  background: var(--surface-2);
 }
 
 .history .history-category td:first-child {
-  padding-left: 24px;
+  padding-left: 28px;
 }
 
 .tile-note {
-  color: #57606a;
+  color: var(--muted);
   font-size: 0.85rem;
+  font-weight: 400;
 }
 
 @media (max-width: 480px) {
@@ -447,31 +918,27 @@ form.transaction-form .sign-toggle label {
   padding: 6px 0;
 }
 
-/* Rows as one framed list with alternating backgrounds, so neighbouring rows are easy to tell apart. */
 .category-list {
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  overflow: hidden;
   margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
 }
 
 .category-row {
   align-items: center;
-  padding: 8px 10px;
-  border-bottom: 1px solid #d0d7de;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
 }
 
 .category-row:last-child {
   border-bottom: none;
 }
 
-.category-row:nth-child(even) {
-  background: #f6f8fa;
-}
-
 .category-new label {
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .category-row input {
@@ -482,11 +949,11 @@ form.transaction-form .sign-toggle label {
 .category-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .category-row.archived input {
-  color: #656d76;
+  color: var(--muted);
 }
 
 .category-new p,
@@ -495,21 +962,12 @@ form.transaction-form .sign-toggle label {
   margin: 0;
 }
 
-.account {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  margin: -8px 0 8px;
-}
-
 /* Login, invitation and account forms: one field per line */
 .stacked-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 320px;
+  max-width: 360px;
   margin-bottom: 16px;
 }
 
@@ -526,11 +984,13 @@ form.transaction-form .sign-toggle label {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  font-weight: 500;
 }
 
 .user-row {
   align-items: center;
-  border-bottom: 1px solid #d0d7de;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .user-row .user-name {
@@ -545,11 +1005,19 @@ form.transaction-form .sign-toggle label {
 
 .account-details {
   margin-bottom: 16px;
+  padding: 4px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .account-entry {
-  border-bottom: 1px solid #d0d7de;
-  padding: 6px 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.account-entry:last-child {
+  border-bottom: none;
 }
 
 .account-row {
@@ -561,7 +1029,7 @@ form.transaction-form .sign-toggle label {
 
 .account-label {
   flex: 0 0 100px;
-  color: #57606a;
+  color: var(--muted);
 }
 
 /* Small basis, so the button stays next to the value at 360 px; long e-mails wrap */
@@ -593,12 +1061,9 @@ form.transaction-form .sign-toggle label {
 }
 
 .button-link {
-  padding: 1px 6px;
-  border: 1px solid #8c959f;
-  border-radius: 3px;
-  background: #f6f8fa;
-  color: inherit;
-  font-size: 13.33px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
   text-decoration: none;
 }
 
@@ -614,4 +1079,8 @@ form.transaction-form .sign-toggle label {
   justify-content: center;
   margin-top: 32px;
   font-size: 0.875rem;
+}
+
+.legal a {
+  color: var(--muted);
 }

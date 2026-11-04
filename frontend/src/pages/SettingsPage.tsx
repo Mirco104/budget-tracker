@@ -3,12 +3,13 @@ import { AccountSettings } from '../components/AccountSettings'
 import { CategorySettings } from '../components/CategorySettings'
 import { InvitationSettings } from '../components/InvitationSettings'
 import { UserSettings } from '../components/UserSettings'
+import { PageHeader } from '../components/ui/PageHeader'
 
 /** Settings of the app: categories, the own account and, for admins, users and invitations. */
 export function SettingsPage({ me }: { me: Me }) {
   return (
     <section>
-      <h2>Einstellungen</h2>
+      <PageHeader title="Einstellungen" />
       <CategorySettings />
       <AccountSettings me={me} />
       {/* Display only; the backend checks the role on every call */}

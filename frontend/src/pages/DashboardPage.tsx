@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useDashboard } from '../api/dashboard'
 import type { CategoryLine } from '../api/types'
+import { MonthNav } from '../components/ui/MonthNav'
+import { PageHeader } from '../components/ui/PageHeader'
 import { formatAmount, formatEuro, formatPercent, formatShare } from '../format'
 
 type Unit = 'euro' | 'percent'
@@ -27,9 +29,35 @@ function AmountCells({ line, unit }: { line: Line; unit: Unit }) {
   )
 }
 
-export function DashboardPage({ month }: { month: string }) {
-  const { data, isPending, error } = useDashboard(month)
+interface Props {
+  month: string
+  /** Shows the month navigation in the page header (US8). */
+  onMonthChange?: (month: string) => void
+}
+
+export function DashboardPage({ month, onMonthChange }: Props) {
   const [unit, setUnit] = useState<Unit>('euro')
+
+  return (
+    <section>
+      <PageHeader title="Übersicht">
+        {onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}
+        <div className="unit-toggle" role="group" aria-label="Anzeige">
+          <button type="button" aria-pressed={unit === 'euro'} onClick={() => setUnit('euro')}>
+            €
+          </button>
+          <button type="button" aria-pressed={unit === 'percent'} onClick={() => setUnit('percent')}>
+            %
+          </button>
+        </div>
+      </PageHeader>
+      <DashboardContent month={month} unit={unit} />
+    </section>
+  )
+}
+
+function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
+  const { data, isPending, error } = useDashboard(month)
 
   if (isPending) {
     return <p>Lade Dashboard …</p>
@@ -43,19 +71,7 @@ export function DashboardPage({ month }: { month: string }) {
   const unitLabel = unit === 'euro' ? '€' : '%'
 
   return (
-    <section>
-      <div className="dashboard-header">
-        <h2>Übersicht</h2>
-        <div className="unit-toggle" role="group" aria-label="Anzeige">
-          <button type="button" aria-pressed={unit === 'euro'} onClick={() => setUnit('euro')}>
-            €
-          </button>
-          <button type="button" aria-pressed={unit === 'percent'} onClick={() => setUnit('percent')}>
-            %
-          </button>
-        </div>
-      </div>
-
+    <>
       <dl className="summary">
         <div>
           <dt>Einnahmen</dt>
@@ -129,6 +145,6 @@ export function DashboardPage({ month }: { month: string }) {
           </tbody>
         </table>
       )}
-    </section>
+    </>
   )
 }
