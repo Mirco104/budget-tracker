@@ -17,6 +17,8 @@ import {
 import type { OccurrenceScope, Transaction } from '../api/types'
 import { OccurrenceScopeDialog } from '../components/OccurrenceScopeDialog'
 import { TransactionForm, type TransactionFormValues } from '../components/TransactionForm'
+import { MonthNav } from '../components/ui/MonthNav'
+import { PageHeader } from '../components/ui/PageHeader'
 import { formatDate, formatEuro } from '../format'
 
 function defaultDateFor(month: string): string {
@@ -45,7 +47,13 @@ type Editing =
   | { mode: 'this'; occurrence: OccurrenceRef }
   | { mode: 'following'; occurrence: OccurrenceRef; initial: TransactionFormValues }
 
-export function TransactionsPage({ month }: { month: string }) {
+interface Props {
+  month: string
+  /** Shows the month navigation in the page header. */
+  onMonthChange?: (month: string) => void
+}
+
+export function TransactionsPage({ month, onMonthChange }: Props) {
   const transactions = useTransactions(month)
   const categories = useCategories(month)
   // Series active in the month; "Dieser und alle folgenden" prefills the form from them.
@@ -218,7 +226,9 @@ export function TransactionsPage({ month }: { month: string }) {
 
   return (
     <section>
-      <h2>Transaktionen</h2>
+      <PageHeader title="Transaktionen">
+        {onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}
+      </PageHeader>
 
       {categories.error && <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>}
       {renderForm()}
@@ -267,7 +277,8 @@ export function TransactionsPage({ month }: { month: string }) {
                   {t.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
                 </td>
                 <td className="tx-category">{t.categoryName}</td>
-                <td className={`number tx-amount ${t.amount < 0 ? 'negative' : 'positive'}`}>{formatEuro(t.amount)}</td>
+                {/* Expenses in the normal text color; orange is reserved for warnings (decision 32) */}
+                <td className={`number tx-amount${t.amount < 0 ? '' : ' positive'}`}>{formatEuro(t.amount)}</td>
                 <td className="tx-actions">
                   <button type="button" onClick={() => handleEdit(t)}>
                     Bearbeiten

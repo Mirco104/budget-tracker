@@ -12,6 +12,8 @@ import {
   formatWholeNumber,
 } from '../format'
 import { INTERVAL_LABELS } from '../labels'
+import { MonthNav } from '../components/ui/MonthNav'
+import { PageHeader } from '../components/ui/PageHeader'
 
 type Unit = 'euro' | 'percent'
 
@@ -207,8 +209,15 @@ function FooterRow({ label, data, unit, income, expenses, surplus }: {
   )
 }
 
-const INCOME_COLOR = '#1a7f37'
-const EXPENSE_COLOR = '#cf222e'
+// Colors from the design variables (index.css), so the chart follows light and dark mode
+const INCOME_COLOR = 'var(--chart-income)'
+const EXPENSE_COLOR = 'var(--chart-expense)'
+const TOOLTIP_STYLE = {
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 12,
+  color: 'var(--ink)',
+}
 
 // Other months fade while one month is marked
 const FADED_OPACITY = 0.3
@@ -238,6 +247,7 @@ function HistoryChart({ history, active, onActive }: {
             formatter={(value) => formatEuro(Number(value))}
             itemSorter={(item) => (item.dataKey === 'income' ? 0 : 1)}
             cursor={false}
+            contentStyle={TOOLTIP_STYLE}
           />
           <Legend itemSorter={null} />
           <Bar dataKey="income" name="Einnahmen" fill={INCOME_COLOR}>
@@ -390,7 +400,22 @@ function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number
  * Analysis (R14, US13): average expenses and look back over a chosen period, reserve pot for rare expenses and a
  * 12-month forecast.
  */
-export function ReservesPage({ month }: { month: string }) {
+interface Props {
+  month: string
+  /** Shows the month navigation in the page header. */
+  onMonthChange?: (month: string) => void
+}
+
+export function ReservesPage({ month, onMonthChange }: Props) {
+  return (
+    <section>
+      <PageHeader title="Auswertung">{onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}</PageHeader>
+      <ReservesContent month={month} />
+    </section>
+  )
+}
+
+function ReservesContent({ month }: { month: string }) {
   const [period, setPeriod] = useState(DEFAULT_PERIOD)
   const { data, isPending, error } = useReserves(month, period)
 
@@ -404,8 +429,7 @@ export function ReservesPage({ month }: { month: string }) {
   const largest = Math.max(0, ...data.forecast.map((m) => m.total))
 
   return (
-    <section>
-      <h2>Auswertung</h2>
+    <>
       <PeriodSelect period={period} onChange={setPeriod} />
       <AverageExpenses data={data} period={period} />
       <LookBack data={data} />
@@ -432,6 +456,6 @@ export function ReservesPage({ month }: { month: string }) {
           </tbody>
         </table>
       </Collapsible>
-    </section>
+    </>
   )
 }

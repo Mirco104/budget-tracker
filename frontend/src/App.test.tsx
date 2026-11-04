@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { currentMonth, formatMonth, shiftMonth } from './format'
 
 // Fictional signed-in user; all other calls stay pending
 const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER' }
@@ -10,75 +11,118 @@ function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
-async function renderApp() {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((url: string) => (url === '/api/auth/me' ? json(me) : new Promise(() => {}))),
-  )
+function renderWithClient() {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <App />
     </QueryClientProvider>,
   )
-  await screen.findByRole('button', { name: 'Übersicht' })
 }
 
+async function renderApp() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) => (url === '/api/auth/me' ? json(me) : new Promise(() => {}))),
+  )
+  renderWithClient()
+  await screen.findByRole('navigation', { name: 'Hauptnavigation' })
+}
+
+/** Like a click on a link or the browser's back button: the hash changes and the app follows. */
+function goTo(hash: string) {
+  act(() => {
+    window.location.hash = hash
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  })
+}
+
+afterEach(() => {
+  window.history.replaceState(null, '', '/')
+})
+
 describe('App', () => {
-  it('renders the app title', async () => {
+  it('shows the brand and opens the overview by default', async () => {
     await renderApp()
 
-    expect(screen.getByRole('heading', { name: 'Budget-Tracker' })).toBeInTheDocument()
+    expect(screen.getByText('Budget-Tracker')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeInTheDocument()
   })
 
-  it('moves the selected month with the previous and next buttons', async () => {
+  // US29: four tabs as links; the settings live in the account menu
+  it('has the tabs Übersicht, Transaktionen, Planung and Auswertung as links', async () => {
     await renderApp()
-    const monthInput = screen.getByLabelText('Monat')
-    fireEvent.change(monthInput, { target: { value: '2026-12' } })
+
+    const links = ['Übersicht', 'Transaktionen', 'Planung', 'Auswertung'].map((name) =>
+      screen.getByRole('link', { name }),
+    )
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '#/uebersicht',
+      '#/transaktionen',
+      '#/planung',
+      '#/auswertung',
+    ])
+    expect(links[0]).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('link', { name: 'Einstellungen' })).not.toBeInTheDocument()
+  })
+
+  it('follows the address, also for the back button', async () => {
+    await renderApp()
+
+    goTo('#/planung')
+    expect(screen.getByRole('heading', { level: 1, name: 'Planung' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Planung' })).toHaveAttribute('aria-current', 'page')
+
+    goTo('#/uebersicht')
+    expect(screen.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeInTheDocument()
+  })
+
+  it('opens the page from the address on start', async () => {
+    window.history.replaceState(null, '', '/#/transaktionen')
+
+    await renderApp()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Transaktionen' })).toBeInTheDocument()
+  })
+
+  it('shows the overview for an unknown address', async () => {
+    window.history.replaceState(null, '', '/#/gibt-es-nicht')
+
+    await renderApp()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeInTheDocument()
+  })
+
+  it('moves the month in the page header and jumps back to the current month', async () => {
+    await renderApp()
+    const current = currentMonth()
+    expect(screen.getByText(formatMonth(current))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Zum aktuellen Monat' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
-    expect(monthInput).toHaveValue('2027-01')
+    expect(screen.getByText(formatMonth(shiftMonth(current, 1)))).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Vorheriger Monat' }))
     fireEvent.click(screen.getByRole('button', { name: 'Vorheriger Monat' }))
-    expect(monthInput).toHaveValue('2026-11')
+    expect(screen.getByText(formatMonth(shiftMonth(current, -1)))).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zum aktuellen Monat' }))
+    expect(screen.getByText(formatMonth(current))).toBeInTheDocument()
   })
 
-  it('jumps back to the current month', async () => {
+  it('keeps the chosen month when switching pages', async () => {
     await renderApp()
-    const monthInput = screen.getByLabelText('Monat')
-    const today = new Date()
-    const current = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-    const currentButton = screen.getByRole('button', { name: 'Aktueller Monat' })
-    expect(currentButton).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
 
-    fireEvent.change(monthInput, { target: { value: '2020-05' } })
-    expect(currentButton).toBeEnabled()
-    fireEvent.click(currentButton)
+    goTo('#/planung')
 
-    expect(monthInput).toHaveValue(current)
+    expect(screen.getByText(formatMonth(shiftMonth(currentMonth(), 1)))).toBeInTheDocument()
   })
 
-  it('has the tabs Übersicht, Transaktionen, Planung, Auswertung and Einstellungen', async () => {
-    await renderApp()
-
-    expect(screen.getByRole('button', { name: 'Übersicht' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('button', { name: 'Transaktionen' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Wiederkehrend' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Einstellungen' })).toBeInTheDocument()
-  })
-
-  it('keeps the month selection on the planning page', async () => {
-    await renderApp()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Planung' }))
-
-    expect(screen.getByLabelText('Monat')).toBeInTheDocument()
-  })
   // The analysis page is loaded on first use, because of the chart library
   it('loads the analysis page when its tab is opened', async () => {
     await renderApp()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Auswertung' }))
+    goTo('#/auswertung')
 
     expect(screen.getByText('Lade Auswertung …')).toBeInTheDocument()
     // Transforming Recharts for the first import takes a while in the test environment
@@ -88,14 +132,32 @@ describe('App', () => {
     )
   })
 
+  it('opens the account menu with name, settings and sign-out', async () => {
+    await renderApp()
+    const avatar = screen.getByRole('button', { name: 'Konto und Einstellungen' })
+    expect(avatar).toHaveTextContent('PA')
+    expect(avatar).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(avatar)
+
+    expect(avatar).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('person-a@example.test')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Einstellungen' })).toHaveAttribute('href', '#/einstellungen')
+    expect(screen.getByRole('button', { name: 'Abmelden' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('link', { name: 'Einstellungen' })).not.toBeInTheDocument()
+  })
+
   // US10: settings do not depend on a month
-  it('hides the month selection on the settings page', async () => {
+  it('shows the settings without a month navigation', async () => {
     await renderApp()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }))
+    goTo('#/einstellungen')
 
-    expect(screen.getByRole('heading', { name: 'Einstellungen' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Monat')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Einstellungen' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Monat' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Übersicht' })).not.toHaveAttribute('aria-current')
   })
 
   // Section 15: imprint and privacy notice, also without sign-in
@@ -104,11 +166,7 @@ describe('App', () => {
       'fetch',
       vi.fn(() => json({ status: 401, title: 'Nicht angemeldet' }, 401)),
     )
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <App />
-      </QueryClientProvider>,
-    )
+    renderWithClient()
 
     await screen.findByRole('heading', { name: 'Anmelden' })
     expect(screen.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', '/impressum.html')
@@ -133,20 +191,16 @@ describe('App', () => {
       return new Promise(() => {})
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <App />
-      </QueryClientProvider>,
-    )
+    renderWithClient()
 
     await screen.findByRole('heading', { name: 'Anmelden' })
-    expect(screen.queryByRole('button', { name: 'Übersicht' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Hauptnavigation' })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('E-Mail'), { target: { value: 'person-a@example.test' } })
     fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'test-only-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }))
 
-    expect(await screen.findByText(/Angemeldet als Person A/)).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto und Einstellungen' }))
     fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }))
 
     await screen.findByRole('heading', { name: 'Anmelden' })

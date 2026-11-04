@@ -71,11 +71,12 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('colors expenses red, shows the category without Ausgabe/Einnahme', async () => {
+  it('shows expenses in the normal text color and the category without Ausgabe/Einnahme', async () => {
     renderPage()
 
     const kino = await screen.findByRole('row', { name: /Kino/ })
-    expect(within(kino).getByText('-12,00 €')).toHaveClass('negative')
+    // Orange is reserved for warnings (decision 32)
+    expect(within(kino).getByText('-12,00 €')).not.toHaveClass('negative')
     expect(within(kino).getByText('Freizeit')).toBeInTheDocument()
     expect(within(kino).queryByText(/Ausgabe/)).not.toBeInTheDocument()
   })

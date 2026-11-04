@@ -107,7 +107,8 @@ describe('ReservesPage', () => {
   it('shows the average expenses and how many months they cover', async () => {
     renderPage(reserves)
 
-    await screen.findByRole('heading', { name: 'Auswertung' })
+    // The page header shows at once; wait for the loaded content
+    await screen.findByRole('heading', { name: 'Rücklagen' })
     expect(tile(/Ø Ausgaben pro Monat/)).toHaveTextContent('1.026,00 €')
     expect(screen.getByText(/letzte 9 Monate/)).toBeInTheDocument()
     expect(screen.getByText('Es gibt erst seit 9 Monaten Einträge, daher zählen nur diese.')).toBeInTheDocument()
@@ -315,7 +316,8 @@ describe('ReservesPage', () => {
   it('explains an empty analysis without a completed month and without rare expenses', async () => {
     renderPage(empty)
 
-    await screen.findByRole('heading', { name: 'Auswertung' })
+    // The page header shows at once; wait for the loaded content
+    await screen.findByRole('heading', { name: 'Rücklagen' })
     expect(tile(/Ø Ausgaben pro Monat/)).toHaveTextContent('–')
     expect(screen.getByText(/Noch kein abgeschlossener Monat mit Einträgen/)).toBeInTheDocument()
     expect(screen.getByText(/Keine seltenen Ausgaben in den nächsten 12 Monaten/)).toBeInTheDocument()
