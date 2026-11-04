@@ -5,15 +5,23 @@ import java.util.List;
 
 /**
  * Calculated dashboard for one month (spec section 5). Fields without a value are null.
- * difference is the deviation from the target (R5, R6), unplanned is the income without a target (R4).
+ * difference is the deviation from the target (R5, R6), unplanned is Ē(M) minus the targets (R4).
  * Every ...Share and share is the amount as a share of the income, null without income or amount (R8).
+ * averageIncome is Ē(M) over averageIncomeMonths months from averageIncomeFrom to averageIncomeTo (R23),
+ * all null (months 0) when no month counts. monthState tells past, current and future months apart (R7).
  * categories[].actual is the expense actual I(k), income[].actual is the net N(k) (R2, R9).
  * expenses.recurring is W, expenses.oneOff is A - W (R10).
  */
 public record DashboardResponse(
         String month,
+        MonthState monthState,
         BigDecimal incomeTotal,
         BigDecimal incomeTotalShare,
+        BigDecimal averageIncome,
+        int averageIncomeMonths,
+        String averageIncomeFrom,
+        String averageIncomeTo,
+        BigDecimal averageIncomeShare,
         Totals expenses,
         BigDecimal unplanned,
         String unplannedLabel,
@@ -22,6 +30,11 @@ public record DashboardResponse(
         BigDecimal surplusShare,
         List<CategoryLine> categories,
         List<IncomeLine> income) {
+
+    /** The month compared with the month of today (R7). */
+    public enum MonthState {
+        PAST, CURRENT, FUTURE
+    }
 
     public record Totals(
             BigDecimal target, BigDecimal actual, BigDecimal difference,

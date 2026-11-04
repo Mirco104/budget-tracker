@@ -2,6 +2,7 @@ package io.github.mirco104.budget.dashboard;
 
 import io.github.mirco104.budget.dashboard.DashboardResponse.CategoryLine;
 import io.github.mirco104.budget.dashboard.DashboardResponse.IncomeLine;
+import io.github.mirco104.budget.dashboard.DashboardResponse.MonthState;
 import io.github.mirco104.budget.dashboard.DashboardResponse.Totals;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Dashboard math, rules R1–R12 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Dashboard math, rules R1–R12 and R23 from docs/spezifikation.md, section 2. No Spring dependencies.
  * Amounts carry their sign (R11). The net per category is rounded to cents; totals add up the rounded values.
  */
 public class DashboardCalculator {
@@ -31,16 +32,18 @@ public class DashboardCalculator {
     public record TransactionData(long categoryId, BigDecimal amount, LocalDate date, boolean recurring) {
     }
 
+    /**
+     * average is Ē(M) from {@link IncomeAverage} (R23); currentMonth is the month of today (R7).
+     */
     public DashboardResponse calculate(
-            List<CategoryData> categories, List<TransactionData> transactions, YearMonth month) {
+            List<CategoryData> categories, List<TransactionData> transactions, YearMonth month,
+            IncomeAverage.Result average, YearMonth currentMonth) {
         Map<Long, BigDecimal> nets = netsByCategory(transactions, month);
         Map<Long, BigDecimal> recurringExpenses = recurringExpensesByCategory(transactions, month);
 
         // R2
-        BigDecimal incomeTotal = categories.stream()
-                .map(category -> netOf(nets, category))
-                .filter(net -> net.signum() > 0)
-                .reduce(zero(), BigDecimal::add);
+        BigDecimal incomeTotal = positiveSum(nets);
+        BigDecimal averageIncome = average.average();
 
         // R3, R5, R6; R10: every category with a target or expenses, in input order
         List<CategoryLine> categoryLines = new ArrayList<>();
@@ -52,7 +55,7 @@ public class DashboardCalculator {
             // R10: W(k) = min(I(k), V(k)), so a refund lowers the one-off part first
             expensesRecurring = expensesRecurring.add(
                     actual.min(recurringExpenses.getOrDefault(category.id(), zero())));
-            BigDecimal target = target(category, incomeTotal);
+            BigDecimal target = target(category, averageIncome);
             if (target == null && actual.signum() == 0) {
                 continue;
             }
@@ -68,13 +71,17 @@ public class DashboardCalculator {
         BigDecimal expensesDifference = expensesTarget.subtract(expensesActual);
         BigDecimal expensesOneOff = expensesActual.subtract(expensesRecurring);
 
-        // R4
-        BigDecimal unplanned = incomeTotal.subtract(expensesTarget);
-        String unplannedLabel = unplanned.signum() >= 0 ? "Nicht verplant" : "Überplant";
+        // R4: based on the average income; empty without it
+        BigDecimal unplanned = averageIncome == null ? null : money(averageIncome).subtract(expensesTarget);
+        String unplannedLabel = unplanned == null ? null : unplanned.signum() >= 0 ? "Nicht verplant" : "Überplant";
 
-        // R7
+        // R7: a past month has a surplus, the current and later months show what is still free
         BigDecimal surplus = incomeTotal.subtract(expensesActual);
-        String surplusLabel = surplus.signum() >= 0 ? "Monatlicher Überschuss" : "Monatlicher Verlust";
+        MonthState monthState = month.isBefore(currentMonth) ? MonthState.PAST
+                : month.equals(currentMonth) ? MonthState.CURRENT : MonthState.FUTURE;
+        String surplusLabel = monthState == MonthState.PAST
+                ? surplus.signum() >= 0 ? "Monatlicher Überschuss" : "Monatlicher Verlust"
+                : surplus.signum() >= 0 ? "Noch frei" : "Überschritten";
 
         // R9: every category with a positive net
         List<IncomeLine> incomeLines = categories.stream()
@@ -88,8 +95,14 @@ public class DashboardCalculator {
         // R8: every amount also as share of the income
         return new DashboardResponse(
                 month.toString(),
+                monthState,
                 incomeTotal,
                 share(incomeTotal, incomeTotal),
+                averageIncome == null ? null : money(averageIncome),
+                average.months(),
+                average.from() == null ? null : average.from().toString(),
+                average.to() == null ? null : average.to().toString(),
+                share(averageIncome, incomeTotal),
                 new Totals(expensesTarget, expensesActual, expensesDifference, share(expensesTarget, incomeTotal),
                         share(expensesActual, incomeTotal), share(expensesDifference, incomeTotal),
                         expensesRecurring, expensesOneOff, share(expensesRecurring, incomeTotal),
@@ -144,13 +157,24 @@ public class DashboardCalculator {
         return net.signum() < 0 ? net.negate() : zero();
     }
 
-    // R3: euro target wins, otherwise income × percent, otherwise no target
-    private static BigDecimal target(CategoryData category, BigDecimal incomeTotal) {
+    /** Income E of a month (R2): the sum of all positive nets per category; for Ē(M) (R23). */
+    public static BigDecimal incomeOf(List<TransactionData> transactions, YearMonth month) {
+        return positiveSum(netsByCategory(transactions, month));
+    }
+
+    private static BigDecimal positiveSum(Map<Long, BigDecimal> nets) {
+        return nets.values().stream()
+                .filter(net -> net.signum() > 0)
+                .reduce(zero(), BigDecimal::add);
+    }
+
+    // R3: euro target wins, otherwise Ē(M) × percent (R23), otherwise no target; no Ē(M) means no target
+    private static BigDecimal target(CategoryData category, BigDecimal averageIncome) {
         if (category.targetAmount() != null) {
             return money(category.targetAmount());
         }
-        if (category.targetPercent() != null) {
-            return money(incomeTotal.multiply(category.targetPercent()));
+        if (category.targetPercent() != null && averageIncome != null) {
+            return money(averageIncome.multiply(category.targetPercent()));
         }
         return null;
     }
