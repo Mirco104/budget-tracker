@@ -41,6 +41,23 @@ export function usePage(): Page {
   return pageOf(useHash())
 }
 
+/** Sub pages of the settings (US10); "#/einstellungen" alone shows the categories. */
+export const SETTINGS_ROUTES = {
+  categories: '#/einstellungen/kategorien',
+  account: '#/einstellungen/konto',
+  invitations: '#/einstellungen/einladungen',
+  users: '#/einstellungen/nutzer',
+} as const
+
+export type SettingsPage = keyof typeof SETTINGS_ROUTES
+
+/** The sub page of the settings in the address bar; the categories when none is chosen. */
+export function useSettingsPage(): SettingsPage {
+  const hash = useHash()
+  const match = (Object.keys(SETTINGS_ROUTES) as SettingsPage[]).find((page) => SETTINGS_ROUTES[page] === hash)
+  return match ?? 'categories'
+}
+
 /** The sub page of the Auswertung in the address bar; the look back unless the outlook is chosen. */
 export function useEvaluationPage(): EvaluationPage {
   return useHash() === EVALUATION_ROUTES.outlook ? 'outlook' : 'history'

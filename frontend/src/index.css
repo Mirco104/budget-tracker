@@ -977,9 +977,7 @@ th.number {
   color: var(--primary);
 }
 
-/* Settings › Kategorien (US10); on narrow screens the buttons wrap below the name. */
-.category-new,
-.category-row,
+/* Settings › Kategorien (US10): drag handle, icon, name and the menu "⋯" per row */
 .user-row {
   display: flex;
   flex-wrap: wrap;
@@ -988,48 +986,114 @@ th.number {
   padding: 6px 0;
 }
 
-.category-list {
+.settings-card {
   margin-bottom: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--surface);
+  padding: 16px;
+}
+
+.settings-card h2,
+.settings-card > section > h3:first-child {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.settings-card .hint {
+  margin: 4px 0 8px;
+}
+
+.settings-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+button.add-category {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.category-new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.category-new .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.category-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .category-row {
-  align-items: center;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
+  padding: 6px 4px;
+  border-top: 1px solid var(--line);
 }
 
-.category-row:last-child {
-  border-bottom: none;
+.category-row.drop-target {
+  box-shadow: inset 0 2px 0 var(--primary);
 }
 
-.category-new label {
-  display: grid;
-  gap: 4px;
+.category-row.dragging {
+  opacity: 0.5;
 }
 
-.category-row input {
-  flex: 1 1 200px;
-  min-width: 0;
-}
-
-.category-actions {
+.category-line {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
 }
 
-.category-row.archived input {
+.drag-handle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 44px;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.category-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-weight: 500;
+}
+
+.category-row.archived .category-name {
   color: var(--muted);
 }
 
-.category-new p,
-.category-row p {
-  flex-basis: 100%;
-  margin: 0;
+.rename-form {
+  flex: 1;
+  min-width: 0;
+}
+
+.rename-form input {
+  width: 100%;
+}
+
+.row-menu-anchor {
+  position: relative;
+}
+
+.row-menu {
+  top: calc(100% + 4px);
+  min-width: 200px;
+}
+
+.category-row > .error,
+.category-row > .confirm {
+  margin: 4px 0 8px;
 }
 
 /* Login, invitation and account forms: one field per line */
@@ -1696,6 +1760,10 @@ button.tx:hover:not(:disabled) {
 
 /* On narrow screens "Bis" is below "Von" (US26) */
 @media (max-width: 480px) {
+  .subtabs a {
+    padding: 0 10px;
+  }
+
   .period-fields {
     flex-direction: column;
   }
@@ -1715,9 +1783,13 @@ button.tx:hover:not(:disabled) {
   gap: 4px;
   margin: -8px 0 20px;
   border-bottom: 1px solid var(--line);
+  /* Four sub pages may not fit next to each other on a phone; the bar scrolls instead of the page */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .subtabs a {
+  flex: none;
   display: inline-flex;
   align-items: center;
   min-height: 44px;
