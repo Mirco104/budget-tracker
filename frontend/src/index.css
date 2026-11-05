@@ -571,66 +571,238 @@ form.transaction-form .sign-toggle label {
   gap: 6px;
 }
 
-.target-row {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) repeat(2, minmax(120px, 160px)) minmax(140px, 1fr);
-  gap: 12px;
-  align-items: start;
-  padding: 10px 16px;
-  border: 1px solid var(--line);
-  border-top: none;
+/* Switch between a few options (Segmented), e.g. € / % or Ausgabe / Einnahme */
+.segmented {
+  display: inline-flex;
+  flex: none;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface-3);
+}
+
+.segmented button {
+  min-height: 38px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.segmented button:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
+}
+
+.segmented button[aria-pressed='true'] {
   background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }
 
-h3 + .target-row {
-  border-top: 1px solid var(--line);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+/* Planning (US2, US7a): the bar stays below the app header while scrolling */
+.month-nav-field {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
 }
 
-.target-row:last-child {
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-}
-
-.target-row label {
-  display: grid;
-  gap: 2px;
-  line-height: 1.25rem;
-  min-width: 0;
-}
-
-/* Fill the grid column; the browser's default input width is wider and overlapped the button. */
-.target-row input {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.target-row p {
-  margin: 4px 0 0;
-}
-
-/* Offset by one label line so name and button sit level with the inputs. */
-.target-name,
-.target-actions {
-  padding-top: calc(1.25rem + 12px);
-}
-
-.target-name {
+.month-nav-label {
+  color: var(--muted);
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
+.plan-intro {
+  max-width: 720px;
+  margin: 0 0 4px;
+}
+
+.plan-bar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 5;
+  margin: 0;
+  padding: 12px 0;
+  background: var(--bg);
+}
+
+.plan-bar.summary > div {
+  padding: 12px 16px;
+}
+
+.plan-bar.summary dd:not(.tile-note) {
+  font-size: 1.3rem;
+}
+
+.plan-bar .hint {
+  margin: 0;
+}
+
+.plan-list {
+  padding: 8px 16px;
+}
+
+.plan-head,
+.plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.plan-head {
+  padding: 8px 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.plan-row {
+  padding: 12px 4px;
+  border-top: 1px solid var(--line);
+}
+
+.plan-category {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.plan-name {
+  font-weight: 600;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.plan-note,
+.plan-previous {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-input {
+  display: grid;
+  gap: 4px;
+}
+
+.plan-input .error {
+  font-size: 0.85rem;
+}
+
+/* One field with the unit switch inside its frame */
+.unit-input {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding-left: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.unit-input.invalid {
+  border-color: var(--danger);
+}
+
+.unit-input:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.unit-input input:not([type='checkbox'], [type='radio']) {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+
+.unit-input .segmented {
+  margin: 3px;
+}
+
+.unit-input .segmented button {
+  min-height: 34px;
+  padding: 4px 10px;
+}
+
+/* The column header names the month on wide screens, so the label is only visible on narrow ones */
+.plan-previous-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.toggle-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px 4px;
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 600px) {
-  .target-row {
-    grid-template-columns: 1fr 1fr;
+  .plan-head {
+    display: none;
   }
 
-  .target-name {
-    grid-column: 1 / -1;
-    padding-top: 0;
+  .plan-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
   }
 
-  .target-actions {
+  .plan-input {
+    width: 168px;
+  }
+
+  /* The name needs the room more than the icon */
+  .plan-category .category-icon {
+    display: none;
+  }
+
+  .plan-previous {
     grid-column: 1 / -1;
-    padding-top: 0;
+  }
+
+  .plan-previous-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .plan-bar.summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .plan-bar.summary > div {
+    padding: 8px 10px;
+  }
+
+  .plan-bar.summary dd:not(.tile-note) {
+    font-size: 1rem;
+  }
+
+  .plan-bar.summary dt,
+  .plan-bar.summary dd.tile-note {
+    font-size: 0.75rem;
   }
 }
 
