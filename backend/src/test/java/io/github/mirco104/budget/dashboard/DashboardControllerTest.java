@@ -80,17 +80,20 @@ class DashboardControllerTest {
                 // R4, R23: the only month before October since the first entry is September, without income
                 .andExpect(jsonPath("$.averageIncome").value(0.00))
                 .andExpect(jsonPath("$.averageIncomeMonths").value(1))
+                // Ā over the same month: the rent of September
+                .andExpect(jsonPath("$.averageExpenses").value(99.00))
                 .andExpect(jsonPath("$.unplanned").value(-800.00))
                 .andExpect(jsonPath("$.unplannedLabel").value("Überplant"))
                 .andExpect(jsonPath("$.monthState").value("PAST"))
                 .andExpect(jsonPath("$.surplus").value(1250.00))
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
-                .andExpect(jsonPath("$.surplusShare").value(0.625))
+                // Decision 34: no shares any more
+                .andExpect(jsonPath("$.surplusShare").doesNotExist())
                 .andExpect(jsonPath("$.groups").doesNotExist())
                 .andExpect(jsonPath("$.expenses.recurring").value(0.00))
                 .andExpect(jsonPath("$.expenses.oneOff").value(750.00))
-                .andExpect(jsonPath("$.expenses.oneOffShare").value(0.375))
-                .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(1.0)));
+                .andExpect(jsonPath("$.expenses.oneOffShare").doesNotExist())
+                .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].actual", contains(2000.00)));
     }
 
     @Test
@@ -129,7 +132,6 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.incomeTotal").value(0.00))
                 .andExpect(jsonPath("$.expenses.actual").value(0.00))
                 .andExpect(jsonPath("$.surplus").value(0.00))
-                .andExpect(jsonPath("$.surplusShare").doesNotExist())
                 .andExpect(jsonPath("$.categories", hasSize(0)))
                 .andExpect(jsonPath("$.expenses.recurring").value(0.00))
                 .andExpect(jsonPath("$.expenses.oneOff").value(0.00))
@@ -176,7 +178,7 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.averageIncomeMonths").value(9))
                 .andExpect(jsonPath("$.averageIncomeFrom").value("2026-01"))
                 .andExpect(jsonPath("$.averageIncomeTo").value("2026-09"))
-                .andExpect(jsonPath("$.averageIncomeShare").value(0.9375))
+                .andExpect(jsonPath("$.averageExpenses").value(1026.00))
                 .andExpect(line("Wohnen", "target", 900.00)).andExpect(line("Wohnen", "actual", 900.00))
                 .andExpect(line("Wohnen", "difference", 0.00))
                 .andExpect(line("Nebenkosten", "target", 300.00)).andExpect(line("Nebenkosten", "actual", 340.00))
@@ -200,20 +202,15 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.expenses.target").value(2510.00))
                 .andExpect(jsonPath("$.expenses.actual").value(2606.49))
                 .andExpect(jsonPath("$.expenses.difference").value(-96.49))
-                .andExpect(jsonPath("$.expenses.targetShare").value(0.7844))
-                .andExpect(jsonPath("$.expenses.differenceShare").value(-0.0302))
                 .andExpect(jsonPath("$.unplanned").value(490.00))
                 .andExpect(jsonPath("$.unplannedLabel").value("Nicht verplant"))
                 .andExpect(jsonPath("$.surplus").value(593.51))
                 // The fixture's "today" is 2026-10-20 ("Noch frei", unit test); these tests run later, so October is past
                 .andExpect(jsonPath("$.surplusLabel").value("Monatlicher Überschuss"))
-                .andExpect(jsonPath("$.surplusShare").value(0.1855))
-                .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].share", contains(0.9375)))
-                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].share", contains(0.0625)))
+                .andExpect(jsonPath("$.income[?(@.name == 'Gehalt/Lohn (netto)')].actual", contains(3000.00)))
+                .andExpect(jsonPath("$.income[?(@.name == 'Nebenjob')].actual", contains(200.00)))
                 .andExpect(jsonPath("$.expenses.recurring").value(1140.00))
-                .andExpect(jsonPath("$.expenses.oneOff").value(1466.49))
-                .andExpect(jsonPath("$.expenses.recurringShare").value(0.3563))
-                .andExpect(jsonPath("$.expenses.oneOffShare").value(0.4583));
+                .andExpect(jsonPath("$.expenses.oneOff").value(1466.49));
 
         // An occurrence counts only in its own month (R1): November has rent and streaming, no insurance
         mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))

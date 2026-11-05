@@ -127,25 +127,21 @@ class DashboardCalculatorTest {
         assertThat(result.surplus()).isEqualByComparingTo("850.00");
     }
 
-    // --- Case 5: income = 0 -> no division by zero, empty shares (R8, R9) ---
+    // --- Case 5: income = 0 -> no division by zero, no income lines (R9) ---
 
     @Test
-    void zeroIncomeAndZeroExpensesGiveEmptySharesAndNoIncomeLines() {
+    void zeroIncomeAndZeroExpensesGiveNoIncomeLines() {
         DashboardResponse result = calculate(
                 List.of(category(LEBENSMITTEL, null, "0.15"), noTarget(GEHALT),
                         noTarget(NEBENJOB)),
                 List.of());
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("0.00");
-        assertThat(result.incomeTotalShare()).isNull();
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("0.00");
-        assertThat(category(result, LEBENSMITTEL).targetShare()).isNull();
         assertThat(result.unplanned()).isEqualByComparingTo("0.00");
         assertThat(result.unplannedLabel()).isEqualTo("Nicht verplant");
         assertThat(result.surplus()).isEqualByComparingTo("0.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Überschuss");
-        assertThat(result.surplusShare()).isNull();
-        assertThat(result.expenses().actualShare()).isNull();
         assertThat(result.income()).isEmpty();
     }
 
@@ -161,14 +157,10 @@ class DashboardCalculatorTest {
         assertThat(result.unplanned()).isEqualByComparingTo("-900.00");
         assertThat(result.surplus()).isEqualByComparingTo("-100.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
-        assertThat(result.surplusShare()).isNull();
-        assertThat(category(result, WOHNEN).actualShare()).isNull();
-        assertThat(result.expenses().recurringShare()).isNull();
-        assertThat(result.expenses().oneOffShare()).isNull();
         assertThat(result.income()).isEmpty();
     }
 
-    // --- Case 7: negative surplus -> "Monatlicher Verlust" (R7, R8) ---
+    // --- Case 7: negative surplus -> "Monatlicher Verlust" (R7) ---
 
     @Test
     void negativeSurplusIsLabelledAsLoss() {
@@ -178,53 +170,6 @@ class DashboardCalculatorTest {
 
         assertThat(result.surplus()).isEqualByComparingTo("-250.00");
         assertThat(result.surplusLabel()).isEqualTo("Monatlicher Verlust");
-        assertThat(result.surplusShare()).isEqualByComparingTo("-0.2500");
-    }
-
-    // --- Shares of income (R8) ---
-
-    @Test
-    void surplusShareIsRoundedHalfUp() {
-        DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, null), noTarget(GEHALT)),
-                List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "-62.83")));
-
-        // 1937.17 / 2000 = 0.968585 -> 0.9686
-        assertThat(result.surplus()).isEqualByComparingTo("1937.17");
-        assertThat(result.surplusShare()).isEqualByComparingTo("0.9686");
-    }
-
-    @Test
-    void incomeTotalAndSurplusAreHundredPercentWithoutExpenses() {
-        DashboardResponse result = calculate(
-                List.of(noTarget(GEHALT)),
-                List.of(booking(GEHALT, "2000")));
-
-        assertThat(result.incomeTotalShare()).isEqualByComparingTo("1.0000");
-        assertThat(result.surplusShare()).isEqualByComparingTo("1.0000");
-    }
-
-    @Test
-    void everyAmountComesWithItsShareOfIncome() {
-        DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), category(FREIZEIT, null, null),
-                        noTarget(GEHALT)),
-                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-750"), booking(FREIZEIT, "-50")));
-
-        CategoryLine wohnen = category(result, WOHNEN);
-        assertThat(wohnen.targetShare()).isEqualByComparingTo("0.4000");
-        assertThat(wohnen.actualShare()).isEqualByComparingTo("0.3750");
-        assertThat(wohnen.differenceShare()).isEqualByComparingTo("0.0250");
-
-        CategoryLine freizeit = category(result, FREIZEIT);
-        assertThat(freizeit.targetShare()).isNull();
-        assertThat(freizeit.actualShare()).isEqualByComparingTo("0.0250");
-        assertThat(freizeit.differenceShare()).isNull();
-
-        assertThat(result.expenses().targetShare()).isEqualByComparingTo("0.4000");
-        assertThat(result.expenses().actualShare()).isEqualByComparingTo("0.4000");
-        assertThat(result.expenses().differenceShare()).isEqualByComparingTo("0");
-        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("1.0000");
     }
 
     // --- Case 9: the sign decides (R2, R9, R10, R11) ---
@@ -252,7 +197,6 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().actual()).isEqualByComparingTo("0.00");
         assertThat(result.income()).extracting(IncomeLine::id).containsExactly(LEBENSMITTEL, GEHALT);
         assertThat(income(result, LEBENSMITTEL).actual()).isEqualByComparingTo("500.00");
-        assertThat(income(result, LEBENSMITTEL).share()).isEqualByComparingTo("0.2500");
     }
 
     @Test
@@ -274,7 +218,7 @@ class DashboardCalculatorTest {
                 List.of(booking(GEHALT, "2000"), booking(NEBENJOB, "-50")));
 
         assertThat(result.income()).extracting(IncomeLine::id).containsExactly(GEHALT);
-        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("1.0000");
+        assertThat(income(result, GEHALT).actual()).isEqualByComparingTo("2000.00");
     }
 
     // --- Budget table rows (R10) ---
@@ -361,8 +305,6 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().actual()).isEqualByComparingTo("1000.00");
         assertThat(result.expenses().recurring()).isEqualByComparingTo("900.00");
         assertThat(result.expenses().oneOff()).isEqualByComparingTo("100.00");
-        assertThat(result.expenses().recurringShare()).isEqualByComparingTo("0.4500");
-        assertThat(result.expenses().oneOffShare()).isEqualByComparingTo("0.0500");
     }
 
     @Test
@@ -427,7 +369,7 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().oneOff()).isEqualByComparingTo("0.00");
     }
 
-    // --- Ø income as the basis (R3, R4, R8, R23, decision 26) ---
+    // --- Ø income as the basis (R3, R4, R23, decision 26) ---
 
     @Test
     void percentTargetUsesTheAverageIncomeNotTheIncomeOfTheMonth() {
@@ -437,8 +379,6 @@ class DashboardCalculatorTest {
                 average("2850.00"), NOVEMBER);
 
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("285.00");
-        // The share stays relative to the income of the month (R8)
-        assertThat(category(result, LEBENSMITTEL).targetShare()).isEqualByComparingTo("0.2850");
     }
 
     @Test
@@ -458,7 +398,7 @@ class DashboardCalculatorTest {
         assertThat(result.averageIncome()).isNull();
         assertThat(result.averageIncomeMonths()).isZero();
         assertThat(result.averageIncomeFrom()).isNull();
-        assertThat(result.averageIncomeShare()).isNull();
+        assertThat(result.averageExpenses()).isNull();
     }
 
     @Test
@@ -474,7 +414,7 @@ class DashboardCalculatorTest {
     }
 
     @Test
-    void averageIncomeComesWithItsPeriodAndItsShareOfTheIncome() {
+    void averageIncomeComesWithItsPeriod() {
         DashboardResponse result = calculate(
                 List.of(noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2400")),
@@ -484,14 +424,31 @@ class DashboardCalculatorTest {
         assertThat(result.averageIncomeMonths()).isEqualTo(9);
         assertThat(result.averageIncomeFrom()).isEqualTo("2026-01");
         assertThat(result.averageIncomeTo()).isEqualTo("2026-09");
-        assertThat(result.averageIncomeShare()).isEqualByComparingTo("1.2500");
+    }
+
+    // --- Ø expenses Ā(M) over the months of Ē(M) (R23, decision 34) ---
+
+    @Test
+    void averageExpensesArePassedThroughAndDoNotChangeTheMonth() {
+        DashboardResponse result = calculator.calculate(
+                List.of(category(WOHNEN, "900", null), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-900")),
+                OCTOBER, average("2000.00"), new BigDecimal("1234.5"), NOVEMBER);
+
+        assertThat(result.averageExpenses()).isEqualByComparingTo("1234.50");
+        assertThat(result.averageExpenses().scale()).isEqualTo(2);
+        assertThat(result.expenses().actual()).isEqualByComparingTo("900.00");
     }
 
     @Test
-    void averageIncomeWithoutIncomeHasNoShare() {
-        DashboardResponse result = calculate(List.of(noTarget(GEHALT)), List.of(), average("3000.00"), NOVEMBER);
+    void expensesOfAMonthAreTheSumOfTheExpenseActuals() {
+        // Lebensmittel nets to -30, Nebenjob to +300 (income, not an expense); September does not count
+        BigDecimal expenses = DashboardCalculator.expensesOf(List.of(
+                booking(GEHALT, "2000"), booking(NEBENJOB, "300"), booking(LEBENSMITTEL, "-50"),
+                booking(LEBENSMITTEL, "20"), occurrence(WOHNEN, "-900"),
+                booking(WOHNEN, "-999", LocalDate.of(2026, 9, 30))), OCTOBER);
 
-        assertThat(result.averageIncomeShare()).isNull();
+        assertThat(expenses).isEqualByComparingTo("930.00");
     }
 
     // --- Labels by month (R7, decision 27) ---
@@ -518,7 +475,7 @@ class DashboardCalculatorTest {
         assertThat(free.monthState()).isEqualTo(MonthState.CURRENT);
         assertThat(free.surplusLabel()).isEqualTo("Noch frei");
         assertThat(overrun.surplusLabel()).isEqualTo("Überschritten");
-        // The amount keeps its sign; the page shows it without minus sign
+        // The amount keeps its sign and is shown with it (R7, decision 34)
         assertThat(overrun.surplus()).isEqualByComparingTo("-100.00");
     }
 
@@ -575,14 +532,14 @@ class DashboardCalculatorTest {
                         occurrence(VERSICHERUNGEN, "-240.00", LocalDate.of(2026, 10, 15)),
                         // Must be ignored
                         booking(LEBENSMITTEL, "-999.00", LocalDate.of(2026, 9, 30))),
-                // R23: salary 3000.00 in 2026-01 to 2026-09; today is 2026-10-20
+                // R23: salary 3000.00 in 2026-01 to 2026-09; today is 2026-10-20; Ā = 9234.00 / 9
                 new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)),
-                OCTOBER);
+                new BigDecimal("1026.00"), OCTOBER);
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("3200.00");
         assertThat(result.averageIncome()).isEqualByComparingTo("3000.00");
         assertThat(result.averageIncomeMonths()).isEqualTo(9);
-        assertThat(result.averageIncomeShare()).isEqualByComparingTo("0.9375");
+        assertThat(result.averageExpenses()).isEqualByComparingTo("1026.00");
 
         assertLine(result, WOHNEN, "900.00", "900.00", "0.00");
         assertLine(result, NEBENKOSTEN, "300.00", "340.00", "-40.00");
@@ -601,26 +558,17 @@ class DashboardCalculatorTest {
         assertThat(result.surplus()).isEqualByComparingTo("593.51");
         assertThat(result.monthState()).isEqualTo(MonthState.CURRENT);
         assertThat(result.surplusLabel()).isEqualTo("Noch frei");
-        assertThat(result.surplusShare()).isEqualByComparingTo("0.1855");
 
         assertThat(result.categories()).extracting(CategoryLine::id).doesNotContain(KREDITE);
-        assertThat(result.expenses().targetShare()).isEqualByComparingTo("0.7844");
-        assertThat(result.expenses().actualShare()).isEqualByComparingTo("0.8145");
-        assertThat(result.expenses().differenceShare()).isEqualByComparingTo("-0.0302");
-        assertThat(category(result, WOHNEN).targetShare()).isEqualByComparingTo("0.2813");
-        assertThat(category(result, WOHNEN).actualShare()).isEqualByComparingTo("0.2813");
 
         assertThat(result.income()).extracting(IncomeLine::id, IncomeLine::name).containsExactly(
                 tuple(GEHALT, "Kategorie " + GEHALT),
                 tuple(NEBENJOB, "Kategorie " + NEBENJOB));
         assertThat(income(result, GEHALT).actual()).isEqualByComparingTo("3000.00");
-        assertThat(income(result, GEHALT).share()).isEqualByComparingTo("0.9375");
-        assertThat(income(result, NEBENJOB).share()).isEqualByComparingTo("0.0625");
+        assertThat(income(result, NEBENJOB).actual()).isEqualByComparingTo("200.00");
 
         assertThat(result.expenses().recurring()).isEqualByComparingTo("1140.00");
         assertThat(result.expenses().oneOff()).isEqualByComparingTo("1466.49");
-        assertThat(result.expenses().recurringShare()).isEqualByComparingTo("0.3563");
-        assertThat(result.expenses().oneOffShare()).isEqualByComparingTo("0.4583");
     }
 
     // --- Helpers ---
@@ -637,7 +585,12 @@ class DashboardCalculatorTest {
 
     private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions,
             Result average, YearMonth currentMonth) {
-        return calculator.calculate(categories, transactions, OCTOBER, average, currentMonth);
+        return calculate(categories, transactions, average, null, currentMonth);
+    }
+
+    private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions,
+            Result average, BigDecimal averageExpenses, YearMonth currentMonth) {
+        return calculator.calculate(categories, transactions, OCTOBER, average, averageExpenses, currentMonth);
     }
 
     private static Result average(String amount) {

@@ -143,16 +143,14 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.history[0].expenseCategories[0].name").value("Wohnen"))
                 .andExpect(jsonPath("$.averageIncome").value(2500.00))
                 .andExpect(jsonPath("$.averageSurplus").value(1700.00))
-                .andExpect(jsonPath("$.history[0].incomeShare").value(1.0))
-                .andExpect(jsonPath("$.history[0].expensesShare").value(0.32))
-                .andExpect(jsonPath("$.history[0].surplusShare").value(0.68))
-                .andExpect(jsonPath("$.history[0].expenseCategories[0].share").value(0.32))
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].amount").value(800.00))
+                // Decision 34: no shares any more
+                .andExpect(jsonPath("$.history[0].expensesShare").doesNotExist())
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].share").doesNotExist())
                 .andExpect(jsonPath("$.totalIncome").value(2500.00))
                 .andExpect(jsonPath("$.totalExpenses").value(800.00))
                 .andExpect(jsonPath("$.totalSurplus").value(1700.00))
-                .andExpect(jsonPath("$.incomeShare").value(1.0))
-                .andExpect(jsonPath("$.expensesShare").value(0.32))
-                .andExpect(jsonPath("$.surplusShare").value(0.68));
+                .andExpect(jsonPath("$.expensesShare").doesNotExist());
     }
 
     @Test
