@@ -127,6 +127,26 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/Nicht verplant/)).not.toBeInTheDocument()
   })
 
+  // US27: booking also starts on the overview, with the last used categories of the month
+  it('opens the booking dialog with "+ Buchung" and the round button', async () => {
+    renderPage()
+    await screen.findByText('Monatlicher Überschuss')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buchung' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Neue Buchung' })
+    // A past month starts at its first day
+    expect(within(dialog).getByLabelText('Datum')).toHaveValue('2026-10-01')
+    await waitFor(() =>
+      expect(within(dialog).getByRole('group', { name: 'Zuletzt genutzt' })).toHaveTextContent('UrlaubWohnen'),
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Schließen' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Neue Buchung' }))
+    expect(screen.getByRole('dialog', { name: 'Neue Buchung' })).toBeInTheDocument()
+  })
+
   // Decision 34: euros only
   it('has no switch between euros and percent', async () => {
     renderPage()

@@ -1,17 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
 import { TransactionsPage } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 6, name: 'Freizeit', icon: 'tag', sortOrder: 6, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 6, name: 'Freizeit', icon: 'music', sortOrder: 6, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt', icon: 'wallet', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: true },
 ]
 
 const transactions: Transaction[] = [
-  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit' },
   { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit' },
+  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt' },
+  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit' },
+  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit' },
 ]
 
 const series: RecurringTransaction[] = [
@@ -27,20 +30,21 @@ const reserves: Pick<ReserveData, 'monthlyReserve' | 'reserveBalance' | 'reserve
   ],
 }
 
-function renderPage() {
+function renderPage(entries: Transaction[] = transactions) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-    const body = init?.method && init.method !== 'GET'
-      ? null
+    if (init?.method === 'DELETE') {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    const body = init?.method
+      ? {}
       : url.startsWith('/api/transactions')
-        ? transactions
+        ? entries
         : url.startsWith('/api/categories')
           ? categories
           : url.startsWith('/api/reserves')
             ? reserves
             : series
-    return Promise.resolve(
-      init?.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response(JSON.stringify(body ?? {}), { status: 200 }),
-    )
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   })
   vi.stubGlobal('fetch', fetchMock)
   render(
@@ -51,16 +55,60 @@ function renderPage() {
   return fetchMock
 }
 
-async function streamingRow() {
-  return screen.findByRole('row', { name: /Streaming/ })
+function day(name: string) {
+  return screen.getByRole('region', { name })
 }
 
 describe('TransactionsPage', () => {
-  it('marks occurrences of recurring transactions', async () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 21))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // Decision 30: grouped by day, newest first, with the sum of the day
+  it('groups the entries by day, newest day first, with the sum of each day', async () => {
     renderPage()
 
-    expect(within(await streamingRow()).getByText('wiederkehrend')).toBeInTheDocument()
-    expect(within(screen.getByRole('row', { name: /Kino/ })).queryByText('wiederkehrend')).not.toBeInTheDocument()
+    await screen.findByText('Kino')
+    const days = screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'))
+    expect(days).toEqual(['Mittwoch, 28. Oktober 2026', 'Dienstag, 20. Oktober 2026', 'Montag, 5. Oktober 2026'])
+    const twentieth = day('Dienstag, 20. Oktober 2026')
+    expect(within(twentieth).getByRole('heading')).toHaveTextContent('+2.987,90 €')
+    expect(within(twentieth).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      expect.stringContaining('Lohn'),
+      expect.stringContaining('Kino'),
+    ])
+    expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).toHaveTextContent('−15,00 €')
+  })
+
+  it('shows each entry with icon, category, signed amount and its markers', async () => {
+    renderPage()
+
+    const kino = await screen.findByRole('button', { name: /Kino/ })
+    expect(within(kino).getByText('Freizeit')).toBeInTheDocument()
+    // Expenses in the normal text color; orange is reserved for warnings (decision 32)
+    expect(within(kino).getByText('−12,10 €')).not.toHaveClass('negative')
+    expect(within(screen.getByRole('button', { name: /Lohn/ })).getByText('+3.000,00 €')).toHaveClass('positive')
+    expect(kino.querySelector('.category-icon')).toHaveAttribute('data-icon', 'music')
+    expect(within(screen.getByRole('button', { name: /Streaming/ })).getByText('wiederkehrend')).toBeInTheDocument()
+    expect(within(kino).queryByText('wiederkehrend')).not.toBeInTheDocument()
+    // US26: entries after today are planned
+    expect(within(screen.getByRole('button', { name: /Konzert/ })).getByText('geplant')).toBeInTheDocument()
+    expect(within(kino).queryByText('geplant')).not.toBeInTheDocument()
+  })
+
+  it('has no buttons per row and no form above the list', async () => {
+    renderPage()
+
+    await screen.findByText('Kino')
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Löschen' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Beschreibung')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Wiederkehrende Transaktionen/)).not.toBeInTheDocument()
   })
 
   it('shows the monthly reserve and what should be saved by now', async () => {
@@ -71,97 +119,77 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows expenses in the normal text color and the category without Ausgabe/Einnahme', async () => {
-    renderPage()
+  it('says so when the month has no entries', async () => {
+    renderPage([])
 
-    const kino = await screen.findByRole('row', { name: /Kino/ })
-    // Orange is reserved for warnings (decision 32)
-    expect(within(kino).getByText('-12,00 €')).not.toHaveClass('negative')
-    expect(within(kino).getByText('Freizeit')).toBeInTheDocument()
-    expect(within(kino).queryByText(/Ausgabe/)).not.toBeInTheDocument()
+    expect(await screen.findByText('Keine Transaktionen in diesem Monat.')).toBeInTheDocument()
   })
 
-  it('asks for the scope before editing an occurrence and edits the following ones as a series', async () => {
-    const fetchMock = renderPage()
-    await screen.findByRole('option', { name: 'Freizeit' })
+  // US27: "+ Buchung" and the round button on phones open the dialog
+  it('opens the booking dialog with "+ Buchung" and with the round button', async () => {
+    renderPage()
+    await screen.findByText('Kino')
 
-    fireEvent.click(within(await streamingRow()).getByRole('button', { name: 'Bearbeiten' }))
-
-    const dialog = screen.getByRole('dialog', { name: '„Streaming“ vom 05.10.2026 bearbeiten' })
-    expect(within(dialog).queryByRole('button', { name: /Alle/ })).not.toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Dieser und alle folgenden' }))
-
+    fireEvent.click(screen.getByRole('button', { name: 'Buchung' }))
+    expect(screen.getByRole('dialog', { name: 'Neue Buchung' })).toBeInTheDocument()
+    // Today in the month of the page
+    expect(screen.getByLabelText('Datum')).toHaveValue('2026-10-21')
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '„Streaming“ ab 05.10.2026 bearbeiten' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Datum (erste Abbuchung)')).toHaveValue('2026-10-05')
-    expect(screen.getByLabelText('Betrag (€)')).toHaveValue('15,00')
 
-    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '18' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Neue Buchung' }))
+    expect(screen.getByRole('dialog', { name: 'Neue Buchung' })).toBeInTheDocument()
+  })
+
+  it('opens a row for editing with a click', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Kino/ }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Buchung bearbeiten' })
+    expect(within(dialog).getByLabelText('Betrag in Euro')).toHaveValue('12,10')
+    expect(within(dialog).getByLabelText('Beschreibung')).toHaveValue('Kino')
+  })
+
+  it('opens an occurrence with the question for the scope', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Streaming/ }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Wiederkehrende Buchung bearbeiten' })
+    expect(within(dialog).getByRole('radio', { name: 'Nur dieser Eintrag' })).toBeChecked()
+    expect(within(dialog).getByRole('radio', { name: 'Dieser und alle folgenden' })).toBeInTheDocument()
+  })
+
+  it('closes the dialog and confirms briefly after saving', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /Kino/ }))
+
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/recurring-transactions/3/occurrences/2026-10-05?scope=FOLLOWING',
-        expect.objectContaining({ method: 'PUT' }),
-      ),
-    )
-    const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')
-    expect(JSON.parse(String(put?.[1]?.body))).toEqual({
-      amount: -18,
-      description: 'Streaming',
-      categoryId: 6,
-      interval: 'MONTHLY',
-      startDate: '2026-10-05',
-      endDate: null,
-    })
+    expect(await screen.findByRole('status')).toHaveTextContent('Änderung gespeichert.')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/transactions/7', expect.objectContaining({ method: 'PUT' }))
   })
 
-  it('edits only this occurrence with the transaction form', async () => {
+  it('closes the dialog and confirms briefly after deleting', async () => {
     renderPage()
-    await screen.findByRole('option', { name: 'Freizeit' })
+    fireEvent.click(await screen.findByRole('button', { name: /Kino/ }))
 
-    fireEvent.click(within(await streamingRow()).getByRole('button', { name: 'Bearbeiten' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Nur dieser Eintrag' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
 
-    expect(screen.getByRole('heading', { name: 'Nur den Eintrag vom 05.10.2026 bearbeiten' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Datum')).toHaveValue('2026-10-05')
-    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('Buchung gelöscht.')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('creates a series from the transaction form when a repeat is chosen', async () => {
-    const fetchMock = renderPage()
-    await screen.findByRole('option', { name: 'Freizeit' })
-
-    fireEvent.change(screen.getByLabelText('Betrag (€)'), { target: { value: '9,99' } })
-    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Musik' } })
-    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
-    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
-
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith('/api/recurring-transactions', expect.objectContaining({ method: 'POST' })),
-    )
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/transactions', expect.objectContaining({ method: 'POST' }))
-  })
-
-  it('has no separate list of series', async () => {
+  // Only Date is faked, so the toast's timer runs in real time
+  it('hides the confirmation after a few seconds', async () => {
     renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /Kino/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+    await screen.findByRole('status')
 
-    await streamingRow()
-    expect(screen.queryByText(/Wiederkehrende Transaktionen/)).not.toBeInTheDocument()
-  })
-
-  it('deletes only this occurrence after asking for the scope', async () => {
-    const fetchMock = renderPage()
-
-    fireEvent.click(within(await streamingRow()).getByRole('button', { name: 'Löschen' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Nur dieser Eintrag' }))
-
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/recurring-transactions/3/occurrences/2026-10-05?scope=THIS',
-        expect.objectContaining({ method: 'DELETE' }),
-      ),
-    )
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument(), { timeout: 4000 })
   })
 })
