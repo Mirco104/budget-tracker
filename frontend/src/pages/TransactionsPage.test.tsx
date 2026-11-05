@@ -49,7 +49,7 @@ function renderPage(entries: Transaction[] = transactions) {
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <TransactionsPage month="2026-10" />
+      <TransactionsPage />
     </QueryClientProvider>,
   )
   return fetchMock
@@ -119,10 +119,10 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('says so when the month has no entries', async () => {
+  it('says so when the period has no entries', async () => {
     renderPage([])
 
-    expect(await screen.findByText('Keine Transaktionen in diesem Monat.')).toBeInTheDocument()
+    expect(await screen.findByText('Keine Einträge in diesem Zeitraum.')).toBeInTheDocument()
   })
 
   // US27: "+ Buchung" and the round button on phones open the dialog
@@ -191,5 +191,87 @@ describe('TransactionsPage', () => {
     await screen.findByRole('status')
 
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument(), { timeout: 4000 })
+  })
+
+  // US26: default this month, as a period
+  it('loads this month as a period and shows period, count and sums', async () => {
+    const fetchMock = renderPage()
+
+    await screen.findByText('Kino')
+    expect(fetchMock).toHaveBeenCalledWith('/api/transactions?from=2026-10-01&to=2026-10-31', expect.anything())
+    expect(screen.getByRole('button', { name: 'Dieser Monat' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/Einträge ·/)).toHaveTextContent(
+      'Oktober 2026 · 4 Einträge · Einnahmen 3.000,00 € · Ausgaben 67,10 €',
+    )
+  })
+
+  it.each([
+    ['Letzte 3 Monate', '/api/transactions?from=2026-08-01&to=2026-10-31', 'August bis Oktober 2026'],
+    ['Dieses Jahr', '/api/transactions?from=2026-01-01&to=2026-12-31', '2026 ·'],
+  ])('loads the quick choice %s', async (label, url, text) => {
+    const fetchMock = renderPage()
+    await screen.findByText('Kino')
+
+    fireEvent.click(screen.getByRole('button', { name: label }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(url, expect.anything()))
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByText(new RegExp(text))).toBeInTheDocument()
+  })
+
+  it('loads a free period from date to date, starting with the period shown so far', async () => {
+    const fetchMock = renderPage()
+    await screen.findByText('Kino')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zeitraum …' }))
+
+    expect(screen.getByLabelText('Von')).toHaveValue('2026-10-01')
+    expect(screen.getByLabelText('Bis')).toHaveValue('2026-10-31')
+    fireEvent.change(screen.getByLabelText('Von'), { target: { value: '2026-09-15' } })
+    fireEvent.change(screen.getByLabelText('Bis'), { target: { value: '2026-10-20' } })
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/transactions?from=2026-09-15&to=2026-10-20', expect.anything()),
+    )
+    expect(await screen.findByText(/15\.09\.2026 bis 20\.10\.2026/)).toBeInTheDocument()
+  })
+
+  it('waits for complete dates before loading a free period', async () => {
+    const fetchMock = renderPage()
+    await screen.findByText('Kino')
+    fireEvent.click(screen.getByRole('button', { name: 'Zeitraum …' }))
+    const calls = fetchMock.mock.calls.length
+
+    fireEvent.change(screen.getByLabelText('Von'), { target: { value: '' } })
+
+    expect(screen.getByText('Bitte „Von“ und „Bis“ vollständig angeben.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.length).toBe(calls)
+  })
+
+  it('filters the loaded entries by description, ignoring case', async () => {
+    const fetchMock = renderPage()
+    await screen.findByText('Kino')
+    const calls = fetchMock.mock.calls.length
+
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'KIN' } })
+
+    expect(screen.getByText('Kino')).toBeInTheDocument()
+    expect(screen.queryByText('Lohn')).not.toBeInTheDocument()
+    expect(screen.getByText(/1 Eintrag ·/)).toHaveTextContent('Oktober 2026 · 1 Eintrag · Einnahmen 0,00 € · Ausgaben 12,10 €')
+    // Search filters what is loaded, it does not ask the server again
+    expect(fetchMock.mock.calls.length).toBe(calls)
+  })
+
+  it('filters by category and says so when nothing matches', async () => {
+    renderPage()
+    await screen.findByText('Kino')
+
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '20' } })
+
+    expect(screen.getByText('Lohn')).toBeInTheDocument()
+    expect(screen.queryByText('Kino')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
+    expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 })
