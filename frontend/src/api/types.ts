@@ -185,8 +185,11 @@ export interface ForecastMonth {
   entries: ForecastEntry[]
 }
 
+/** Income or expenses of a category in a past month, positive, with its icon (US28). */
 export interface CategoryAmount {
+  id: number
   name: string
+  icon: string
   amount: number
 }
 
@@ -200,21 +203,23 @@ export interface HistoryMonth {
   expenseCategories: CategoryAmount[]
 }
 
-/** Analysis of a month (R14). */
-export interface ReserveData {
-  month: string
-  /** Averages of the completed months counted; null when averageMonths is 0. */
+/** Look back from month to month (R14). from and to are the requested period. */
+export interface HistoryData {
+  from: string
+  to: string
+  /** Months counted, from the first entry on; history lists exactly these. */
+  months: number
+  /** null when no month counts. */
   averageIncome: number | null
   averageExpenses: number | null
   averageSurplus: number | null
-  /** Months in the average: the 12 before the month, fewer if the first entry is more recent. */
-  averageMonths: number
-  /** The months of the average, oldest first. */
+  total: { income: number; expenses: number; surplus: number } | null
   history: HistoryMonth[]
-  /** Sums over the history; null when averageMonths is 0. */
-  totalIncome: number | null
-  totalExpenses: number | null
-  totalSurplus: number | null
+}
+
+/** Outlook from the current month on (R14, decision 29). */
+export interface ReserveData {
+  month: string
   monthlyReserve: number
   reserveBalance: number
   reserves: ReserveLine[]

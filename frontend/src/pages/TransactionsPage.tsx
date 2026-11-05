@@ -43,7 +43,7 @@ export function TransactionsPage() {
   const transactions = useTransactionsBetween(period.from, period.to, complete)
   const categories = useCategories(currentMonth())
   // Compact reserve pot (R14, decision 15); details on the Auswertung page.
-  const reserves = useReserves(currentMonth())
+  const reserves = useReserves()
   const booking = useBookingDialog({ categories: categories.data, defaultDate: today })
 
   function choosePreset(next: PeriodPreset) {
