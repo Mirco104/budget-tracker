@@ -1,4 +1,4 @@
-import { currentMonth, formatMonth, shiftMonth } from '../../format'
+import { currentMonth, shiftMonth } from '../../format'
 import { Icon } from './Icon'
 
 interface Props {
@@ -6,11 +6,28 @@ interface Props {
   onChange: (month: string) => void
 }
 
-/** ‹ Monat › with a way back to the current month (US8). */
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
+
+/**
+ * ‹ Monat › with a field to pick or type the month, and a way back to the current month (US8). The button keeps
+ * its place while hidden, so the navigation does not move when it appears.
+ */
 export function MonthNav({ month, onChange }: Props) {
   const current = currentMonth()
+  const atCurrent = month === current
   return (
     <>
+      <button
+        type="button"
+        className="month-today"
+        onClick={() => onChange(current)}
+        disabled={atCurrent}
+        aria-hidden={atCurrent}
+        tabIndex={atCurrent ? -1 : undefined}
+        style={atCurrent ? { visibility: 'hidden' } : undefined}
+      >
+        Zum aktuellen Monat
+      </button>
       <div className="month-nav" role="group" aria-label="Monat">
         <button
           type="button"
@@ -20,9 +37,19 @@ export function MonthNav({ month, onChange }: Props) {
         >
           <Icon name="chevron-left" />
         </button>
-        <span className="month-label" aria-live="polite">
-          {formatMonth(month)}
-        </span>
+        {/* Browsers without a month picker show a text field; only a complete month is taken */}
+        <input
+          type="month"
+          className="month-input"
+          aria-label="Monat wählen"
+          value={month}
+          required
+          onChange={(event) => {
+            if (MONTH_PATTERN.test(event.target.value)) {
+              onChange(event.target.value)
+            }
+          }}
+        />
         <button
           type="button"
           className="icon-button"
@@ -32,11 +59,6 @@ export function MonthNav({ month, onChange }: Props) {
           <Icon name="chevron-right" />
         </button>
       </div>
-      {month !== current && (
-        <button type="button" onClick={() => onChange(current)}>
-          Zum aktuellen Monat
-        </button>
-      )}
     </>
   )
 }

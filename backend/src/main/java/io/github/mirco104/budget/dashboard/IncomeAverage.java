@@ -8,7 +8,8 @@ import java.util.Map;
 
 /**
  * Rule R23 from docs/spezifikation.md: the average income Ē(M) of the 12 months before M, counting only months
- * before the current month H and from the month of the first entry on. No Spring dependencies.
+ * before the current month H and from the month of the first entry on. The same rule averages the expenses Ā(M)
+ * when it gets A per month instead of E (decision 34). No Spring dependencies.
  */
 public final class IncomeAverage {
 
@@ -26,7 +27,7 @@ public final class IncomeAverage {
     }
 
     /**
-     * income holds E per month (R2); a missing month counts as 0. firstEntryMonth is null without any entry.
+     * income holds E (or A) per month (R2); a missing month counts as 0. firstEntryMonth is null without any entry.
      */
     public static Result of(
             Map<YearMonth, BigDecimal> income, YearMonth firstEntryMonth, YearMonth month, YearMonth currentMonth) {

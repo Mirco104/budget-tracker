@@ -194,14 +194,12 @@ class ReserveCalculatorTest {
     }
 
     @Test
-    void totalsAndSharesFollowTheChosenPeriod() {
+    void totalsFollowTheChosenPeriod() {
         ReserveResponse six = averageOver(6, month("2024-01"), twoYears());
 
         assertThat(six.totalIncome()).isEqualByComparingTo("6000.00");
         assertThat(six.totalExpenses()).isEqualByComparingTo("900.00");
         assertThat(six.totalSurplus()).isEqualByComparingTo("5100.00");
-        assertThat(six.expensesShare()).isEqualByComparingTo("0.1500");
-        assertThat(six.surplusShare()).isEqualByComparingTo("0.8500");
     }
 
     @Test
@@ -240,7 +238,7 @@ class ReserveCalculatorTest {
         assertThat(last.expenses()).isEqualByComparingTo("3200.00");
         assertThat(last.surplus()).isEqualByComparingTo("-200.00");
         assertThat(last.incomeCategories())
-                .containsExactly(new CategoryAmount("Gehalt", money("3000.00"), money("1.0000")));
+                .containsExactly(new CategoryAmount("Gehalt", money("3000.00")));
         assertThat(last.expenseCategories()).extracting(CategoryAmount::name).containsExactly("Wohnen", "Urlaub");
         assertThat(response.history().get(0).surplus()).isEqualByComparingTo("2000.00");
         // (11 × 2000 − 200) / 12
@@ -269,38 +267,19 @@ class ReserveCalculatorTest {
     }
 
     @Test
-    void lookBackGivesEveryValueAsShareOfTheIncomeOfItsMonth() {
-        PastMonth september = new PastMonth(month("2026-09"), money("3000.00"), money("1000.00"),
-                List.of(new CategoryData("Gehalt", money("3000.00"))),
-                List.of(new CategoryData("Wohnen", money("900.00")), new CategoryData("Freizeit", money("100.00"))));
-
-        HistoryMonth month = onlyAverage(month("2026-09"), september).history().get(0);
-
-        assertThat(month.incomeShare()).isEqualByComparingTo("1");
-        assertThat(month.expensesShare()).isEqualByComparingTo("0.3333");
-        assertThat(month.surplusShare()).isEqualByComparingTo("0.6667");
-        assertThat(month.expensesShare().scale()).isEqualTo(4);
-        assertThat(month.incomeCategories()).extracting(CategoryAmount::share)
-                .containsExactly(money("1.0000"));
-        assertThat(month.expenseCategories()).extracting(CategoryAmount::share)
-                .containsExactly(money("0.3000"), money("0.0333"));
-    }
-
-    @Test
-    void lookBackHasNoSharesInAMonthWithoutIncome() {
+    void lookBackHandlesAMonthWithoutIncome() {
         PastMonth september = new PastMonth(month("2026-09"), BigDecimal.ZERO, money("200.00"), List.of(),
                 List.of(new CategoryData("Wohnen", money("200.00"))));
 
         HistoryMonth month = onlyAverage(month("2026-09"), september).history().get(0);
 
-        assertThat(month.incomeShare()).isNull();
-        assertThat(month.expensesShare()).isNull();
-        assertThat(month.surplusShare()).isNull();
-        assertThat(month.expenseCategories()).extracting(CategoryAmount::share).containsOnlyNulls();
+        assertThat(month.income()).isEqualByComparingTo("0.00");
+        assertThat(month.surplus()).isEqualByComparingTo("-200.00");
+        assertThat(month.expenseCategories()).containsExactly(new CategoryAmount("Wohnen", money("200.00")));
     }
 
     @Test
-    void totalSumsTheMonthsOfTheLookBackWithSharesOfTheTotalIncome() {
+    void totalSumsTheMonthsOfTheLookBack() {
         // August without income still counts in the total
         ReserveResponse response = onlyAverage(month("2026-07"),
                 past("2026-07", "2000.00", "500.00"),
@@ -311,27 +290,18 @@ class ReserveCalculatorTest {
         assertThat(response.totalExpenses()).isEqualByComparingTo("1500.00");
         assertThat(response.totalSurplus()).isEqualByComparingTo("1500.00");
         assertThat(response.totalExpenses().scale()).isEqualTo(2);
-        assertThat(response.incomeShare()).isEqualByComparingTo("1");
-        assertThat(response.expensesShare()).isEqualByComparingTo("0.5000");
-        assertThat(response.surplusShare()).isEqualByComparingTo("0.5000");
-        assertThat(response.history().get(1).expensesShare()).isNull();
     }
 
     @Test
-    void hasNoTotalWithoutACompletedMonthAndNoSharesWithoutIncome() {
+    void hasNoTotalWithoutACompletedMonth() {
         ReserveResponse empty = onlyAverage(null);
         assertThat(empty.totalIncome()).isNull();
         assertThat(empty.totalExpenses()).isNull();
         assertThat(empty.totalSurplus()).isNull();
-        assertThat(empty.incomeShare()).isNull();
-        assertThat(empty.expensesShare()).isNull();
-        assertThat(empty.surplusShare()).isNull();
 
         ReserveResponse withoutIncome = onlyAverage(month("2026-09"), expenses("2026-09", "100.00"));
+        assertThat(withoutIncome.totalIncome()).isEqualByComparingTo("0.00");
         assertThat(withoutIncome.totalExpenses()).isEqualByComparingTo("100.00");
-        assertThat(withoutIncome.incomeShare()).isNull();
-        assertThat(withoutIncome.expensesShare()).isNull();
-        assertThat(withoutIncome.surplusShare()).isNull();
     }
 
     // --- reserve pot ---
@@ -477,12 +447,9 @@ class ReserveCalculatorTest {
         assertThat(response.averageSurplus()).isEqualByComparingTo("-1026.00");
         assertThat(response.history()).hasSize(9);
         assertThat(response.history().get(8).surplus()).isEqualByComparingTo("-1914.00");
-        assertThat(response.history()).extracting(HistoryMonth::expensesShare).containsOnlyNulls();
         assertThat(response.totalIncome()).isEqualByComparingTo("0.00");
         assertThat(response.totalExpenses()).isEqualByComparingTo("9234.00");
         assertThat(response.totalSurplus()).isEqualByComparingTo("-9234.00");
-        assertThat(response.expensesShare()).isNull();
-        assertThat(response.surplusShare()).isNull();
         assertThat(response.reserves()).extracting(ReserveLine::description).containsExactly("Haftpflicht");
         assertThat(response.monthlyReserve()).isEqualByComparingTo("20.00");
         assertThat(response.reserveBalance()).isEqualByComparingTo("240.00");

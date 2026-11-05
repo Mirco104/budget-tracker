@@ -4,24 +4,15 @@ const EMPTY = '–'
 
 const euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' })
 
-// Ratios come with scale 4 from DashboardCalculator, so 2 percent decimals show them exactly.
-const percent = new Intl.NumberFormat('de-DE', {
-  style: 'percent',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
 
 export function formatEuro(value: number | null): string {
   return value === null ? EMPTY : euro.format(value)
 }
 
-export function formatPercent(value: number | null): string {
-  return value === null ? EMPTY : percent.format(value)
-}
 
 const decimal = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-/** For table cells: the unit (€ or %) is in the column header, which saves width on narrow screens. */
+/** For table cells: the unit (€) is in the column header, which saves width on narrow screens. */
 export function formatAmount(value: number | null): string {
   return value === null ? EMPTY : decimal.format(value)
 }
@@ -33,10 +24,6 @@ export function formatWholeNumber(value: number): string {
   return wholeNumber.format(value)
 }
 
-/** Ratio as percent number without the % sign, see formatAmount. */
-export function formatShare(value: number | null): string {
-  return value === null ? EMPTY : decimal.format(value * 100)
-}
 
 const monthName = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' })
 

@@ -6,28 +6,25 @@ import java.util.List;
 /**
  * Calculated dashboard for one month (spec section 5). Fields without a value are null.
  * difference is the deviation from the target (R5, R6), unplanned is Ē(M) minus the targets (R4).
- * Every ...Share and share is the amount as a share of the income, null without income or amount (R8).
- * averageIncome is Ē(M) over averageIncomeMonths months from averageIncomeFrom to averageIncomeTo (R23),
- * all null (months 0) when no month counts. monthState tells past, current and future months apart (R7).
- * categories[].actual is the expense actual I(k), income[].actual is the net N(k) (R2, R9).
- * expenses.recurring is W, expenses.oneOff is A - W (R10).
+ * averageIncome is Ē(M) and averageExpenses is Ā(M), both over averageIncomeMonths months from averageIncomeFrom
+ * to averageIncomeTo (R23), all null (months 0) when no month counts. monthState tells past, current and future
+ * months apart (R7). categories[].actual is the expense actual I(k), income[].actual is the net N(k) (R2, R9).
+ * expenses.recurring is W, expenses.oneOff is A - W (R10). All amounts are in euros (decision 34).
  */
 public record DashboardResponse(
         String month,
         MonthState monthState,
         BigDecimal incomeTotal,
-        BigDecimal incomeTotalShare,
         BigDecimal averageIncome,
+        BigDecimal averageExpenses,
         int averageIncomeMonths,
         String averageIncomeFrom,
         String averageIncomeTo,
-        BigDecimal averageIncomeShare,
         Totals expenses,
         BigDecimal unplanned,
         String unplannedLabel,
         BigDecimal surplus,
         String surplusLabel,
-        BigDecimal surplusShare,
         List<CategoryLine> categories,
         List<IncomeLine> income) {
 
@@ -37,16 +34,12 @@ public record DashboardResponse(
     }
 
     public record Totals(
-            BigDecimal target, BigDecimal actual, BigDecimal difference,
-            BigDecimal targetShare, BigDecimal actualShare, BigDecimal differenceShare,
-            BigDecimal recurring, BigDecimal oneOff, BigDecimal recurringShare, BigDecimal oneOffShare) {
+            BigDecimal target, BigDecimal actual, BigDecimal difference, BigDecimal recurring, BigDecimal oneOff) {
     }
 
-    public record CategoryLine(
-            long id, String name, BigDecimal target, BigDecimal actual, BigDecimal difference,
-            BigDecimal targetShare, BigDecimal actualShare, BigDecimal differenceShare) {
+    public record CategoryLine(long id, String name, BigDecimal target, BigDecimal actual, BigDecimal difference) {
     }
 
-    public record IncomeLine(long id, String name, BigDecimal actual, BigDecimal share) {
+    public record IncomeLine(long id, String name, BigDecimal actual) {
     }
 }

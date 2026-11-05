@@ -8,14 +8,11 @@ import {
   formatEuro,
   formatMonth,
   formatMonthShort,
-  formatShare,
   formatWholeNumber,
 } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
-
-type Unit = 'euro' | 'percent'
 
 // The API takes any period from 1 to 120 months (R14); the page offers this selection
 const PERIODS = [3, 6, 12, 24]
@@ -39,7 +36,7 @@ function writeOpen(key: string, open: boolean) {
 }
 
 /** A section with a heading that opens and closes it; the browser remembers the state. */
-function Collapsible({ id, title, actions, children }: { id: string; title: string; actions?: ReactNode; children: ReactNode }) {
+function Collapsible({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   const key = `budget.reserves.${id}.open`
   const [open, setOpen] = useState(() => readOpen(key))
   function toggle() {
@@ -54,7 +51,6 @@ function Collapsible({ id, title, actions, children }: { id: string; title: stri
             <span aria-hidden="true">{open ? '▾' : '▸'}</span> {title}
           </button>
         </h3>
-        {open && actions}
       </div>
       {open && children}
     </>
@@ -127,15 +123,13 @@ function MonthLabel({ month }: { month: string }) {
 
 // Expanded: one row per category, its amount in the income or expense column. Hovering any row of the month
 // marks it here and in the chart.
-function HistoryRows({ month, unit, active, onActive }: {
+function HistoryRows({ month, active, onActive }: {
   month: HistoryMonth
-  unit: Unit
   active: boolean
   onActive: (month: string | null) => void
 }) {
   const [open, setOpen] = useState(false)
   const hasCategories = month.incomeCategories.length > 0 || month.expenseCategories.length > 0
-  const value = (amount: number, share: number | null) => (unit === 'euro' ? formatAmount(amount) : formatShare(share))
   const hover = {
     onMouseEnter: () => onActive(month.month),
     onMouseLeave: () => onActive(null),
@@ -159,17 +153,15 @@ function HistoryRows({ month, unit, active, onActive }: {
             <MonthLabel month={month.month} />
           )}
         </th>
-        <td className="number">{value(month.income, month.incomeShare)}</td>
-        <td className="number">{value(month.expenses, month.expensesShare)}</td>
-        <td className={`number ${signClass(unit === 'euro' ? month.surplus : month.surplusShare) ?? ''}`}>
-          {value(month.surplus, month.surplusShare)}
-        </td>
+        <td className="number">{formatAmount(month.income)}</td>
+        <td className="number">{formatAmount(month.expenses)}</td>
+        <td className={`number ${signClass(month.surplus) ?? ''}`}>{formatAmount(month.surplus)}</td>
       </tr>
       {open &&
         month.incomeCategories.map((line) => (
           <tr key={`income-${line.name}`} className={`history-category${highlight}`} {...hover}>
             <td>{line.name}</td>
-            <td className="number">{value(line.amount, line.share)}</td>
+            <td className="number">{formatAmount(line.amount)}</td>
             <td />
             <td />
           </tr>
@@ -179,7 +171,7 @@ function HistoryRows({ month, unit, active, onActive }: {
           <tr key={`expense-${line.name}`} className={`history-category${highlight}`} {...hover}>
             <td>{line.name}</td>
             <td />
-            <td className="number">{value(line.amount, line.share)}</td>
+            <td className="number">{formatAmount(line.amount)}</td>
             <td />
           </tr>
         ))}
@@ -187,24 +179,18 @@ function HistoryRows({ month, unit, active, onActive }: {
   )
 }
 
-// Average and total have the same shares, as the backend delivers them once for both rows
-function FooterRow({ label, data, unit, income, expenses, surplus }: {
+function FooterRow({ label, income, expenses, surplus }: {
   label: string
-  data: ReserveData
-  unit: Unit
   income: number | null
   expenses: number | null
   surplus: number | null
 }) {
-  const percent = unit === 'percent'
   return (
     <tr>
       <th scope="row">{label}</th>
-      <td className="number">{percent ? formatShare(data.incomeShare) : formatAmount(income)}</td>
-      <td className="number">{percent ? formatShare(data.expensesShare) : formatAmount(expenses)}</td>
-      <td className={`number ${signClass(percent ? data.surplusShare : surplus) ?? ''}`}>
-        {percent ? formatShare(data.surplusShare) : formatAmount(surplus)}
-      </td>
+      <td className="number">{formatAmount(income)}</td>
+      <td className="number">{formatAmount(expenses)}</td>
+      <td className={`number ${signClass(surplus) ?? ''}`}>{formatAmount(surplus)}</td>
     </tr>
   )
 }
@@ -268,43 +254,31 @@ function HistoryChart({ history, active, onActive }: {
 
 /** The months of the average with income, expenses and surplus, their averages and totals in the footer. */
 function LookBack({ data }: { data: ReserveData }) {
-  const [unit, setUnit] = useState<Unit>('euro')
   const [active, setActive] = useState<string | null>(null)
   if (data.history.length === 0) {
     return null
   }
-  const suffix = unit === 'euro' ? '(€)' : '(%)'
-  const toggle = (
-    <div className="unit-toggle" role="group" aria-label="Anzeige">
-      <button type="button" aria-pressed={unit === 'euro'} onClick={() => setUnit('euro')}>
-        €
-      </button>
-      <button type="button" aria-pressed={unit === 'percent'} onClick={() => setUnit('percent')}>
-        %
-      </button>
-    </div>
-  )
   return (
-    <Collapsible id="lookBack" title="Rückblick" actions={toggle}>
+    <Collapsible id="lookBack" title="Rückblick">
       <HistoryChart history={data.history} active={active} onActive={setActive} />
       <table className="history" aria-label="Rückblick">
         <thead>
           <tr>
             <th>Monat</th>
-            <th className="number">Einnahmen {suffix}</th>
-            <th className="number">Ausgaben {suffix}</th>
-            <th className="number">Überschuss {suffix}</th>
+            <th className="number">Einnahmen (€)</th>
+            <th className="number">Ausgaben (€)</th>
+            <th className="number">Überschuss (€)</th>
           </tr>
         </thead>
         <tbody>
           {data.history.map((m) => (
-            <HistoryRows key={m.month} month={m} unit={unit} active={active === m.month} onActive={setActive} />
+            <HistoryRows key={m.month} month={m} active={active === m.month} onActive={setActive} />
           ))}
         </tbody>
         <tfoot>
-          <FooterRow label="Ø" data={data} unit={unit} income={data.averageIncome}
+          <FooterRow label="Ø" income={data.averageIncome}
             expenses={data.averageExpenses} surplus={data.averageSurplus} />
-          <FooterRow label="Gesamt" data={data} unit={unit} income={data.totalIncome}
+          <FooterRow label="Gesamt" income={data.totalIncome}
             expenses={data.totalExpenses} surplus={data.totalSurplus} />
         </tfoot>
       </table>
