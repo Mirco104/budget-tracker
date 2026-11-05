@@ -1,10 +1,10 @@
 import { useCategories, useUpdateTarget } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
-import type { DashboardData } from '../api/types'
 import { TargetRow } from '../components/TargetRow'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { formatEuro, formatMonth } from '../format'
+import { averagePeriod } from '../labels'
 
 /** Ø income (R23), planned targets and the unplanned rest (R4) for the month, taken from the dashboard. */
 function PlanningSummary({ month }: { month: string }) {
@@ -38,19 +38,6 @@ function PlanningSummary({ month }: { month: string }) {
       </div>
     </dl>
   )
-}
-
-/** "Januar 2026 – September 2026, 9 Monate" */
-function averagePeriod(data: DashboardData): string {
-  const months = data.averageIncomeMonths === 1 ? '1 Monat' : `${data.averageIncomeMonths} Monate`
-  if (!data.averageIncomeFrom || !data.averageIncomeTo) {
-    return months
-  }
-  const period =
-    data.averageIncomeFrom === data.averageIncomeTo
-      ? formatMonth(data.averageIncomeFrom)
-      : `${formatMonth(data.averageIncomeFrom)} – ${formatMonth(data.averageIncomeTo)}`
-  return `${period}, ${months}`
 }
 
 interface Props {
