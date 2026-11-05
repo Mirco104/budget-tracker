@@ -1,13 +1,16 @@
-import { useState, type FocusEvent, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
 import { currentMonth } from '../format'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
+import { Icon } from './ui/Icon'
 
-function NewCategoryForm() {
+/** "+ Kategorie" opens a field for the name; a new category comes last (US10). */
+function NewCategory() {
   const create = useCreateCategory()
+  const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -21,38 +24,49 @@ function NewCategoryForm() {
     try {
       await create.mutateAsync({ name: name.trim() })
       setName('')
+      setOpen(false)
     } catch (e) {
       setError(errorText(e, 'Anlegen fehlgeschlagen.'))
     }
   }
 
+  if (!open) {
+    return (
+      <button type="button" className="add-category" onClick={() => setOpen(true)}>
+        <Icon name="plus" size={18} />
+        Kategorie
+      </button>
+    )
+  }
   return (
     <form className="category-new" noValidate onSubmit={handleSubmit}>
-      <label>
+      <label className="field">
         Neue Kategorie
         <input
+          // Opened on purpose, so typing can start right away
+          autoFocus
           value={name}
           maxLength={50}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
           aria-invalid={error ? true : undefined}
         />
       </label>
-      <button type="submit" disabled={create.isPending}>
-        Hinzufügen
-      </button>
+      <div className="dialog-buttons">
+        <button type="button" onClick={() => setOpen(false)}>
+          Abbrechen
+        </button>
+        <button type="submit" disabled={create.isPending}>
+          Hinzufügen
+        </button>
+      </div>
       {error && <p className="error">{error}</p>}
     </form>
   )
 }
 
-interface IconPickerProps {
-  icon: string
-  onPick: (icon: string) => void
-  onClose: () => void
-}
-
 /** The fixed list of icons as a grid of buttons (US28); the current one is pressed. Escape closes it. */
-function IconPicker({ icon, onPick, onClose }: IconPickerProps) {
+function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (icon: string) => void; onClose: () => void }) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
       event.stopPropagation()
@@ -78,145 +92,369 @@ function IconPicker({ icon, onPick, onClose }: IconPickerProps) {
   )
 }
 
+type Mode = 'view' | 'rename' | 'icon' | 'confirmDelete'
+
 interface RowProps {
   category: Category
   previous?: Category
   next?: Category
+  /** Drag and drop: the row being dragged and the row it is over. */
+  dragging: number | null
+  onDragStart: (id: number) => void
+  onDragEnd: () => void
+  onDrop: (target: Category) => void
 }
 
-/** One category: the name is saved when the focus leaves the row or on Enter, like the targets (US2). */
-function CategoryRow({ category, previous, next }: RowProps) {
+/** The "⋯" menu of a row; closes on Escape and on a click outside. */
+function RowMenu({ category, onClose, children }: { category: Category; onClose: () => void; children: ReactNode }) {
+  const root = useRef<HTMLDivElement>(null)
+  const close = useRef(onClose)
+
+  useEffect(() => {
+    close.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    root.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
+    function handlePointer(event: MouseEvent) {
+      if (root.current && !root.current.contains(event.target as Node)) {
+        close.current()
+      }
+    }
+    document.addEventListener('mousedown', handlePointer)
+    return () => document.removeEventListener('mousedown', handlePointer)
+  }, [])
+
+  return (
+    <div
+      ref={root}
+      className="menu row-menu"
+      role="group"
+      aria-label={`Aktionen für ${category.name}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation()
+          close.current()
+        }
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** One active category: drag handle, icon, name and the menu "⋯" (US10, US28). */
+function CategoryRow({ category, previous, next, dragging, onDragStart, onDragEnd, onDrop }: RowProps) {
   const update = useUpdateCategory()
   const remove = useDeleteCategory()
+  const [mode, setMode] = useState<Mode>('view')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [name, setName] = useState(category.name)
   const [error, setError] = useState<string | null>(null)
-  const [picking, setPicking] = useState(false)
+  const [over, setOver] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
   const busy = update.isPending || remove.isPending
 
-  // A typed but unsaved name goes along with a move or archive, so one click is one request
-  async function send(changes: Partial<CategoryUpdate>) {
+  async function send(changes: Partial<CategoryUpdate>): Promise<boolean> {
     setError(null)
     try {
       await update.mutateAsync({
         id: category.id,
         input: {
-          name: name.trim() || category.name,
+          name: category.name,
           sortOrder: category.sortOrder,
           archived: category.archived,
           icon: category.icon,
           ...changes,
         },
       })
+      return true
     } catch (e) {
       setError(errorText(e, 'Speichern fehlgeschlagen.'))
+      return false
     }
   }
 
-  function saveName() {
-    // The running request already carries the name (the clicked button is disabled, so the focus left the row)
-    if (busy || name.trim() === category.name) {
+  function closeMenu() {
+    setMenuOpen(false)
+    menuButton.current?.focus()
+  }
+
+  function choose(action: () => void) {
+    setMenuOpen(false)
+    action()
+  }
+
+  // Enter submits and the following blur must not send the name a second time
+  const saving = useRef(false)
+
+  async function saveName() {
+    if (saving.current) {
       return
     }
-    if (name.trim() === '') {
+    const trimmed = name.trim()
+    if (trimmed === category.name) {
+      setMode('view')
+      return
+    }
+    if (trimmed === '') {
       setError('Der Name ist Pflicht.')
       return
     }
-    void send({ name: name.trim() })
+    saving.current = true
+    const saved = await send({ name: trimmed })
+    saving.current = false
+    if (saved) {
+      setMode('view')
+    }
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Kategorie „${category.name}“ löschen?`)) {
-      return
-    }
     setError(null)
     try {
       await remove.mutateAsync(category.id)
     } catch (e) {
       setError(errorText(e, 'Löschen fehlgeschlagen.'))
+      setMode('view')
     }
   }
 
-  function pickIcon(icon: string) {
-    setPicking(false)
-    if (icon !== category.icon) {
-      void send({ icon })
+  function handleDragOver(event: DragEvent<HTMLLIElement>) {
+    if (dragging !== null && dragging !== category.id) {
+      event.preventDefault()
+      setOver(true)
     }
-  }
-
-  function handleBlur(event: FocusEvent<HTMLFormElement>) {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      saveName()
-    }
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    saveName()
   }
 
   return (
-    <form
-      className={category.archived ? 'category-row archived' : 'category-row'}
+    <li
+      className={`category-row${over ? ' drop-target' : ''}${dragging === category.id ? ' dragging' : ''}`}
       aria-label={category.name}
-      noValidate
-      onSubmit={handleSubmit}
-      onBlur={handleBlur}
+      onDragOver={handleDragOver}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setOver(false)
+        onDrop(category)
+      }}
     >
-      <button
-        type="button"
-        className="icon-button category-icon-button"
-        aria-label={`Icon ändern (${categoryIconLabel(category.icon)})`}
-        aria-expanded={picking}
-        disabled={busy}
-        onClick={() => setPicking(!picking)}
-      >
-        <CategoryIcon icon={category.icon} />
-      </button>
-      <input
-        aria-label="Name"
-        value={name}
-        maxLength={50}
-        enterKeyHint="done"
-        onChange={(e) => setName(e.target.value)}
-        aria-invalid={error ? true : undefined}
-      />
-      <span className="category-actions">
-        {!category.archived && (
-          <>
-            <button
-              type="button"
-              aria-label="Nach oben"
-              disabled={busy || !previous}
-              onClick={() => previous && void send({ sortOrder: previous.sortOrder })}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              aria-label="Nach unten"
-              disabled={busy || !next}
-              onClick={() => next && void send({ sortOrder: next.sortOrder })}
-            >
-              ↓
-            </button>
-          </>
+      <div className="category-line">
+        <span
+          className="drag-handle"
+          draggable={!busy}
+          title="Zum Sortieren ziehen"
+          aria-hidden="true"
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('text/plain', String(category.id))
+            onDragStart(category.id)
+          }}
+          onDragEnd={onDragEnd}
+        >
+          <Icon name="grip" size={18} />
+        </span>
+        <button
+          type="button"
+          className="icon-button category-icon-button"
+          aria-label={`Icon ändern (${categoryIconLabel(category.icon)})`}
+          aria-expanded={mode === 'icon'}
+          disabled={busy}
+          onClick={() => setMode(mode === 'icon' ? 'view' : 'icon')}
+        >
+          <CategoryIcon icon={category.icon} />
+        </button>
+
+        {mode === 'rename' ? (
+          <form
+            className="rename-form"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveName()
+            }}
+          >
+            <input
+              aria-label={`Neuer Name für ${category.name}`}
+              // Opened on purpose from the menu
+              autoFocus
+              value={name}
+              maxLength={50}
+              enterKeyHint="done"
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setName(category.name)
+                  setError(null)
+                  setMode('view')
+                }
+              }}
+              onBlur={() => void saveName()}
+              aria-invalid={error ? true : undefined}
+            />
+          </form>
+        ) : (
+          <span className="category-name">{category.name}</span>
         )}
-        <button type="button" disabled={busy} onClick={() => void send({ archived: !category.archived })}>
-          {category.archived ? 'Reaktivieren' : 'Archivieren'}
-        </button>
-        <button type="button" disabled={busy} onClick={() => void handleDelete()}>
-          Löschen
-        </button>
-      </span>
-      {picking && <IconPicker icon={category.icon} onPick={pickIcon} onClose={() => setPicking(false)} />}
-      {error && <p className="error">{error}</p>}
-    </form>
+
+        <div className="row-menu-anchor">
+          <button
+            ref={menuButton}
+            type="button"
+            className="icon-button"
+            aria-label={`Aktionen für ${category.name}`}
+            aria-expanded={menuOpen}
+            disabled={busy}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <Icon name="more" />
+          </button>
+          {menuOpen && (
+            <RowMenu category={category} onClose={closeMenu}>
+              <button type="button" className="menu-item" onClick={() => choose(() => setMode('rename'))}>
+                Umbenennen
+              </button>
+              <button type="button" className="menu-item" onClick={() => choose(() => setMode('icon'))}>
+                Icon ändern
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                disabled={!previous}
+                onClick={() => choose(() => previous && void send({ sortOrder: previous.sortOrder }))}
+              >
+                Nach oben
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                disabled={!next}
+                onClick={() => choose(() => next && void send({ sortOrder: next.sortOrder }))}
+              >
+                Nach unten
+              </button>
+              <button type="button" className="menu-item" onClick={() => choose(() => void send({ archived: true }))}>
+                Archivieren
+              </button>
+              <button
+                type="button"
+                className="menu-item danger"
+                onClick={() => choose(() => setMode('confirmDelete'))}
+              >
+                Löschen
+              </button>
+            </RowMenu>
+          )}
+        </div>
+      </div>
+
+      {mode === 'icon' && (
+        <IconPicker
+          icon={category.icon}
+          onPick={(icon) => {
+            setMode('view')
+            if (icon !== category.icon) {
+              void send({ icon })
+            }
+          }}
+          onClose={() => setMode('view')}
+        />
+      )}
+      {mode === 'confirmDelete' && (
+        <div className="dialog-actions confirm" role="group" aria-label="Löschen bestätigen">
+          <span>„{category.name}“ löschen? Das geht nur, solange sie unbenutzt ist.</span>
+          <div className="dialog-buttons">
+            <button type="button" onClick={() => setMode('view')} disabled={busy}>
+              Abbrechen
+            </button>
+            <button type="button" className="danger" onClick={() => void handleDelete()} disabled={busy}>
+              Endgültig löschen
+            </button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </li>
   )
 }
 
-/** Settings › Kategorien (US10, US28): create, rename, pick an icon, reorder, archive and delete. */
+/** An archived category: it can come back, or be deleted while unused (US10). */
+function ArchivedRow({ category }: { category: Category }) {
+  const update = useUpdateCategory()
+  const remove = useDeleteCategory()
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const busy = update.isPending || remove.isPending
+
+  async function restore() {
+    setError(null)
+    try {
+      await update.mutateAsync({
+        id: category.id,
+        input: { name: category.name, sortOrder: category.sortOrder, archived: false, icon: category.icon },
+      })
+    } catch (e) {
+      setError(errorText(e, 'Speichern fehlgeschlagen.'))
+    }
+  }
+
+  async function handleDelete() {
+    setError(null)
+    try {
+      await remove.mutateAsync(category.id)
+    } catch (e) {
+      setError(errorText(e, 'Löschen fehlgeschlagen.'))
+      setConfirming(false)
+    }
+  }
+
+  return (
+    <li className="category-row archived" aria-label={category.name}>
+      <div className="category-line">
+        <CategoryIcon icon={category.icon} />
+        <span className="category-name">{category.name}</span>
+        {!confirming && (
+          <>
+            <button type="button" disabled={busy} onClick={() => void restore()}>
+              Wiederherstellen
+            </button>
+            <button type="button" className="danger" disabled={busy} onClick={() => setConfirming(true)}>
+              Löschen
+            </button>
+          </>
+        )}
+      </div>
+      {confirming && (
+        <div className="dialog-actions confirm" role="group" aria-label="Löschen bestätigen">
+          <span>„{category.name}“ löschen? Das geht nur, solange sie unbenutzt ist.</span>
+          <div className="dialog-buttons">
+            <button type="button" onClick={() => setConfirming(false)} disabled={busy}>
+              Abbrechen
+            </button>
+            <button type="button" className="danger" onClick={() => void handleDelete()} disabled={busy}>
+              Endgültig löschen
+            </button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </li>
+  )
+}
+
+/** Settings › Kategorien (US10, US28): sort by dragging, and per row a menu "⋯" for everything else. */
 export function CategorySettings() {
   const categories = useCategories(currentMonth())
+  const update = useUpdateCategory()
+  const [dragging, setDragging] = useState<number | null>(null)
+  const [moveError, setMoveError] = useState<string | null>(null)
 
   if (categories.isPending) {
     return <p>Lade Kategorien …</p>
@@ -228,36 +466,71 @@ export function CategorySettings() {
   const active = categories.data.filter((c) => !c.archived)
   const archived = categories.data.filter((c) => c.archived)
 
+  // The dropped category takes the place of the target; the backend renumbers the rest (one request)
+  async function drop(target: Category) {
+    const moved = active.find((c) => c.id === dragging)
+    setDragging(null)
+    if (!moved || moved.id === target.id) {
+      return
+    }
+    setMoveError(null)
+    try {
+      await update.mutateAsync({
+        id: moved.id,
+        input: { name: moved.name, sortOrder: target.sortOrder, archived: false, icon: moved.icon },
+      })
+    } catch (e) {
+      setMoveError(errorText(e, 'Verschieben fehlgeschlagen.'))
+    }
+  }
+
   return (
-    <section>
-      <h3>Kategorien</h3>
-      <p className="hint">
-        Namen werden gespeichert, sobald du ein Feld verlässt oder Enter drückst. Ein Klick auf das Icon zeigt die
-        Auswahl. Löschen geht nur, solange eine
-        Kategorie unbenutzt ist; sonst archiviere sie. Archivierte Kategorien fehlen im Formular und in der Planung,
-        vergangene Monate zeigen sie weiter.
-      </p>
-      <NewCategoryForm />
-      <div className="category-list">
-        {active.map((category, index) => (
-          <CategoryRow
-            key={`${category.id}-${category.name}`}
-            category={category}
-            previous={active[index - 1]}
-            next={active[index + 1]}
-          />
-        ))}
-      </div>
-      {archived.length > 0 && (
-        <>
-          <h4>Archiviert</h4>
-          <div className="category-list">
-            {archived.map((category) => (
-              <CategoryRow key={`${category.id}-${category.name}`} category={category} />
-            ))}
+    <>
+      <section className="card settings-card" aria-labelledby="categories-title">
+        <div className="settings-card-head">
+          <div>
+            <h2 id="categories-title">Kategorien</h2>
+            <p className="hint">
+              Reihenfolge per Ziehen am Griff ändern oder im Menü „⋯“ mit „Nach oben“ und „Nach unten“. Neue
+              Kategorien kommen ans Ende.
+            </p>
           </div>
-        </>
+          <NewCategory />
+        </div>
+        {moveError && (
+          <p className="error" role="alert">
+            {moveError}
+          </p>
+        )}
+        <ul className="category-list">
+          {active.map((category, index) => (
+            <CategoryRow
+              key={`${category.id}-${category.name}`}
+              category={category}
+              previous={active[index - 1]}
+              next={active[index + 1]}
+              dragging={dragging}
+              onDragStart={setDragging}
+              onDragEnd={() => setDragging(null)}
+              onDrop={(target) => void drop(target)}
+            />
+          ))}
+        </ul>
+      </section>
+
+      {archived.length > 0 && (
+        <section className="card settings-card" aria-labelledby="archived-title">
+          <h2 id="archived-title">Archiviert ({archived.length})</h2>
+          <p className="hint">
+            Fehlen in den Formularen und in der Planung; vergangene Monate zeigen sie weiter.
+          </p>
+          <ul className="category-list">
+            {archived.map((category) => (
+              <ArchivedRow key={`${category.id}-${category.name}`} category={category} />
+            ))}
+          </ul>
+        </section>
       )}
-    </section>
+    </>
   )
 }
