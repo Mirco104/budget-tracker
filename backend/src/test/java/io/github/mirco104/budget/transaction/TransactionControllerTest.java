@@ -203,6 +203,7 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$", hasSize(0)));
     }
 
+    // Without month and period it asks for the month, the short form (US26)
     @Test
     void rejectsMissingMonth() throws Exception {
         mockMvc.perform(get("/api/transactions"))
@@ -216,6 +217,112 @@ class TransactionControllerTest {
         mockMvc.perform(get("/api/transactions").param("month", month))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
+    }
+
+    // --- GET /api/transactions?from=&to= (US26) ---
+
+    @Test
+    void listsTransactionsOfAPeriodIncludingBothDaysNewestFirst() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        create(body("-1", "Davor", "2026-08-14", categoryId));
+        create(body("-2", "Erster Tag", "2026-08-15", categoryId));
+        create(body("-3", "Mitte", "2026-09-30", categoryId));
+        create(body("-4", "Letzter Tag", "2026-10-10", categoryId));
+        create(body("-5", "Danach", "2026-10-11", categoryId));
+
+        mockMvc.perform(get("/api/transactions").param("from", "2026-08-15").param("to", "2026-10-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].description", contains("Letzter Tag", "Mitte", "Erster Tag")));
+    }
+
+    @Test
+    void listsOccurrencesOfSeriesInThePeriodAcrossMonths() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        create(body("-2", "Kino", "2026-10-20", categoryId));
+        mockMvc.perform(post("/api/recurring-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": -15, "description": "Streaming", "categoryId": %d, "interval": "MONTHLY",
+                                 "startDate": "2026-01-15"}
+                                """.formatted(categoryId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/transactions").param("from", "2026-09-15").param("to", "2026-11-14"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].description", contains("Kino", "Streaming", "Streaming")))
+                .andExpect(jsonPath("$[*].date", contains("2026-10-20", "2026-10-15", "2026-09-15")))
+                .andExpect(jsonPath("$[*].kind", contains("SINGLE", "RECURRING", "RECURRING")));
+    }
+
+    @Test
+    void acceptsASingleDay() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        create(body("-1", "Heute", "2026-10-10", categoryId));
+        create(body("-1", "Morgen", "2026-10-11", categoryId));
+
+        mockMvc.perform(get("/api/transactions").param("from", "2026-10-10").param("to", "2026-10-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].description", contains("Heute")));
+    }
+
+    // "mehr als 10 Jahre" is 400: exactly 10 years (to before from + 10 years) is the longest period
+    @Test
+    void acceptsExactlyTenYears() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("from", "2016-01-01").param("to", "2025-12-31"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void rejectsMoreThanTenYears() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("from", "2016-01-01").param("to", "2026-01-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("to"))
+                .andExpect(jsonPath("$.errors[0].message").value("Der Zeitraum darf höchstens 10 Jahre lang sein."));
+    }
+
+    @Test
+    void rejectsFromAfterTo() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("from", "2026-10-11").param("to", "2026-10-10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("to"))
+                .andExpect(jsonPath("$.errors[0].message").value("„Bis“ darf nicht vor „Von“ liegen."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"from", "to"})
+    void rejectsAPeriodWithOnlyOneDay(String given) throws Exception {
+        String missing = given.equals("from") ? "to" : "from";
+        mockMvc.perform(get("/api/transactions").param(given, "2026-10-10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Der Parameter '" + missing + "' fehlt."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-10", "2026-02-30", "abc", "10.10.2026"})
+    void rejectsInvalidDates(String date) throws Exception {
+        mockMvc.perform(get("/api/transactions").param("from", date).param("to", "2026-12-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
+    }
+
+    @Test
+    void rejectsMonthTogetherWithAPeriod() throws Exception {
+        mockMvc.perform(get("/api/transactions")
+                        .param("month", "2026-10").param("from", "2026-10-01").param("to", "2026-10-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Entweder 'month' oder 'from' und 'to' angeben."));
+    }
+
+    // R15: the period only shows the own entries
+    @Test
+    void listsOnlyTheOwnTransactionsOfThePeriod() throws Exception {
+        create(body("-1", "Meins", "2026-10-10", categoryId("Freizeit")));
+        User other = TestUsers.create(userService, "person-c@example.test");
+        MockMvc otherMvc = TestUsers.mockMvcFor(context, other);
+
+        otherMvc.perform(get("/api/transactions").param("from", "2026-01-01").param("to", "2026-12-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 
     // --- PUT /api/transactions/{id} (US4) ---
