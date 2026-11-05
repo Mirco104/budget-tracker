@@ -2,10 +2,11 @@ package io.github.mirco104.budget.reserve;
 
 import io.github.mirco104.budget.recurring.RecurrenceSchedule;
 import io.github.mirco104.budget.recurring.RecurringInterval;
-import io.github.mirco104.budget.reserve.ReserveResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.HistoryResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
+import io.github.mirco104.budget.reserve.HistoryResponse.Total;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastMonth;
-import io.github.mirco104.budget.reserve.ReserveResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.ReserveResponse.ReserveLine;
 import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
 import java.math.BigDecimal;
@@ -23,13 +24,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * Analysis of a month, rule R14 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Analysis, rule R14 from docs/spezifikation.md, section 2: the look back over a period of past months and the
+ * outlook (reserve pot and forecast) from a month on. No Spring dependencies.
  * Rounds only the end results, not the parts they are summed from (spec section 12, "Rundung").
  */
 public class ReserveCalculator {
 
     static final int FORECAST_MONTHS = 12;
-    static final int MIN_PERIOD = 1;
+    /** The longest look back in months (R14). */
     static final int MAX_PERIOD = 120;
 
     private static final int MONEY_SCALE = 2;
@@ -53,33 +55,34 @@ public class ReserveCalculator {
             List<CategoryData> incomeCategories, List<CategoryData> expenseCategories) {
     }
 
-    /** The income N(k) or the expense actual I(k) of a category in a past month, positive. */
-    public record CategoryData(String name, BigDecimal amount) {
+    /** The income N(k) or the expense actual I(k) of a category in a past month, positive, with its icon. */
+    public record CategoryData(long id, String name, String icon, BigDecimal amount) {
     }
 
     /**
-     * pastMonths holds months before M (missing months count as 0); firstEntryMonth is the month of the
-     * earliest transaction or series start, null without any entry. period is the chosen period x in months.
+     * Look back from month {@code from} to month {@code to}, both included. Only months from the first entry on count
+     * (firstEntryMonth: month of the earliest transaction or series start, null without any entry). pastMonths may
+     * hold any months; missing months count as 0. Checking the period against today is up to the caller.
      */
-    public ReserveResponse calculate(List<SeriesData> series, List<SingleData> singles,
-            List<PastMonth> pastMonths, YearMonth firstEntryMonth, YearMonth month, int period) {
-        // Average and look back: M-x to M-1, but not before the first entry
-        YearMonth from = month.minusMonths(period);
-        if (firstEntryMonth != null && firstEntryMonth.isAfter(from)) {
-            from = firstEntryMonth;
-        }
-        int averageMonths = firstEntryMonth == null ? 0 : (int) Math.max(0, ChronoUnit.MONTHS.between(from, month));
-        YearMonth first = from;
-        List<HistoryMonth> history = IntStream.range(0, averageMonths)
+    public HistoryResponse history(List<PastMonth> pastMonths, YearMonth firstEntryMonth, YearMonth from, YearMonth to) {
+        YearMonth first = firstEntryMonth != null && firstEntryMonth.isAfter(from) ? firstEntryMonth : from;
+        int months = firstEntryMonth == null || first.isAfter(to) ? 0 : (int) ChronoUnit.MONTHS.between(first, to) + 1;
+        List<HistoryMonth> history = IntStream.range(0, months)
                 .mapToObj(i -> historyMonth(pastMonths, first.plusMonths(i)))
                 .toList();
-        BigDecimal averageIncome = average(history.stream().map(HistoryMonth::income), averageMonths);
-        BigDecimal averageExpenses = average(history.stream().map(HistoryMonth::expenses), averageMonths);
-        BigDecimal averageSurplus = average(history.stream().map(HistoryMonth::surplus), averageMonths);
-        BigDecimal totalIncome = total(history.stream().map(HistoryMonth::income), averageMonths);
-        BigDecimal totalExpenses = total(history.stream().map(HistoryMonth::expenses), averageMonths);
-        BigDecimal totalSurplus = total(history.stream().map(HistoryMonth::surplus), averageMonths);
+        Total total = months == 0 ? null : new Total(
+                sum(history.stream().map(HistoryMonth::income)),
+                sum(history.stream().map(HistoryMonth::expenses)),
+                sum(history.stream().map(HistoryMonth::surplus)));
+        return new HistoryResponse(from.toString(), to.toString(), months,
+                average(history.stream().map(HistoryMonth::income), months),
+                average(history.stream().map(HistoryMonth::expenses), months),
+                average(history.stream().map(HistoryMonth::surplus), months),
+                total, history);
+    }
 
+    /** Reserve pot and forecast from the month on (the current month in the app, R14). */
+    public ReserveResponse outlook(List<SeriesData> series, List<SingleData> singles, YearMonth month) {
         LocalDate forecastEnd = month.plusMonths(FORECAST_MONTHS - 1).atEndOfMonth();
         List<SeriesData> expenseSeries = series.stream()
                 .filter(s -> s.amount().signum() < 0)
@@ -111,9 +114,7 @@ public class ReserveCalculator {
         List<ForecastMonth> forecast = IntStream.range(0, FORECAST_MONTHS)
                 .mapToObj(i -> forecastMonth(expenseSeries, singles, month.plusMonths(i)))
                 .toList();
-        return new ReserveResponse(month.toString(), averageIncome, averageExpenses, averageSurplus, averageMonths,
-                history, totalIncome, totalExpenses, totalSurplus, money(monthlyReserve), money(reserveBalance),
-                reserves, forecast);
+        return new ReserveResponse(month.toString(), money(monthlyReserve), money(reserveBalance), reserves, forecast);
     }
 
     // Surplus E - A as in R7; a month without entries has 0 everywhere
@@ -130,7 +131,7 @@ public class ReserveCalculator {
 
     private static List<CategoryAmount> categoryAmounts(List<CategoryData> categories) {
         return categories.stream()
-                .map(c -> new CategoryAmount(c.name(), c.amount()))
+                .map(c -> new CategoryAmount(c.id(), c.name(), c.icon(), c.amount()))
                 .toList();
     }
 
@@ -142,8 +143,8 @@ public class ReserveCalculator {
                 .divide(BigDecimal.valueOf(months), MONEY_SCALE, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal total(Stream<BigDecimal> values, int months) {
-        return months == 0 ? null : money(values.reduce(BigDecimal.ZERO, BigDecimal::add));
+    private static BigDecimal sum(Stream<BigDecimal> values) {
+        return money(values.reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
     private static RecurrenceSchedule schedule(SeriesData s) {
