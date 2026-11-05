@@ -709,4 +709,8 @@ Umsetzung der Entscheidungen 26 bis 33, vor AP 20. Ziel: Die App soll ohne Erkl�
 
 **Reihenfolge:** 19b vor allen anderen Oberflächen-APs; 19c vor 19e und 19f; 19d vor 19e, 19g, 19i und 19j, weil diese Icons zeigen (bis dahin ein Platzhalter-Icon). 19c, 19d, 19h und 19i ändern das Backend und können parallel zu den Oberflächen-APs laufen, wenn sie unterschiedliche Dateien betreffen. AP 13 (README "Learnings und Entscheidungen") folgt nach 19j, damit es die Überarbeitung enthält.
 
-**Stand 05.11.2026:** AP 19a bis 19e erledigt. Offen: AP 19f bis 19j.
+**Stand 06.11.2026:** AP 19a bis 19f erledigt. Offen: AP 19g bis 19j.
+
+**Entscheidungen beim Umsetzen (Nachtlauf 05./06.11.2026, ohne Rückfrage getroffen, zur Prüfung im PR):**
+
+- *19f Planung:* "Gilt ab" ist dasselbe Monatsfeld mit ‹ › wie in der *Übersicht* (Vorgabe aktueller Monat, auch frühere Monate wählbar wie bisher); die Planung hat damit ihren eigenen Monat (Entscheidung 28). Der Umschalter € / % behält die eingegebene Zahl; gespeichert wird beim Verlassen der Zeile, auch wenn nur die Einheit wechselt; ein leeres Feld speichert beim Umschalten nichts. Ein alter Eintrag mit beiden Werten zeigt den Euro-Wert (R3) und verliert den Prozentwert beim nächsten Speichern. "entspricht X €" bei einem Prozent-Soll ist das Soll, das `/dashboard` für "Gilt ab" liefert (keine Rechnung im Frontend), und erscheint nur für den gespeicherten Wert. "Ist im Vormonat" kommt aus `/dashboard` des Vormonats: die Ausgaben `I(k)`, sonst die Einnahmen `N(k)` mit "+" in Petrol, ohne Einträge 0,00 €. Am Handy entfällt das Icon in der Zeile, damit lange Namen Platz haben.
