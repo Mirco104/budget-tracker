@@ -4,14 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.mirco104.budget.recurring.RecurringInterval;
-import io.github.mirco104.budget.reserve.ReserveResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.HistoryResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.CategoryData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastMonth;
-import io.github.mirco104.budget.reserve.ReserveResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.ReserveResponse.ReserveLine;
 import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
 import java.math.BigDecimal;
@@ -24,7 +24,8 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rule R14 from docs/spezifikation.md, section 2, the test cases from section 7 and fixture F1 from section 12.
+ * Rule R14 from docs/spezifikation.md, section 2: look back (history) and outlook (reserve pot and forecast), the
+ * test cases from section 7 and fixture F1 from section 12.
  */
 class ReserveCalculatorTest {
 
@@ -66,15 +67,7 @@ class ReserveCalculatorTest {
     }
 
     private ReserveResponse onlySeries(YearMonth month, SeriesData... series) {
-        return calculator.calculate(List.of(series), List.of(), List.of(), null, month, 12);
-    }
-
-    private ReserveResponse onlyAverage(YearMonth firstEntry, PastMonth... months) {
-        return averageOver(12, firstEntry, months);
-    }
-
-    private ReserveResponse averageOver(int period, YearMonth firstEntry, PastMonth... months) {
-        return calculator.calculate(List.of(), List.of(), List.of(months), firstEntry, OCTOBER, period);
+        return calculator.outlook(List.of(series), List.of(), month);
     }
 
     // 100.00 expenses and 1000.00 income in each of the 24 months before October 2026, 400.00 in September
@@ -84,179 +77,132 @@ class ReserveCalculatorTest {
                 .toArray(PastMonth[]::new);
     }
 
+    private HistoryResponse history(String from, String to, YearMonth firstEntry, PastMonth... months) {
+        return calculator.history(List.of(months), firstEntry, month(from), month(to));
+    }
+
     private static List<String> totals(ReserveResponse response) {
         return response.forecast().stream().map(month -> month.total().toPlainString()).toList();
     }
 
-    // --- average expenses of the 12 completed months before M ---
+    // --- look back from month V to month B (R14) ---
 
     @Test
-    void averagesTheTwelveMonthsBeforeTheMonth() {
-        PastMonth[] months = IntStream.range(0, 12)
-                .mapToObj(i -> new PastMonth(OCTOBER.minusMonths(12 - i), BigDecimal.ZERO,
-                        money(i == 11 ? "220.00" : "100.00"), List.of(), List.of()))
-                .toArray(PastMonth[]::new);
+    void averagesEveryMonthFromToIncludingBoth() {
+        HistoryResponse response = history("2025-10", "2026-09", month("2024-01"), twoYears());
 
-        ReserveResponse response = onlyAverage(month("2025-01"), months);
-
-        assertThat(response.averageMonths()).isEqualTo(12);
-        assertThat(response.averageExpenses()).isEqualByComparingTo("110.00");
+        assertThat(response.from()).isEqualTo("2025-10");
+        assertThat(response.to()).isEqualTo("2026-09");
+        assertThat(response.months()).isEqualTo(12);
+        assertThat(response.history()).extracting(HistoryMonth::month).containsExactly(
+                "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
+                "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09");
+        // (11 x 100 + 400) / 12
+        assertThat(response.averageExpenses()).isEqualByComparingTo("125.00");
+        assertThat(response.averageIncome()).isEqualByComparingTo("1000.00");
+        assertThat(response.averageSurplus()).isEqualByComparingTo("875.00");
     }
 
     @Test
-    void leavesOutTheMonthItselfAndMonthsBeforeTheWindow() {
-        ReserveResponse response = onlyAverage(month("2025-01"),
-                expenses("2025-09", "5000.00"),
-                expenses("2025-10", "120.00"),
-                expenses("2026-10", "5000.00"));
+    void anyPeriodWorksTheSameWay() {
+        HistoryResponse one = history("2026-09", "2026-09", month("2024-01"), twoYears());
+        assertThat(one.months()).isEqualTo(1);
+        assertThat(one.averageExpenses()).isEqualByComparingTo("400.00");
 
-        assertThat(response.averageMonths()).isEqualTo(12);
-        assertThat(response.averageExpenses()).isEqualByComparingTo("10.00");
+        HistoryResponse seven = history("2026-03", "2026-09", month("2024-01"), twoYears());
+        assertThat(seven.months()).isEqualTo(7);
+        // (6 x 100 + 400) / 7
+        assertThat(seven.averageExpenses()).isEqualByComparingTo("142.86");
+
+        HistoryResponse twentyFour = history("2024-10", "2026-09", month("2024-01"), twoYears());
+        assertThat(twentyFour.months()).isEqualTo(24);
+        // (23 x 100 + 400) / 24
+        assertThat(twentyFour.averageExpenses()).isEqualByComparingTo("112.50");
+    }
+
+    // A calendar year as a look back, e.g. the year 2025
+    @Test
+    void looksBackOverACalendarYearThatIsNotTheLastTwelveMonths() {
+        HistoryResponse year = history("2025-01", "2025-12", month("2024-01"), twoYears());
+
+        assertThat(year.history()).extracting(HistoryMonth::month).startsWith("2025-01").endsWith("2025-12");
+        assertThat(year.total().expenses()).isEqualByComparingTo("1200.00");
+        assertThat(year.total().income()).isEqualByComparingTo("12000.00");
     }
 
     @Test
-    void averagesFewerMonthsFromTheFirstEntryOn() {
-        // First entry in July: July to September count, a month without expenses counts as 0
-        ReserveResponse response = onlyAverage(month("2026-07"),
-                expenses("2026-07", "300.00"),
-                expenses("2026-09", "150.00"));
+    void leavesOutMonthsOutsideThePeriod() {
+        HistoryResponse response = history("2026-08", "2026-08", month("2025-01"),
+                expenses("2026-07", "5000.00"), expenses("2026-08", "120.00"), expenses("2026-09", "5000.00"));
 
-        assertThat(response.averageMonths()).isEqualTo(3);
-        assertThat(response.averageExpenses()).isEqualByComparingTo("150.00");
+        assertThat(response.months()).isEqualTo(1);
+        assertThat(response.averageExpenses()).isEqualByComparingTo("120.00");
+    }
+
+    @Test
+    void startsAtTheFirstEntryAtTheEarliest() {
+        // First entry in August: two months count, the requested period stays in the answer
+        HistoryResponse response = history("2026-01", "2026-09", month("2026-08"), twoYears());
+
+        assertThat(response.from()).isEqualTo("2026-01");
+        assertThat(response.months()).isEqualTo(2);
+        assertThat(response.history()).extracting(HistoryMonth::month).containsExactly("2026-08", "2026-09");
+        assertThat(response.averageExpenses()).isEqualByComparingTo("250.00");
     }
 
     @Test
     void roundsTheAverageToCents() {
-        ReserveResponse response = onlyAverage(month("2026-07"), expenses("2026-07", "100.00"));
+        HistoryResponse response = history("2026-07", "2026-09", month("2026-07"), expenses("2026-07", "100.00"));
 
         assertThat(response.averageExpenses()).isEqualByComparingTo("33.33");
     }
 
     @Test
-    void hasNoAverageWithoutACompletedMonthWithEntries() {
-        assertThat(onlyAverage(null).averageMonths()).isZero();
-        assertThat(onlyAverage(null).averageExpenses()).isNull();
-        assertThat(onlyAverage(OCTOBER, expenses("2026-10", "50.00")).averageExpenses()).isNull();
-        assertThat(onlyAverage(month("2027-01")).averageMonths()).isZero();
-        assertThat(onlyAverage(null).averageIncome()).isNull();
-        assertThat(onlyAverage(null).averageSurplus()).isNull();
-        assertThat(onlyAverage(null).history()).isEmpty();
-    }
-
-    // --- chosen period ---
-
-    @Test
-    void averagesAndLooksBackOverThreeSixAndTwentyFourMonths() {
-        ReserveResponse three = averageOver(3, month("2024-01"), twoYears());
-        assertThat(three.averageMonths()).isEqualTo(3);
-        assertThat(three.history()).extracting(HistoryMonth::month).containsExactly("2026-07", "2026-08", "2026-09");
-        // (2 × 100 + 400) / 3
-        assertThat(three.averageExpenses()).isEqualByComparingTo("200.00");
-
-        ReserveResponse six = averageOver(6, month("2024-01"), twoYears());
-        assertThat(six.averageMonths()).isEqualTo(6);
-        assertThat(six.history()).first().extracting(HistoryMonth::month).isEqualTo("2026-04");
-        assertThat(six.averageExpenses()).isEqualByComparingTo("150.00");
-
-        ReserveResponse twentyFour = averageOver(24, month("2024-01"), twoYears());
-        assertThat(twentyFour.averageMonths()).isEqualTo(24);
-        assertThat(twentyFour.history()).first().extracting(HistoryMonth::month).isEqualTo("2024-10");
-        // (23 × 100 + 400) / 24
-        assertThat(twentyFour.averageExpenses()).isEqualByComparingTo("112.50");
+    void hasNoAverageAndNoTotalWithoutACountedMonth() {
+        for (HistoryResponse empty : List.of(
+                history("2025-10", "2026-09", null),
+                // first entry after the period
+                history("2025-10", "2026-09", month("2026-10"), expenses("2026-10", "50.00")))) {
+            assertThat(empty.months()).isZero();
+            assertThat(empty.averageIncome()).isNull();
+            assertThat(empty.averageExpenses()).isNull();
+            assertThat(empty.averageSurplus()).isNull();
+            assertThat(empty.total()).isNull();
+            assertThat(empty.history()).isEmpty();
+        }
     }
 
     @Test
-    void everyPeriodStartsAtTheFirstEntryAtTheEarliest() {
-        // First entry in August: two months count, whatever the period
-        ReserveResponse three = averageOver(3, month("2026-08"), twoYears());
-        assertThat(three.averageMonths()).isEqualTo(2);
-        assertThat(three.history()).extracting(HistoryMonth::month).containsExactly("2026-08", "2026-09");
-        assertThat(three.averageExpenses()).isEqualByComparingTo("250.00");
-
-        ReserveResponse twentyFour = averageOver(24, month("2025-10"), twoYears());
-        assertThat(twentyFour.averageMonths()).isEqualTo(12);
-        assertThat(twentyFour.history()).first().extracting(HistoryMonth::month).isEqualTo("2025-10");
-        // (11 × 100 + 400) / 12
-        assertThat(twentyFour.averageExpenses()).isEqualByComparingTo("125.00");
-    }
-
-    @Test
-    void anyOtherPeriodWorksTheSameWay() {
-        ReserveResponse one = averageOver(1, month("2024-01"), twoYears());
-        assertThat(one.history()).extracting(HistoryMonth::month).containsExactly("2026-09");
-        assertThat(one.averageExpenses()).isEqualByComparingTo("400.00");
-
-        ReserveResponse seven = averageOver(7, month("2024-01"), twoYears());
-        assertThat(seven.averageMonths()).isEqualTo(7);
-        assertThat(seven.history()).first().extracting(HistoryMonth::month).isEqualTo("2026-03");
-        // (6 × 100 + 400) / 7
-        assertThat(seven.averageExpenses()).isEqualByComparingTo("142.86");
-    }
-
-    @Test
-    void totalsFollowTheChosenPeriod() {
-        ReserveResponse six = averageOver(6, month("2024-01"), twoYears());
-
-        assertThat(six.totalIncome()).isEqualByComparingTo("6000.00");
-        assertThat(six.totalExpenses()).isEqualByComparingTo("900.00");
-        assertThat(six.totalSurplus()).isEqualByComparingTo("5100.00");
-    }
-
-    @Test
-    void forecastAndPotLookTwelveMonthsAheadWhateverThePeriod() {
-        SeriesData insurance = series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-12-15", null);
-
-        ReserveResponse response = calculator.calculate(
-                List.of(insurance), List.of(), List.of(twoYears()), month("2024-01"), OCTOBER, 3);
-
-        assertThat(response.forecast()).hasSize(12);
-        assertThat(response.monthlyReserve()).isEqualByComparingTo("20.00");
-        assertThat(response.reserveBalance()).isEqualByComparingTo("200.00");
-    }
-
-    // --- look back over the months of the average ---
-
-    @Test
-    void lookBackListsIncomeExpensesAndSurplusOfEveryMonthOfTheAverage() {
+    void listsIncomeExpensesAndSurplusOfEveryMonthWithTheCategories() {
         PastMonth september = new PastMonth(month("2026-09"), money("3000.00"), money("3200.00"),
-                List.of(new CategoryData("Gehalt", money("3000.00"))),
-                List.of(new CategoryData("Wohnen", money("900.00")), new CategoryData("Urlaub", money("2300.00"))));
-        PastMonth[] months = IntStream.range(0, 11)
-                .mapToObj(i -> new PastMonth(OCTOBER.minusMonths(12 - i), money("3000.00"), money("1000.00"),
-                        List.of(), List.of()))
-                .toArray(PastMonth[]::new);
-        PastMonth[] all = Arrays.copyOf(months, 12);
-        all[11] = september;
+                List.of(new CategoryData(20, "Gehalt", "wallet", money("3000.00"))),
+                List.of(new CategoryData(1, "Wohnen", "home", money("900.00")),
+                        new CategoryData(9, "Urlaub", "suitcase", money("2300.00"))));
 
-        ReserveResponse response = onlyAverage(month("2025-01"), all);
+        HistoryResponse response = history("2026-08", "2026-09", month("2025-01"),
+                past("2026-08", "3000.00", "1000.00"), september);
 
-        assertThat(response.history()).extracting(HistoryMonth::month).containsExactly(
-                "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
-                "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09");
-        HistoryMonth last = response.history().get(11);
+        HistoryMonth last = response.history().get(1);
         assertThat(last.income()).isEqualByComparingTo("3000.00");
         assertThat(last.expenses()).isEqualByComparingTo("3200.00");
         assertThat(last.surplus()).isEqualByComparingTo("-200.00");
         assertThat(last.incomeCategories())
-                .containsExactly(new CategoryAmount("Gehalt", money("3000.00")));
+                .containsExactly(new CategoryAmount(20, "Gehalt", "wallet", money("3000.00")));
         assertThat(last.expenseCategories()).extracting(CategoryAmount::name).containsExactly("Wohnen", "Urlaub");
+        assertThat(last.expenseCategories()).extracting(CategoryAmount::icon).containsExactly("home", "suitcase");
         assertThat(response.history().get(0).surplus()).isEqualByComparingTo("2000.00");
-        // (11 × 2000 − 200) / 12
-        assertThat(response.averageIncome()).isEqualByComparingTo("3000.00");
-        assertThat(response.averageExpenses()).isEqualByComparingTo("1183.33");
-        assertThat(response.averageSurplus()).isEqualByComparingTo("1816.67");
+        // (2000 - 200) / 2
+        assertThat(response.averageSurplus()).isEqualByComparingTo("900.00");
     }
 
     @Test
-    void lookBackStartsAtTheFirstEntryAndShowsMonthsWithoutEntriesAsZero() {
-        ReserveResponse response = onlyAverage(month("2026-07"),
-                past("2026-06", "999.00", "999.00"),
+    void showsMonthsWithoutEntriesAsZero() {
+        HistoryResponse response = history("2026-07", "2026-09", month("2026-07"),
                 past("2026-07", "500.00", "300.00"),
                 past("2026-09", "0.00", "150.00"));
 
-        assertThat(response.history()).extracting(HistoryMonth::month)
-                .containsExactly("2026-07", "2026-08", "2026-09");
         HistoryMonth august = response.history().get(1);
+        assertThat(august.month()).isEqualTo("2026-08");
         assertThat(august.income()).isEqualByComparingTo("0.00");
         assertThat(august.expenses()).isEqualByComparingTo("0.00");
         assertThat(august.surplus()).isEqualByComparingTo("0.00");
@@ -267,41 +213,17 @@ class ReserveCalculatorTest {
     }
 
     @Test
-    void lookBackHandlesAMonthWithoutIncome() {
-        PastMonth september = new PastMonth(month("2026-09"), BigDecimal.ZERO, money("200.00"), List.of(),
-                List.of(new CategoryData("Wohnen", money("200.00"))));
-
-        HistoryMonth month = onlyAverage(month("2026-09"), september).history().get(0);
-
-        assertThat(month.income()).isEqualByComparingTo("0.00");
-        assertThat(month.surplus()).isEqualByComparingTo("-200.00");
-        assertThat(month.expenseCategories()).containsExactly(new CategoryAmount("Wohnen", money("200.00")));
-    }
-
-    @Test
-    void totalSumsTheMonthsOfTheLookBack() {
+    void totalSumsTheCountedMonthsWithScaleTwo() {
         // August without income still counts in the total
-        ReserveResponse response = onlyAverage(month("2026-07"),
+        HistoryResponse response = history("2026-07", "2026-09", month("2026-07"),
                 past("2026-07", "2000.00", "500.00"),
                 past("2026-08", "0.00", "300.00"),
                 past("2026-09", "1000.00", "700.00"));
 
-        assertThat(response.totalIncome()).isEqualByComparingTo("3000.00");
-        assertThat(response.totalExpenses()).isEqualByComparingTo("1500.00");
-        assertThat(response.totalSurplus()).isEqualByComparingTo("1500.00");
-        assertThat(response.totalExpenses().scale()).isEqualTo(2);
-    }
-
-    @Test
-    void hasNoTotalWithoutACompletedMonth() {
-        ReserveResponse empty = onlyAverage(null);
-        assertThat(empty.totalIncome()).isNull();
-        assertThat(empty.totalExpenses()).isNull();
-        assertThat(empty.totalSurplus()).isNull();
-
-        ReserveResponse withoutIncome = onlyAverage(month("2026-09"), expenses("2026-09", "100.00"));
-        assertThat(withoutIncome.totalIncome()).isEqualByComparingTo("0.00");
-        assertThat(withoutIncome.totalExpenses()).isEqualByComparingTo("100.00");
+        assertThat(response.total().income()).isEqualByComparingTo("3000.00");
+        assertThat(response.total().expenses()).isEqualByComparingTo("1500.00");
+        assertThat(response.total().surplus()).isEqualByComparingTo("1500.00");
+        assertThat(response.total().expenses().scale()).isEqualTo(2);
     }
 
     // --- reserve pot ---
@@ -391,13 +313,13 @@ class ReserveCalculatorTest {
 
     @Test
     void forecastIncludesSingleExpensesButNoIncome() {
-        ReserveResponse response = calculator.calculate(
+        ReserveResponse response = calculator.outlook(
                 List.of(series(1, "Streaming", "-15.00", RecurringInterval.MONTHLY, "2026-01-28", null),
                         series(2, "Gehalt", "3000.00", RecurringInterval.MONTHLY, "2026-01-01", null)),
                 List.of(single(7, "Geschenke", "2026-12-20", "-50.00"),
                         single(8, "Erstattung", "2026-12-21", "30.00"),
                         single(9, "Zu spät", "2027-10-01", "-80.00")),
-                List.of(), null, OCTOBER, 12);
+                OCTOBER);
 
         assertThat(totals(response).subList(0, 3)).containsExactly("15.00", "15.00", "65.00");
         assertThat(response.forecast().get(2).entries()).containsExactly(
@@ -416,11 +338,42 @@ class ReserveCalculatorTest {
     // --- fixture F1 (spec section 12) ---
 
     @Test
-    void fixtureF1() {
+    void fixtureF1LookBack() {
         List<PastMonth> past = IntStream.rangeClosed(1, 9)
-                .mapToObj(m -> new PastMonth(YearMonth.of(2026, m), BigDecimal.ZERO,
-                        money(m == 9 ? "1914.00" : "915.00"), List.of(), List.of()))
+                .mapToObj(m -> new PastMonth(YearMonth.of(2026, m), money("3000.00"),
+                        money(m == 9 ? "1914.00" : "915.00"),
+                        List.of(new CategoryData(15, "Gehalt/Lohn (netto)", "wallet", money("3000.00"))),
+                        m == 9
+                                ? List.of(new CategoryData(1, "Wohnen", "home", money("900.00")),
+                                        new CategoryData(7, "Lebensmittel", "cart", money("999.00")),
+                                        new CategoryData(8, "Freizeit", "music", money("15.00")))
+                                : List.of(new CategoryData(1, "Wohnen", "home", money("900.00")),
+                                        new CategoryData(8, "Freizeit", "music", money("15.00")))))
                 .toList();
+
+        HistoryResponse response = calculator.history(past, month("2026-01"), month("2025-10"), month("2026-09"));
+
+        assertThat(response.from()).isEqualTo("2025-10");
+        assertThat(response.to()).isEqualTo("2026-09");
+        assertThat(response.months()).isEqualTo(9);
+        assertThat(response.averageIncome()).isEqualByComparingTo("3000.00");
+        assertThat(response.averageExpenses()).isEqualByComparingTo("1026.00");
+        assertThat(response.averageSurplus()).isEqualByComparingTo("1974.00");
+        assertThat(response.history()).hasSize(9);
+        assertThat(response.history().get(0).surplus()).isEqualByComparingTo("2085.00");
+        assertThat(response.history().get(8).expenses()).isEqualByComparingTo("1914.00");
+        assertThat(response.history().get(8).surplus()).isEqualByComparingTo("1086.00");
+        assertThat(response.total().income()).isEqualByComparingTo("27000.00");
+        assertThat(response.total().expenses()).isEqualByComparingTo("9234.00");
+        assertThat(response.total().surplus()).isEqualByComparingTo("17766.00");
+
+        HistoryResponse september = calculator.history(past, month("2026-01"), month("2026-09"), month("2026-09"));
+        assertThat(september.months()).isEqualTo(1);
+        assertThat(september.averageExpenses()).isEqualByComparingTo("1914.00");
+    }
+
+    @Test
+    void fixtureF1Outlook() {
         List<SingleData> singles = List.of(
                 single(1, "Gehalt", "2026-10-01", "3000.00"),
                 single(2, "Nebenjob", "2026-10-10", "200.00"),
@@ -433,23 +386,14 @@ class ReserveCalculatorTest {
                 single(9, "Tanken", "2026-10-06", "-45.99"),
                 single(10, "Sparplan", "2026-10-15", "-640.00"),
                 single(11, "Geschenk", "2026-10-20", "-20.00"));
+        List<SeriesData> series = List.of(
+                series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
+                series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null),
+                series(3, "Fitness", "-15.00", RecurringInterval.MONTHLY, "2026-01-05", null, "2026-10-05"));
 
-        ReserveResponse response = calculator.calculate(List.of(
-                        series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
-                        series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null),
-                        series(3, "Fitness", "-15.00", RecurringInterval.MONTHLY, "2026-01-05", null, "2026-10-05")),
-                singles, past, month("2026-01"), OCTOBER, 12);
+        ReserveResponse response = calculator.outlook(series, singles, OCTOBER);
 
         assertThat(response.month()).isEqualTo("2026-10");
-        assertThat(response.averageMonths()).isEqualTo(9);
-        assertThat(response.averageExpenses()).isEqualByComparingTo("1026.00");
-        assertThat(response.averageIncome()).isEqualByComparingTo("0.00");
-        assertThat(response.averageSurplus()).isEqualByComparingTo("-1026.00");
-        assertThat(response.history()).hasSize(9);
-        assertThat(response.history().get(8).surplus()).isEqualByComparingTo("-1914.00");
-        assertThat(response.totalIncome()).isEqualByComparingTo("0.00");
-        assertThat(response.totalExpenses()).isEqualByComparingTo("9234.00");
-        assertThat(response.totalSurplus()).isEqualByComparingTo("-9234.00");
         assertThat(response.reserves()).extracting(ReserveLine::description).containsExactly("Haftpflicht");
         assertThat(response.monthlyReserve()).isEqualByComparingTo("20.00");
         assertThat(response.reserveBalance()).isEqualByComparingTo("240.00");
@@ -457,5 +401,9 @@ class ReserveCalculatorTest {
                 "2636.49", "915.00", "915.00", "915.00", "915.00", "915.00",
                 "915.00", "915.00", "915.00", "915.00", "915.00", "915.00");
         assertThat(response.forecast().get(0).entries()).hasSize(10);
+
+        // From November 2026 the next occurrence is 2027-10-15 (k = 11)
+        assertThat(calculator.outlook(series, List.of(), month("2026-11")).reserveBalance())
+                .isEqualByComparingTo("20.00");
     }
 }

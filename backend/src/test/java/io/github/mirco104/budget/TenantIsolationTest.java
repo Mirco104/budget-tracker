@@ -93,6 +93,9 @@ class TenantIsolationTest {
                 .andExpect(jsonPath("$.incomeTotal").value(0))
                 .andExpect(jsonPath("$.categories", empty()));
         asC.perform(get("/api/reserves").param("month", "2026-11"))
+                .andExpect(jsonPath("$.reserves", empty()));
+        asC.perform(get("/api/history").param("from", "2026-01").param("to", "2026-09"))
+                .andExpect(jsonPath("$.months").value(0))
                 .andExpect(jsonPath("$.history", empty()));
 
         // Person B still sees all of it
@@ -169,7 +172,7 @@ class TenantIsolationTest {
         MockMvc anonymous = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
 
         for (String url : new String[] {"/api/categories", "/api/transactions", "/api/recurring-transactions",
-                "/api/dashboard", "/api/reserves", "/api/auth/me"}) {
+                "/api/dashboard", "/api/reserves", "/api/history", "/api/auth/me"}) {
             anonymous.perform(get(url).param("month", MONTH))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.status").value(401));

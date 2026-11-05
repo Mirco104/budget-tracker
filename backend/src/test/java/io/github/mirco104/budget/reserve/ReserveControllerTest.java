@@ -14,6 +14,8 @@ import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserService;
+import java.time.Clock;
+import java.time.YearMonth;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,11 +49,13 @@ class ReserveControllerTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @Autowired
+    private Clock clock;
+
     // --- Reference fixture F1 (spec section 12), end to end (R14, US13) ---
 
     @Test
     void referenceFixtureF1MatchesSpec() throws Exception {
-        postTransaction("3000.00", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));
         postTransaction("200.00", "Nebenjob", "2026-10-10", categoryId("Nebenjob"));
         postTransaction("-200.00", "Strom", "2026-10-02", categoryId("Nebenkosten"));
         postTransaction("-140.00", "Wasser", "2026-10-03", categoryId("Nebenkosten"));
@@ -63,6 +67,8 @@ class ReserveControllerTest {
         postTransaction("-640.00", "Sparplan", "2026-10-15", categoryId("Investitionen"));
         postTransaction("-20.00", "Geschenk", "2026-10-20", categoryId("Geschenke"));
         postTransaction("-999.00", "Einkauf September", "2026-09-30", categoryId("Lebensmittel"));
+        // Since decision 26 the salary is a monthly series from 2026-01 (spec section 12)
+        postSeries("3000.00", "Gehalt", categoryId("Gehalt/Lohn (netto)"), "MONTHLY", "2026-01-01");
         postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2026-01-01");
         postSeries("-240.00", "Haftpflicht", categoryId("Versicherungen"), "YEARLY", "2026-10-15");
         long streaming = postSeries("-15.00", "Streaming", categoryId("Freizeit"), "MONTHLY", "2026-01-05");
@@ -70,20 +76,43 @@ class ReserveControllerTest {
                         .param("scope", "THIS"))
                 .andExpect(status().isNoContent());
 
+        // Look back with the default period of F1 (2025-10 to 2026-09)
+        mockMvc.perform(get("/api/history").param("from", "2025-10").param("to", "2026-09"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value("2025-10"))
+                .andExpect(jsonPath("$.to").value("2026-09"))
+                .andExpect(jsonPath("$.months").value(9))
+                .andExpect(jsonPath("$.averageIncome").value(3000.00))
+                .andExpect(jsonPath("$.averageExpenses").value(1026.00))
+                .andExpect(jsonPath("$.averageSurplus").value(1974.00))
+                .andExpect(jsonPath("$.total.income").value(27000.00))
+                .andExpect(jsonPath("$.total.expenses").value(9234.00))
+                .andExpect(jsonPath("$.total.surplus").value(17766.00))
+                .andExpect(jsonPath("$.history", hasSize(9)))
+                .andExpect(jsonPath("$.history[0].month").value("2026-01"))
+                .andExpect(jsonPath("$.history[0].income").value(3000.00))
+                .andExpect(jsonPath("$.history[0].expenses").value(915.00))
+                .andExpect(jsonPath("$.history[0].surplus").value(2085.00))
+                .andExpect(jsonPath("$.history[0].incomeCategories[0].name").value("Gehalt/Lohn (netto)"))
+                .andExpect(jsonPath("$.history[0].incomeCategories[0].icon").value("wallet"))
+                .andExpect(jsonPath("$.history[8].month").value("2026-09"))
+                .andExpect(jsonPath("$.history[8].expenses").value(1914.00))
+                .andExpect(jsonPath("$.history[8].surplus").value(1086.00))
+                .andExpect(jsonPath("$.history[8].expenseCategories[?(@.name == 'Lebensmittel')].amount",
+                        contains(999.00)))
+                .andExpect(jsonPath("$.history[8].expenseCategories[?(@.name == 'Wohnen')].icon",
+                        contains("home")));
+
+        mockMvc.perform(get("/api/history").param("from", "2026-09").param("to", "2026-09"))
+                .andExpect(jsonPath("$.months").value(1))
+                .andExpect(jsonPath("$.averageExpenses").value(1914.00));
+
+        // Outlook from October 2026 (R14); the look back is not part of it any more (decision 29)
         mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.month").value("2026-10"))
-                .andExpect(jsonPath("$.averageExpenses").value(1026.00))
-                .andExpect(jsonPath("$.averageMonths").value(9))
-                .andExpect(jsonPath("$.averageIncome").value(0.00))
-                .andExpect(jsonPath("$.averageSurplus").value(-1026.00))
-                .andExpect(jsonPath("$.history", hasSize(9)))
-                .andExpect(jsonPath("$.history[0].month").value("2026-01"))
-                .andExpect(jsonPath("$.history[8].month").value("2026-09"))
-                .andExpect(jsonPath("$.history[8].expenses").value(1914.00))
-                .andExpect(jsonPath("$.history[8].surplus").value(-1914.00))
-                .andExpect(jsonPath("$.history[8].expenseCategories[?(@.name == 'Lebensmittel')].amount",
-                        contains(999.00)))
+                .andExpect(jsonPath("$.history").doesNotExist())
+                .andExpect(jsonPath("$.averageExpenses").doesNotExist())
                 .andExpect(jsonPath("$.monthlyReserve").value(20.00))
                 .andExpect(jsonPath("$.reserveBalance").value(240.00))
                 .andExpect(jsonPath("$.reserves[*].description", contains("Haftpflicht")))
@@ -107,8 +136,7 @@ class ReserveControllerTest {
         // November: the pot starts again with one monthly rate (R14)
         mockMvc.perform(get("/api/reserves").param("month", "2026-11"))
                 .andExpect(jsonPath("$.reserves[0].nextDate").value("2027-10-15"))
-                .andExpect(jsonPath("$.reserveBalance").value(20.00))
-                .andExpect(jsonPath("$.averageMonths").value(10));
+                .andExpect(jsonPath("$.reserveBalance").value(20.00));
     }
 
     @Test
@@ -119,10 +147,7 @@ class ReserveControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.forecast[2].month").value("2026-12"))
                 .andExpect(jsonPath("$.forecast[2].total").value(80.00))
-                .andExpect(jsonPath("$.forecast[2].entries[0].description").value("Konzertkarten"))
-                // The first entry lies after October, so no completed month counts yet
-                .andExpect(jsonPath("$.averageMonths").value(0))
-                .andExpect(jsonPath("$.averageExpenses").value(nullValue()));
+                .andExpect(jsonPath("$.forecast[2].entries[0].description").value("Konzertkarten"));
     }
 
     @Test
@@ -131,107 +156,140 @@ class ReserveControllerTest {
         postTransaction("-800.00", "Miete", "2026-09-03", categoryId("Wohnen"));
         postTransaction("-50.00", "Einkauf", "2026-10-02", categoryId("Lebensmittel"));
 
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
+        mockMvc.perform(get("/api/history").param("from", "2026-01").param("to", "2026-09"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.averageMonths").value(1))
+                .andExpect(jsonPath("$.months").value(1))
                 .andExpect(jsonPath("$.history", hasSize(1)))
                 .andExpect(jsonPath("$.history[0].month").value("2026-09"))
                 .andExpect(jsonPath("$.history[0].income").value(2500.00))
                 .andExpect(jsonPath("$.history[0].expenses").value(800.00))
                 .andExpect(jsonPath("$.history[0].surplus").value(1700.00))
                 .andExpect(jsonPath("$.history[0].incomeCategories[0].name").value("Gehalt/Lohn (netto)"))
-                .andExpect(jsonPath("$.history[0].expenseCategories[0].name").value("Wohnen"))
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].id").value(categoryId("Wohnen")))
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].amount").value(800.00))
                 .andExpect(jsonPath("$.averageIncome").value(2500.00))
                 .andExpect(jsonPath("$.averageSurplus").value(1700.00))
-                .andExpect(jsonPath("$.history[0].expenseCategories[0].amount").value(800.00))
                 // Decision 34: no shares any more
-                .andExpect(jsonPath("$.history[0].expensesShare").doesNotExist())
                 .andExpect(jsonPath("$.history[0].expenseCategories[0].share").doesNotExist())
-                .andExpect(jsonPath("$.totalIncome").value(2500.00))
-                .andExpect(jsonPath("$.totalExpenses").value(800.00))
-                .andExpect(jsonPath("$.totalSurplus").value(1700.00))
-                .andExpect(jsonPath("$.expensesShare").doesNotExist());
+                .andExpect(jsonPath("$.total.expenses").value(800.00));
     }
 
     @Test
-    void showsEmptyMonthWithoutErrors() throws Exception {
+    void looksBackOverACalendarYear() throws Exception {
+        postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2025-01-01");
+
+        mockMvc.perform(get("/api/history").param("from", "2025-01").param("to", "2025-12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months").value(12))
+                .andExpect(jsonPath("$.total.expenses").value(10800.00));
+    }
+
+    // Without parameters the 12 months before the current month (R14)
+    @Test
+    void looksBackOverTheTwelveMonthsBeforeTheCurrentMonthByDefault() throws Exception {
+        YearMonth current = YearMonth.now(clock);
+        postSeries("-100.00", "Abo", categoryId("Freizeit"), "MONTHLY", current.minusMonths(30).atDay(1).toString());
+
+        mockMvc.perform(get("/api/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(current.minusMonths(12).toString()))
+                .andExpect(jsonPath("$.to").value(current.minusMonths(1).toString()))
+                .andExpect(jsonPath("$.months").value(12))
+                .andExpect(jsonPath("$.averageExpenses").value(100.00));
+    }
+
+    @Test
+    void showsAnEmptyLookBackWithoutErrors() throws Exception {
+        mockMvc.perform(get("/api/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months").value(0))
+                .andExpect(jsonPath("$.averageExpenses").value(nullValue()))
+                .andExpect(jsonPath("$.total").value(nullValue()))
+                .andExpect(jsonPath("$.history", hasSize(0)));
+    }
+
+    @Test
+    void showsAnEmptyOutlookWithoutErrors() throws Exception {
         mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.averageExpenses").value(nullValue()))
-                .andExpect(jsonPath("$.averageMonths").value(0))
-                .andExpect(jsonPath("$.history", hasSize(0)))
-                .andExpect(jsonPath("$.totalExpenses").value(nullValue()))
                 .andExpect(jsonPath("$.monthlyReserve").value(0.00))
                 .andExpect(jsonPath("$.reserveBalance").value(0.00))
                 .andExpect(jsonPath("$.reserves", hasSize(0)))
                 .andExpect(jsonPath("$.forecast", hasSize(12)));
     }
 
-    // --- chosen period (R14) ---
-
+    // Without a month the outlook starts in the current month (decision 29)
     @Test
-    void averagesAndLooksBackOverTheChosenPeriod() throws Exception {
-        postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2026-01-01");
-        postTransaction("-999.00", "Einkauf September", "2026-09-30", categoryId("Lebensmittel"));
-
-        // (6 × 900 + 999) / 6
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", "6"))
+    void outlookStartsInTheCurrentMonthByDefault() throws Exception {
+        mockMvc.perform(get("/api/reserves"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.averageMonths").value(6))
-                .andExpect(jsonPath("$.history", hasSize(6)))
-                .andExpect(jsonPath("$.history[0].month").value("2026-04"))
-                .andExpect(jsonPath("$.averageExpenses").value(1066.50))
-                .andExpect(jsonPath("$.totalExpenses").value(6399.00))
-                .andExpect(jsonPath("$.forecast", hasSize(12)));
-
-        // Without the parameter 12 months, limited by the first entry in January
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10"))
-                .andExpect(jsonPath("$.averageMonths").value(9))
-                .andExpect(jsonPath("$.history[0].month").value("2026-01"));
-
-        // 24 months are limited by the first entry as well
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", "24"))
-                .andExpect(jsonPath("$.averageMonths").value(9));
+                .andExpect(jsonPath("$.month").value(YearMonth.now(clock).toString()))
+                .andExpect(jsonPath("$.forecast[0].month").value(YearMonth.now(clock).toString()));
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"1", "120"})
-    void acceptsThePeriodBounds(String months) throws Exception {
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", months))
+    // --- validation of the look back (R14, US13) ---
+
+    @Test
+    void acceptsTheLastCompletedMonthAndExactly120Months() throws Exception {
+        YearMonth last = YearMonth.now(clock).minusMonths(1);
+
+        mockMvc.perform(get("/api/history").param("from", last.minusMonths(119).toString())
+                        .param("to", last.toString()))
                 .andExpect(status().isOk());
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"0", "-1", "121"})
-    void rejectsPeriodOutsideTheBounds(String months) throws Exception {
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", months))
+    @Test
+    void rejectsMoreThan120Months() throws Exception {
+        YearMonth last = YearMonth.now(clock).minusMonths(1);
+
+        mockMvc.perform(get("/api/history").param("from", last.minusMonths(120).toString())
+                        .param("to", last.toString()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Ungültige Anfrage"))
-                .andExpect(jsonPath("$.errors[0].field").value("months"));
+                .andExpect(jsonPath("$.errors[0].field").value("from"))
+                .andExpect(jsonPath("$.errors[0].message").value("Der Zeitraum darf höchstens 120 Monate lang sein."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1})
+    void rejectsToInTheCurrentMonthOrLater(int monthsAhead) throws Exception {
+        YearMonth to = YearMonth.now(clock).plusMonths(monthsAhead);
+
+        mockMvc.perform(get("/api/history").param("from", to.minusMonths(3).toString()).param("to", to.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("to"))
+                .andExpect(jsonPath("$.errors[0].message").value("„Bis“ muss vor dem aktuellen Monat liegen."));
     }
 
     @Test
-    void rejectsPeriodThatIsNoNumber() throws Exception {
-        mockMvc.perform(get("/api/reserves").param("month", "2026-10").param("months", "zwölf"))
+    void rejectsFromAfterTo() throws Exception {
+        mockMvc.perform(get("/api/history").param("from", "2026-05").param("to", "2026-04"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].message").value("„Bis“ darf nicht vor „Von“ liegen."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"from", "to"})
+    void rejectsOnlyOneMonth(String given) throws Exception {
+        String missing = given.equals("from") ? "to" : "from";
+        mockMvc.perform(get("/api/history").param(given, "2026-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Der Parameter '" + missing + "' fehlt."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-13", "2026-1", "Januar", "2026-01-01"})
+    void rejectsInvalidMonthsInTheLookBack(String month) throws Exception {
+        mockMvc.perform(get("/api/history").param("from", month).param("to", "2026-02"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
     }
 
-    // --- validation ---
-
     @ParameterizedTest
-    @ValueSource(strings = {"2026-13", "2026-1", "Oktober", ""})
-    void rejectsInvalidMonth(String month) throws Exception {
+    @ValueSource(strings = {"2026-13", "2026-1", "Oktober"})
+    void rejectsInvalidMonthInTheOutlook(String month) throws Exception {
         mockMvc.perform(get("/api/reserves").param("month", month))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
-    }
-
-    @Test
-    void rejectsMissingMonth() throws Exception {
-        mockMvc.perform(get("/api/reserves"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("Der Parameter 'month' fehlt."));
     }
 
     private void postTransaction(String amount, String description, String date, long categoryId)
