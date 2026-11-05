@@ -9,72 +9,29 @@ const dashboard: DashboardData = {
   month: '2026-10',
   monthState: 'PAST',
   incomeTotal: 2000,
-  incomeTotalShare: 1,
   averageIncome: 2000,
+  averageExpenses: 912.5,
   averageIncomeMonths: 12,
   averageIncomeFrom: '2025-10',
   averageIncomeTo: '2026-09',
-  averageIncomeShare: 1,
   expenses: {
     target: 960,
     actual: 895,
     difference: 65,
-    targetShare: 0.48,
-    actualShare: 0.4475,
-    differenceShare: 0.0325,
     recurring: 840,
     oneOff: 55,
-    recurringShare: 0.42,
-    oneOffShare: 0.0275,
   },
   unplanned: 1040,
   unplannedLabel: 'Nicht verplant',
   surplus: 1105,
   surplusLabel: 'Monatlicher Überschuss',
-  surplusShare: 0.5525,
   categories: [
-    {
-      id: 1,
-      name: 'Wohnen',
-      target: 800,
-      actual: 780,
-      difference: 20,
-      targetShare: 0.4,
-      actualShare: 0.39,
-      differenceShare: 0.01,
-    },
-    {
-      id: 3,
-      name: 'Versicherungen',
-      target: 60,
-      actual: 80,
-      difference: -20,
-      targetShare: 0.03,
-      actualShare: 0.04,
-      differenceShare: -0.01,
-    },
-    {
-      id: 8,
-      name: 'Freizeit',
-      target: 100,
-      actual: 0,
-      difference: 100,
-      targetShare: 0.05,
-      actualShare: 0,
-      differenceShare: 0.05,
-    },
-    {
-      id: 9,
-      name: 'Urlaub',
-      target: null,
-      actual: 35,
-      difference: null,
-      targetShare: null,
-      actualShare: 0.0175,
-      differenceShare: null,
-    },
+    { id: 1, name: 'Wohnen', target: 800, actual: 780, difference: 20 },
+    { id: 3, name: 'Versicherungen', target: 60, actual: 80, difference: -20 },
+    { id: 8, name: 'Freizeit', target: 100, actual: 0, difference: 100 },
+    { id: 9, name: 'Urlaub', target: null, actual: 35, difference: null },
   ],
-  income: [{ id: 20, name: 'Gehalt', actual: 2000, share: 1 }],
+  income: [{ id: 20, name: 'Gehalt', actual: 2000 }],
 }
 
 function category(id: number, name: string, icon: string, targetAmount: number | null = null): Category {
@@ -153,7 +110,7 @@ function item(name: string) {
 }
 
 describe('DashboardPage', () => {
-  it('requests the selected month and shows income with its average, expenses and surplus', async () => {
+  it('requests the selected month and shows income and expenses with their averages and the surplus', async () => {
     const fetchMock = renderPage()
 
     expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
@@ -163,9 +120,34 @@ describe('DashboardPage', () => {
     expect(tile('Ausgaben')).toHaveTextContent('895,00 €')
     expect(screen.getByText(/davon wiederkehrend/)).toHaveTextContent('840,00 €')
     expect(screen.getByText(/davon einmalig/)).toHaveTextContent('55,00 €')
+    // R23, decision 34: Ā over the same months as the Ø income
+    expect(screen.getByText(/^Ø 912,50 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
     expect(tile('Monatlicher Überschuss')).toHaveTextContent('1.105,00 €')
     expect(screen.getByText('Abgeschlossener Monat.')).toBeInTheDocument()
     expect(screen.queryByText(/Nicht verplant/)).not.toBeInTheDocument()
+  })
+
+  // Decision 34: euros only
+  it('has no switch between euros and percent', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '%' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Anzeige' })).not.toBeInTheDocument()
+  })
+
+  it('leaves out both averages when no month counts', async () => {
+    renderPage({
+      ...dashboard,
+      averageIncome: null,
+      averageExpenses: null,
+      averageIncomeMonths: 0,
+      averageIncomeFrom: null,
+      averageIncomeTo: null,
+    })
+
+    expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
+    expect(screen.queryByText(/^Ø /)).not.toBeInTheDocument()
   })
 
   it('calls the surplus "Noch frei" in the current month', async () => {
@@ -173,6 +155,15 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('Noch frei', { selector: 'dt' })).toBeInTheDocument()
     expect(screen.getByText(/Laufender Monat/)).toBeInTheDocument()
+  })
+
+  // R7, decision 34: the amount keeps its minus sign, in the warning color
+  it('shows an overrun with minus sign in the warning color', async () => {
+    renderPage({ ...dashboard, monthState: 'CURRENT', surplus: -120.5, surplusLabel: 'Überschritten' })
+
+    expect(await screen.findByText('Überschritten', { selector: 'dt' })).toBeInTheDocument()
+    expect(tile('Überschritten')).toHaveTextContent('-120,50 €')
+    expect(tile('Überschritten')).toHaveClass('negative')
   })
 
   it('shows each category with icon, actual of target, progress and what is left', async () => {
@@ -199,56 +190,13 @@ describe('DashboardPage', () => {
     expect(item('Gehalt')).toHaveTextContent('2.000,00 €')
   })
 
-  it('switches all values to shares of the income', async () => {
-    renderPage()
+  it('shows a month without income', async () => {
+    renderPage({ ...dashboard, incomeTotal: 0, surplus: -895, surplusLabel: 'Monatlicher Verlust', income: [] })
 
-    fireEvent.click(await screen.findByRole('button', { name: '%' }))
-
-    expect(screen.getByRole('button', { name: '%' })).toHaveAttribute('aria-pressed', 'true')
-    expect(tile('Einnahmen')).toHaveTextContent('100,00 %')
-    expect(screen.getByText(/^Ø 100,00 %/)).toBeInTheDocument()
-    expect(tile('Ausgaben')).toHaveTextContent('44,75 %')
-    expect(screen.getByText(/davon wiederkehrend/)).toHaveTextContent('42,00 %')
-    expect(screen.getByText(/davon einmalig/)).toHaveTextContent('2,75 %')
-    expect(tile('Monatlicher Überschuss')).toHaveTextContent('55,25 %')
-    expect(item('Wohnen')).toHaveTextContent('39,00 % von 40,00 %')
-    expect(item('Versicherungen')).toHaveTextContent('1,00 % über dem Soll')
-    expect(item('Gehalt')).toHaveTextContent('100,00 %')
-    expect(screen.queryByText(/2\.000,00/)).not.toBeInTheDocument()
-  })
-
-  it('shows dashes for shares without income', async () => {
-    renderPage({
-      ...dashboard,
-      incomeTotal: 0,
-      incomeTotalShare: null,
-      averageIncomeShare: null,
-      surplus: -895,
-      surplusLabel: 'Monatlicher Verlust',
-      surplusShare: null,
-      expenses: {
-        ...dashboard.expenses,
-        targetShare: null,
-        actualShare: null,
-        differenceShare: null,
-        recurringShare: null,
-        oneOffShare: null,
-      },
-      categories: dashboard.categories.map((line) => ({
-        ...line,
-        targetShare: null,
-        actualShare: null,
-        differenceShare: null,
-      })),
-      income: [],
-    })
-
-    fireEvent.click(await screen.findByRole('button', { name: '%' }))
-
-    expect(tile('Einnahmen')).toHaveTextContent('–')
-    expect(tile('Monatlicher Verlust')).toHaveTextContent('–')
-    expect(screen.getByText(/davon wiederkehrend/)).toHaveTextContent('–')
-    expect(item('Wohnen')).toHaveTextContent('– von –')
+    expect(await screen.findByText('Monatlicher Verlust', { selector: 'dt' })).toBeInTheDocument()
+    expect(tile('Einnahmen')).toHaveTextContent('0,00 €')
+    expect(tile('Monatlicher Verlust')).toHaveTextContent('-895,00 €')
+    expect(item('Wohnen')).toHaveTextContent('780,00 € von 800,00 €')
     expect(screen.getByText('In diesem Monat gibt es keine Einnahmen.')).toBeInTheDocument()
   })
 

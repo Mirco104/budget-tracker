@@ -7,13 +7,11 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { formatDate, formatEuro, formatPercent } from '../format'
+import { formatDate, formatEuro } from '../format'
 import { averagePeriod } from '../labels'
 import { ROUTES } from '../router'
 
-type Unit = 'euro' | 'percent'
-
-type Line = Pick<CategoryLine, 'target' | 'actual' | 'difference' | 'targetShare' | 'actualShare' | 'differenceShare'>
+type Line = Pick<CategoryLine, 'target' | 'actual' | 'difference'>
 
 const MONTH_NOTES: Record<DashboardData['monthState'], string> = {
   PAST: 'Abgeschlossener Monat.',
@@ -25,13 +23,6 @@ function signClass(value: number | null): string | undefined {
   return value !== null && value < 0 ? 'negative' : undefined
 }
 
-/** The values of a line in the chosen unit; shares are null without income and show as a dash. */
-function valuesOf(line: Line, unit: Unit) {
-  return unit === 'euro'
-    ? { target: line.target, actual: line.actual, difference: line.difference }
-    : { target: line.targetShare, actual: line.actualShare, difference: line.differenceShare }
-}
-
 interface Props {
   month: string
   /** Shows the month navigation in the page header (US8). */
@@ -39,27 +30,17 @@ interface Props {
 }
 
 export function DashboardPage({ month, onMonthChange }: Props) {
-  const [unit, setUnit] = useState<Unit>('euro')
-
   return (
     <section>
       <PageHeader title="Übersicht">
         {onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}
-        <div className="unit-toggle" role="group" aria-label="Anzeige">
-          <button type="button" aria-pressed={unit === 'euro'} onClick={() => setUnit('euro')}>
-            €
-          </button>
-          <button type="button" aria-pressed={unit === 'percent'} onClick={() => setUnit('percent')}>
-            %
-          </button>
-        </div>
       </PageHeader>
-      <DashboardContent month={month} unit={unit} />
+      <DashboardContent month={month} />
     </section>
   )
 }
 
-function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
+function DashboardContent({ month }: { month: string }) {
   const { data, isPending, error } = useDashboard(month)
   // The dashboard lines carry no icon; the categories do (US28)
   const categories = useCategories(month)
@@ -68,11 +49,9 @@ function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
     return <p>Lade Übersicht …</p>
   }
   if (error) {
-    return <p className="error">Dashboard konnte nicht geladen werden: {error.message}</p>
+    return <p className="error">Übersicht konnte nicht geladen werden: {error.message}</p>
   }
 
-  const format = (amount: number | null, share: number | null) =>
-    unit === 'euro' ? formatEuro(amount) : formatPercent(share)
   const iconOf = (id: number) => categories.data?.find((category) => category.id === id)?.icon ?? 'tag'
 
   // US5: nothing booked and planned yet. Only the current month counts, an empty past month is just empty.
@@ -87,28 +66,35 @@ function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
       <dl className="summary">
         <div>
           <dt>Einnahmen</dt>
-          <dd>{format(data.incomeTotal, data.incomeTotalShare)}</dd>
+          <dd>{formatEuro(data.incomeTotal)}</dd>
           {/* R23: the Ø of the months before is the basis of the percent targets */}
           {data.averageIncome !== null && (
             <dd className="tile-note">
-              Ø {format(data.averageIncome, data.averageIncomeShare)} · {averagePeriod(data)}
+              Ø {formatEuro(data.averageIncome)} · {averagePeriod(data)}
             </dd>
           )}
         </div>
         <div>
           <dt>Ausgaben</dt>
-          <dd>{format(data.expenses.actual, data.expenses.actualShare)}</dd>
+          <dd>{formatEuro(data.expenses.actual)}</dd>
           {/* R10: recurring transactions are the fixed costs, single transactions the rest */}
           <dd className="breakdown">
-            davon wiederkehrend <span>{format(data.expenses.recurring, data.expenses.recurringShare)}</span>
+            davon wiederkehrend <span>{formatEuro(data.expenses.recurring)}</span>
           </dd>
           <dd className="breakdown">
-            davon einmalig <span>{format(data.expenses.oneOff, data.expenses.oneOffShare)}</span>
+            davon einmalig <span>{formatEuro(data.expenses.oneOff)}</span>
           </dd>
+          {/* R23, decision 34: Ā over the same months as the Ø income */}
+          {data.averageExpenses !== null && (
+            <dd className="tile-note">
+              Ø {formatEuro(data.averageExpenses)} · {averagePeriod(data)}
+            </dd>
+          )}
         </div>
         <div>
           <dt>{data.surplusLabel}</dt>
-          <dd className={signClass(data.surplus)}>{format(data.surplus, data.surplusShare)}</dd>
+          {/* R7: "Überschritten" keeps the minus sign, in the warning color */}
+          <dd className={signClass(data.surplus)}>{formatEuro(data.surplus)}</dd>
         </div>
       </dl>
 
@@ -120,12 +106,12 @@ function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
       ) : (
         <ul className="budget-list">
           {data.categories.map((line) => (
-            <BudgetItem key={line.id} line={line} icon={iconOf(line.id)} unit={unit} month={month} />
+            <BudgetItem key={line.id} line={line} icon={iconOf(line.id)} month={month} />
           ))}
           <li className="budget-item budget-total">
             <div className="budget-head">
               <span className="budget-name">Gesamt</span>
-              <BudgetNumbers line={data.expenses} unit={unit} />
+              <BudgetNumbers line={data.expenses} />
             </div>
           </li>
         </ul>
@@ -141,7 +127,7 @@ function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
               <div className="budget-head">
                 <CategoryIcon icon={iconOf(line.id)} />
                 <span className="budget-name">{line.name}</span>
-                <span className="budget-amount income">{format(line.actual, line.share)}</span>
+                <span className="budget-amount income">{formatEuro(line.actual)}</span>
               </div>
             </li>
           ))}
@@ -152,21 +138,19 @@ function DashboardContent({ month, unit }: { month: string; unit: Unit }) {
 }
 
 /** "Ist von Soll" and what is left or exceeded (R5); a line without target says so and has no bar. */
-function BudgetNumbers({ line, unit }: { line: Line; unit: Unit }) {
-  const { target, actual, difference } = valuesOf(line, unit)
-  const format = unit === 'euro' ? formatEuro : formatPercent
-  const hasTarget = line.target !== null
-  const over = line.difference !== null && line.difference < 0
+function BudgetNumbers({ line }: { line: Line }) {
+  const { target, actual, difference } = line
+  const over = difference !== null && difference < 0
 
   return (
     <span className="budget-amount">
       <span>
-        {format(actual)}
-        {hasTarget ? ` von ${format(target)}` : ' · kein Soll'}
+        {formatEuro(actual)}
+        {target !== null ? ` von ${formatEuro(target)}` : ' · kein Soll'}
       </span>
-      {hasTarget && (
+      {difference !== null && (
         <span className={`budget-left${over ? ' over' : ''}`}>
-          {difference === null ? '–' : over ? `${format(-difference)} über dem Soll` : `noch ${format(difference)}`}
+          {over ? `${formatEuro(-difference)} über dem Soll` : `noch ${formatEuro(difference)}`}
         </span>
       )}
     </span>
@@ -176,12 +160,10 @@ function BudgetNumbers({ line, unit }: { line: Line; unit: Unit }) {
 function BudgetItem({
   line,
   icon,
-  unit,
   month,
 }: {
   line: CategoryLine
   icon: string
-  unit: Unit
   month: string
 }) {
   const [open, setOpen] = useState(false)
@@ -199,7 +181,7 @@ function BudgetItem({
       >
         <CategoryIcon icon={icon} />
         <span className="budget-name">{line.name}</span>
-        <BudgetNumbers line={line} unit={unit} />
+        <BudgetNumbers line={line} />
       </button>
       {line.target !== null && <ProgressBar value={used} over={over} />}
       {open && <CategoryBookings month={month} categoryId={line.id} />}

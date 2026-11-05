@@ -89,29 +89,20 @@ export interface RecurringTransactionInput {
 /** "Nur dieser Eintrag" (THIS) or "Dieser und alle folgenden" (FOLLOWING). */
 export type OccurrenceScope = 'THIS' | 'FOLLOWING'
 
-/** Amounts with their shares of the income; a share is null without income or without amount. */
-interface Shares {
-  targetShare: number | null
-  actualShare: number | null
-  differenceShare: number | null
-}
-
 /**
  * difference is the deviation from the target (target - actual).
  * recurring is the part of the expenses from recurring transactions, oneOff the rest; together they are actual.
  */
-export interface Totals extends Shares {
+export interface Totals {
   target: number
   actual: number
   difference: number
   recurring: number
   oneOff: number
-  recurringShare: number | null
-  oneOffShare: number | null
 }
 
 /** actual is the expense of the category (positive). */
-export interface CategoryLine extends Shares {
+export interface CategoryLine {
   id: number
   name: string
   target: number | null
@@ -119,12 +110,11 @@ export interface CategoryLine extends Shares {
   difference: number | null
 }
 
-/** actual is the net of the category (positive). share is null without income. */
+/** actual is the net of the category (positive). */
 export interface IncomeLine {
   id: number
   name: string
   actual: number
-  share: number | null
 }
 
 export interface DashboardData {
@@ -132,13 +122,15 @@ export interface DashboardData {
   /** The month compared with today (R7). */
   monthState: 'PAST' | 'CURRENT' | 'FUTURE'
   incomeTotal: number
-  incomeTotalShare: number | null
-  /** Ø income of the months before (R23) from averageIncomeFrom to averageIncomeTo; null when no month counts. */
+  /**
+   * Ø income and Ø expenses of the months before (R23) from averageIncomeFrom to averageIncomeTo;
+   * null when no month counts.
+   */
   averageIncome: number | null
+  averageExpenses: number | null
   averageIncomeMonths: number
   averageIncomeFrom: string | null
   averageIncomeTo: string | null
-  averageIncomeShare: number | null
   expenses: Totals
   /** Ø income minus the target total (R4); negative when over-planned, null without Ø income. */
   unplanned: number | null
@@ -147,7 +139,6 @@ export interface DashboardData {
   surplus: number
   /** "Monatlicher Überschuss"/"Monatlicher Verlust" for a past month, "Noch frei"/"Überschritten" otherwise (R7). */
   surplusLabel: string
-  surplusShare: number | null
   categories: CategoryLine[]
   income: IncomeLine[]
 }
@@ -197,22 +188,14 @@ export interface ForecastMonth {
 export interface CategoryAmount {
   name: string
   amount: number
-  /** Share of the income of the month (R14); null when it is 0. */
-  share: number | null
 }
 
-/**
- * A past month: income, expenses and surplus (income - expenses, may be negative), with the amounts per category.
- * The shares are parts of the income of the month, null when it is 0.
- */
+/** A past month: income, expenses and surplus (income - expenses, may be negative), with the amounts per category. */
 export interface HistoryMonth {
   month: string
   income: number
   expenses: number
   surplus: number
-  incomeShare: number | null
-  expensesShare: number | null
-  surplusShare: number | null
   incomeCategories: CategoryAmount[]
   expenseCategories: CategoryAmount[]
 }
@@ -232,10 +215,6 @@ export interface ReserveData {
   totalIncome: number | null
   totalExpenses: number | null
   totalSurplus: number | null
-  /** Shares of the totals (and the averages) in totalIncome; null when it is 0 or missing. */
-  incomeShare: number | null
-  expensesShare: number | null
-  surplusShare: number | null
   monthlyReserve: number
   reserveBalance: number
   reserves: ReserveLine[]
