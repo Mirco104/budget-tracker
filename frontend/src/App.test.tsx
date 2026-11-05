@@ -125,16 +125,15 @@ describe('App', () => {
     expect(field).toHaveValue('2024-03')
   })
 
-  it('keeps the chosen month when switching pages', async () => {
+  it('keeps the month of the overview when switching pages', async () => {
     await renderApp()
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
 
-    goTo('#/auswertung')
+    goTo('#/transaktionen')
+    goTo('#/uebersicht')
 
-    expect(await screen.findByLabelText('Monat wählen', {}, { timeout: 15000 })).toHaveValue(
-      shiftMonth(currentMonth(), 1),
-    )
-  }, 20000)
+    expect(screen.getByLabelText('Monat wählen')).toHaveValue(shiftMonth(currentMonth(), 1))
+  })
 
   // US26: the transactions have their own period, starting at this month
   it('shows the transactions of this month as a period', async () => {
@@ -157,6 +156,7 @@ describe('App', () => {
   })
 
   // The analysis page is loaded on first use, because of the chart library
+  // Decision 29: the analysis opens with the look back; the tab stays marked on its sub pages
   it('loads the analysis page when its tab is opened', async () => {
     await renderApp()
 
@@ -165,7 +165,7 @@ describe('App', () => {
     expect(screen.getByText('Lade Auswertung …')).toBeInTheDocument()
     // Transforming Recharts for the first import takes a while in the test environment
     await waitFor(
-      () => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/reserves\?month=.*&months=12$/), expect.anything()),
+      () => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/history\?from=.*&to=.*$/), expect.anything()),
       { timeout: 5000 },
     )
   })
@@ -243,4 +243,19 @@ describe('App', () => {
 
     await screen.findByRole('heading', { name: 'Anmelden' })
   })
+
+  // After the lazy loading test, so that one still sees the loading text
+  // US29: a sub page has its own address and keeps its tab marked
+  it('marks the Auswertung tab on its sub pages', async () => {
+    await renderApp()
+
+    goTo('#/auswertung/vorausschau')
+
+    const tab = screen.getByRole('link', { name: 'Auswertung' })
+    expect(tab).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('link', { name: 'Vorausschau' }, { timeout: 15000 })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  }, 20000)
 })
