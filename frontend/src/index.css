@@ -399,11 +399,16 @@ th.number {
   background: var(--surface);
 }
 
-.month-nav .month-label {
-  min-width: 140px;
+/* The month field sits inside the navigation, so it has no frame of its own */
+.month-nav .month-input {
+  width: 170px;
+  min-height: 38px;
   padding: 0 6px;
+  border: none;
+  background: none;
   font-weight: 600;
   text-align: center;
+  color-scheme: light dark;
 }
 
 .icon-button {

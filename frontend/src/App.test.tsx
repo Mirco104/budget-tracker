@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { currentMonth, formatMonth, shiftMonth } from './format'
+import { currentMonth, shiftMonth } from './format'
 
 // Fictional signed-in user; all other calls stay pending
 const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER' }
@@ -95,18 +95,34 @@ describe('App', () => {
   it('moves the month in the page header and jumps back to the current month', async () => {
     await renderApp()
     const current = currentMonth()
-    expect(screen.getByText(formatMonth(current))).toBeInTheDocument()
+    const field = screen.getByLabelText('Monat wählen')
+    expect(field).toHaveValue(current)
+    // Hidden but still there, so the navigation does not move when it appears
     expect(screen.queryByRole('button', { name: 'Zum aktuellen Monat' })).not.toBeInTheDocument()
+    expect(screen.getByText('Zum aktuellen Monat')).toHaveStyle({ visibility: 'hidden' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
-    expect(screen.getByText(formatMonth(shiftMonth(current, 1)))).toBeInTheDocument()
+    expect(field).toHaveValue(shiftMonth(current, 1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Vorheriger Monat' }))
     fireEvent.click(screen.getByRole('button', { name: 'Vorheriger Monat' }))
-    expect(screen.getByText(formatMonth(shiftMonth(current, -1)))).toBeInTheDocument()
+    expect(field).toHaveValue(shiftMonth(current, -1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Zum aktuellen Monat' }))
-    expect(screen.getByText(formatMonth(current))).toBeInTheDocument()
+    expect(field).toHaveValue(current)
+  })
+
+  it('takes a month that is picked or typed in the field', async () => {
+    await renderApp()
+    const field = screen.getByLabelText('Monat wählen')
+
+    fireEvent.change(field, { target: { value: '2024-03' } })
+    expect(field).toHaveValue('2024-03')
+    expect(screen.getByRole('button', { name: 'Zum aktuellen Monat' })).toBeInTheDocument()
+
+    // An incomplete entry is ignored, the month stays
+    fireEvent.change(field, { target: { value: '' } })
+    expect(field).toHaveValue('2024-03')
   })
 
   it('keeps the chosen month when switching pages', async () => {
@@ -115,7 +131,7 @@ describe('App', () => {
 
     goTo('#/planung')
 
-    expect(screen.getByText(formatMonth(shiftMonth(currentMonth(), 1)))).toBeInTheDocument()
+    expect(screen.getByLabelText('Monat wählen')).toHaveValue(shiftMonth(currentMonth(), 1))
   })
 
   // The analysis page is loaded on first use, because of the chart library
