@@ -1654,3 +1654,79 @@ button.tx:hover:not(:disabled) {
     bottom: calc(150px + env(safe-area-inset-bottom));
   }
 }
+
+/* Period, search and category of the transaction list (US26) */
+.filters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chip.plain {
+  padding: 4px 14px;
+}
+
+.period-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.period-fields .field {
+  width: 200px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.search {
+  display: flex;
+  flex: 1 1 240px;
+  gap: 8px;
+  align-items: center;
+  padding-left: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.search:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.search input:not([type='checkbox'], [type='radio']) {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+.filter-row select {
+  flex: 0 1 240px;
+  min-width: 0;
+}
+
+.period-summary {
+  margin: 0;
+}
+
+/* On narrow screens "Bis" is below "Von" (US26) */
+@media (max-width: 480px) {
+  .period-fields {
+    flex-direction: column;
+  }
+
+  .period-fields .field {
+    width: 100%;
+  }
+
+  .filter-row select {
+    flex: 1 1 100%;
+  }
+}
