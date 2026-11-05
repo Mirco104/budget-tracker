@@ -45,16 +45,17 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardResponse calculate(YearMonth month) {
         YearMonth currentMonth = YearMonth.now(clock);
-        return calculate(month, averageIncome(month, currentMonth), currentMonth);
+        Averages averages = averages(month, currentMonth);
+        return calculate(month, averages.income(), averages.expenses(), currentMonth);
     }
 
     /**
-     * Income, expenses and actuals of a month without Ē(M) (R23), for the analysis (R14): it needs no targets, and
-     * the average would cost twelve more months per month.
+     * Income, expenses and actuals of a month without Ē(M) and Ā(M) (R23), for the analysis (R14): it needs no
+     * targets, and the averages would cost twelve more months per month.
      */
     @Transactional(readOnly = true)
     public DashboardResponse actuals(YearMonth month) {
-        return calculate(month, IncomeAverage.Result.EMPTY, YearMonth.now(clock));
+        return calculate(month, IncomeAverage.Result.EMPTY, null, YearMonth.now(clock));
     }
 
     /** Month of the earliest transaction or series start, null without any entry (R14, R23). */
@@ -69,7 +70,8 @@ public class DashboardService {
                 .orElse(null);
     }
 
-    private DashboardResponse calculate(YearMonth month, IncomeAverage.Result average, YearMonth currentMonth) {
+    private DashboardResponse calculate(
+            YearMonth month, IncomeAverage.Result average, BigDecimal averageExpenses, YearMonth currentMonth) {
         Map<Long, TargetEntry> targets = categoryService.targetsInEffect(month);
         List<CategoryData> categories = categoryService.findAllOrdered().stream()
                 .map(category -> {
@@ -81,22 +83,29 @@ public class DashboardService {
                             target == null ? null : target.targetPercent());
                 })
                 .toList();
-        return calculator.calculate(categories, entries(month, month), month, average, currentMonth);
+        return calculator.calculate(categories, entries(month, month), month, average, averageExpenses, currentMonth);
     }
 
-    // R23: E of every month that counts, from one query for the single transactions
-    private IncomeAverage.Result averageIncome(YearMonth month, YearMonth currentMonth) {
+    private record Averages(IncomeAverage.Result income, BigDecimal expenses) {
+    }
+
+    // R23: E and A of every month that counts, from one query for the single transactions
+    private Averages averages(YearMonth month, YearMonth currentMonth) {
         YearMonth firstEntryMonth = firstEntryMonth();
         IncomeAverage.Result window = IncomeAverage.window(firstEntryMonth, month, currentMonth);
         if (window.months() == 0) {
-            return IncomeAverage.Result.EMPTY;
+            return new Averages(IncomeAverage.Result.EMPTY, null);
         }
         List<TransactionData> entries = entries(window.from(), window.to());
         Map<YearMonth, BigDecimal> income = new HashMap<>();
+        Map<YearMonth, BigDecimal> expenses = new HashMap<>();
         for (YearMonth m = window.from(); !m.isAfter(window.to()); m = m.plusMonths(1)) {
             income.put(m, DashboardCalculator.incomeOf(entries, m));
+            expenses.put(m, DashboardCalculator.expensesOf(entries, m));
         }
-        return IncomeAverage.of(income, firstEntryMonth, month, currentMonth);
+        return new Averages(
+                IncomeAverage.of(income, firstEntryMonth, month, currentMonth),
+                IncomeAverage.of(expenses, firstEntryMonth, month, currentMonth).average());
     }
 
     // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction

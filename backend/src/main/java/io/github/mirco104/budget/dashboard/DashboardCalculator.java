@@ -14,13 +14,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Dashboard math, rules R1–R12 and R23 from docs/spezifikation.md, section 2. No Spring dependencies.
+ * Dashboard math, rules R1–R7, R9–R12 and R23 from docs/spezifikation.md, section 2. No Spring dependencies.
  * Amounts carry their sign (R11). The net per category is rounded to cents; totals add up the rounded values.
  */
 public class DashboardCalculator {
 
     private static final int MONEY_SCALE = 2;
-    private static final int RATIO_SCALE = 4;
 
     public record CategoryData(long id, String name, BigDecimal targetAmount, BigDecimal targetPercent) {
     }
@@ -33,11 +32,12 @@ public class DashboardCalculator {
     }
 
     /**
-     * average is Ē(M) from {@link IncomeAverage} (R23); currentMonth is the month of today (R7).
+     * average is Ē(M) from {@link IncomeAverage} (R23); averageExpenses is Ā(M) over the same months, null when
+     * no month counts; currentMonth is the month of today (R7).
      */
     public DashboardResponse calculate(
             List<CategoryData> categories, List<TransactionData> transactions, YearMonth month,
-            IncomeAverage.Result average, YearMonth currentMonth) {
+            IncomeAverage.Result average, BigDecimal averageExpenses, YearMonth currentMonth) {
         Map<Long, BigDecimal> nets = netsByCategory(transactions, month);
         Map<Long, BigDecimal> recurringExpenses = recurringExpensesByCategory(transactions, month);
 
@@ -60,9 +60,7 @@ public class DashboardCalculator {
                 continue;
             }
             BigDecimal difference = target == null ? null : target.subtract(actual);
-            categoryLines.add(new CategoryLine(
-                    category.id(), category.name(), target, actual, difference,
-                    share(target, incomeTotal), share(actual, incomeTotal), share(difference, incomeTotal)));
+            categoryLines.add(new CategoryLine(category.id(), category.name(), target, actual, difference));
             if (target != null) {
                 expensesTarget = expensesTarget.add(target);
             }
@@ -86,42 +84,25 @@ public class DashboardCalculator {
         // R9: every category with a positive net
         List<IncomeLine> incomeLines = categories.stream()
                 .filter(category -> netOf(nets, category).signum() > 0)
-                .map(category -> {
-                    BigDecimal net = netOf(nets, category);
-                    return new IncomeLine(category.id(), category.name(), net, share(net, incomeTotal));
-                })
+                .map(category -> new IncomeLine(category.id(), category.name(), netOf(nets, category)))
                 .toList();
 
-        // R8: every amount also as share of the income
         return new DashboardResponse(
                 month.toString(),
                 monthState,
                 incomeTotal,
-                share(incomeTotal, incomeTotal),
                 averageIncome == null ? null : money(averageIncome),
+                averageExpenses == null ? null : money(averageExpenses),
                 average.months(),
                 average.from() == null ? null : average.from().toString(),
                 average.to() == null ? null : average.to().toString(),
-                share(averageIncome, incomeTotal),
-                new Totals(expensesTarget, expensesActual, expensesDifference, share(expensesTarget, incomeTotal),
-                        share(expensesActual, incomeTotal), share(expensesDifference, incomeTotal),
-                        expensesRecurring, expensesOneOff, share(expensesRecurring, incomeTotal),
-                        share(expensesOneOff, incomeTotal)),
+                new Totals(expensesTarget, expensesActual, expensesDifference, expensesRecurring, expensesOneOff),
                 unplanned,
                 unplannedLabel,
                 surplus,
                 surplusLabel,
-                share(surplus, incomeTotal),
                 categoryLines,
                 incomeLines);
-    }
-
-    // R8: share of the income, empty without an amount or without income
-    private static BigDecimal share(BigDecimal value, BigDecimal incomeTotal) {
-        if (value == null || incomeTotal.signum() == 0) {
-            return null;
-        }
-        return value.divide(incomeTotal, RATIO_SCALE, RoundingMode.HALF_UP);
     }
 
     // R1: sum of the signed amounts of the month, per category
@@ -160,6 +141,13 @@ public class DashboardCalculator {
     /** Income E of a month (R2): the sum of all positive nets per category; for Ē(M) (R23). */
     public static BigDecimal incomeOf(List<TransactionData> transactions, YearMonth month) {
         return positiveSum(netsByCategory(transactions, month));
+    }
+
+    /** Expenses A of a month (R2): the sum of all I(k); for Ā(M) (R23). */
+    public static BigDecimal expensesOf(List<TransactionData> transactions, YearMonth month) {
+        return netsByCategory(transactions, month).values().stream()
+                .map(DashboardCalculator::expenseOf)
+                .reduce(zero(), BigDecimal::add);
     }
 
     private static BigDecimal positiveSum(Map<Long, BigDecimal> nets) {
