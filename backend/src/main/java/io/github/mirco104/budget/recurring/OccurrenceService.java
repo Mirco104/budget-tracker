@@ -30,8 +30,12 @@ public class OccurrenceService {
     /** Occurrences in the month, oldest first. */
     @Transactional(readOnly = true)
     public List<Occurrence> occurrencesIn(YearMonth month) {
-        LocalDate from = month.atDay(1);
-        LocalDate to = month.atEndOfMonth();
+        return occurrencesBetween(month.atDay(1), month.atEndOfMonth());
+    }
+
+    /** Occurrences from one day to another, both included, oldest first (US26). */
+    @Transactional(readOnly = true)
+    public List<Occurrence> occurrencesBetween(LocalDate from, LocalDate to) {
         List<RecurringTransaction> series = recurringRepository.findActiveBetween(currentUser.get(), from, to);
         if (series.isEmpty()) {
             return List.of();

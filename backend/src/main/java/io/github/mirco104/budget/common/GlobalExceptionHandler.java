@@ -54,6 +54,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.TOO_MANY_REQUESTS, "Anmeldung gesperrt", ex.getMessage());
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ProblemDetail handleBadRequest(BadRequestException ex) {
+        return problem(HttpStatus.BAD_REQUEST, BAD_REQUEST_TITLE, ex.getMessage());
+    }
+
     @ExceptionHandler(InvalidFieldException.class)
     public ProblemDetail handleInvalidField(InvalidFieldException ex) {
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, BAD_REQUEST_TITLE, "Die Eingaben sind ungültig.");
