@@ -65,8 +65,9 @@ async function seed() {
   await a.request('PUT', `/api/categories/${await categoryId(a, 'Lebensmittel')}/target?month=${month}`, {
     targetAmount: 400,
   })
+  // Euro only: a percent target becomes "no target" with decision 36 (migration V6, own test)
   await a.request('PUT', `/api/categories/${await categoryId(a, 'Freizeit')}/target?month=${month}`, {
-    targetPercent: 0.05,
+    targetAmount: 150,
   })
   const transactions = [
     [3000, 'Gehalt', '2026-10-01', 'Gehalt/Lohn (netto)'],
@@ -111,11 +112,10 @@ async function snapshot() {
       incomeTotal: dashboard.incomeTotal,
       expenses: dashboard.expenses.actual,
       recurring: dashboard.expenses.recurring,
-      // The stored targets, not the calculated target total: a percent target is calculated from the average
-      // income since decision 26 (spec R23), so the total may change on purpose when that rule changes
+      // The stored targets in euro (R3; percent targets are gone since decision 36)
       targets: categories
-        .filter((category) => category.targetAmount !== null || category.targetPercent !== null)
-        .map((category) => `${category.name} ${category.targetAmount} ${category.targetPercent}`)
+        .filter((category) => category.targetAmount !== null)
+        .map((category) => `${category.name} ${category.targetAmount}`)
         .sort(),
       surplus: dashboard.surplus,
       entries: entries.map((entry) => `${entry.date} ${entry.amount} ${entry.description}`).sort(),
