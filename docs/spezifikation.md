@@ -421,6 +421,7 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
   - Integration: `/transactions?from&to` mit Vorkommen an den Grenzen und Ausnahmen, 400-Fälle; `/history` mit Vorgabe und 400-Fällen; `incomeOnly` (R24) mit Transaktionen und Serien; Icon anlegen, ändern, unbekannter Schlüssel → 400; Migration setzt die Icons bestehender Standard-Kategorien. Mandantentrennung (R15) auch für die neuen Endpunkte.
   - Frontend: Navigation mit Adressen und Zurück; Buchungsdialog (Vorzeichen, Pflichtfelder, Dialog für Vorkommen); Planung mit Umschalter € / % und ausgeblendeten Kategorien; Rückblick mit aufgeklapptem Monat; Übersicht mit "Noch frei", "über dem Soll" und den Ø-Angaben für Einnahmen und Ausgaben.
   - Update-Test: Werte, die sich durch Entscheidung 26 gewollt ändern (Soll gesamt bei Prozent-Soll), werden im PR von AP 19c begründet; das Skript vergleicht dann nur, was die Änderung nicht betrifft.
+  - Beispieldaten (Entscheidung 35): `SampleDataSeeder` legt auf einer leeren Datenbank Person A bis D mit ihren Rollen an, ein zweiter Lauf ändert nichts; die Daten liegen von 2025-01 bis 2026-10 und ergeben im Dashboard die erwarteten Werte.
 
 ## 8. CI/CD und Git
 
@@ -518,6 +519,10 @@ Geklärt am 04.11.2026 (Überarbeitung, nach einem klickbaren Entwurf):
 Geklärt am 05.11.2026 (nach der manuellen Prüfung von AP 19e):
 
 34. **Nur Euro, Ø auch für Ausgaben:** Der Umschalter € / % in *Übersicht* und *Rückblick* entfällt samt der Anteile in der API (R8, R14). Prozentwerte, die sich auf die Einnahmen eines oft noch unvollständigen Monats beziehen, waren schwer zu lesen, und eine Ansicht reicht. Damit man den laufenden Monat trotzdem einordnen kann, steht unter der Kachel Ausgaben wie bei den Einnahmen der Ø der Monate vor M (`Ā(M)`, R23), über denselben Zeitraum. "Überschritten" zeigt den Betrag mit Minuszeichen in der Warnfarbe (R7), weil das Vorzeichen auf einen Blick sagt, in welche Richtung der Monat kippt. Das Eingabefeld € / % für ein Soll auf der *Planung* (US2) bleibt, weil ein Prozent-Soll eine Planungsregel ist (R3). Ersetzt die Umschalter aus den Entscheidungen 13, 25, 26 und 29.
+
+Geklärt am 06.11.2026 (lokale Entwicklung):
+
+35. **Feste lokale Datenbanken `dev` und `sample`:** Zum Entwickeln und manuellen Testen braucht es immer gleiche Logins und, je nach Fall, eine leere oder eine gefüllte Datenbank. Lokal gibt es deshalb zwei Spring-Profile mit je einer H2-Datei: `dev` (Standard ohne Profil, nur der Systemadmin *Admin*, keine Buchungen) und `sample` (*Admin* und Person A bis D mit erfundenen Daten von Januar 2025 bis Oktober 2026). Die Dateien bleiben zwischen zwei Starts erhalten, damit neue Migrationen wie im Betrieb auf vorhandene Daten treffen; `scripts/reset-db.sh dev|sample` löscht genau eine davon. Die Beispieldaten legt beim ersten Start eine Klasse über die Services an, nicht SQL, damit alle Regeln und Validierungen gelten und kein Skript bei Schemaänderungen nachgezogen werden muss. Die Logins sind erfunden und stehen nur in den Profildateien, nie in `application.properties`, weil diese Datei auch im Betrieb gilt. Eine fertige Datenbankdatei im Repo scheidet aus (binär, veraltet mit jeder Migration, nicht prüfbar). Der Name `test` bleibt den automatischen Tests vorbehalten.
 
 ## 12. Testfixtures F1, F2 und Sonderfall Einnahmen = 0
 
@@ -706,6 +711,7 @@ Umsetzung der Entscheidungen 26 bis 33, vor AP 20. Ziel: Die App soll ohne Erkl�
 | 19h | Zeitraumfilter Transaktionen (US26): `/transactions?from&to` (Tests für Grenzen und Ausnahmen), Schnellwahl, Suche, Kategorie | Integrations- und Frontend-Tests grün |
 | 19i | Auswertung (R14, US13, Entscheidung 29): `/history` mit Zeitraum (Tests zuerst), `/reserves` ohne Rückblick, Unterseiten *Rückblick* und *Vorausschau*, Tooltip, aufklappbare Monate (ohne Anzeige in %, Entscheidung 34) | Fixture F1 (neu) grün |
 | 19j | Einstellungen (US10): Unterseiten Kategorien, Konto, Einladungen, Nutzer; Kategorien per Ziehen sortieren (im Menü zusätzlich "Nach oben" / "Nach unten"), Umbenennen, Icon ändern, Archivieren und Löschen im Menü "⋯" je Zeile, archivierte Kategorien mit "Wiederherstellen" | Frontend-Tests grün |
+| 19k | Lokale Datenbanken `dev` und `sample` (Entscheidung 35): Profile mit festen Logins, `SampleDataSeeder` für Person A bis D (Test zuerst), `scripts/reset-db.sh` | Integrationstest grün, beide Profile starten |
 
 **Reihenfolge:** 19b vor allen anderen Oberflächen-APs; 19c vor 19e und 19f; 19d vor 19e, 19g, 19i und 19j, weil diese Icons zeigen (bis dahin ein Platzhalter-Icon). 19c, 19d, 19h und 19i ändern das Backend und können parallel zu den Oberflächen-APs laufen, wenn sie unterschiedliche Dateien betreffen. AP 13 (README "Learnings und Entscheidungen") folgt nach 19j, damit es die Überarbeitung enthält.
 

@@ -25,18 +25,42 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-Das Backend läuft auf http://localhost:8080. API-Doku: http://localhost:8080/swagger-ui.html. Die H2-Datenbank liegt lokal unter `backend/data/` und wird nicht eingecheckt.
+Das Backend läuft auf http://localhost:8080. API-Doku: http://localhost:8080/swagger-ui.html.
 
-### Anmeldung und erster Admin
+### Lokale Datenbanken `dev` und `sample`
 
-Die App ist nur angemeldet nutzbar (US14). Der Systemadmin ist immer das Konto mit der E-Mail aus `ADMIN_EMAIL` (US25). Das Backend prüft das bei jedem Start: Fehlt das Konto, legt es dieses mit `ADMIN_PASSWORD` und den Standard-Kategorien an; gibt es das Konto schon, wird es Systemadmin und behält sein Passwort; ein bisheriger Systemadmin mit anderer E-Mail wird Admin. Die Werte stehen nie im Repo:
+Lokal gibt es zwei H2-Datenbanken mit festen, erfundenen Logins (Entscheidung 35). Sie liegen unter `backend/data/` und werden nicht eingecheckt.
+
+| Profil | Datei | Inhalt |
+|---|---|---|
+| `dev` (Standard ohne Profil) | `backend/data/dev.mv.db` | nur der Systemadmin *Admin*, keine Buchungen |
+| `sample` | `backend/data/sample.mv.db` | *Admin* und Person A bis D mit erfundenen Daten von Januar 2025 bis Oktober 2026 |
 
 ```bash
 cd backend
-ADMIN_EMAIL=<e-mail> ADMIN_PASSWORD=<mindestens-12-zeichen> ADMIN_DISPLAY_NAME=<name> ./mvnw spring-boot:run
+./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=sample
 ```
 
-Unter Windows (PowerShell) vorher `$env:ADMIN_EMAIL="<e-mail>"` usw. setzen; `start.cmd` und `start.sh` übernehmen die Variablen aus der Umgebung. Fehlt `ADMIN_EMAIL`, ändert sich nichts; gibt es dann keinen Systemadmin, meldet das Log eine Warnung. Die E-Mail des Systemadmins lässt sich in der App nicht ändern, nur über `ADMIN_EMAIL` und einen Neustart. Nach 5 falschen Passwörtern in 15 Minuten ist die Anmeldung für diese E-Mail 15 Minuten gesperrt; ein Neustart hebt die Sperre auf.
+Logins (Passwörter in `application-dev.properties` bzw. `application-sample.properties`):
+
+- `admin@example.test`: Systemadmin, in beiden Datenbanken
+- `person-a@example.test`: Admin, viele Daten über alle Monate, Soll-Werte, Serien und Rücklagen
+- `person-b@example.test`: wenige Daten, schwankende Einnahmen aus Selbstständigkeit
+- `person-c@example.test`: erst ab Juli 2025, Prozent-Soll, Kredit bis Juni 2026
+- `person-d@example.test`: fast keine Daten
+
+Die Dateien bleiben zwischen zwei Starts erhalten, eigene Änderungen also auch; neue Migrationen laufen wie im Betrieb auf die vorhandenen Daten. Die Beispieldaten entstehen nur, wenn die Datenbank `sample` leer ist. Zurücksetzen (Backend vorher beenden, löscht nur die genannte Datenbank):
+
+```bash
+scripts/reset-db.sh sample
+```
+
+Eine ältere `backend/data/budget.mv.db` wird nicht mehr benutzt und kann gelöscht werden.
+
+### Anmeldung und erster Admin
+
+Die App ist nur angemeldet nutzbar (US14). Der Systemadmin ist immer das Konto mit der E-Mail aus `ADMIN_EMAIL` (US25); in den lokalen Profilen `dev` und `sample` ist das fest `admin@example.test`. Das Backend prüft das bei jedem Start: Fehlt das Konto, legt es dieses mit `ADMIN_PASSWORD` und den Standard-Kategorien an; gibt es das Konto schon, wird es Systemadmin und behält sein Passwort; ein bisheriger Systemadmin mit anderer E-Mail wird Admin. Für den Betrieb (Profil `postgres`) stehen die Werte nie im Repo, sondern in `.env` bzw. in Umgebungsvariablen (siehe `docs/betrieb.md`). Fehlt `ADMIN_EMAIL`, ändert sich nichts; gibt es dann keinen Systemadmin, meldet das Log eine Warnung. Die E-Mail des Systemadmins lässt sich in der App nicht ändern, nur über `ADMIN_EMAIL` und einen Neustart. Nach 5 falschen Passwörtern in 15 Minuten ist die Anmeldung für diese E-Mail 15 Minuten gesperrt; ein Neustart hebt die Sperre auf.
 
 Die Migration `V2` löscht beim ersten Start alle Daten von vor dem Benutzersystem, weil sie keinem Nutzer gehören.
 
@@ -48,13 +72,11 @@ Weitere Nutzer kommen nur über Einladungen (US15): Ein Admin erzeugt unter *Ein
 
 Das Schema entsteht nur aus den Flyway-Migrationen in `backend/src/main/resources/db/migration` (US11). Sie laufen beim Start automatisch; Hibernate prüft das Schema nur (`ddl-auto=validate`). Eine Migration, die schon in `main` ist, wird nie geändert; jede Änderung am Schema ist eine neue Datei `V<n>__<beschreibung>.sql`.
 
-Eine lokale H2-Datenbank von vor der Umstellung auf Flyway lässt sich nicht weiterverwenden: einmal `backend/data/` löschen, beim nächsten Start entsteht sie neu.
-
-Mit PostgreSQL statt H2 (Profil `postgres`, Verbindung nur über Umgebungsvariablen):
+Mit PostgreSQL statt H2 (Profil `postgres`, Verbindung und Admin nur über Umgebungsvariablen):
 
 ```bash
 cd backend
-SPRING_PROFILES_ACTIVE=postgres DB_URL=jdbc:postgresql://localhost:5432/budget DB_USERNAME=budget DB_PASSWORD=<passwort> ./mvnw spring-boot:run
+SPRING_PROFILES_ACTIVE=postgres ADMIN_EMAIL=<e-mail> ADMIN_PASSWORD=<mindestens-12-zeichen> DB_URL=jdbc:postgresql://localhost:5432/budget DB_USERNAME=budget DB_PASSWORD=<passwort> ./mvnw spring-boot:run
 ```
 
 Build und Tests:
