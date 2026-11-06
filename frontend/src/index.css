@@ -1065,10 +1065,6 @@ th.number {
   font-weight: 600;
 }
 
-.forecast-bar-cell {
-  width: 40%;
-}
-
 /* The hidden Recharts tooltip keeps its last position and would widen the page on narrow screens */
 .history-chart {
   width: 100%;
@@ -1084,20 +1080,6 @@ th.number {
 /* A mouse click focuses the chart for keyboard use; the outline stays only for keyboard focus */
 .history-chart :focus:not(:focus-visible) {
   outline: none;
-}
-
-.forecast-bar {
-  display: block;
-  height: 10px;
-  border-radius: 99px;
-  background: var(--chart-expense);
-}
-
-.forecast-entries {
-  margin: 4px 0;
-  padding-left: 16px;
-  font-size: 0.9rem;
-  color: var(--muted);
 }
 
 .history tfoot th,
@@ -1169,10 +1151,6 @@ th.number {
 
   .history .history-category td:first-child {
     padding-left: 12px;
-  }
-
-  .forecast-bar-cell {
-    width: 25%;
   }
 }
 
@@ -2091,4 +2069,34 @@ th .with-info {
 
 th .info-tip {
   vertical-align: middle;
+}
+
+/* Date in front of an expense of an opened forecast month (decision 37) */
+.forecast-date {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-entry {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+/* On the phone the date stands above the name, and the badge goes, so four columns fit into 360 px */
+@media (max-width: 480px) {
+  .forecast-entry {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .forecast-entry .forecast-date {
+    font-size: 0.8rem;
+  }
+
+  .forecast-entry .badge {
+    display: none;
+  }
 }

@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import { errorText } from '../api/client'
 import { useHistory, useReserves } from '../api/reserves'
-import type { ForecastMonth, HistoryData, HistoryMonth, PotMonth, ReserveData } from '../api/types'
+import type { ForecastEntry, ForecastMonth, HistoryData, HistoryMonth, ReserveData } from '../api/types'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { InfoTip } from '../components/ui/InfoTip'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -391,13 +391,14 @@ function HistoryChart({ history, active, onActive }: {
 
 function Outlook() {
   const { data, isPending, error } = useReserves()
+  const [active, setActive] = useState<string | null>(null)
   if (isPending) {
     return <p>Lade Vorausschau …</p>
   }
   if (error) {
     return <p className="error">Vorausschau konnte nicht geladen werden: {error.message}</p>
   }
-  const largest = Math.max(0, ...data.forecast.map((m) => m.total))
+  const months = forecastMonths(data)
   return (
     <>
       <p className="hint">Ab {formatMonth(data.month)}, dem aktuellen Monat.</p>
@@ -411,21 +412,28 @@ function Outlook() {
       </h3>
       <ReservePot data={data} />
 
-      <h3>Vorschau 12 Monate</h3>
-      <p className="hint">
-        Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne; teure Monate haben einen längeren Balken.
-      </p>
-      <table className="forecast" aria-label="Vorschau 12 Monate">
+      <h3 className="with-info">
+        Vorschau 12 Monate
+        <InfoTip label="Vorschau 12 Monate">
+          Die Balken zeigen alle gebuchten Ausgaben je Monat, die Linie, wie viel im Rücklagen-Topf liegen sollte,
+          bevor fällige seltene Ausgaben abgebucht werden. Der Topf wächst jeden Monat um die Raten und fällt, wenn er
+          eine teure Abbuchung bezahlt. Die Achse ist logarithmisch: Jede Linie steht für das Zehnfache der darunter,
+          damit große Ausgaben und der kleinere Topf zusammen lesbar bleiben.
+        </InfoTip>
+      </h3>
+      <ForecastChart months={months} active={active} onActive={setActive} />
+      <table className="history" aria-label="Vorschau 12 Monate">
         <thead>
           <tr>
             <th>Monat</th>
             <th className="number">Ausgaben (€)</th>
-            <th className="forecast-bar-cell" aria-hidden="true" />
+            <th className="number">Aus dem Topf (€)</th>
+            <th className="number">Soll-Stand Topf (€)</th>
           </tr>
         </thead>
         <tbody>
-          {data.forecast.map((m) => (
-            <ForecastRow key={m.month} month={m} largest={largest} />
+          {months.map((m) => (
+            <ForecastRows key={m.month} month={m} active={active === m.month} onActive={setActive} />
           ))}
         </tbody>
       </table>
@@ -511,71 +519,177 @@ function ReservePot({ data }: { data: ReserveData }) {
         </tbody>
       </table>
 
-      <h4 className="with-info">
-        Verlauf des Topfs
-        <InfoTip label="Verlauf des Topfs">
-          Die Linie zeigt, wie viel in jedem Monat im Topf liegen sollte, bevor fällige Ausgaben abgebucht werden. Die
-          Balken zeigen, was in dem Monat abgebucht wird. Danach fällt der Topf und wächst jeden Monat wieder um die
-          Raten.
-        </InfoTip>
-      </h4>
-      <PotChart data={data} />
     </>
   )
 }
 
 const POT_COLOR = 'var(--primary)'
 
-interface PotPoint extends PotMonth {
-  /** Rare expenses due in the month, from the forecast, for the tooltip only. */
-  due: string[]
+/** A forecast month joined with the course of the pot of the same month (decision 37), for display only. */
+interface OutlookMonth extends ForecastMonth {
+  balance: number
+  withdrawal: number
+  /** recurringIds of the rare expenses in the pot, to mark their entries. */
+  potIds: Set<number>
 }
 
-function PotTooltip({ active, payload }: { active?: boolean; payload?: { payload: PotPoint }[] }) {
+function forecastMonths(data: ReserveData): OutlookMonth[] {
+  const potIds = new Set(data.reserves.map((line) => line.recurringId))
+  return data.forecast.map((month) => {
+    const pot = data.potMonths.find((p) => p.month === month.month)
+    return { ...month, balance: pot?.balance ?? 0, withdrawal: pot?.withdrawal ?? 0, potIds }
+  })
+}
+
+function isFromPot(entry: ForecastEntry, potIds: Set<number>) {
+  return entry.kind === 'RECURRING' && entry.recurringId !== null && potIds.has(entry.recurringId)
+}
+
+/** Expanded: one row per expense with its date; a withdrawal from the pot also stands in its column. */
+function ForecastRows({ month, active, onActive }: {
+  month: OutlookMonth
+  active: boolean
+  onActive: (month: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const hasEntries = month.entries.length > 0
+  const hover = {
+    onMouseEnter: () => onActive(month.month),
+    onMouseLeave: () => onActive(null),
+  }
+  const highlight = active ? ' highlighted' : ''
+  return (
+    <>
+      <tr
+        className={`history-month${hasEntries ? ' expandable' : ''}${highlight}`}
+        onClick={hasEntries ? () => setOpen(!open) : undefined}
+        {...hover}
+      >
+        <th scope="row">
+          {hasEntries ? (
+            <button type="button" aria-expanded={open}>
+              <span aria-hidden="true">{open ? '▾' : '▸'}</span> <MonthLabel month={month.month} />
+            </button>
+          ) : (
+            <MonthLabel month={month.month} />
+          )}
+        </th>
+        <td className="number">{formatAmount(month.total)}</td>
+        <td className="number">{formatAmount(month.withdrawal)}</td>
+        <td className="number">{formatAmount(month.balance)}</td>
+      </tr>
+      {open &&
+        month.entries.map((entry) => (
+          <tr
+            key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.date}`}
+            className={`history-category${highlight}`}
+            {...hover}
+          >
+            <td>
+              <span className="forecast-entry">
+                <span className="forecast-date">{formatDate(entry.date)}</span>
+                {entry.description}
+                {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
+              </span>
+            </td>
+            <td className="number">{formatAmount(entry.amount)}</td>
+            <td className="number">{isFromPot(entry, month.potIds) ? formatAmount(entry.amount) : ''}</td>
+            <td />
+          </tr>
+        ))}
+    </>
+  )
+}
+
+// A log axis cannot show 0: months with 0 have no bar or point there (decision 37)
+function positiveOrNull(value: number) {
+  return value > 0 ? value : null
+}
+
+/** Ticks at the powers of ten around the values, e.g. 10, 100, 1.000, 10.000. */
+function logTicks(values: number[]): number[] {
+  const positive = values.filter((v) => v > 0)
+  if (positive.length === 0) {
+    return [1, 10, 100, 1000]
+  }
+  const low = Math.floor(Math.log10(Math.min(...positive)))
+  const high = Math.ceil(Math.log10(Math.max(...positive)))
+  const ticks: number[] = []
+  for (let exponent = low; exponent <= Math.max(high, low + 1); exponent++) {
+    ticks.push(10 ** exponent)
+  }
+  return ticks
+}
+
+function ForecastTooltip({ active, payload }: { active?: boolean; payload?: { payload: OutlookMonth }[] }) {
   if (!active || !payload?.length) {
     return null
   }
-  const point = payload[0].payload
+  const month = payload[0].payload
+  const fromPot = month.entries.filter((entry) => isFromPot(entry, month.potIds)).map((entry) => entry.description)
   return (
     <div className="chart-tooltip">
-      <strong>{formatMonth(point.month)}</strong>
-      <span>Soll-Stand {formatEuro(point.balance)}</span>
-      {point.withdrawal > 0 && (
+      <strong>{formatMonth(month.month)}</strong>
+      <span>Ausgaben {formatEuro(month.total)}</span>
+      {month.withdrawal > 0 && (
         <span>
-          Abbuchung {formatEuro(point.withdrawal)}
-          {point.due.length > 0 && ` (${point.due.join(', ')})`}
+          davon aus dem Topf {formatEuro(month.withdrawal)}
+          {fromPot.length > 0 && ` (${fromPot.join(', ')})`}
         </span>
       )}
+      <span>Soll-Stand Topf {formatEuro(month.balance)}</span>
     </div>
   )
 }
 
-/** Decision 37: the balance of the pot as a line, the withdrawals as bars, 12 months from the current month. */
-function PotChart({ data }: { data: ReserveData }) {
-  const reserveIds = new Set(data.reserves.map((line) => line.recurringId))
-  const points: PotPoint[] = data.potMonths.map((pot) => ({
-    ...pot,
-    due: (data.forecast.find((m) => m.month === pot.month)?.entries ?? [])
-      .filter((entry) => entry.recurringId !== null && reserveIds.has(entry.recurringId))
-      .map((entry) => entry.description),
+/** Decision 37: expenses as bars and the balance of the pot as a line on one log axis; the marked month is shared. */
+function ForecastChart({ months, active, onActive }: {
+  months: OutlookMonth[]
+  active: string | null
+  onActive: (month: string | null) => void
+}) {
+  const opacity = (month: string) => (active === null || active === month ? 1 : FADED_OPACITY)
+  const ticks = logTicks(months.flatMap((m) => [m.total, m.balance]))
+  // A bar on a log axis cannot start at 0, so it runs from the bottom of the axis to its value
+  const points = months.map((m) => ({
+    ...m,
+    totalBar: m.total > 0 ? [ticks[0], m.total] : null,
+    balanceLine: positiveOrNull(m.balance),
   }))
   return (
     <div
       className="history-chart"
       role="img"
-      aria-label="Diagramm Verlauf des Topfs: Soll-Stand und Abbuchungen je Monat"
+      aria-label="Diagramm Vorschau: Ausgaben und Soll-Stand des Topfs je Monat"
     >
-      <ResponsiveContainer width="100%" height={220}>
-        <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart
+          data={points}
+          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          onMouseMove={(state) => onActive(state.activeLabel === undefined ? null : String(state.activeLabel))}
+          onMouseLeave={() => onActive(null)}
+        >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="month" tickFormatter={formatMonthShort} fontSize={12} />
-          <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
-          <Tooltip content={<PotTooltip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.6 }} />
+          <YAxis
+            scale="log"
+            domain={[ticks[0], ticks[ticks.length - 1]]}
+            ticks={ticks}
+            allowDataOverflow
+            tickFormatter={formatWholeNumber}
+            fontSize={12}
+            width={56}
+          />
+          <Tooltip content={<ForecastTooltip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.6 }} />
           <Legend itemSorter={null} />
-          <Bar dataKey="withdrawal" name="Abbuchung" fill={EXPENSE_COLOR} />
+          <Bar dataKey="totalBar" name="Ausgaben" fill={EXPENSE_COLOR}>
+            {points.map((m) => (
+              <Cell key={m.month} fillOpacity={opacity(m.month)} />
+            ))}
+          </Bar>
           <Line
-            dataKey="balance"
-            name="Soll-Stand"
+            dataKey="balanceLine"
+            name="Soll-Stand Topf"
             type="linear"
             stroke={POT_COLOR}
             strokeWidth={2}
@@ -585,35 +699,5 @@ function PotChart({ data }: { data: ReserveData }) {
         </ComposedChart>
       </ResponsiveContainer>
     </div>
-  )
-}
-
-function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number }) {
-  // Bar length relative to the most expensive month, for display only
-  const width = largest > 0 ? (month.total / largest) * 100 : 0
-  return (
-    <tr>
-      <td>
-        {month.entries.length > 0 ? (
-          <details>
-            <summary>{formatMonth(month.month)}</summary>
-            <ul className="forecast-entries">
-              {month.entries.map((entry) => (
-                <li key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.date}`}>
-                  {formatDate(entry.date)} {entry.description}: {formatEuro(entry.amount)}
-                  {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : (
-          formatMonth(month.month)
-        )}
-      </td>
-      <td className="number">{formatAmount(month.total)}</td>
-      <td className="forecast-bar-cell" aria-hidden="true">
-        <span className="forecast-bar" style={{ width: `${width}%` }} />
-      </td>
-    </tr>
   )
 }
