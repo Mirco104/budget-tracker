@@ -84,18 +84,35 @@ export function TargetRow({
   const [submitting, setSubmitting] = useState(false)
   const [fixedOpen, setFixedOpen] = useState(false)
   const [previousBase, setPreviousBase] = useState(base)
+  // A percent converted from euro is rounded to 2 decimals; as long as it is not edited, the exact euro value
+  // stays, so switching the unit or the base never changes the target (130 € are 4,56 % of 2850 €, not 129,96 €).
+  const [exact, setExact] = useState<{ text: string; euro: number } | null>(null)
   const itemsId = useId()
+
+  function euroNow(currentUnit: TargetUnit, currentText: string, currentBase: number | null): number | null {
+    if (currentUnit === 'pct' && exact !== null && currentText === exact.text) {
+      return exact.euro
+    }
+    return euroOf(currentUnit, currentText, currentBase)
+  }
+
+  function showAsPercent(euroValue: number, percentBase: number) {
+    const converted = percentText(euroToPercent(euroValue, percentBase) as number)
+    setText(converted)
+    setExact({ text: converted, euro: euroValue })
+  }
 
   // A new base (the user picked the other tile) keeps the euro value: the percent in the field is converted
   if (base !== previousBase) {
     setPreviousBase(base)
     if (unit === 'pct') {
-      const euro = euroOf('pct', text, previousBase)
+      const euroValue = euroNow('pct', text, previousBase)
       if (!hasBase(base)) {
         setUnit('eur')
-        setText(euro === null ? text : euroText(euro))
-      } else if (euro !== null) {
-        setText(percentText(euroToPercent(euro, base) as number))
+        setExact(null)
+        setText(euroValue === null ? text : euroText(euroValue))
+      } else if (euroValue !== null) {
+        showAsPercent(euroValue, base)
       }
     }
   }
@@ -109,7 +126,7 @@ export function TargetRow({
   }, [savedNote])
 
   const empty = text.trim() === ''
-  const euro = euroOf(unit, text, base)
+  const euro = euroNow(unit, text, base)
   const fixedCosts = category.fixedCosts
   const belowFixedCosts = fixedCosts !== null && euro !== null && euro < fixedCosts
   const canTakeFixedCosts = fixedCosts !== null && (empty || belowFixedCosts)
@@ -134,7 +151,7 @@ export function TargetRow({
     if (parsed < 0 || parsed > 100) {
       return { error: 'Der Prozentwert muss zwischen 0 und 100 % liegen.', amount: null }
     }
-    return { error: null, amount: percentToEuro(parsed, base) }
+    return { error: null, amount: euroNow('pct', text, base) }
   }
 
   async function submit(amount: number | null) {
@@ -172,19 +189,26 @@ export function TargetRow({
       return
     }
     setUnit('eur')
+    setExact(null)
     setText(euroText(fixedCosts))
     setError(null)
     void submit(fixedCosts)
   }
 
   function switchUnit(next: TargetUnit) {
-    const current = euroOf(unit, text, base)
+    const current = euroNow(unit, text, base)
     setUnit(next)
     setError(null)
     if (current === null) {
+      setExact(null)
       return
     }
-    setText(next === 'eur' ? euroText(current) : percentText(euroToPercent(current, base) as number))
+    if (next === 'pct' && hasBase(base)) {
+      showAsPercent(current, base)
+    } else {
+      setExact(null)
+      setText(euroText(current))
+    }
   }
 
   function handleBlur(event: FocusEvent<HTMLFormElement>) {

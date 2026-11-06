@@ -169,6 +169,28 @@ describe('PlanningPage', () => {
     expect(putCalls(fetchMock)).toHaveLength(0)
   })
 
+  // 950 € are 29,69 % of 3200 €, which would be 950,08 €: switching alone must not change the target
+  it('keeps the exact euro value while the converted percent is not edited', async () => {
+    const fetchMock = renderPage(() => json({ ...categories[1], targetAmount: 950 }))
+
+    const row = await screen.findByRole('form', { name: 'Wohnen' })
+    const input = within(row).getByRole('textbox')
+    fireEvent.change(input, { target: { value: '950' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(putCalls(fetchMock)).toHaveLength(1))
+
+    fireEvent.click(within(row).getByRole('button', { name: '%' }))
+    expect(within(row).getByRole('textbox')).toHaveValue('29,69')
+    expect(equivalent(row)).toHaveTextContent('≙ 950,00 €')
+    fireEvent.click(screen.getByRole('button', { name: /^Mindesteinnahmen/ }))
+    expect(equivalent(row)).toHaveTextContent('≙ 950,00 €')
+    fireEvent.focusOut(within(row).getByRole('textbox'))
+    fireEvent.click(within(row).getByRole('button', { name: '€' }))
+
+    expect(within(row).getByRole('textbox')).toHaveValue('950,00')
+    expect(putCalls(fetchMock)).toHaveLength(1)
+  })
+
   it('saves a percent input as euro of the base', async () => {
     const fetchMock = renderPage()
 
@@ -238,7 +260,7 @@ describe('PlanningPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Mindesteinnahmen/ }))
 
     expect(within(row).getByRole('textbox')).toHaveValue('33,33')
-    expect(equivalent(row)).toHaveTextContent('≙ 799,92 €')
+    expect(equivalent(row)).toHaveTextContent('≙ 800,00 €')
   })
 
   it('starts with the base chosen before in this browser', async () => {

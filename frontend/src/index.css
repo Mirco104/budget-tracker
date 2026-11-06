@@ -1017,6 +1017,7 @@ form.transaction-form .sign-toggle label {
   .plan-previous,
   .plan-note.no-target,
   .plan-note.set-from,
+  .plan-meta .plan-note,
   .plan-warning,
   .plan-more {
     display: none;
