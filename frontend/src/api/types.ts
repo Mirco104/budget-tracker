@@ -195,6 +195,16 @@ export interface ForecastEntry {
   amount: number
 }
 
+/**
+ * Course of the reserve pot in a month (R14, decision 37): balance before the due expenses of the month are
+ * withdrawn, withdrawal what is withdrawn in the month.
+ */
+export interface PotMonth {
+  month: string
+  balance: number
+  withdrawal: number
+}
+
 export interface ForecastMonth {
   month: string
   total: number
@@ -239,6 +249,8 @@ export interface ReserveData {
   monthlyReserve: number
   reserveBalance: number
   reserves: ReserveLine[]
+  /** The course of the pot, the month and the following 11 months (decision 37). */
+  potMonths: PotMonth[]
   /** The month and the following 11 months. */
   forecast: ForecastMonth[]
 }

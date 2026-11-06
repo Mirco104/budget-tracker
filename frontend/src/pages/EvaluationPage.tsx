@@ -1,9 +1,22 @@
 import { useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { errorText } from '../api/client'
 import { useHistory, useReserves } from '../api/reserves'
-import type { ForecastMonth, HistoryData, HistoryMonth, ReserveData } from '../api/types'
+import type { ForecastMonth, HistoryData, HistoryMonth, PotMonth, ReserveData } from '../api/types'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
+import { InfoTip } from '../components/ui/InfoTip'
 import { PageHeader } from '../components/ui/PageHeader'
 import {
   currentMonth,
@@ -388,7 +401,14 @@ function Outlook() {
   return (
     <>
       <p className="hint">Ab {formatMonth(data.month)}, dem aktuellen Monat.</p>
-      <h3>Rücklagen</h3>
+      <h3 className="with-info">
+        Rücklagen
+        <InfoTip label="Rücklagen">
+          Manche Ausgaben kommen nur alle 3, 6 oder 12 Monate, dann aber auf einmal. Legst du jeden Monat einen Teil
+          zurück, ist das Geld da, wenn sie fällig werden. Die App rechnet aus, wie viel das ist; was du tatsächlich
+          zurückgelegt hast, kennt sie nicht.
+        </InfoTip>
+      </h3>
       <ReservePot data={data} />
 
       <h3>Vorschau 12 Monate</h3>
@@ -426,11 +446,23 @@ function ReservePot({ data }: { data: ReserveData }) {
     <>
       <dl className="summary">
         <div>
-          <dt>Monatlich zurücklegen</dt>
+          <dt className="with-info">
+            Monatlich zurücklegen
+            <InfoTip label="Monatlich zurücklegen">
+              Die Summe der Monatsraten aller seltenen Ausgaben. Eine Rate ist der Betrag geteilt durch die Monate des
+              Intervalls, z. B. 120 € jährlich = 10 € im Monat.
+            </InfoTip>
+          </dt>
           <dd>{formatEuro(data.monthlyReserve)}</dd>
         </div>
         <div>
-          <dt>Sollte jetzt angespart sein</dt>
+          <dt className="with-info">
+            Sollte jetzt angespart sein
+            <InfoTip label="Sollte jetzt angespart sein">
+              So viel sollte jetzt im Topf liegen, wenn du seit der letzten Abbuchung jeder Ausgabe jeden Monat ihre
+              Rate zurückgelegt hast, die Rate dieses Monats eingeschlossen. Das ist ein Sollwert, kein Kontostand.
+            </InfoTip>
+          </dt>
           <dd>{formatEuro(data.reserveBalance)}</dd>
         </div>
       </dl>
@@ -444,8 +476,23 @@ function ReservePot({ data }: { data: ReserveData }) {
             <th>Ausgabe</th>
             <th className="number col-optional">Betrag (€)</th>
             <th>Fällig am</th>
-            <th className="number">Pro Monat (€)</th>
-            <th className="number">Angespart (€)</th>
+            <th className="number">
+              <span className="with-info">
+                Pro Monat (€)
+                <InfoTip label="Pro Monat">
+                  Der Betrag geteilt durch die Monate des Intervalls: vierteljährlich 3, halbjährlich 6, jährlich 12.
+                </InfoTip>
+              </span>
+            </th>
+            <th className="number">
+              <span className="with-info">
+                Angespart (€)
+                <InfoTip label="Angespart">
+                  Die Raten seit der letzten Abbuchung, diesen Monat eingeschlossen. Im Monat der Fälligkeit ist der
+                  volle Betrag angespart, danach beginnt es wieder bei einer Rate.
+                </InfoTip>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -463,7 +510,81 @@ function ReservePot({ data }: { data: ReserveData }) {
           ))}
         </tbody>
       </table>
+
+      <h4 className="with-info">
+        Verlauf des Topfs
+        <InfoTip label="Verlauf des Topfs">
+          Die Linie zeigt, wie viel in jedem Monat im Topf liegen sollte, bevor fällige Ausgaben abgebucht werden. Die
+          Balken zeigen, was in dem Monat abgebucht wird. Danach fällt der Topf und wächst jeden Monat wieder um die
+          Raten.
+        </InfoTip>
+      </h4>
+      <PotChart data={data} />
     </>
+  )
+}
+
+const POT_COLOR = 'var(--primary)'
+
+interface PotPoint extends PotMonth {
+  /** Rare expenses due in the month, from the forecast, for the tooltip only. */
+  due: string[]
+}
+
+function PotTooltip({ active, payload }: { active?: boolean; payload?: { payload: PotPoint }[] }) {
+  if (!active || !payload?.length) {
+    return null
+  }
+  const point = payload[0].payload
+  return (
+    <div className="chart-tooltip">
+      <strong>{formatMonth(point.month)}</strong>
+      <span>Soll-Stand {formatEuro(point.balance)}</span>
+      {point.withdrawal > 0 && (
+        <span>
+          Abbuchung {formatEuro(point.withdrawal)}
+          {point.due.length > 0 && ` (${point.due.join(', ')})`}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Decision 37: the balance of the pot as a line, the withdrawals as bars, 12 months from the current month. */
+function PotChart({ data }: { data: ReserveData }) {
+  const reserveIds = new Set(data.reserves.map((line) => line.recurringId))
+  const points: PotPoint[] = data.potMonths.map((pot) => ({
+    ...pot,
+    due: (data.forecast.find((m) => m.month === pot.month)?.entries ?? [])
+      .filter((entry) => entry.recurringId !== null && reserveIds.has(entry.recurringId))
+      .map((entry) => entry.description),
+  }))
+  return (
+    <div
+      className="history-chart"
+      role="img"
+      aria-label="Diagramm Verlauf des Topfs: Soll-Stand und Abbuchungen je Monat"
+    >
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="month" tickFormatter={formatMonthShort} fontSize={12} />
+          <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
+          <Tooltip content={<PotTooltip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.6 }} />
+          <Legend itemSorter={null} />
+          <Bar dataKey="withdrawal" name="Abbuchung" fill={EXPENSE_COLOR} />
+          <Line
+            dataKey="balance"
+            name="Soll-Stand"
+            type="linear"
+            stroke={POT_COLOR}
+            strokeWidth={2}
+            dot={{ r: 3, fill: POT_COLOR }}
+            isAnimationActive={false}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
