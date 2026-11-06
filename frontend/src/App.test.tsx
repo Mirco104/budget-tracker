@@ -129,9 +129,21 @@ describe('App', () => {
     await renderApp()
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
 
+    goTo('#/auswertung')
+
+    expect(await screen.findByLabelText('Monat wählen', {}, { timeout: 15000 })).toHaveValue(
+      shiftMonth(currentMonth(), 1),
+    )
+  }, 20000)
+
+  // US26: the transactions have their own period, starting at this month
+  it('shows the transactions of this month as a period', async () => {
+    await renderApp()
+
     goTo('#/transaktionen')
 
-    expect(screen.getByLabelText('Monat wählen')).toHaveValue(shiftMonth(currentMonth(), 1))
+    expect(await screen.findByRole('button', { name: 'Dieser Monat' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByLabelText('Monat wählen')).not.toBeInTheDocument()
   })
 
   // Decision 28: the planning page has its own month "Gilt ab", starting at the current month

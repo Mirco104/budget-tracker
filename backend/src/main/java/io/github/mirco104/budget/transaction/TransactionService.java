@@ -7,7 +7,7 @@ import io.github.mirco104.budget.recurring.OccurrenceService;
 import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.YearMonth;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
@@ -31,15 +31,24 @@ public class TransactionService {
         this.currentUser = currentUser;
     }
 
-    // A transaction belongs to the month of its date (spec 11.3); occurrences of recurring ones are added (R12).
+    /** The longest period of the list (US26): to must lie before from + 10 years. */
+    static final int MAX_PERIOD_YEARS = 10;
+
+    // Transactions with their date in the period, both days included, and the occurrences of series in it (R1, R12).
     // Newest first; on the same date occurrences come after single transactions.
     @Transactional(readOnly = true)
-    public List<TransactionResponse> findByMonth(YearMonth month) {
+    public List<TransactionResponse> findBetween(LocalDate from, LocalDate to) {
+        if (to.isBefore(from)) {
+            throw new InvalidFieldException("to", "„Bis“ darf nicht vor „Von“ liegen.");
+        }
+        if (!to.isBefore(from.plusYears(MAX_PERIOD_YEARS))) {
+            throw new InvalidFieldException("to", "Der Zeitraum darf höchstens 10 Jahre lang sein.");
+        }
         Stream<TransactionResponse> singles = transactionRepository
-                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), month.atDay(1), month.atEndOfMonth())
+                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from, to)
                 .stream()
                 .map(TransactionResponse::from);
-        Stream<TransactionResponse> occurrences = occurrenceService.occurrencesIn(month).stream()
+        Stream<TransactionResponse> occurrences = occurrenceService.occurrencesBetween(from, to).stream()
                 .map(TransactionResponse::from);
         return Stream.concat(singles, occurrences)
                 .sorted(Comparator.comparing(TransactionResponse::date).reversed())

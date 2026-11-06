@@ -124,7 +124,7 @@ function SignedIn({ me }: { me: Me }) {
 
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
-        {page === 'transactions' && <TransactionsPage month={month} onMonthChange={setMonth} />}
+        {page === 'transactions' && <TransactionsPage />}
         {page === 'planning' && <PlanningPage />}
         {page === 'evaluation' && (
           <Suspense fallback={<p>Lade Auswertung …</p>}>

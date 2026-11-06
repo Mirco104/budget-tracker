@@ -2,11 +2,14 @@ package io.github.mirco104.budget.transaction;
 
 import jakarta.validation.Valid;
 import java.net.URI;
+import io.github.mirco104.budget.common.BadRequestException;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,9 +32,29 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
+    /**
+     * Entries of a month ({@code month}) or of a period ({@code from}, {@code to}, both days included, US26).
+     * The month is the short form of a period; one of the two is required, not both.
+     */
     @GetMapping
-    public List<TransactionResponse> findByMonth(@RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
-        return transactionService.findByMonth(month);
+    public List<TransactionResponse> find(
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth month,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to)
+            throws MissingServletRequestParameterException {
+        if (month != null) {
+            if (from != null || to != null) {
+                throw new BadRequestException("Entweder 'month' oder 'from' und 'to' angeben.");
+            }
+            return transactionService.findBetween(month.atDay(1), month.atEndOfMonth());
+        }
+        if (from == null && to == null) {
+            throw new MissingServletRequestParameterException("month", "YearMonth");
+        }
+        if (from == null || to == null) {
+            throw new MissingServletRequestParameterException(from == null ? "from" : "to", "LocalDate");
+        }
+        return transactionService.findBetween(from, to);
     }
 
     @PostMapping
