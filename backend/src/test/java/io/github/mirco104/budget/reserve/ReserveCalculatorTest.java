@@ -12,6 +12,7 @@ import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastMonth;
+import io.github.mirco104.budget.reserve.ReserveResponse.PotMonth;
 import io.github.mirco104.budget.reserve.ReserveResponse.ReserveLine;
 import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
 import java.math.BigDecimal;
@@ -83,6 +84,14 @@ class ReserveCalculatorTest {
 
     private static List<String> totals(ReserveResponse response) {
         return response.forecast().stream().map(month -> month.total().toPlainString()).toList();
+    }
+
+    private static List<String> balances(ReserveResponse response) {
+        return response.potMonths().stream().map(month -> month.balance().toPlainString()).toList();
+    }
+
+    private static List<String> withdrawals(ReserveResponse response) {
+        return response.potMonths().stream().map(month -> month.withdrawal().toPlainString()).toList();
     }
 
     // --- look back from month V to month B (R14) ---
@@ -299,6 +308,74 @@ class ReserveCalculatorTest {
         assertThat(response.monthlyReserve()).isEqualByComparingTo("16.67");
     }
 
+    // --- course of the pot (R14, decision 37) ---
+
+    @Test
+    void potCourseRisesEachMonthAndStartsAgainAfterTheWithdrawal() {
+        ReserveResponse response = onlySeries(OCTOBER,
+                series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null));
+
+        assertThat(response.potMonths()).extracting(PotMonth::month).containsExactly(
+                "2026-10", "2026-11", "2026-12", "2027-01", "2027-02", "2027-03",
+                "2027-04", "2027-05", "2027-06", "2027-07", "2027-08", "2027-09");
+        assertThat(balances(response)).containsExactly(
+                "240.00", "20.00", "40.00", "60.00", "80.00", "100.00",
+                "120.00", "140.00", "160.00", "180.00", "200.00", "220.00");
+        assertThat(withdrawals(response)).containsExactly(
+                "240.00", "0.00", "0.00", "0.00", "0.00", "0.00",
+                "0.00", "0.00", "0.00", "0.00", "0.00", "0.00");
+    }
+
+    @Test
+    void potCourseSumsAllSeriesAndStartsWithTheBalanceOfNow() {
+        // Quarterly Feb, May, Aug, Nov; yearly in March
+        ReserveResponse response = onlySeries(OCTOBER,
+                series(1, "Kfz", "-90.00", RecurringInterval.QUARTERLY, "2026-02-01", null),
+                series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2027-03-01", null));
+
+        assertThat(balances(response).subList(0, 7))
+                .containsExactly("200.00", "250.00", "210.00", "260.00", "310.00", "270.00", "80.00");
+        assertThat(withdrawals(response).subList(0, 7))
+                .containsExactly("0.00", "90.00", "0.00", "0.00", "90.00", "240.00", "0.00");
+        assertThat(response.potMonths().get(0).balance()).isEqualByComparingTo(response.reserveBalance());
+    }
+
+    @Test
+    void potCourseFollowsSuspendedOccurrencesAndEndDates() {
+        ReserveResponse ended = onlySeries(OCTOBER,
+                series(1, "Beitrag", "-240.00", RecurringInterval.YEARLY, "2025-12-01", "2026-12-31"));
+        assertThat(balances(ended).subList(0, 5)).containsExactly("200.00", "220.00", "240.00", "0.00", "0.00");
+        assertThat(withdrawals(ended).subList(0, 4)).containsExactly("0.00", "0.00", "240.00", "0.00");
+
+        // November suspended: the next occurrence is in February, more than one interval away until December
+        ReserveResponse suspended = onlySeries(OCTOBER,
+                series(2, "Kfz", "-90.00", RecurringInterval.QUARTERLY, "2026-02-01", null, "2026-11-01"));
+        assertThat(balances(suspended).subList(0, 6))
+                .containsExactly("0.00", "0.00", "30.00", "60.00", "90.00", "30.00");
+        assertThat(withdrawals(suspended).subList(0, 5)).containsExactly("0.00", "0.00", "0.00", "0.00", "90.00");
+    }
+
+    @Test
+    void potCourseRoundsOnlyTheSums() {
+        // 100/12 = 8.333… twice: rounded per series 16.66, rounded at the end 16.67
+        ReserveResponse response = onlySeries(OCTOBER,
+                series(1, "A", "-100.00", RecurringInterval.YEARLY, "2026-09-01", null),
+                series(2, "B", "-100.00", RecurringInterval.YEARLY, "2026-09-15", null));
+
+        assertThat(response.potMonths().get(0).balance()).isEqualByComparingTo("16.67");
+    }
+
+    @Test
+    void potCourseIsZeroWithoutRareExpenses() {
+        ReserveResponse response = onlySeries(OCTOBER,
+                series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
+                series(2, "Bonus", "1200.00", RecurringInterval.YEARLY, "2026-12-01", null));
+
+        assertThat(response.potMonths()).hasSize(12);
+        assertThat(balances(response)).containsOnly("0.00");
+        assertThat(withdrawals(response)).containsOnly("0.00");
+    }
+
     // --- forecast ---
 
     @Test
@@ -401,6 +478,11 @@ class ReserveCalculatorTest {
                 "2636.49", "915.00", "915.00", "915.00", "915.00", "915.00",
                 "915.00", "915.00", "915.00", "915.00", "915.00", "915.00");
         assertThat(response.forecast().get(0).entries()).hasSize(10);
+        assertThat(balances(response)).containsExactly(
+                "240.00", "20.00", "40.00", "60.00", "80.00", "100.00",
+                "120.00", "140.00", "160.00", "180.00", "200.00", "220.00");
+        assertThat(withdrawals(response).get(0)).isEqualTo("240.00");
+        assertThat(withdrawals(response).subList(1, 12)).containsOnly("0.00");
 
         // From November 2026 the next occurrence is 2027-10-15 (k = 11)
         assertThat(calculator.outlook(series, List.of(), month("2026-11")).reserveBalance())

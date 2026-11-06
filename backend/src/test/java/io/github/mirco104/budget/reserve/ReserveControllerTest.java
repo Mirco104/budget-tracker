@@ -121,6 +121,12 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.reserves[0].nextDate").value("2026-10-15"))
                 .andExpect(jsonPath("$.reserves[0].monthly").value(20.00))
                 .andExpect(jsonPath("$.reserves[0].saved").value(240.00))
+                .andExpect(jsonPath("$.potMonths", hasSize(12)))
+                .andExpect(jsonPath("$.potMonths[0].month").value("2026-10"))
+                .andExpect(jsonPath("$.potMonths[0].balance").value(240.00))
+                .andExpect(jsonPath("$.potMonths[0].withdrawal").value(240.00))
+                .andExpect(jsonPath("$.potMonths[1].balance").value(20.00))
+                .andExpect(jsonPath("$.potMonths[11].balance").value(220.00))
                 .andExpect(jsonPath("$.forecast", hasSize(12)))
                 .andExpect(jsonPath("$.forecast[0].month").value("2026-10"))
                 .andExpect(jsonPath("$.forecast[0].total").value(2636.49))
@@ -215,6 +221,8 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.monthlyReserve").value(0.00))
                 .andExpect(jsonPath("$.reserveBalance").value(0.00))
                 .andExpect(jsonPath("$.reserves", hasSize(0)))
+                .andExpect(jsonPath("$.potMonths", hasSize(12)))
+                .andExpect(jsonPath("$.potMonths[0].balance").value(0.00))
                 .andExpect(jsonPath("$.forecast", hasSize(12)));
     }
 
