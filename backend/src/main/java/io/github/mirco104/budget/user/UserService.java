@@ -1,5 +1,7 @@
 package io.github.mirco104.budget.user;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
+import io.github.mirco104.budget.bankaccount.BankAccountRepository;
 import io.github.mirco104.budget.category.DefaultCategories;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
@@ -18,18 +20,23 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final DefaultCategories defaultCategories;
+    private final BankAccountRepository bankAccountRepository;
     private final Clock clock;
 
     public UserService(
             UserRepository userRepository, PasswordEncoder passwordEncoder, DefaultCategories defaultCategories,
-            Clock clock) {
+            BankAccountRepository bankAccountRepository, Clock clock) {
+        this.bankAccountRepository = bankAccountRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.defaultCategories = defaultCategories;
         this.clock = clock;
     }
 
-    /** A new user gets the default categories without targets (US15). E-mail unique (409), password ≥ 12. */
+    /**
+     * A new user gets the default categories without targets (US15) and the default account (R26). E-mail unique
+     * (409), password ≥ 12.
+     */
     @Transactional
     public User create(String email, String displayName, String password, Role role) {
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
@@ -43,6 +50,7 @@ public class UserService {
         User user = userRepository.save(new User(
                 normalizedEmail, passwordEncoder.encode(password), displayName.trim(), role, Instant.now(clock)));
         defaultCategories.seedFor(user);
+        bankAccountRepository.save(new BankAccount(user, BankAccount.DEFAULT_NAME, null, true));
         return user;
     }
 }

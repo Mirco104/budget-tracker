@@ -13,11 +13,15 @@ import java.util.UUID;
 public record AccountExport(
         Instant exportedAt,
         Account account,
+        List<BankAccountExport> bankAccounts,
         List<CategoryExport> categories,
         List<TransactionExport> transactions,
         List<RecurringExport> recurringTransactions) {
 
     public record Account(String email, String displayName, Role role, Instant createdAt) {
+    }
+
+    public record BankAccountExport(String name, String iban, boolean defaultAccount, boolean archived) {
     }
 
     public record CategoryExport(String name, int sortOrder, boolean archived, List<TargetExport> targets) {
@@ -26,11 +30,13 @@ public record AccountExport(
     public record TargetExport(YearMonth validFrom, BigDecimal targetAmount) {
     }
 
-    public record TransactionExport(LocalDate date, BigDecimal amount, String description, String category) {
+    public record TransactionExport(
+            LocalDate date, BigDecimal amount, String description, String category, String account) {
     }
 
     public record RecurringExport(
-            UUID seriesId, BigDecimal amount, String description, String category, RecurringInterval interval,
+            UUID seriesId, BigDecimal amount, String description, String category, String account,
+            RecurringInterval interval,
             LocalDate startDate, LocalDate endDate, List<LocalDate> exceptions) {
     }
 }

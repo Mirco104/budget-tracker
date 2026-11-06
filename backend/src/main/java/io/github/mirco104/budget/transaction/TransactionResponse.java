@@ -18,7 +18,9 @@ public record TransactionResponse(
         String description,
         LocalDate date,
         Long categoryId,
-        String categoryName) {
+        String categoryName,
+        Long accountId,
+        String accountName) {
 
     public enum Kind { SINGLE, RECURRING }
 
@@ -33,7 +35,9 @@ public record TransactionResponse(
                 transaction.getDescription(),
                 transaction.getDate(),
                 category.getId(),
-                category.getName());
+                category.getName(),
+                transaction.getAccount().getId(),
+                transaction.getAccount().getName());
     }
 
     static TransactionResponse from(Occurrence occurrence) {
@@ -46,6 +50,8 @@ public record TransactionResponse(
                 occurrence.description(),
                 occurrence.date(),
                 occurrence.categoryId(),
-                occurrence.categoryName());
+                occurrence.categoryName(),
+                occurrence.accountId(),
+                occurrence.accountName());
     }
 }

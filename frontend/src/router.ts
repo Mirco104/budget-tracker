@@ -44,6 +44,7 @@ export function usePage(): Page {
 /** Sub pages of the settings (US10); "#/einstellungen" alone shows the categories. */
 export const SETTINGS_ROUTES = {
   categories: '#/einstellungen/kategorien',
+  bankAccounts: '#/einstellungen/bankkonten',
   account: '#/einstellungen/konto',
   invitations: '#/einstellungen/einladungen',
   users: '#/einstellungen/nutzer',

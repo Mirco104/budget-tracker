@@ -1,5 +1,6 @@
 import type { Me } from '../api/types'
 import { AccountSettings } from '../components/AccountSettings'
+import { BankAccountSettings } from '../components/BankAccountSettings'
 import { CategorySettings } from '../components/CategorySettings'
 import { InvitationSettings } from '../components/InvitationSettings'
 import { UserSettings } from '../components/UserSettings'
@@ -8,20 +9,24 @@ import { SETTINGS_ROUTES, useSettingsPage, type SettingsPage as Page } from '../
 
 const LABELS: Record<Page, string> = {
   categories: 'Kategorien',
+  bankAccounts: 'Bankkonten',
   account: 'Konto',
   invitations: 'Einladungen',
   users: 'Nutzer',
 }
 
 /**
- * Settings with sub pages (US10): categories, the own account and, for admins, invitations and users. Each sub
+ * Settings with sub pages (US10, US30): categories, bank accounts, the own account and, for admins, invitations and
+ * users. Each sub
  * page has its own address (US29).
  */
 export function SettingsPage({ me }: { me: Me }) {
   const chosen = useSettingsPage()
   // Display only; the backend checks the role on every call
   const admin = me.role !== 'USER'
-  const pages: Page[] = admin ? ['categories', 'account', 'invitations', 'users'] : ['categories', 'account']
+  const pages: Page[] = admin
+    ? ['categories', 'bankAccounts', 'account', 'invitations', 'users']
+    : ['categories', 'bankAccounts', 'account']
   const page = pages.includes(chosen) ? chosen : 'categories'
 
   return (
@@ -35,7 +40,8 @@ export function SettingsPage({ me }: { me: Me }) {
         ))}
       </nav>
       {page === 'categories' && <CategorySettings />}
-      {page !== 'categories' && (
+      {page === 'bankAccounts' && <BankAccountSettings />}
+      {page !== 'categories' && page !== 'bankAccounts' && (
         <div className="card settings-card">
           {page === 'account' && <AccountSettings me={me} />}
           {page === 'invitations' && <InvitationSettings senderName={me.displayName} />}

@@ -213,14 +213,14 @@ public class SampleDataSeeder implements ApplicationRunner {
 
         void book(long cents, String description, LocalDate date, String category) {
             transactionService.create(
-                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category)));
+                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null));
         }
 
         void series(String amount, String description, String category, RecurringInterval interval,
                 String startDate, String endDate) {
             recurringTransactionService.create(new RecurringTransactionRequest(
                     new BigDecimal(amount), description, id(category), interval, LocalDate.parse(startDate),
-                    endDate == null ? null : LocalDate.parse(endDate)));
+                    endDate == null ? null : LocalDate.parse(endDate), null));
         }
 
         void target(String category, YearMonth from, String amount) {

@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
@@ -37,6 +38,11 @@ public class Transaction {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    // R26: every transaction is booked on one bank account of its owner
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "account_id", nullable = false)
+    private BankAccount account;
+
     // R15: every transaction belongs to one user
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false)
@@ -45,16 +51,18 @@ public class Transaction {
     protected Transaction() {
     }
 
-    public Transaction(User owner, BigDecimal amount, String description, LocalDate date, Category category) {
+    public Transaction(
+            User owner, BigDecimal amount, String description, LocalDate date, Category category, BankAccount account) {
         this.owner = owner;
-        update(amount, description, date, category);
+        update(amount, description, date, category, account);
     }
 
-    public void update(BigDecimal amount, String description, LocalDate date, Category category) {
+    public void update(BigDecimal amount, String description, LocalDate date, Category category, BankAccount account) {
         this.amount = amount;
         this.description = description;
         this.date = date;
         this.category = category;
+        this.account = account;
     }
 
     public Long getId() {
@@ -75,5 +83,9 @@ public class Transaction {
 
     public Category getCategory() {
         return category;
+    }
+
+    public BankAccount getAccount() {
+        return account;
     }
 }

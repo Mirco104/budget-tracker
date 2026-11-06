@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useBankAccounts } from '../api/bankAccounts'
 import { ApiError } from '../api/client'
 import {
   useCreateRecurringTransaction,
@@ -18,7 +19,7 @@ import { Segmented } from './ui/Segmented'
 type Kind = 'expense' | 'income'
 /** NONE is a single transaction; an interval makes it a series (R12). */
 type Repeat = 'NONE' | RecurringInterval
-type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'repeat' | 'endDate'
+type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'repeat' | 'endDate' | 'accountId'
 type Errors = Partial<Record<Field, string>>
 
 interface Props {
@@ -87,12 +88,15 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const updateThis = useUpdateOccurrenceThis()
   const updateFollowing = useUpdateOccurrenceFollowing()
   const deleteOccurrence = useDeleteOccurrence()
+  const bankAccounts = useBankAccounts().data ?? []
 
   // The amount is entered positive; the switch sets the sign (R11).
   const [kind, setKind] = useState<Kind>(entry && entry.amount > 0 ? 'income' : 'expense')
   const [amount, setAmount] = useState(entry ? toAmountText(entry.amount) : '')
   const [description, setDescription] = useState(entry?.description ?? '')
   const [categoryId, setCategoryId] = useState(entry ? String(entry.categoryId) : '')
+  // '' is the default account (R26)
+  const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? defaultDate)
   const [repeat, setRepeat] = useState<Repeat>('NONE')
   const [endDate, setEndDate] = useState('')
@@ -111,6 +115,9 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
       : 'none'
   const quick = lastUsed(recent, categories, kind)
   const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
+  // An archived account only when it is already chosen; one account needs no field (US30)
+  const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
+  const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
 
   function chooseScope(next: OccurrenceScope) {
     setScope(next)
@@ -158,6 +165,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
       amount: kind === 'expense' ? -parsed : parsed,
       description: description.trim(),
       categoryId: Number(categoryId),
+      ...(accountId === '' ? {} : { accountId: Number(accountId) }),
     }
     const single = { ...common, date }
     if (recurring) {
@@ -356,6 +364,24 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
               aria-invalid={errors.endDate ? true : undefined}
             />
             {errors.endDate && <span className="error">{errors.endDate}</span>}
+          </label>
+        )}
+
+        {accountOptions.length > 1 && (
+          <label className="field">
+            Konto
+            <select
+              value={accountId === '' ? String(defaultAccount?.id ?? '') : accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              aria-invalid={errors.accountId ? true : undefined}
+            >
+              {accountOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            {errors.accountId && <span className="error">{errors.accountId}</span>}
           </label>
         )}
 

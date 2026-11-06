@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.recurring;
 
+import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
@@ -29,11 +30,14 @@ public class RecurringTransactionService {
     private final RecurringExceptionRepository exceptionRepository;
     private final CategoryService categoryService;
     private final TransactionService transactionService;
+    private final BankAccountService bankAccountService;
     private final CurrentUser currentUser;
 
     public RecurringTransactionService(
             RecurringTransactionRepository recurringRepository, RecurringExceptionRepository exceptionRepository,
-            CategoryService categoryService, TransactionService transactionService, CurrentUser currentUser) {
+            CategoryService categoryService, TransactionService transactionService,
+            BankAccountService bankAccountService, CurrentUser currentUser) {
+        this.bankAccountService = bankAccountService;
         this.recurringRepository = recurringRepository;
         this.exceptionRepository = exceptionRepository;
         this.categoryService = categoryService;
@@ -58,6 +62,7 @@ public class RecurringTransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 category,
+                bankAccountService.findBookable(request.accountId()),
                 request.interval(),
                 request.startDate(),
                 request.endDate());
@@ -89,6 +94,7 @@ public class RecurringTransactionService {
                     request.amount().setScale(2, RoundingMode.HALF_UP),
                     request.description().trim(),
                     category,
+                    bankAccountService.findBookable(request.accountId()),
                     request.interval(),
                     request.startDate(),
                     request.endDate());
@@ -108,6 +114,7 @@ public class RecurringTransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 category,
+                bankAccountService.findBookable(request.accountId()),
                 request.interval(),
                 request.startDate(),
                 request.endDate());

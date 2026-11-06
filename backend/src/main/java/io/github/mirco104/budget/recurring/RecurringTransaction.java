@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.recurring;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
@@ -41,6 +42,11 @@ public class RecurringTransaction {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    // R26: every series is booked on one bank account of its owner
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "account_id", nullable = false)
+    private BankAccount account;
+
     // R15: every series belongs to one user
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false)
@@ -60,16 +66,17 @@ public class RecurringTransaction {
     }
 
     public RecurringTransaction(
-            User owner, UUID seriesId, BigDecimal amount, String description, Category category, RecurringInterval interval,
-            LocalDate startDate, LocalDate endDate) {
+            User owner, UUID seriesId, BigDecimal amount, String description, Category category, BankAccount account,
+            RecurringInterval interval, LocalDate startDate, LocalDate endDate) {
         this.owner = owner;
         this.seriesId = seriesId;
-        update(amount, description, category, interval, startDate, endDate);
+        update(amount, description, category, account, interval, startDate, endDate);
     }
 
     public void update(
-            BigDecimal amount, String description, Category category, RecurringInterval interval,
+            BigDecimal amount, String description, Category category, BankAccount account, RecurringInterval interval,
             LocalDate startDate, LocalDate endDate) {
+        this.account = account;
         this.amount = amount;
         this.description = description;
         this.category = category;
@@ -104,6 +111,10 @@ public class RecurringTransaction {
 
     public Category getCategory() {
         return category;
+    }
+
+    public BankAccount getAccount() {
+        return account;
     }
 
     public RecurringInterval getInterval() {

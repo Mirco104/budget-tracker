@@ -9,6 +9,8 @@ interface Props {
   categories: Category[]
   /** Today as "YYYY-MM-DD"; later entries are marked "geplant" (US26). */
   today: string
+  /** Shows the account of each entry; only useful with more than one account (US30). */
+  showAccount?: boolean
   onSelect: (entry: Transaction) => void
 }
 
@@ -39,7 +41,7 @@ function groupBy(entries: Transaction[], keyOf: (entry: Transaction) => string):
  * one month, each month starts with a heading and its income and expenses (US26). A click on a row opens it for
  * editing, so a row needs no buttons of its own.
  */
-export function BookingList({ entries, categories, today, onSelect }: Props) {
+export function BookingList({ entries, categories, today, showAccount = false, onSelect }: Props) {
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const months = groupBy(sorted, (entry) => entry.date.slice(0, 7))
   const iconOf = (id: number) => categories.find((category) => category.id === id)?.icon ?? 'tag'
@@ -64,6 +66,7 @@ export function BookingList({ entries, categories, today, onSelect }: Props) {
                         <span className="tx-description">{entry.description}</span>
                         <span className="tx-meta">
                           {entry.categoryName}
+                          {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
                           {entry.kind === 'RECURRING' && (
                             <span className="badge">
                               <Icon name="repeat" size={12} />

@@ -1240,6 +1240,31 @@ th.number {
   justify-content: space-between;
 }
 
+.account-form {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.account-form .hint {
+  margin: 0;
+}
+
+.account-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-name .badge {
+  margin-left: 8px;
+}
+
+.account-name .hint {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 button.add-category {
   display: inline-flex;
   gap: 6px;

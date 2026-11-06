@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import { useReserves } from '../api/reserves'
@@ -29,6 +30,7 @@ export function TransactionsPage() {
   const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
   const transactions = useTransactionsBetween(period.from, period.to, complete)
   const categories = useCategories(currentMonth())
+  const bankAccounts = useBankAccounts()
   // Compact reserve pot (R14, decision 15); details on the Auswertung page.
   const reserves = useReserves()
   const booking = useBookingDialog({ categories: categories.data, defaultDate: today })
@@ -155,7 +157,13 @@ export function TransactionsPage() {
         </p>
       )}
       {shown.length > 0 && (
-        <BookingList entries={shown} categories={categories.data ?? []} today={today} onSelect={booking.openEdit} />
+        <BookingList
+          entries={shown}
+          categories={categories.data ?? []}
+          today={today}
+          showAccount={(bankAccounts.data?.length ?? 0) > 1}
+          onSelect={booking.openEdit}
+        />
       )}
 
       <AddBookingFab onClick={booking.openNew} />
