@@ -55,7 +55,7 @@ function DashboardContent({ month }: { month: string }) {
   const iconOf = (id: number) => categories.data?.find((category) => category.id === id)?.icon ?? 'tag'
 
   // US5: nothing booked and planned yet. Only the current month counts, an empty past month is just empty.
-  const hasTarget = categories.data?.some((c) => c.targetAmount !== null || c.targetPercent !== null) ?? true
+  const hasTarget = categories.data?.some((c) => c.targetAmount !== null) ?? true
   const showOnboarding =
     data.monthState === 'CURRENT' && data.categories.length === 0 && data.income.length === 0 && !hasTarget
 

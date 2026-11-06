@@ -41,6 +41,15 @@ export function formatMonthShort(month: string): string {
   return shortMonthName.format(new Date(year, monthNumber - 1, 1))
 }
 
+const monthOnly = new Intl.DateTimeFormat('de-DE', { month: 'long' })
+const shortMonthOnly = new Intl.DateTimeFormat('de-DE', { month: 'short' })
+
+/** "2026-10" -> "Oktober", or "Okt." with short, where the year is clear from the page */
+export function formatMonthName(month: string, short = false): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return (short ? shortMonthOnly : monthOnly).format(new Date(year, monthNumber - 1, 1))
+}
+
 export function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split('-')
   return `${day}.${month}.${year}`
