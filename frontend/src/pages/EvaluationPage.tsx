@@ -417,8 +417,7 @@ function Outlook() {
         <InfoTip label="Vorschau 12 Monate">
           Die Balken zeigen alle gebuchten Ausgaben je Monat, die Linie, wie viel im Rücklagen-Topf liegen sollte,
           bevor fällige seltene Ausgaben abgebucht werden. Der Topf wächst jeden Monat um die Raten und fällt, wenn er
-          eine teure Abbuchung bezahlt. Die Achse ist logarithmisch: Jede Linie steht für das Zehnfache der darunter,
-          damit große Ausgaben und der kleinere Topf zusammen lesbar bleiben.
+          eine teure Abbuchung bezahlt.
         </InfoTip>
       </h3>
       <ForecastChart months={months} active={active} onActive={setActive} />
@@ -601,26 +600,6 @@ function ForecastRows({ month, active, onActive }: {
   )
 }
 
-// A log axis cannot show 0: months with 0 have no bar or point there (decision 37)
-function positiveOrNull(value: number) {
-  return value > 0 ? value : null
-}
-
-/** Ticks at the powers of ten around the values, e.g. 10, 100, 1.000, 10.000. */
-function logTicks(values: number[]): number[] {
-  const positive = values.filter((v) => v > 0)
-  if (positive.length === 0) {
-    return [1, 10, 100, 1000]
-  }
-  const low = Math.floor(Math.log10(Math.min(...positive)))
-  const high = Math.ceil(Math.log10(Math.max(...positive)))
-  const ticks: number[] = []
-  for (let exponent = low; exponent <= Math.max(high, low + 1); exponent++) {
-    ticks.push(10 ** exponent)
-  }
-  return ticks
-}
-
 function ForecastTooltip({ active, payload }: { active?: boolean; payload?: { payload: OutlookMonth }[] }) {
   if (!active || !payload?.length) {
     return null
@@ -642,20 +621,13 @@ function ForecastTooltip({ active, payload }: { active?: boolean; payload?: { pa
   )
 }
 
-/** Decision 37: expenses as bars and the balance of the pot as a line on one log axis; the marked month is shared. */
+/** Decision 37: expenses as bars and the balance of the pot as a line on one axis; the marked month is shared. */
 function ForecastChart({ months, active, onActive }: {
   months: OutlookMonth[]
   active: string | null
   onActive: (month: string | null) => void
 }) {
   const opacity = (month: string) => (active === null || active === month ? 1 : FADED_OPACITY)
-  const ticks = logTicks(months.flatMap((m) => [m.total, m.balance]))
-  // A bar on a log axis cannot start at 0, so it runs from the bottom of the axis to its value
-  const points = months.map((m) => ({
-    ...m,
-    totalBar: m.total > 0 ? [ticks[0], m.total] : null,
-    balanceLine: positiveOrNull(m.balance),
-  }))
   return (
     <div
       className="history-chart"
@@ -664,31 +636,23 @@ function ForecastChart({ months, active, onActive }: {
     >
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart
-          data={points}
+          data={months}
           margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
           onMouseMove={(state) => onActive(state.activeLabel === undefined ? null : String(state.activeLabel))}
           onMouseLeave={() => onActive(null)}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="month" tickFormatter={formatMonthShort} fontSize={12} />
-          <YAxis
-            scale="log"
-            domain={[ticks[0], ticks[ticks.length - 1]]}
-            ticks={ticks}
-            allowDataOverflow
-            tickFormatter={formatWholeNumber}
-            fontSize={12}
-            width={56}
-          />
+          <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
           <Tooltip content={<ForecastTooltip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.6 }} />
           <Legend itemSorter={null} />
-          <Bar dataKey="totalBar" name="Ausgaben" fill={EXPENSE_COLOR}>
-            {points.map((m) => (
+          <Bar dataKey="total" name="Ausgaben" fill={EXPENSE_COLOR}>
+            {months.map((m) => (
               <Cell key={m.month} fillOpacity={opacity(m.month)} />
             ))}
           </Bar>
           <Line
-            dataKey="balanceLine"
+            dataKey="balance"
             name="Soll-Stand Topf"
             type="linear"
             stroke={POT_COLOR}

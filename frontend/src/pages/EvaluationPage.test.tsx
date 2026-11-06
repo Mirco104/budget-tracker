@@ -343,6 +343,6 @@ describe('EvaluationPage', () => {
     expect(tile('Sollte jetzt angespart sein')).toHaveTextContent('20,00 €')
     fireEvent.pointerDown(document.body)
     fireEvent.click(screen.getByRole('button', { name: 'Erklärung: Vorschau 12 Monate' }))
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/logarithmisch/)
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/die Linie, wie viel im Rücklagen-Topf liegen sollte/)
   })
 })
