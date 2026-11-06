@@ -44,7 +44,7 @@ class DashboardCalculatorTest {
     @Test
     void euroTargetIsUsedAndDifferenceIsTargetMinusActual() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), noTarget(GEHALT)),
+                List.of(category(WOHNEN, "800"), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-750")));
 
         CategoryLine wohnen = category(result, WOHNEN);
@@ -53,36 +53,46 @@ class DashboardCalculatorTest {
         assertThat(wohnen.difference()).isEqualByComparingTo("50.00");
     }
 
-    // --- Case 2: percent target only, income > 0 (R3) ---
+    // --- Case 2: an entry with an empty amount means no target (R3, decision 36) ---
 
     @Test
-    void percentTargetIsShareOfIncome() {
+    void entryWithoutAmountIsNoTarget() {
         DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, "0.15"), noTarget(GEHALT)),
-                List.of(booking(GEHALT, "2400")));
+                List.of(category(LEBENSMITTEL, null), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "2400"), booking(LEBENSMITTEL, "-50")));
 
-        assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("360.00");
+        assertThat(category(result, LEBENSMITTEL).target()).isNull();
+        assertThat(category(result, LEBENSMITTEL).difference()).isNull();
+        assertThat(result.expenses().target()).isEqualByComparingTo("0.00");
     }
 
     @Test
-    void percentTargetIsRoundedHalfUpToCents() {
+    void euroTargetIsRoundedHalfUpToCents() {
         DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, "0.3333"), noTarget(GEHALT)),
-                List.of(booking(GEHALT, "100.15")));
+                List.of(category(LEBENSMITTEL, "33.375"), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "100")));
 
-        // 100.15 * 0.3333 = 33.380 -> 33.38
         assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("33.38");
+        assertThat(category(result, LEBENSMITTEL).target().scale()).isEqualTo(2);
     }
 
-    // --- Case 3: euro and percent set -> euro wins (R3) ---
+    // --- Case 3: unplanned with both bases, Ē(M) and Emin(M) (R4, decision 36) ---
 
     @Test
-    void euroTargetWinsOverPercent() {
+    void unplannedIsGivenForTheAverageAndForTheMinimumIncome() {
         DashboardResponse result = calculate(
-                List.of(category(INVESTITIONEN, "250", "0.10"), noTarget(GEHALT)),
-                List.of(booking(GEHALT, "2400")));
+                List.of(category(WOHNEN, "900"), category(LEBENSMITTEL, "400"), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "500")),
+                new Result(new BigDecimal("2000.00"), new BigDecimal("1200.00"), 12,
+                        YearMonth.of(2025, 10), YearMonth.of(2026, 9)),
+                NOVEMBER);
 
-        assertThat(category(result, INVESTITIONEN).target()).isEqualByComparingTo("250.00");
+        // 2000 - 1300 and 1200 - 1300; the income of the month (500) does not matter
+        assertThat(result.minimumIncome()).isEqualByComparingTo("1200.00");
+        assertThat(result.unplanned()).isEqualByComparingTo("700.00");
+        assertThat(result.unplannedLabel()).isEqualTo("Nicht verplant");
+        assertThat(result.unplannedMinimum()).isEqualByComparingTo("-100.00");
+        assertThat(result.unplannedMinimumLabel()).isEqualTo("Überplant");
     }
 
     // --- Case 4: unplanned income, negative when over-planned; not part of the target total (R4, R6) ---
@@ -90,7 +100,7 @@ class DashboardCalculatorTest {
     @Test
     void unplannedIsIncomeMinusTargets() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), category(LEBENSMITTEL, null, "0.15"),
+                List.of(category(WOHNEN, "800"), category(LEBENSMITTEL, "360"),
                         noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2400")));
 
@@ -103,7 +113,7 @@ class DashboardCalculatorTest {
     @Test
     void unplannedIsNegativeWhenOverPlanned() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "1500", null), category(LEBENSMITTEL, null, "0.40"),
+                List.of(category(WOHNEN, "1500"), category(LEBENSMITTEL, "800"),
                         noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000")));
 
@@ -116,7 +126,7 @@ class DashboardCalculatorTest {
     @Test
     void differenceTotalIsTargetMinusActual() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), category(LEBENSMITTEL, "300", null),
+                List.of(category(WOHNEN, "800"), category(LEBENSMITTEL, "300"),
                         noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-800"), booking(LEBENSMITTEL, "-350")));
 
@@ -132,7 +142,7 @@ class DashboardCalculatorTest {
     @Test
     void zeroIncomeAndZeroExpensesGiveNoIncomeLines() {
         DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, "0.15"), noTarget(GEHALT),
+                List.of(category(LEBENSMITTEL, "0"), noTarget(GEHALT),
                         noTarget(NEBENJOB)),
                 List.of());
 
@@ -148,7 +158,7 @@ class DashboardCalculatorTest {
     @Test
     void zeroIncomeKeepsEuroTargetsAndGivesNegativeUnplanned() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "900", null), category(LEBENSMITTEL, null, "0.15"),
+                List.of(category(WOHNEN, "900"), category(LEBENSMITTEL, "0"),
                         noTarget(GEHALT)),
                 List.of(booking(WOHNEN, "-100")));
 
@@ -165,7 +175,7 @@ class DashboardCalculatorTest {
     @Test
     void negativeSurplusIsLabelledAsLoss() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, null, null), noTarget(GEHALT)),
+                List.of(category(WOHNEN, null), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "1000"), booking(WOHNEN, "-1250")));
 
         assertThat(result.surplus()).isEqualByComparingTo("-250.00");
@@ -177,7 +187,7 @@ class DashboardCalculatorTest {
     @Test
     void refundLowersActualOfItsCategoryAndIsNoIncome() {
         DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, null), noTarget(GEHALT)),
+                List.of(category(LEBENSMITTEL, null), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "-100"), booking(LEBENSMITTEL, "30")));
 
         assertThat(category(result, LEBENSMITTEL).actual()).isEqualByComparingTo("70.00");
@@ -188,7 +198,7 @@ class DashboardCalculatorTest {
     @Test
     void expenseCategoryWithPositiveNetCountsAsIncome() {
         DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, null), noTarget(GEHALT)),
+                List.of(category(LEBENSMITTEL, null), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "1500"), booking(LEBENSMITTEL, "-20"), booking(LEBENSMITTEL, "520")));
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("2000.00");
@@ -202,7 +212,7 @@ class DashboardCalculatorTest {
     @Test
     void expenseInAnIncomeCategoryIsListedWithoutTarget() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), noTarget(GEHALT), noTarget(NEBENJOB)),
+                List.of(category(WOHNEN, "800"), noTarget(GEHALT), noTarget(NEBENJOB)),
                 List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-800"), booking(NEBENJOB, "-50")));
 
         assertThat(result.categories()).extracting(CategoryLine::id).containsExactly(WOHNEN, NEBENJOB);
@@ -226,7 +236,7 @@ class DashboardCalculatorTest {
     @Test
     void categoryWithoutTargetAndExpenseIsNotListed() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), category(FREIZEIT, null, null),
+                List.of(category(WOHNEN, "800"), category(FREIZEIT, null),
                         noTarget(GEHALT), noTarget(NEBENJOB)),
                 List.of(booking(GEHALT, "2000")));
 
@@ -237,7 +247,7 @@ class DashboardCalculatorTest {
     @Test
     void everyCategoryCanHaveATarget() {
         DashboardResponse result = calculate(
-                List.of(category(NEBENJOB, "50", null), noTarget(GEHALT)),
+                List.of(category(NEBENJOB, "50"), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000")));
 
         assertLine(result, NEBENJOB, "50.00", "0.00", "50.00");
@@ -249,7 +259,7 @@ class DashboardCalculatorTest {
     @Test
     void differenceIsEmptyWithoutTarget() {
         DashboardResponse result = calculate(
-                List.of(category(FREIZEIT, null, null), noTarget(GEHALT)),
+                List.of(category(FREIZEIT, null), noTarget(GEHALT)),
                 List.of(booking(FREIZEIT, "-75.10")));
 
         CategoryLine freizeit = category(result, FREIZEIT);
@@ -261,7 +271,7 @@ class DashboardCalculatorTest {
     @Test
     void transactionsOutsideTheMonthAreIgnored() {
         DashboardResponse result = calculate(
-                List.of(category(FREIZEIT, null, null), noTarget(GEHALT)),
+                List.of(category(FREIZEIT, null), noTarget(GEHALT)),
                 List.of(booking(FREIZEIT, "-10", LocalDate.of(2026, 9, 30)),
                         booking(FREIZEIT, "-20", LocalDate.of(2026, 10, 1)),
                         booking(FREIZEIT, "-30", LocalDate.of(2026, 10, 31)),
@@ -273,7 +283,7 @@ class DashboardCalculatorTest {
     @Test
     void keepsInputOrderInExpenseAndIncomeLines() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), category(FREIZEIT, "100", null),
+                List.of(category(WOHNEN, "800"), category(FREIZEIT, "100"),
                         noTarget(GEHALT), noTarget(NEBENJOB)),
                 List.of(booking(NEBENJOB, "200"), booking(GEHALT, "2000")));
 
@@ -285,7 +295,7 @@ class DashboardCalculatorTest {
     @Test
     void emptyMonthGivesZeroActuals() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "800", null), noTarget(GEHALT)),
+                List.of(category(WOHNEN, "800"), noTarget(GEHALT)),
                 List.of());
 
         assertThat(category(result, WOHNEN).actual()).isEqualByComparingTo("0.00");
@@ -298,7 +308,7 @@ class DashboardCalculatorTest {
     @Test
     void onlyOccurrencesWithNegativeAmountCountAsRecurring() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "900", null), noTarget(LEBENSMITTEL), noTarget(GEHALT)),
+                List.of(category(WOHNEN, "900"), noTarget(LEBENSMITTEL), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "1500"), occurrence(GEHALT, "500"), occurrence(WOHNEN, "-900"),
                         booking(LEBENSMITTEL, "-100")));
 
@@ -345,7 +355,7 @@ class DashboardCalculatorTest {
     @Test
     void recurringAndOneOffAddUpToExpenses() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "1500", null), category(LEBENSMITTEL, null, "0.40"),
+                List.of(category(WOHNEN, "1500"), category(LEBENSMITTEL, "800"),
                         noTarget(VERSICHERUNGEN), noTarget(GEHALT), noTarget(NEBENJOB)),
                 List.of(booking(GEHALT, "2000"), occurrence(WOHNEN, "-1500"), booking(LEBENSMITTEL, "-700"),
                         booking(LEBENSMITTEL, "25"), occurrence(LEBENSMITTEL, "-9.99"),
@@ -369,33 +379,25 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().oneOff()).isEqualByComparingTo("0.00");
     }
 
-    // --- Ø income as the basis (R3, R4, R23, decision 26) ---
+    // --- Ø and minimum income as the basis (R4, R23, decisions 26 and 36) ---
 
     @Test
-    void percentTargetUsesTheAverageIncomeNotTheIncomeOfTheMonth() {
+    void withoutAverageIncomeTargetsStayAndUnplannedIsEmpty() {
         DashboardResponse result = calculate(
-                List.of(category(LEBENSMITTEL, null, "0.10"), noTarget(GEHALT)),
-                List.of(booking(GEHALT, "1000")),
-                average("2850.00"), NOVEMBER);
-
-        assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("285.00");
-    }
-
-    @Test
-    void withoutAverageIncomeAPercentTargetIsNoTargetAndEuroTargetsStay() {
-        DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "900", null), category(LEBENSMITTEL, null, "0.15"),
-                        category(MOBILITAET, "60", "0.50"), noTarget(GEHALT)),
+                List.of(category(WOHNEN, "900"), category(LEBENSMITTEL, "150"),
+                        category(MOBILITAET, "60"), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000")),
                 Result.EMPTY, NOVEMBER);
 
         assertThat(category(result, WOHNEN).target()).isEqualByComparingTo("900.00");
-        assertThat(category(result, MOBILITAET).target()).isEqualByComparingTo("60.00");
-        assertThat(result.categories()).extracting(CategoryLine::id).doesNotContain(LEBENSMITTEL);
-        assertThat(result.expenses().target()).isEqualByComparingTo("960.00");
+        assertThat(category(result, LEBENSMITTEL).target()).isEqualByComparingTo("150.00");
+        assertThat(result.expenses().target()).isEqualByComparingTo("1110.00");
         assertThat(result.unplanned()).isNull();
         assertThat(result.unplannedLabel()).isNull();
+        assertThat(result.unplannedMinimum()).isNull();
+        assertThat(result.unplannedMinimumLabel()).isNull();
         assertThat(result.averageIncome()).isNull();
+        assertThat(result.minimumIncome()).isNull();
         assertThat(result.averageIncomeMonths()).isZero();
         assertThat(result.averageIncomeFrom()).isNull();
         assertThat(result.averageExpenses()).isNull();
@@ -404,7 +406,7 @@ class DashboardCalculatorTest {
     @Test
     void unplannedIsAverageIncomeMinusTargets() {
         DashboardResponse result = calculate(
-                List.of(category(WOHNEN, "900", null), category(LEBENSMITTEL, null, "0.10"), noTarget(GEHALT)),
+                List.of(category(WOHNEN, "900"), category(LEBENSMITTEL, "200"), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "500")),
                 average("2000.00"), NOVEMBER);
 
@@ -418,7 +420,7 @@ class DashboardCalculatorTest {
         DashboardResponse result = calculate(
                 List.of(noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2400")),
-                new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)), NOVEMBER);
+                new Result(new BigDecimal("3000.00"), new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)), NOVEMBER);
 
         assertThat(result.averageIncome()).isEqualByComparingTo("3000.00");
         assertThat(result.averageIncomeMonths()).isEqualTo(9);
@@ -431,7 +433,7 @@ class DashboardCalculatorTest {
     @Test
     void averageExpensesArePassedThroughAndDoNotChangeTheMonth() {
         DashboardResponse result = calculator.calculate(
-                List.of(category(WOHNEN, "900", null), noTarget(GEHALT)),
+                List.of(category(WOHNEN, "900"), noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2000"), booking(WOHNEN, "-900")),
                 OCTOBER, average("2000.00"), new BigDecimal("1234.5"), NOVEMBER);
 
@@ -503,15 +505,16 @@ class DashboardCalculatorTest {
     void referenceFixtureF1MatchesSpec() {
         DashboardResponse result = calculate(
                 List.of(
-                        category(WOHNEN, "900", null),
-                        category(NEBENKOSTEN, null, "0.10"),
-                        category(VERSICHERUNGEN, "100", null),
-                        category(MOBILITAET, "60", "0.50"),
-                        category(KREDITE, null, null),
-                        category(LEBENSMITTEL, "400", null),
-                        category(FREIZEIT, null, "0.05"),
-                        category(GESCHENKE, null, null),
-                        category(INVESTITIONEN, null, "0.20"),
+                        category(WOHNEN, "900"),
+                        // Euro since decision 36, the amounts the percent targets had (spec section 12)
+                        category(NEBENKOSTEN, "300"),
+                        category(VERSICHERUNGEN, "100"),
+                        category(MOBILITAET, "60"),
+                        category(KREDITE, null),
+                        category(LEBENSMITTEL, "400"),
+                        category(FREIZEIT, "150"),
+                        category(GESCHENKE, null),
+                        category(INVESTITIONEN, "600"),
                         noTarget(GEHALT),
                         noTarget(NEBENJOB)),
                 List.of(
@@ -533,7 +536,7 @@ class DashboardCalculatorTest {
                         // Must be ignored
                         booking(LEBENSMITTEL, "-999.00", LocalDate.of(2026, 9, 30))),
                 // R23: salary 3000.00 in 2026-01 to 2026-09; today is 2026-10-20; Ā = 9234.00 / 9
-                new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)),
+                new Result(new BigDecimal("3000.00"), new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)),
                 new BigDecimal("1026.00"), OCTOBER);
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("3200.00");
@@ -554,6 +557,8 @@ class DashboardCalculatorTest {
         assertThat(result.expenses().actual()).isEqualByComparingTo("2606.49");
         assertThat(result.expenses().difference()).isEqualByComparingTo("-96.49");
         assertThat(result.unplanned()).isEqualByComparingTo("490.00");
+        assertThat(result.minimumIncome()).isEqualByComparingTo("3000.00");
+        assertThat(result.unplannedMinimum()).isEqualByComparingTo("490.00");
 
         assertThat(result.surplus()).isEqualByComparingTo("593.51");
         assertThat(result.monthState()).isEqualTo(MonthState.CURRENT);
@@ -580,7 +585,7 @@ class DashboardCalculatorTest {
     private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions) {
         BigDecimal income = DashboardCalculator.incomeOf(transactions, OCTOBER);
         return calculate(categories, transactions,
-                new Result(income, 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9)), NOVEMBER);
+                new Result(income, income, 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9)), NOVEMBER);
     }
 
     private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions,
@@ -594,15 +599,15 @@ class DashboardCalculatorTest {
     }
 
     private static Result average(String amount) {
-        return new Result(new BigDecimal(amount), 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9));
+        return new Result(new BigDecimal(amount), new BigDecimal(amount), 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9));
     }
 
-    private static CategoryData category(long id, String amount, String percent) {
-        return new CategoryData(id, "Kategorie " + id, decimal(amount), decimal(percent));
+    private static CategoryData category(long id, String amount) {
+        return new CategoryData(id, "Kategorie " + id, decimal(amount));
     }
 
     private static CategoryData noTarget(long id) {
-        return category(id, null, null);
+        return category(id, null);
     }
 
     /** Single transaction; signed amount: positive is income, negative is expense (R11). */

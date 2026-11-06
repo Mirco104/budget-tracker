@@ -6,8 +6,8 @@ import { TransactionsPage } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 6, name: 'Freizeit', icon: 'music', sortOrder: 6, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: true },
+  { id: 6, name: 'Freizeit', icon: 'music', sortOrder: 6, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt', icon: 'wallet', sortOrder: 20, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: true },
 ]
 
 const transactions: Transaction[] = [
