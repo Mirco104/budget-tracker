@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
+import type { BankAccount, Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
 import { TransactionsPage } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
@@ -11,14 +11,14 @@ const categories: Category[] = [
 ]
 
 const transactions: Transaction[] = [
-  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit' },
-  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt' },
-  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit' },
-  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit' },
+  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto' },
+  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto' },
+  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto' },
+  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto' },
 ]
 
 const series: RecurringTransaction[] = [
-  { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', interval: 'MONTHLY', startDate: '2026-01-05', endDate: null, monthlyEquivalent: 15 },
+  { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', interval: 'MONTHLY', startDate: '2026-01-05', endDate: null, monthlyEquivalent: 15 },
 ]
 
 // Only the fields the reserve summary uses.
@@ -30,7 +30,7 @@ const reserves: Pick<ReserveData, 'monthlyReserve' | 'reserveBalance' | 'reserve
   ],
 }
 
-function renderPage(entries: Transaction[] = transactions) {
+function renderPage(entries: Transaction[] = transactions, bankAccounts: BankAccount[] = []) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
@@ -43,7 +43,9 @@ function renderPage(entries: Transaction[] = transactions) {
           ? categories
           : url.startsWith('/api/reserves')
             ? reserves
-            : series
+            : url.startsWith('/api/bank-accounts')
+              ? bankAccounts
+              : series
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -67,6 +69,24 @@ describe('TransactionsPage', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  // US30: with more than one account each entry names its account
+  it('names the account of each entry when there is more than one account', async () => {
+    renderPage(transactions, [
+      { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
+      { id: 2, name: 'Kreditkarte', iban: null, defaultAccount: false, archived: false, used: false },
+    ])
+
+    const kino = await screen.findByRole('button', { name: /Kino/ })
+    await waitFor(() => expect(kino).toHaveTextContent('· Girokonto'))
+  })
+
+  it('names no account with only one account', async () => {
+    renderPage(transactions, [{ id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true }])
+
+    const kino = await screen.findByRole('button', { name: /Kino/ })
+    expect(kino).not.toHaveTextContent('Girokonto')
   })
 
   // Decision 30: grouped by day, newest first, with the sum of the day
@@ -276,7 +296,7 @@ describe('TransactionsPage', () => {
   })
 
   it('separates the months with a heading and the sums of each month, newest month first', async () => {
-    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit' }
+    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto' }
     renderPage([...transactions, september])
 
     await screen.findByText('Buch')

@@ -46,10 +46,11 @@ describe('SettingsPage', () => {
   })
 
   // US10: sub pages with their own address (US29); invitations and users only for admins
-  it('has the sub pages Kategorien and Konto, for admins also Einladungen and Nutzer', () => {
+  it('has the sub pages Kategorien, Bankkonten and Konto, for admins also Einladungen and Nutzer', () => {
     renderSettings(user)
     expect(subPages()).toEqual([
       ['Kategorien', '#/einstellungen/kategorien'],
+      ['Bankkonten', '#/einstellungen/bankkonten'],
       ['Konto', '#/einstellungen/konto'],
     ])
     expect(screen.getByRole('link', { name: 'Konto' })).toHaveAttribute('aria-current', 'page')
@@ -60,6 +61,7 @@ describe('SettingsPage', () => {
     renderSettings({ ...admin, role: 'SYSTEM_ADMIN' }, undefined, '#/einstellungen/nutzer')
     expect(subPages()).toEqual([
       ['Kategorien', '#/einstellungen/kategorien'],
+      ['Bankkonten', '#/einstellungen/bankkonten'],
       ['Konto', '#/einstellungen/konto'],
       ['Einladungen', '#/einstellungen/einladungen'],
       ['Nutzer', '#/einstellungen/nutzer'],
