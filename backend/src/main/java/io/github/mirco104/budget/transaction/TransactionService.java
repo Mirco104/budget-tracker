@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.transaction;
 
 import io.github.mirco104.budget.bankaccount.BankAccountService;
+import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
@@ -66,7 +67,7 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                categoryService.findBookable(request.categoryId()),
+                categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
@@ -79,7 +80,7 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                categoryService.findBookable(request.categoryId()),
+                categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
         return TransactionResponse.from(transaction);
     }
@@ -87,6 +88,20 @@ public class TransactionService {
     @Transactional
     public void delete(long id) {
         transactionRepository.delete(findTransaction(id));
+    }
+
+    // R27: a transfer has no category (400 if one is sent), every other booking needs one
+    private Category categoryOf(TransactionRequest request) {
+        if (Boolean.TRUE.equals(request.transfer())) {
+            if (request.categoryId() != null) {
+                throw new InvalidFieldException("categoryId", "Eine Umbuchung hat keine Kategorie.");
+            }
+            return null;
+        }
+        if (request.categoryId() == null) {
+            throw new InvalidFieldException("categoryId", "Die Kategorie ist Pflicht.");
+        }
+        return categoryService.findBookable(request.categoryId());
     }
 
     // R11: the sign decides, so 0 is neither income nor expense

@@ -31,7 +31,8 @@ public record AccountExport(
     }
 
     public record TransactionExport(
-            LocalDate date, BigDecimal amount, String description, String category, String account) {
+            LocalDate date, BigDecimal amount, String description, String category, String account,
+            boolean transfer) {
     }
 
     public record RecurringExport(

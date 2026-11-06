@@ -23,9 +23,12 @@ public record TransactionRequest(
         @NotNull(message = "Das Datum ist Pflicht.")
         LocalDate date,
 
-        @NotNull(message = "Die Kategorie ist Pflicht.")
+        // Required unless transfer is true, then it must be missing (R27); checked by TransactionService
         Long categoryId,
 
         // R26: optional, the default account without it
-        Long accountId) {
+        Long accountId,
+
+        // R27: optional, false without it
+        Boolean transfer) {
 }

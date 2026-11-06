@@ -128,7 +128,8 @@ public class AccountService {
                 .toList();
         List<TransactionExport> transactions = transactionRepository.findByOwnerOrderByDateAscIdAsc(user).stream()
                 .map(t -> new TransactionExport(t.getDate(), t.getAmount(), t.getDescription(),
-                        t.getCategory().getName(), t.getAccount().getName()))
+                        t.getCategory() == null ? null : t.getCategory().getName(), t.getAccount().getName(),
+                        t.isTransfer()))
                 .toList();
         List<RecurringTransaction> series = recurringRepository.findByOwnerOrderByStartDateAscIdAsc(user);
         Map<Long, List<LocalDate>> exceptions = series.isEmpty() ? Map.of()
