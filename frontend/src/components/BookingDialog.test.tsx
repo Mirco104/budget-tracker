@@ -13,13 +13,13 @@ const categories: Category[] = [
   { id: 30, name: 'Kredite', icon: 'card', sortOrder: 30, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
-const kino: Transaction = { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto' }
-const streaming: Transaction = { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto' }
+const kino: Transaction = { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false }
+const streaming: Transaction = { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false }
 const recent: Transaction[] = [
-  { kind: 'SINGLE', id: 1, recurringId: null, occurrenceDate: null, amount: -50, description: 'Markt', date: '2026-10-02', categoryId: 7, categoryName: 'Lebensmittel', accountId: 1, accountName: 'Girokonto' },
+  { kind: 'SINGLE', id: 1, recurringId: null, occurrenceDate: null, amount: -50, description: 'Markt', date: '2026-10-02', categoryId: 7, categoryName: 'Lebensmittel', accountId: 1, accountName: 'Girokonto', transfer: false },
   kino,
-  { kind: 'SINGLE', id: 2, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-01', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto' },
-  { kind: 'SINGLE', id: 3, recurringId: null, occurrenceDate: null, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto' },
+  { kind: 'SINGLE', id: 2, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-01', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false },
+  { kind: 'SINGLE', id: 3, recurringId: null, occurrenceDate: null, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto', transfer: false },
 ]
 
 const series: RecurringTransaction[] = [
@@ -205,7 +205,46 @@ describe('BookingDialog', () => {
     renderDialog()
 
     const options = within(screen.getByLabelText('Kategorie')).getAllByRole('option').map((o) => o.textContent)
-    expect(options).toEqual(['Kategorie wählen …', 'Wohnen', 'Freizeit', 'Lebensmittel', 'Gehalt'])
+    expect(options).toEqual([
+      'Kategorie wählen …',
+      'Umbuchung zwischen eigenen Konten (zählt nicht)',
+      'Wohnen',
+      'Freizeit',
+      'Lebensmittel',
+      'Gehalt',
+    ])
+  })
+
+  // R27, US31: a transfer has no category and cannot repeat
+  it('books a transfer without category and without repeat', async () => {
+    const { fetchMock, onDone } = renderDialog()
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '500' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Aufs Tagesgeld' } })
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'transfer' } })
+
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Datum')).toBeInTheDocument()
+    save()
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Buchung gespeichert.'))
+    expect(sent(fetchMock, 'POST')).toEqual({
+      url: '/api/transactions',
+      body: { amount: -500, description: 'Aufs Tagesgeld', date: '2026-10-18', transfer: true },
+    })
+  })
+
+  it('opens a transfer with the transfer chosen', () => {
+    renderDialog({ ...kino, categoryId: null, categoryName: null, transfer: true })
+
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('transfer')
+  })
+
+  it('offers no transfer for an occurrence of a series', () => {
+    renderDialog(streaming)
+
+    const options = within(screen.getByLabelText('Kategorie')).getAllByRole('option').map((o) => o.textContent)
+    expect(options).not.toContain('Umbuchung zwischen eigenen Konten (zählt nicht)')
   })
 
   it('creates a series with "Erste Abbuchung" and an end date when a repeat is chosen', async () => {
