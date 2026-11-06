@@ -56,6 +56,7 @@ const outlook: ReserveData = {
   reserves: [
     { recurringId: 2, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 20 },
   ],
+  potMonths: forecastMonths.map((month, i) => ({ month, balance: 20 * (i + 1), withdrawal: i === 11 ? 240 : 0 })),
   forecast: forecastMonths.map((month, i): ForecastMonth =>
     i === 0
       ? {
@@ -75,6 +76,7 @@ const emptyOutlook: ReserveData = {
   monthlyReserve: 0,
   reserveBalance: 0,
   reserves: [],
+  potMonths: forecastMonths.map((month) => ({ month, balance: 0, withdrawal: 0 })),
   forecast: forecastMonths.map((month) => ({ month, total: 0, entries: [] })),
 }
 
@@ -268,5 +270,36 @@ describe('EvaluationPage', () => {
     renderPage(history, emptyOutlook)
 
     expect(await screen.findByText(/Keine seltenen Ausgaben in den nächsten 12 Monaten/)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Verlauf des Topfs/ })).not.toBeInTheDocument()
+  })
+
+  // Decision 37: the course of the pot as a chart under the table of rare expenses
+  it('shows the course of the pot as a chart', async () => {
+    window.location.hash = '#/auswertung/vorausschau'
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: /Verlauf des Topfs/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Diagramm Verlauf des Topfs: Soll-Stand und Abbuchungen je Monat' }))
+      .toBeInTheDocument()
+  })
+
+  // Decision 37: an info symbol explains the reserves, the tiles, two columns and the chart
+  it('explains the reserves with info symbols', async () => {
+    window.location.hash = '#/auswertung/vorausschau'
+    renderPage()
+
+    const general = await screen.findByRole('button', { name: 'Erklärung: Rücklagen' })
+    fireEvent.click(general)
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/nur alle 3, 6 oder 12 Monate/)
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/was du tatsächlich zurückgelegt hast, kennt sie nicht/)
+    fireEvent.keyDown(general, { key: 'Escape' })
+
+    for (const label of ['Monatlich zurücklegen', 'Sollte jetzt angespart sein', 'Pro Monat', 'Angespart',
+      'Verlauf des Topfs']) {
+      expect(screen.getByRole('button', { name: `Erklärung: ${label}` })).toBeInTheDocument()
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Erklärung: Sollte jetzt angespart sein' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Sollwert, kein Kontostand/)
+    expect(tile('Sollte jetzt angespart sein')).toHaveTextContent('20,00 €')
   })
 })
