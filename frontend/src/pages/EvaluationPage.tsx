@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { errorText } from '../api/client'
 import { useHistory, useReserves } from '../api/reserves'
-import type { ForecastMonth, HistoryData, HistoryMonth, ReserveData } from '../api/types'
+import type { ForecastMonth, HistoryData, HistoryMonth, ReserveData, ReserveLine } from '../api/types'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
+import { InfoTip } from '../components/ui/InfoTip'
 import { PageHeader } from '../components/ui/PageHeader'
+import { ProgressBar } from '../components/ui/ProgressBar'
 import {
   currentMonth,
   formatAmount,
@@ -378,34 +380,45 @@ function HistoryChart({ history, active, onActive }: {
 
 function Outlook() {
   const { data, isPending, error } = useReserves()
+  const [active, setActive] = useState<string | null>(null)
   if (isPending) {
     return <p>Lade Vorausschau …</p>
   }
   if (error) {
     return <p className="error">Vorausschau konnte nicht geladen werden: {error.message}</p>
   }
-  const largest = Math.max(0, ...data.forecast.map((m) => m.total))
   return (
     <>
       <p className="hint">Ab {formatMonth(data.month)}, dem aktuellen Monat.</p>
-      <h3>Rücklagen</h3>
-      <ReservePot data={data} />
+      <h3 className="with-info">
+        Rücklagen für seltene Ausgaben
+        <InfoTip label="Rücklagen">
+          Manche Ausgaben kommen nur alle 3, 6 oder 12 Monate, dann aber auf einmal. Legst du jeden Monat einen Teil
+          zurück, ist das Geld da, wenn sie fällig werden. Die App rechnet aus, wie viel das ist; was du tatsächlich
+          zurückgelegt hast, kennt sie nicht.
+        </InfoTip>
+      </h3>
+      <Reserves data={data} />
 
-      <h3>Vorschau 12 Monate</h3>
-      <p className="hint">
-        Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne; teure Monate haben einen längeren Balken.
-      </p>
-      <table className="forecast" aria-label="Vorschau 12 Monate">
+      <h3 className="with-info">
+        Vorschau 12 Monate
+        <InfoTip label="Vorschau 12 Monate">
+          Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne. Blau ist der Teil, den du aus deinen
+          Rücklagen bezahlst: seltene Ausgaben, für die du jeden Monat etwas beiseitelegst.
+        </InfoTip>
+      </h3>
+      <ForecastChart months={data.forecast} active={active} onActive={setActive} />
+      <table className="history" aria-label="Vorschau 12 Monate">
         <thead>
           <tr>
             <th>Monat</th>
             <th className="number">Ausgaben (€)</th>
-            <th className="forecast-bar-cell" aria-hidden="true" />
+            <th className="number">davon aus den Rücklagen (€)</th>
           </tr>
         </thead>
         <tbody>
           {data.forecast.map((m) => (
-            <ForecastRow key={m.month} month={m} largest={largest} />
+            <ForecastRows key={m.month} month={m} active={active === m.month} onActive={setActive} />
           ))}
         </tbody>
       </table>
@@ -413,7 +426,25 @@ function Outlook() {
   )
 }
 
-function ReservePot({ data }: { data: ReserveData }) {
+/** Decision 37: the rate, the count and the next rare expense; the list is sorted by the due date. */
+function reserveSentence(data: ReserveData) {
+  const next = data.reserves[0]
+  const count = data.reserves.length
+  const nextText = `„${next.description}“ im ${formatMonth(next.nextDate.slice(0, 7))} (${formatEuro(next.amount)})`
+  const paid = count === 1
+    ? `Davon bezahlst du 1 seltene Ausgabe: ${nextText}.`
+    : `Davon bezahlst du ${count} seltene Ausgaben, als Nächstes ${nextText}.`
+  return `Leg jeden Monat ${formatEuro(data.monthlyReserve)} beiseite. ${paid}`
+}
+
+function ratesLeftText(line: ReserveLine) {
+  if (line.ratesLeft === 0) {
+    return 'diesen Monat fällig'
+  }
+  return `noch ${line.ratesLeft} ${line.ratesLeft === 1 ? 'Rate' : 'Raten'} à ${formatEuro(line.monthly)}`
+}
+
+function Reserves({ data }: { data: ReserveData }) {
   if (data.reserves.length === 0) {
     return (
       <p className="hint">
@@ -424,75 +455,171 @@ function ReservePot({ data }: { data: ReserveData }) {
   }
   return (
     <>
+      <p>{reserveSentence(data)}</p>
       <dl className="summary">
         <div>
-          <dt>Monatlich zurücklegen</dt>
+          <dt className="with-info">
+            Jeden Monat beiseitelegen
+            <InfoTip label="Jeden Monat beiseitelegen">
+              Die Summe der Monatsraten aller seltenen Ausgaben. Eine Rate ist der Betrag geteilt durch die Monate des
+              Intervalls, z. B. 120 € jährlich = 10 € im Monat.
+            </InfoTip>
+          </dt>
           <dd>{formatEuro(data.monthlyReserve)}</dd>
         </div>
         <div>
-          <dt>Sollte jetzt angespart sein</dt>
+          <dt className="with-info">
+            Sollte zurückgelegt sein
+            <InfoTip label="Sollte zurückgelegt sein">
+              So viel sollte jetzt zurückgelegt sein, wenn du seit der letzten Abbuchung jeder Ausgabe jeden Monat ihre
+              Rate beiseitegelegt hast, die Rate dieses Monats eingeschlossen. Das ist ein Sollwert, kein Kontostand.
+            </InfoTip>
+          </dt>
           <dd>{formatEuro(data.reserveBalance)}</dd>
+          <dd className="tile-note">Summe der Balken unten</dd>
         </div>
       </dl>
-      <p className="hint">
-        Lege jeden Monat {formatEuro(data.monthlyReserve)} zur Seite, dann ist jede seltene Abbuchung gedeckt, wenn
-        sie fällig wird.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Ausgabe</th>
-            <th className="number col-optional">Betrag (€)</th>
-            <th>Fällig am</th>
-            <th className="number">Pro Monat (€)</th>
-            <th className="number">Angespart (€)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.reserves.map((line) => (
-            <tr key={line.recurringId}>
-              <td>
-                {line.description}
-                <span className="tile-note"> {INTERVAL_LABELS[line.interval]}</span>
-              </td>
-              <td className="number col-optional">{formatAmount(line.amount)}</td>
-              <td>{formatDate(line.nextDate)}</td>
-              <td className="number">{formatAmount(line.monthly)}</td>
-              <td className="number">{formatAmount(line.saved)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ul className="reserve-list" aria-label="Seltene Ausgaben">
+        {data.reserves.map((line) => (
+          <li key={line.recurringId} className="reserve-item">
+            <div className="reserve-head">
+              <span>
+                <strong>{line.description}</strong> <span className="badge">{INTERVAL_LABELS[line.interval]}</span>
+              </span>
+              <span className="tile-note">
+                {formatEuro(line.amount)} · fällig am {formatDate(line.nextDate)}
+              </span>
+            </div>
+            <ProgressBar value={line.amount > 0 ? line.saved / line.amount : 0} />
+            <div className="reserve-foot">
+              <span className="reserve-saved">
+                {formatEuro(line.saved)} von {formatEuro(line.amount)}
+              </span>
+              <span className="tile-note reserve-rest">{ratesLeftText(line)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
     </>
   )
 }
 
-function ForecastRow({ month, largest }: { month: ForecastMonth; largest: number }) {
-  // Bar length relative to the most expensive month, for display only
-  const width = largest > 0 ? (month.total / largest) * 100 : 0
+const RESERVES_COLOR = 'var(--primary)'
+
+/** Expanded: one row per expense with its date; an expense paid from the reserves also stands in that column. */
+function ForecastRows({ month, active, onActive }: {
+  month: ForecastMonth
+  active: boolean
+  onActive: (month: string | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const hasEntries = month.entries.length > 0
+  const hover = {
+    onMouseEnter: () => onActive(month.month),
+    onMouseLeave: () => onActive(null),
+  }
+  const highlight = active ? ' highlighted' : ''
   return (
-    <tr>
-      <td>
-        {month.entries.length > 0 ? (
-          <details>
-            <summary>{formatMonth(month.month)}</summary>
-            <ul className="forecast-entries">
-              {month.entries.map((entry) => (
-                <li key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.date}`}>
-                  {formatDate(entry.date)} {entry.description}: {formatEuro(entry.amount)}
-                  {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : (
-          formatMonth(month.month)
-        )}
-      </td>
-      <td className="number">{formatAmount(month.total)}</td>
-      <td className="forecast-bar-cell" aria-hidden="true">
-        <span className="forecast-bar" style={{ width: `${width}%` }} />
-      </td>
-    </tr>
+    <>
+      <tr
+        className={`history-month${hasEntries ? ' expandable' : ''}${highlight}`}
+        onClick={hasEntries ? () => setOpen(!open) : undefined}
+        {...hover}
+      >
+        <th scope="row">
+          {hasEntries ? (
+            <button type="button" aria-expanded={open}>
+              <span aria-hidden="true">{open ? '▾' : '▸'}</span> <MonthLabel month={month.month} />
+            </button>
+          ) : (
+            <MonthLabel month={month.month} />
+          )}
+        </th>
+        <td className="number">{formatAmount(month.total)}</td>
+        <td className={`number${month.fromReserves > 0 ? ' from-reserves' : ''}`}>
+          {month.fromReserves > 0 ? formatAmount(month.fromReserves) : '–'}
+        </td>
+      </tr>
+      {open &&
+        month.entries.map((entry) => (
+          <tr
+            key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.date}`}
+            className={`history-category${highlight}`}
+            {...hover}
+          >
+            <td>
+              <span className="forecast-entry">
+                <span className="forecast-date">{formatDate(entry.date)}</span>
+                <span>{entry.description}</span>
+                {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
+              </span>
+            </td>
+            <td className="number">{formatAmount(entry.amount)}</td>
+            <td className="number from-reserves">{entry.fromReserves ? formatAmount(entry.amount) : ''}</td>
+          </tr>
+        ))}
+    </>
+  )
+}
+
+function ForecastTooltip({ active, payload }: { active?: boolean; payload?: { payload: ForecastMonth }[] }) {
+  if (!active || !payload?.length) {
+    return null
+  }
+  const month = payload[0].payload
+  const names = month.entries.filter((entry) => entry.fromReserves).map((entry) => entry.description)
+  return (
+    <div className="chart-tooltip">
+      <strong>{formatMonth(month.month)}</strong>
+      <span>Ausgaben {formatEuro(month.total)}</span>
+      {month.fromReserves > 0 && (
+        <span>
+          davon aus den Rücklagen {formatEuro(month.fromReserves)} ({names.join(', ')})
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Decision 37: the expenses per month, the part from the reserves in blue on top; the marked month is shared. */
+function ForecastChart({ months, active, onActive }: {
+  months: ForecastMonth[]
+  active: string | null
+  onActive: (month: string | null) => void
+}) {
+  const opacity = (month: string) => (active === null || active === month ? 1 : FADED_OPACITY)
+  // Split for the stacked bars only; both values come from the backend
+  const points = months.map((m) => ({ ...m, other: m.total - m.fromReserves }))
+  return (
+    <div
+      className="history-chart"
+      role="img"
+      aria-label="Diagramm Vorschau: Ausgaben je Monat, der Teil aus den Rücklagen blau"
+    >
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart
+          data={points}
+          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          onMouseMove={(state) => onActive(state.activeLabel === undefined ? null : String(state.activeLabel))}
+          onMouseLeave={() => onActive(null)}
+        >
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="month" tickFormatter={formatMonthShort} fontSize={12} />
+          <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
+          <Tooltip content={<ForecastTooltip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.6 }} />
+          <Legend itemSorter={null} />
+          <Bar dataKey="other" name="Ausgaben" stackId="month" fill={EXPENSE_COLOR}>
+            {points.map((m) => (
+              <Cell key={m.month} fillOpacity={opacity(m.month)} />
+            ))}
+          </Bar>
+          <Bar dataKey="fromReserves" name="davon aus den Rücklagen" stackId="month" fill={RESERVES_COLOR}>
+            {points.map((m) => (
+              <Cell key={m.month} fillOpacity={opacity(m.month)} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }

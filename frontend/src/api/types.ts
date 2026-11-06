@@ -6,14 +6,26 @@ export interface Category {
   /** Icon key from the fixed list (US28); the frontend draws unknown keys as "tag". */
   icon: string
   sortOrder: number
+  /** The target in euro (R3); percent is only an input helper on the planning page (decision 36). */
   targetAmount: number | null
-  targetPercent: number | null
   /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
   targetValidFrom: string | null
   /** Archived categories are hidden in forms and planning (US10). */
   archived: boolean
   /** The category has entries and all of them are positive (R24). */
   incomeOnly: boolean
+  /** Fixed costs F(k, M) of the requested month (R25); null without a recurring expense. */
+  fixedCosts: number | null
+  fixedCostItems: FixedCostItem[]
+}
+
+/** One recurring expense behind the fixed costs: amount without sign, interval in months, monthly share (R25). */
+export interface FixedCostItem {
+  recurringId: number
+  description: string
+  amount: number
+  interval: number
+  monthly: number
 }
 
 /** Without an icon the category gets "tag" (US28). */
@@ -30,10 +42,9 @@ export interface CategoryUpdate {
   icon?: string
 }
 
-/** targetPercent is a fraction of income (0..1). null clears the value. */
+/** The target in euro; null means no target from the month on. */
 export interface TargetInput {
   targetAmount: number | null
-  targetPercent: number | null
 }
 
 /**
@@ -127,6 +138,8 @@ export interface DashboardData {
    * null when no month counts.
    */
   averageIncome: number | null
+  /** Minimum income Emin(M) of the same months (R23, decision 36). */
+  minimumIncome: number | null
   averageExpenses: number | null
   averageIncomeMonths: number
   averageIncomeFrom: string | null
@@ -136,6 +149,9 @@ export interface DashboardData {
   unplanned: number | null
   /** "Nicht verplant" or "Überplant"; null without Ø income. */
   unplannedLabel: string | null
+  /** The same with the minimum income as base (R4, decision 36). */
+  unplannedMinimum: number | null
+  unplannedMinimumLabel: string | null
   surplus: number
   /** "Monatlicher Überschuss"/"Monatlicher Verlust" for a past month, "Noch frei"/"Überschritten" otherwise (R7). */
   surplusLabel: string
@@ -167,6 +183,8 @@ export interface ReserveLine {
   monthly: number
   /** What should be saved by now; the full amount in the month it is due. */
   saved: number
+  /** Monthly rates still to put aside until it is due; 0 in the month it is due (decision 37). */
+  ratesLeft: number
 }
 
 /** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). amount is positive. */
@@ -177,11 +195,15 @@ export interface ForecastEntry {
   description: string
   date: string
   amount: number
+  /** An occurrence of a rare expense, paid from the reserve pot (decision 37). */
+  fromReserves: boolean
 }
 
 export interface ForecastMonth {
   month: string
   total: number
+  /** The part of total paid from the reserve pot (decision 37). */
+  fromReserves: number
   entries: ForecastEntry[]
 }
 

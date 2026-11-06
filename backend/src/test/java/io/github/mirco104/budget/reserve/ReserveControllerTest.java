@@ -121,6 +121,10 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.reserves[0].nextDate").value("2026-10-15"))
                 .andExpect(jsonPath("$.reserves[0].monthly").value(20.00))
                 .andExpect(jsonPath("$.reserves[0].saved").value(240.00))
+                .andExpect(jsonPath("$.reserves[0].ratesLeft").value(0))
+                .andExpect(jsonPath("$.potMonths").doesNotExist())
+                .andExpect(jsonPath("$.forecast[0].fromReserves").value(240.00))
+                .andExpect(jsonPath("$.forecast[1].fromReserves").value(0.00))
                 .andExpect(jsonPath("$.forecast", hasSize(12)))
                 .andExpect(jsonPath("$.forecast[0].month").value("2026-10"))
                 .andExpect(jsonPath("$.forecast[0].total").value(2636.49))
@@ -136,6 +140,7 @@ class ReserveControllerTest {
         // November: the pot starts again with one monthly rate (R14)
         mockMvc.perform(get("/api/reserves").param("month", "2026-11"))
                 .andExpect(jsonPath("$.reserves[0].nextDate").value("2027-10-15"))
+                .andExpect(jsonPath("$.reserves[0].ratesLeft").value(11))
                 .andExpect(jsonPath("$.reserveBalance").value(20.00));
     }
 
@@ -215,6 +220,7 @@ class ReserveControllerTest {
                 .andExpect(jsonPath("$.monthlyReserve").value(0.00))
                 .andExpect(jsonPath("$.reserveBalance").value(0.00))
                 .andExpect(jsonPath("$.reserves", hasSize(0)))
+                .andExpect(jsonPath("$.forecast[0].fromReserves").value(0.00))
                 .andExpect(jsonPath("$.forecast", hasSize(12)));
     }
 

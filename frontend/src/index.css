@@ -568,7 +568,7 @@ th.number {
   box-shadow: var(--shadow);
 }
 
-/* Planning (US2, US7a): the bar stays below the app header while scrolling */
+/* Planning (US2, US7a, decision 36): the bar stays below the app header while scrolling */
 .month-nav-field {
   display: inline-flex;
   gap: 10px;
@@ -595,28 +595,107 @@ th.number {
   background: var(--bg);
 }
 
-.plan-bar.summary > div {
-  padding: 12px 16px;
-}
-
-.plan-bar.summary dd:not(.tile-note) {
-  font-size: 1.3rem;
-}
-
 .plan-bar .hint {
   margin: 0;
+}
+
+.plan-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.plan-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+.plan-tile .tile-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.plan-tile .tile-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.plan-tile .tile-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.plan-tile.over {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.plan-tile.over .tile-label,
+.plan-tile.over .tile-note {
+  color: var(--warn);
+}
+
+/* The two income tiles are the switch for the base: a click makes one the base */
+.base-tile {
+  cursor: pointer;
+}
+
+.base-tile:hover {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+.base-tile.selected,
+.base-tile.selected:hover {
+  padding: 11px 13px;
+  border: 2px solid var(--primary);
+  background: var(--primary-soft);
+}
+
+.tile-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.base-mark {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.base-tile.selected .base-mark {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .plan-list {
   padding: 8px 16px;
 }
 
+/* Desktop: category with its fixed costs below | target with the equivalent below | actual of the month before */
 .plan-head,
 .plan-row {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
+  column-gap: 16px;
 }
 
 .plan-head {
@@ -626,16 +705,91 @@ th.number {
   font-weight: 600;
 }
 
+.plan-head-previous {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-self: end;
+}
+
 .plan-row {
+  grid-template-areas:
+    'name input previous'
+    'fixed meta previous'
+    'items . .';
+  align-items: center;
   padding: 12px 4px;
   border-top: 1px solid var(--line);
 }
 
 .plan-category {
   display: flex;
+  grid-area: name;
   gap: 10px;
   align-items: center;
   min-width: 0;
+}
+
+.plan-input {
+  grid-area: input;
+  min-width: 0;
+}
+
+.plan-meta {
+  display: flex;
+  flex-direction: column;
+  grid-area: meta;
+  align-items: flex-end;
+  align-self: start;
+  min-width: 0;
+  padding-top: 4px;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.plan-fixed {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: fixed;
+  gap: 4px 8px;
+  align-items: center;
+  align-self: start;
+  min-width: 0;
+  padding-left: 38px;
+}
+
+.plan-fixed-items {
+  display: grid;
+  grid-area: items;
+  gap: 4px;
+  margin: 2px 0 4px;
+  padding: 0 0 0 58px;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.plan-fixed-items li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+
+.plan-fixed-items .amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.plan-fixed-note {
+  grid-column: 1 / -1;
+}
+
+.plan-previous {
+  grid-area: previous;
+  justify-self: end;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .plan-name {
@@ -644,20 +798,76 @@ th.number {
   hyphens: auto;
 }
 
-.plan-note,
-.plan-previous {
+.plan-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.plan-previous-mobile {
+  display: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-equivalent {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-warning {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.plan-meta .error {
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.fixed-toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 0;
+  border: none;
+  background: none;
   color: var(--muted);
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
 
-.plan-input {
-  display: grid;
-  gap: 4px;
+.fixed-toggle:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
 }
 
-.plan-input .error {
+.plan-row.short .fixed-toggle,
+.plan-row.short .unit-input {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.plan-row.short .unit-input input {
+  color: var(--ink);
+}
+
+.link-button {
+  min-height: 32px;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--primary);
   font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-button:hover:not(:disabled) {
+  background: none;
+  color: var(--primary-hover);
 }
 
 /* One field with the unit switch inside its frame */
@@ -703,8 +913,12 @@ th.number {
   padding: 4px 10px;
 }
 
-/* The column header names the month on wide screens, so the label is only visible on narrow ones */
-.plan-previous-label {
+.unit-input .segmented button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -723,53 +937,92 @@ th.number {
   border-top: 1px solid var(--line);
 }
 
+@media (max-width: 900px) {
+  .plan-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Phone: name with the actual of the month before | field of fixed width; one line below with the fixed costs on
+   the left and the equivalent on the right (both in "line"); the expanded list across the full width */
 @media (max-width: 600px) {
   .plan-head {
     display: none;
   }
 
   .plan-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 6px 10px;
+    grid-template-columns: minmax(0, 1fr) 156px;
+    grid-template-areas:
+      'name input'
+      'line line'
+      'items items';
+    row-gap: 4px;
+    column-gap: 10px;
+    padding: 10px 2px;
   }
 
-  .plan-input {
-    width: 168px;
+  .plan-fixed {
+    grid-area: line;
+    justify-self: start;
+    align-self: center;
+    padding-left: 0;
   }
 
-  /* The name needs the room more than the icon */
-  .plan-category .category-icon {
+  .plan-meta {
+    grid-area: line;
+    justify-self: end;
+    align-self: center;
+    padding-top: 0;
+  }
+
+  .plan-fixed-items {
+    padding-left: 20px;
+  }
+
+  /* The name needs the room more than the icon; the colors carry the hints that are text on wide screens */
+  .plan-category .category-icon,
+  .plan-previous,
+  .plan-note.no-target,
+  .plan-note.set-from,
+  .plan-meta .plan-note,
+  .plan-warning,
+  .plan-more {
     display: none;
   }
 
-  .plan-previous {
-    grid-column: 1 / -1;
+  .plan-previous-mobile {
+    display: block;
   }
 
-  .plan-previous-label {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip-path: none;
+  .unit-input .segmented button {
+    padding: 4px 8px;
   }
 
-  .plan-bar.summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+  .plan-tiles {
+    gap: 6px;
   }
 
-  .plan-bar.summary > div {
+  .plan-tile {
     padding: 8px 10px;
   }
 
-  .plan-bar.summary dd:not(.tile-note) {
+  .base-tile.selected,
+  .base-tile.selected:hover {
+    padding: 7px 9px;
+  }
+
+  .plan-tile .tile-value {
     font-size: 1rem;
   }
 
-  .plan-bar.summary dt,
-  .plan-bar.summary dd.tile-note {
+  .plan-tile .tile-label,
+  .plan-tile .tile-note {
     font-size: 0.75rem;
+  }
+
+  .plan-tile .period,
+  .base-tile:not(.selected) .base-mark {
+    display: none;
   }
 }
 
@@ -812,10 +1065,6 @@ th.number {
   font-weight: 600;
 }
 
-.forecast-bar-cell {
-  width: 40%;
-}
-
 /* The hidden Recharts tooltip keeps its last position and would widen the page on narrow screens */
 .history-chart {
   width: 100%;
@@ -831,20 +1080,6 @@ th.number {
 /* A mouse click focuses the chart for keyboard use; the outline stays only for keyboard focus */
 .history-chart :focus:not(:focus-visible) {
   outline: none;
-}
-
-.forecast-bar {
-  display: block;
-  height: 10px;
-  border-radius: 99px;
-  background: var(--chart-expense);
-}
-
-.forecast-entries {
-  margin: 4px 0;
-  padding-left: 16px;
-  font-size: 0.9rem;
-  color: var(--muted);
 }
 
 .history tfoot th,
@@ -916,10 +1151,6 @@ th.number {
 
   .history .history-category td:first-child {
     padding-left: 12px;
-  }
-
-  .forecast-bar-cell {
-    width: 25%;
   }
 }
 
@@ -1572,6 +1803,32 @@ button.add-booking {
   gap: 18px;
 }
 
+/* Months of a longer period (US26): a heading with a line and more space than between days */
+.month-list {
+  display: grid;
+  gap: 36px;
+}
+
+.month-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 14px;
+  padding: 0 4px 8px;
+  border-bottom: 2px solid var(--line-strong);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.month-sums {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .day-head {
   display: flex;
   justify-content: space-between;
@@ -1827,4 +2084,126 @@ button.tx:hover:not(:disabled) {
 .history-category-name .category-icon {
   width: 24px;
   height: 24px;
+}
+
+/* Info symbol with a short explanation (decision 37) */
+.with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-tip {
+  display: inline-flex;
+}
+
+.info-tip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.info-tip-button:hover,
+.info-tip-button[aria-expanded='true'] {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.info-tip-bubble {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-menu);
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+}
+
+/* Date in front of an expense of an opened forecast month (decision 37) */
+.forecast-date {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-entry {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+/* On the phone the date stands above the name, and the badge goes, so four columns fit into 360 px */
+@media (max-width: 480px) {
+  .forecast-entry {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .forecast-entry .forecast-date {
+    font-size: 0.8rem;
+  }
+
+  .forecast-entry .badge {
+    display: none;
+  }
+}
+
+/* Rare expenses with their progress (decision 37) */
+.reserve-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.reserve-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.reserve-head,
+.reserve-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.reserve-saved {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reserve-item .progress {
+  height: 10px;
+  margin-top: 0;
+  border-radius: 5px;
+}
+
+/* The part of the forecast paid from the reserves, blue like in the chart */
+.history td.from-reserves {
+  color: var(--primary);
+  font-weight: 600;
 }

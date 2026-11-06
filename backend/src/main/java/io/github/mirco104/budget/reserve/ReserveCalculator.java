@@ -107,7 +107,7 @@ public class ReserveCalculator {
             reserveBalance = reserveBalance.add(saved);
             reserves.add(new ReserveLine(
                     s.id(), s.description(), s.categoryName(), cost, s.interval(), next.get(),
-                    money(monthly), money(saved)));
+                    money(monthly), money(saved), (int) Math.min(interval, monthsUntilDue)));
         }
         reserves.sort(Comparator.comparing(ReserveLine::nextDate).thenComparing(ReserveLine::recurringId));
 
@@ -160,10 +160,12 @@ public class ReserveCalculator {
         Stream<ForecastEntry> occurrences = expenseSeries.stream()
                 .flatMap(s -> schedule(s).occurrencesBetween(month.atDay(1), month.atEndOfMonth()).stream()
                         .map(date -> new ForecastEntry(
-                                Kind.RECURRING, null, s.id(), s.description(), date, s.amount().abs())));
+                                Kind.RECURRING, null, s.id(), s.description(), date, s.amount().abs(),
+                                s.interval().months() > 1)));
         Stream<ForecastEntry> singleExpenses = singles.stream()
                 .filter(t -> t.amount().signum() < 0 && YearMonth.from(t.date()).equals(month))
-                .map(t -> new ForecastEntry(Kind.SINGLE, t.id(), null, t.description(), t.date(), t.amount().abs()));
+                .map(t -> new ForecastEntry(
+                        Kind.SINGLE, t.id(), null, t.description(), t.date(), t.amount().abs(), false));
         List<ForecastEntry> entries = Stream.concat(occurrences, singleExpenses)
                 .sorted(Comparator.comparing(ForecastEntry::date)
                         .thenComparing(ForecastEntry::kind)
@@ -172,6 +174,10 @@ public class ReserveCalculator {
         BigDecimal total = entries.stream()
                 .map(ForecastEntry::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new ForecastMonth(month.toString(), money(total), entries);
+        BigDecimal fromReserves = entries.stream()
+                .filter(ForecastEntry::fromReserves)
+                .map(ForecastEntry::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new ForecastMonth(month.toString(), money(total), money(fromReserves), entries);
     }
 }

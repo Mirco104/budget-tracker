@@ -63,31 +63,26 @@ class TargetResolverTest {
     void categoriesAreResolvedIndependently() {
         List<TargetEntry> entries = List.of(
                 amount(WOHNEN, NOVEMBER, "800"),
-                percent(LEBENSMITTEL, OCTOBER, "0.15"),
-                percent(LEBENSMITTEL, DECEMBER, "0.20"));
+                amount(LEBENSMITTEL, OCTOBER, "360"),
+                amount(LEBENSMITTEL, DECEMBER, "480"));
 
         Map<Long, TargetEntry> november = TargetResolver.inEffect(entries, NOVEMBER);
 
         assertThat(november).containsOnlyKeys(WOHNEN, LEBENSMITTEL);
-        assertThat(november.get(LEBENSMITTEL).targetPercent()).isEqualByComparingTo("0.15");
+        assertThat(november.get(LEBENSMITTEL).targetAmount()).isEqualByComparingTo("360");
     }
 
     @Test
     void emptyNewerEntryClearsTheTarget() {
         List<TargetEntry> entries = List.of(
                 amount(WOHNEN, NOVEMBER, "800"),
-                new TargetEntry(WOHNEN, JANUARY, null, null));
+                new TargetEntry(WOHNEN, JANUARY, null));
 
         TargetEntry january = TargetResolver.inEffect(entries, JANUARY).get(WOHNEN);
         assertThat(january.targetAmount()).isNull();
-        assertThat(january.targetPercent()).isNull();
     }
 
     private static TargetEntry amount(long categoryId, YearMonth validFrom, String amount) {
-        return new TargetEntry(categoryId, validFrom, new BigDecimal(amount), null);
-    }
-
-    private static TargetEntry percent(long categoryId, YearMonth validFrom, String percent) {
-        return new TargetEntry(categoryId, validFrom, null, new BigDecimal(percent));
+        return new TargetEntry(categoryId, validFrom, new BigDecimal(amount));
     }
 }

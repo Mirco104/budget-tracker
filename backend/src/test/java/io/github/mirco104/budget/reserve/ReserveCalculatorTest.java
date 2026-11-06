@@ -299,6 +299,41 @@ class ReserveCalculatorTest {
         assertThat(response.monthlyReserve()).isEqualByComparingTo("16.67");
     }
 
+    // --- rates left and the part from the reserves (R14, decision 37) ---
+
+    @Test
+    void ratesLeftAreTheMonthsUntilDueAtMostOneInterval() {
+        SeriesData haftpflicht = series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null);
+
+        assertThat(onlySeries(OCTOBER, haftpflicht).reserves().get(0).ratesLeft()).isZero();
+        assertThat(onlySeries(month("2026-11"), haftpflicht).reserves().get(0).ratesLeft()).isEqualTo(11);
+        assertThat(onlySeries(month("2027-03"), haftpflicht).reserves().get(0).ratesLeft()).isEqualTo(7);
+
+        // Quarterly with the November occurrence suspended: due in February, four months away, at most 3 rates
+        ReserveResponse suspended = onlySeries(OCTOBER,
+                series(2, "Kfz", "-90.00", RecurringInterval.QUARTERLY, "2026-02-01", null, "2026-11-01"));
+        assertThat(suspended.reserves().get(0).ratesLeft()).isEqualTo(3);
+    }
+
+    @Test
+    void forecastMarksWhatIsPaidFromTheReserves() {
+        ReserveResponse response = calculator.outlook(
+                List.of(series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
+                        series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-11-15", null),
+                        series(3, "Kfz", "-90.50", RecurringInterval.QUARTERLY, "2026-11-01", null)),
+                List.of(single(7, "Geschenke", "2026-11-20", "-50.00")),
+                OCTOBER);
+
+        ForecastMonth november = response.forecast().get(1);
+        assertThat(november.total()).isEqualByComparingTo("1280.50");
+        assertThat(november.fromReserves()).isEqualByComparingTo("330.50");
+        assertThat(november.entries()).extracting(ForecastEntry::description, ForecastEntry::fromReserves)
+                .containsExactly(tuple("Kfz", true), tuple("Miete", false), tuple("Haftpflicht", true),
+                        tuple("Geschenke", false));
+        assertThat(response.forecast().get(0).fromReserves()).isEqualByComparingTo("0.00");
+        assertThat(response.forecast().get(4).fromReserves()).isEqualByComparingTo("90.50");
+    }
+
     // --- forecast ---
 
     @Test
@@ -323,8 +358,10 @@ class ReserveCalculatorTest {
 
         assertThat(totals(response).subList(0, 3)).containsExactly("15.00", "15.00", "65.00");
         assertThat(response.forecast().get(2).entries()).containsExactly(
-                new ForecastEntry(Kind.SINGLE, 7L, null, "Geschenke", LocalDate.parse("2026-12-20"), money("50.00")),
-                new ForecastEntry(Kind.RECURRING, null, 1L, "Streaming", LocalDate.parse("2026-12-28"), money("15.00")));
+                new ForecastEntry(Kind.SINGLE, 7L, null, "Geschenke", LocalDate.parse("2026-12-20"), money("50.00"),
+                        false),
+                new ForecastEntry(Kind.RECURRING, null, 1L, "Streaming", LocalDate.parse("2026-12-28"), money("15.00"),
+                        false));
     }
 
     @Test
@@ -401,9 +438,14 @@ class ReserveCalculatorTest {
                 "2636.49", "915.00", "915.00", "915.00", "915.00", "915.00",
                 "915.00", "915.00", "915.00", "915.00", "915.00", "915.00");
         assertThat(response.forecast().get(0).entries()).hasSize(10);
+        assertThat(response.reserves().get(0).ratesLeft()).isZero();
+        assertThat(response.forecast().get(0).fromReserves()).isEqualByComparingTo("240.00");
+        assertThat(response.forecast().subList(1, 12))
+                .allSatisfy(m -> assertThat(m.fromReserves()).isEqualByComparingTo("0.00"));
 
         // From November 2026 the next occurrence is 2027-10-15 (k = 11)
-        assertThat(calculator.outlook(series, List.of(), month("2026-11")).reserveBalance())
-                .isEqualByComparingTo("20.00");
+        ReserveResponse november = calculator.outlook(series, List.of(), month("2026-11"));
+        assertThat(november.reserveBalance()).isEqualByComparingTo("20.00");
+        assertThat(november.reserves().get(0).ratesLeft()).isEqualTo(11);
     }
 }
