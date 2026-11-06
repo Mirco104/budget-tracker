@@ -10,6 +10,11 @@ export function formatEuro(value: number | null): string {
 }
 
 
+/** "+12,00 €" for income, "−12,00 €" for expenses. */
+export function formatSigned(value: number): string {
+  return `${value > 0 ? '+' : '−'}${euro.format(Math.abs(value))}`
+}
+
 const decimal = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** For table cells: the unit (€) is in the column header, which saves width on narrow screens. */
@@ -76,6 +81,18 @@ function toMonthString(date: Date): string {
 
 export function currentMonth(): string {
   return toMonthString(new Date())
+}
+
+/** Date for a new booking: today in the current month, otherwise the first day of the month. */
+export function bookingDateFor(month: string): string {
+  const today = todayIso()
+  return today.startsWith(month) ? today : `${month}-01`
+}
+
+/** Today as "YYYY-MM-DD" in local time. */
+export function todayIso(): string {
+  const today = new Date()
+  return `${toMonthString(today)}-${String(today.getDate()).padStart(2, '0')}`
 }
 
 /** Moves a "YYYY-MM" month by delta months, across year boundaries. */

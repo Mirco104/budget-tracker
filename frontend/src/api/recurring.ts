@@ -49,8 +49,8 @@ export function deleteOccurrence(recurringId: number, occurrenceDate: string, sc
   return request<void>(occurrencePath(recurringId, occurrenceDate, scope), { method: 'DELETE' })
 }
 
-export function useRecurringTransactions(month: string) {
-  return useQuery({ queryKey: ['recurring', month], queryFn: () => fetchRecurringTransactions(month) })
+export function useRecurringTransactions(month: string, enabled = true) {
+  return useQuery({ queryKey: ['recurring', month], queryFn: () => fetchRecurringTransactions(month), enabled })
 }
 
 // A series affects many months, so all transaction lists, dashboards, series lists and reserves are refreshed.

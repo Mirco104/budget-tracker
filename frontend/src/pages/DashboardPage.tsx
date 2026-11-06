@@ -3,11 +3,13 @@ import { useCategories } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
 import { useTransactions } from '../api/transactions'
 import type { CategoryLine, DashboardData } from '../api/types'
+import { AddBookingButton, AddBookingFab } from '../components/Booking'
+import { useBookingDialog } from '../components/useBookingDialog'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { formatDate, formatEuro } from '../format'
+import { bookingDateFor, formatDate, formatEuro } from '../format'
 import { averagePeriod } from '../labels'
 import { ROUTES } from '../router'
 
@@ -30,12 +32,22 @@ interface Props {
 }
 
 export function DashboardPage({ month, onMonthChange }: Props) {
+  const categories = useCategories(month)
+  // US27: "+ Buchung" also on the overview, where one checks what is left
+  const booking = useBookingDialog({
+    categories: categories.data,
+    defaultDate: bookingDateFor(month),
+  })
+
   return (
     <section>
       <PageHeader title="Übersicht">
         {onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}
+        <AddBookingButton onClick={booking.openNew} />
       </PageHeader>
       <DashboardContent month={month} />
+      <AddBookingFab onClick={booking.openNew} />
+      {booking.element}
     </section>
   )
 }
