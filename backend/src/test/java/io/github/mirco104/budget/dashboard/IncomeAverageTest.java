@@ -100,6 +100,38 @@ class IncomeAverageTest {
         assertThat(result.average().scale()).isEqualTo(2);
     }
 
+    // Decision 36: the minimum income Emin(M) over the same months as the average
+    @Test
+    void minimumIsTheSmallestMonthOfTheSameMonths() {
+        Map<YearMonth, BigDecimal> income = Map.of(
+                YearMonth.of(2026, 7), new BigDecimal("2800"),
+                YearMonth.of(2026, 8), new BigDecimal("2350.5"),
+                YearMonth.of(2026, 9), new BigDecimal("3400"),
+                // Outside the months: today's month and a month before the first entry
+                YearMonth.of(2026, 10), new BigDecimal("100"),
+                YearMonth.of(2026, 6), new BigDecimal("100"));
+
+        Result result = IncomeAverage.of(income, YearMonth.of(2026, 7), OCTOBER, OCTOBER);
+
+        assertThat(result.minimum()).isEqualByComparingTo("2350.50");
+        assertThat(result.minimum().scale()).isEqualTo(2);
+    }
+
+    @Test
+    void aMonthWithoutIncomeMakesTheMinimumZero() {
+        Map<YearMonth, BigDecimal> income = Map.of(YearMonth.of(2026, 9), new BigDecimal("3000"));
+
+        Result result = IncomeAverage.of(income, YearMonth.of(2026, 7), OCTOBER, NOVEMBER);
+
+        assertThat(result.minimum()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void minimumIsEmptyWithoutACountedMonth() {
+        assertThat(IncomeAverage.of(Map.of(), null, OCTOBER, NOVEMBER).minimum()).isNull();
+        assertThat(IncomeAverage.of(Map.of(), OCTOBER, OCTOBER, NOVEMBER).minimum()).isNull();
+    }
+
     // Fixture F1 (spec section 12): salary 3000.00 a month from 2026-01, today 2026-10-20
     @Test
     void fixtureF1() {
@@ -112,5 +144,6 @@ class IncomeAverageTest {
 
         assertThat(result.months()).isEqualTo(9);
         assertThat(result.average()).isEqualByComparingTo("3000.00");
+        assertThat(result.minimum()).isEqualByComparingTo("3000.00");
     }
 }

@@ -1,6 +1,8 @@
 interface Option<T extends string> {
   value: T
   label: string
+  /** A disabled option cannot be chosen, e.g. % without a base (US2). */
+  disabled?: boolean
 }
 
 interface Props<T extends string> {
@@ -21,6 +23,7 @@ export function Segmented<T extends string>({ label, options, value, onChange, c
           key={option.value}
           type="button"
           aria-pressed={option.value === value}
+          disabled={option.disabled}
           onClick={() => {
             if (option.value !== value) {
               onChange(option.value)

@@ -33,12 +33,9 @@ public class CategoryTarget {
     @Column(name = "valid_from", nullable = false)
     private LocalDate validFrom;
 
+    // Null means no target from validFrom; only euro since decision 36
     @Column(precision = 12, scale = 2)
     private BigDecimal targetAmount;
-
-    // Fraction of income, 0..1
-    @Column(precision = 5, scale = 4)
-    private BigDecimal targetPercent;
 
     protected CategoryTarget() {
     }
@@ -48,12 +45,11 @@ public class CategoryTarget {
         this.validFrom = validFrom.atDay(1);
     }
 
-    public void update(BigDecimal targetAmount, BigDecimal targetPercent) {
+    public void update(BigDecimal targetAmount) {
         this.targetAmount = targetAmount;
-        this.targetPercent = targetPercent;
     }
 
     public TargetEntry toEntry() {
-        return new TargetEntry(category.getId(), YearMonth.from(validFrom), targetAmount, targetPercent);
+        return new TargetEntry(category.getId(), YearMonth.from(validFrom), targetAmount);
     }
 }
