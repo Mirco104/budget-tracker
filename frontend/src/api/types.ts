@@ -62,6 +62,9 @@ export interface Transaction {
   date: string
   categoryId: number
   categoryName: string
+  /** The bank account the entry is booked on (R26). */
+  accountId: number
+  accountName: string
 }
 
 export interface TransactionInput {
@@ -69,6 +72,8 @@ export interface TransactionInput {
   description: string
   date: string
   categoryId: number
+  /** Without it the default account (R26). */
+  accountId?: number
 }
 
 export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
@@ -81,6 +86,8 @@ export interface RecurringTransaction {
   description: string
   categoryId: number
   categoryName: string
+  accountId: number
+  accountName: string
   interval: RecurringInterval
   startDate: string
   endDate: string | null
@@ -95,6 +102,8 @@ export interface RecurringTransactionInput {
   interval: RecurringInterval
   startDate: string
   endDate: string | null
+  /** Without it the default account (R26). */
+  accountId?: number
 }
 
 /** "Nur dieser Eintrag" (THIS) or "Dieser und alle folgenden" (FOLLOWING). */
@@ -157,6 +166,29 @@ export interface DashboardData {
   surplusLabel: string
   categories: CategoryLine[]
   income: IncomeLine[]
+}
+
+/** A bank account (R26); used means that entries are booked on it, so it can only be archived. */
+export interface BankAccount {
+  id: number
+  name: string
+  iban: string | null
+  defaultAccount: boolean
+  archived: boolean
+  used: boolean
+}
+
+export interface BankAccountInput {
+  name: string
+  iban?: string | null
+}
+
+/** defaultAccount true makes this the default account; the previous one becomes a normal account. */
+export interface BankAccountUpdate {
+  name: string
+  iban: string | null
+  archived: boolean
+  defaultAccount: boolean
 }
 
 export interface FieldError {
