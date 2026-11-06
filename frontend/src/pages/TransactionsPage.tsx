@@ -24,7 +24,8 @@ export function TransactionsPage() {
   const [custom, setCustom] = useState<Period>(() => presetPeriod('month', today))
   const [query, setQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [kind, setKind] = useState<'' | Transaction['kind']>('')
+  // Wiederkehrend, einmalig (single transactions that are no transfer) or Umbuchung (R27)
+  const [kind, setKind] = useState<'' | Transaction['kind'] | 'TRANSFER'>('')
 
   const period = preset === 'custom' ? custom : presetPeriod(preset, today)
   const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
@@ -47,7 +48,7 @@ export function TransactionsPage() {
   const shown = (transactions.data ?? []).filter(
     (entry) =>
       (categoryId === '' || String(entry.categoryId) === categoryId) &&
-      (kind === '' || entry.kind === kind) &&
+      (kind === '' || (kind === 'TRANSFER' ? entry.transfer : entry.kind === kind && !entry.transfer)) &&
       (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search)),
   )
   const sums = totals(shown)
@@ -119,11 +120,12 @@ export function TransactionsPage() {
           <select
             aria-label="Art filtern"
             value={kind}
-            onChange={(e) => setKind(e.target.value as '' | Transaction['kind'])}
+            onChange={(e) => setKind(e.target.value as '' | Transaction['kind'] | 'TRANSFER')}
           >
             <option value="">Alle Arten</option>
             <option value="RECURRING">Wiederkehrend</option>
             <option value="SINGLE">Einmalig</option>
+            <option value="TRANSFER">Umbuchung</option>
           </select>
         </div>
 

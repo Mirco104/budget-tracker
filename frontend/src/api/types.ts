@@ -50,7 +50,7 @@ export interface TargetInput {
 /**
  * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
  * recurring transaction (kind RECURRING, recurringId, occurrenceDate). amount is signed: positive is income,
- * negative is expense.
+ * negative is expense. A transfer between own accounts (R27) has no category and counts nowhere.
  */
 export interface Transaction {
   kind: 'SINGLE' | 'RECURRING'
@@ -60,20 +60,23 @@ export interface Transaction {
   amount: number
   description: string
   date: string
-  categoryId: number
-  categoryName: string
+  categoryId: number | null
+  categoryName: string | null
   /** The bank account the entry is booked on (R26). */
   accountId: number
   accountName: string
+  transfer: boolean
 }
 
 export interface TransactionInput {
   amount: number
   description: string
   date: string
-  categoryId: number
+  /** Missing exactly for a transfer (R27). */
+  categoryId?: number
   /** Without it the default account (R26). */
   accountId?: number
+  transfer?: boolean
 }
 
 export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'

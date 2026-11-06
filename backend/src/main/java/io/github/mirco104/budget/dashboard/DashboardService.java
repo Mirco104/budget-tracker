@@ -107,10 +107,11 @@ public class DashboardService {
                 IncomeAverage.of(expenses, firstEntryMonth, month, currentMonth).average());
     }
 
-    // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction
+    // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction; R27: no
+    // transfers
     private List<TransactionData> entries(YearMonth from, YearMonth to) {
         Stream<TransactionData> singles = transactionRepository
-                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from.atDay(1), to.atEndOfMonth())
+                .findCountedBetween(currentUser.get(), from.atDay(1), to.atEndOfMonth())
                 .stream()
                 .map(transaction -> new TransactionData(
                         transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(), false));

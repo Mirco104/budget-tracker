@@ -69,7 +69,10 @@ const transactions: Transaction[] = [
     description: 'Miete',
     date: '2026-10-01',
     categoryId: 1,
-    categoryName: 'Wohnen', accountId: 1, accountName: 'Girokonto',
+    categoryName: 'Wohnen',
+    accountId: 1,
+    accountName: 'Girokonto',
+    transfer: false,
   },
   {
     kind: 'SINGLE',
@@ -80,7 +83,10 @@ const transactions: Transaction[] = [
     description: 'Fähre',
     date: '2026-10-12',
     categoryId: 9,
-    categoryName: 'Urlaub', accountId: 1, accountName: 'Girokonto',
+    categoryName: 'Urlaub',
+    accountId: 1,
+    accountName: 'Girokonto',
+    transfer: false,
   },
 ]
 

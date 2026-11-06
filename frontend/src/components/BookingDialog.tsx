@@ -43,6 +43,9 @@ const SERVER_FIELDS: Record<string, Field> = { startDate: 'date', interval: 'rep
 
 const QUICK_PICKS = 4
 
+/** The value of the category field for a transfer (R27). */
+const TRANSFER = 'transfer'
+
 function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
 }
@@ -51,7 +54,7 @@ function isOccurrence(entry: Transaction | null): entry is Transaction & { recur
   return entry?.kind === 'RECURRING' && entry.recurringId !== null && entry.occurrenceDate !== null
 }
 
-/** The categories last used with the sign, newest first, without archived ones (display only). */
+/** The categories last used with the sign, newest first, without archived ones and transfers (display only). */
 function lastUsed(recent: Transaction[], categories: Category[], kind: Kind): Category[] {
   const result: Category[] = []
   const sorted = [...recent].sort((a, b) => b.date.localeCompare(a.date))
@@ -94,7 +97,8 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [kind, setKind] = useState<Kind>(entry && entry.amount > 0 ? 'income' : 'expense')
   const [amount, setAmount] = useState(entry ? toAmountText(entry.amount) : '')
   const [description, setDescription] = useState(entry?.description ?? '')
-  const [categoryId, setCategoryId] = useState(entry ? String(entry.categoryId) : '')
+  // TRANSFER stands for a transfer between own accounts, which has no category (R27)
+  const [categoryId, setCategoryId] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
   // '' is the default account (R26)
   const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? defaultDate)
@@ -106,9 +110,12 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [submitting, setSubmitting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
-  const recurring = repeat !== 'NONE'
+  const transfer = categoryId === TRANSFER
+  const recurring = repeat !== 'NONE' && !transfer
   // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry.
-  const repeatOption: 'optional' | 'required' | 'none' = !entry
+  const repeatOption: 'optional' | 'required' | 'none' = transfer
+    ? 'none'
+    : !entry
     ? 'optional'
     : occurrence && scope === 'FOLLOWING'
       ? 'required'
@@ -164,12 +171,17 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
     const common = {
       amount: kind === 'expense' ? -parsed : parsed,
       description: description.trim(),
-      categoryId: Number(categoryId),
       ...(accountId === '' ? {} : { accountId: Number(accountId) }),
     }
-    const single = { ...common, date }
+    const single = transfer ? { ...common, date, transfer: true } : { ...common, categoryId: Number(categoryId), date }
     if (recurring) {
-      const input = { ...common, interval: repeat, startDate: date, endDate: endDate === '' ? null : endDate }
+      const input = {
+        ...common,
+        categoryId: Number(categoryId),
+        interval: repeat,
+        startDate: date,
+        endDate: endDate === '' ? null : endDate,
+      }
       return occurrence
         ? updateFollowing.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
         : createSeries.mutateAsync(input)
@@ -293,6 +305,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
             aria-invalid={errors.categoryId ? true : undefined}
           >
             <option value="">Kategorie wählen …</option>
+            {!occurrence && <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>}
             {options.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

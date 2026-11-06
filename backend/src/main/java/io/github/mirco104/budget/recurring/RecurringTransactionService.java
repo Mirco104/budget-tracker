@@ -73,6 +73,10 @@ public class RecurringTransactionService {
     @Transactional
     public TransactionResponse updateThis(long id, LocalDate occurrence, TransactionRequest request) {
         RecurringTransaction recurring = findOccurrence(id, occurrence);
+        // R27: a transfer counts nowhere, so it cannot stand for an occurrence
+        if (Boolean.TRUE.equals(request.transfer())) {
+            throw new InvalidFieldException("transfer", "Eine Umbuchung kann kein Vorkommen ersetzen.");
+        }
         TransactionResponse replacement = transactionService.create(request);
         exceptionRepository.save(new RecurringException(recurring, occurrence));
         return replacement;

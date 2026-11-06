@@ -7,7 +7,8 @@ import java.time.LocalDate;
 
 /**
  * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
- * recurring transaction (kind RECURRING, recurringId and occurrenceDate). Fields of the other kind are null.
+ * recurring transaction (kind RECURRING, recurringId and occurrenceDate). Fields of the other kind are null. A transfer
+ * (R27) has no category.
  */
 public record TransactionResponse(
         Kind kind,
@@ -20,7 +21,8 @@ public record TransactionResponse(
         Long categoryId,
         String categoryName,
         Long accountId,
-        String accountName) {
+        String accountName,
+        boolean transfer) {
 
     public enum Kind { SINGLE, RECURRING }
 
@@ -34,10 +36,11 @@ public record TransactionResponse(
                 transaction.getAmount(),
                 transaction.getDescription(),
                 transaction.getDate(),
-                category.getId(),
-                category.getName(),
+                category == null ? null : category.getId(),
+                category == null ? null : category.getName(),
                 transaction.getAccount().getId(),
-                transaction.getAccount().getName());
+                transaction.getAccount().getName(),
+                transaction.isTransfer());
     }
 
     static TransactionResponse from(Occurrence occurrence) {
@@ -52,6 +55,7 @@ public record TransactionResponse(
                 occurrence.categoryId(),
                 occurrence.categoryName(),
                 occurrence.accountId(),
-                occurrence.accountName());
+                occurrence.accountName(),
+                false);
     }
 }

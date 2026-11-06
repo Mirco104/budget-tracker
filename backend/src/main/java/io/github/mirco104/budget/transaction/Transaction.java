@@ -34,9 +34,13 @@ public class Transaction {
     @Column(name = "booking_date", nullable = false)
     private LocalDate date;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "category_id", nullable = false)
+    // R27: null exactly for a transfer between own accounts
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
     private Category category;
+
+    @Column(nullable = false)
+    private boolean transfer;
 
     // R26: every transaction is booked on one bank account of its owner
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -62,6 +66,7 @@ public class Transaction {
         this.description = description;
         this.date = date;
         this.category = category;
+        this.transfer = category == null;
         this.account = account;
     }
 
@@ -83,6 +88,11 @@ public class Transaction {
 
     public Category getCategory() {
         return category;
+    }
+
+    /** R27: a transfer between own accounts; it has no category and counts in no calculation. */
+    public boolean isTransfer() {
+        return transfer;
     }
 
     public BankAccount getAccount() {

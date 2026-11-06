@@ -44,7 +44,7 @@ function groupBy(entries: Transaction[], keyOf: (entry: Transaction) => string):
 export function BookingList({ entries, categories, today, showAccount = false, onSelect }: Props) {
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const months = groupBy(sorted, (entry) => entry.date.slice(0, 7))
-  const iconOf = (id: number) => categories.find((category) => category.id === id)?.icon ?? 'tag'
+  const iconOf = (id: number | null) => categories.find((category) => category.id === id)?.icon ?? 'tag'
 
   function dayList(items: Transaction[]) {
     return (
@@ -61,11 +61,17 @@ export function BookingList({ entries, categories, today, showAccount = false, o
                 {dayItems.map((entry) => (
                   <li key={entryKey(entry)}>
                     <button type="button" className="tx" onClick={() => onSelect(entry)}>
-                      <CategoryIcon icon={iconOf(entry.categoryId)} />
+                      {entry.transfer ? (
+                        <span className="category-icon transfer-icon">
+                          <Icon name="transfer" size={18} />
+                        </span>
+                      ) : (
+                        <CategoryIcon icon={iconOf(entry.categoryId)} />
+                      )}
                       <span className="tx-main">
                         <span className="tx-description">{entry.description}</span>
                         <span className="tx-meta">
-                          {entry.categoryName}
+                          {entry.transfer ? 'Umbuchung' : entry.categoryName}
                           {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
                           {entry.kind === 'RECURRING' && (
                             <span className="badge">
@@ -76,7 +82,9 @@ export function BookingList({ entries, categories, today, showAccount = false, o
                           {entry.date > today && <span className="badge planned">geplant</span>}
                         </span>
                       </span>
-                      <span className={entry.amount > 0 ? 'tx-amount positive' : 'tx-amount'}>
+                      <span
+                        className={entry.transfer ? 'tx-amount transfer' : entry.amount > 0 ? 'tx-amount positive' : 'tx-amount'}
+                      >
                         {formatSigned(entry.amount)}
                       </span>
                     </button>

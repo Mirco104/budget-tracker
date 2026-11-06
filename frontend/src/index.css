@@ -1922,6 +1922,16 @@ button.tx:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+/* R27: a transfer counts nowhere, so its amount is muted */
+.tx-amount.transfer {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.transfer-icon {
+  color: var(--muted);
+}
+
 .card.empty {
   color: var(--muted);
   text-align: center;
