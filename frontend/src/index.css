@@ -1783,6 +1783,32 @@ button.add-booking {
   gap: 18px;
 }
 
+/* Months of a longer period (US26): a heading with a line and more space than between days */
+.month-list {
+  display: grid;
+  gap: 36px;
+}
+
+.month-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 14px;
+  padding: 0 4px 8px;
+  border-bottom: 2px solid var(--line-strong);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.month-sums {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .day-head {
   display: flex;
   justify-content: space-between;

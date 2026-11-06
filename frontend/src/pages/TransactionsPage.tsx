@@ -11,21 +11,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
-
-/** Income and expenses of the shown entries, added in whole cents (display only). */
-function totals(entries: Transaction[]): { income: number; expenses: number } {
-  let income = 0
-  let expenses = 0
-  for (const entry of entries) {
-    const cents = Math.round(entry.amount * 100)
-    if (cents > 0) {
-      income += cents
-    } else {
-      expenses -= cents
-    }
-  }
-  return { income: income / 100, expenses: expenses / 100 }
-}
+import { totals } from '../sums'
 
 /**
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
@@ -37,6 +23,7 @@ export function TransactionsPage() {
   const [custom, setCustom] = useState<Period>(() => presetPeriod('month', today))
   const [query, setQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [kind, setKind] = useState<'' | Transaction['kind']>('')
 
   const period = preset === 'custom' ? custom : presetPeriod(preset, today)
   const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
@@ -58,10 +45,11 @@ export function TransactionsPage() {
   const shown = (transactions.data ?? []).filter(
     (entry) =>
       (categoryId === '' || String(entry.categoryId) === categoryId) &&
+      (kind === '' || entry.kind === kind) &&
       (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search)),
   )
   const sums = totals(shown)
-  const filtered = search !== '' || categoryId !== ''
+  const filtered = search !== '' || categoryId !== '' || kind !== ''
 
   return (
     <section>
@@ -125,6 +113,15 @@ export function TransactionsPage() {
                 {category.archived ? `${category.name} (archiviert)` : category.name}
               </option>
             ))}
+          </select>
+          <select
+            aria-label="Art filtern"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as '' | Transaction['kind'])}
+          >
+            <option value="">Alle Arten</option>
+            <option value="RECURRING">Wiederkehrend</option>
+            <option value="SINGLE">Einmalig</option>
           </select>
         </div>
 
