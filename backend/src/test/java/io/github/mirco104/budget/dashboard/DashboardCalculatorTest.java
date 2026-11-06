@@ -418,7 +418,7 @@ class DashboardCalculatorTest {
         DashboardResponse result = calculate(
                 List.of(noTarget(GEHALT)),
                 List.of(booking(GEHALT, "2400")),
-                new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)), NOVEMBER);
+                new Result(new BigDecimal("3000.00"), new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)), NOVEMBER);
 
         assertThat(result.averageIncome()).isEqualByComparingTo("3000.00");
         assertThat(result.averageIncomeMonths()).isEqualTo(9);
@@ -533,7 +533,7 @@ class DashboardCalculatorTest {
                         // Must be ignored
                         booking(LEBENSMITTEL, "-999.00", LocalDate.of(2026, 9, 30))),
                 // R23: salary 3000.00 in 2026-01 to 2026-09; today is 2026-10-20; Ā = 9234.00 / 9
-                new Result(new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)),
+                new Result(new BigDecimal("3000.00"), new BigDecimal("3000.00"), 9, YearMonth.of(2026, 1), YearMonth.of(2026, 9)),
                 new BigDecimal("1026.00"), OCTOBER);
 
         assertThat(result.incomeTotal()).isEqualByComparingTo("3200.00");
@@ -580,7 +580,7 @@ class DashboardCalculatorTest {
     private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions) {
         BigDecimal income = DashboardCalculator.incomeOf(transactions, OCTOBER);
         return calculate(categories, transactions,
-                new Result(income, 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9)), NOVEMBER);
+                new Result(income, income, 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9)), NOVEMBER);
     }
 
     private DashboardResponse calculate(List<CategoryData> categories, List<TransactionData> transactions,
@@ -594,7 +594,7 @@ class DashboardCalculatorTest {
     }
 
     private static Result average(String amount) {
-        return new Result(new BigDecimal(amount), 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9));
+        return new Result(new BigDecimal(amount), new BigDecimal(amount), 12, YearMonth.of(2025, 10), YearMonth.of(2026, 9));
     }
 
     private static CategoryData category(long id, String amount, String percent) {
