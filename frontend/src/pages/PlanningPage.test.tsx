@@ -122,7 +122,9 @@ describe('PlanningPage', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 10, 15))
+    // Most cases calculate with the Ø income; the default (minimum income) has its own test
     localStorage.clear()
+    localStorage.setItem('planning-base', 'avg')
   })
 
   afterEach(() => {
@@ -263,11 +265,23 @@ describe('PlanningPage', () => {
     expect(equivalent(row)).toHaveTextContent('≙ 800,00 €')
   })
 
-  it('starts with the base chosen before in this browser', async () => {
-    localStorage.setItem('planning-base', 'min')
+  it('preselects the minimum income and shows it first', async () => {
+    localStorage.clear()
     renderPage()
 
-    expect(await screen.findByRole('button', { name: /^Mindesteinnahmen/ })).toHaveAttribute('aria-pressed', 'true')
+    const minimum = await screen.findByRole('button', { name: /^Mindesteinnahmen/ })
+    expect(minimum).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^Ø Einnahmen/ })).toHaveAttribute('aria-pressed', 'false')
+    const labels = [...document.querySelectorAll('.plan-tile .tile-label')].map((label) => label.textContent)
+    expect(labels).toEqual(['Mindesteinnahmen', 'Ø Einnahmen', 'Verplant', 'Überplant'])
+    const wohnen = screen.getByRole('form', { name: 'Wohnen' })
+    expect(equivalent(wohnen)).toHaveTextContent('≙ 33,33 % der Mindesteinnahmen')
+  })
+
+  it('starts with the base chosen before in this browser', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /^Ø Einnahmen/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows the Ø and minimum income, planned targets and the unplanned rest in the bar', async () => {
@@ -281,7 +295,7 @@ describe('PlanningPage', () => {
     expect(tile('Nicht verplant')).not.toHaveClass('over')
     expect(screen.getByText('ohne Budget')).toBeInTheDocument()
     expect(screen.getAllByText('Februar 2026 – Oktober 2026, 9 Monate')).toHaveLength(2)
-    expect(screen.getByText(/Ø und Mindesteinnahmen stammen aus Februar 2026 – Oktober 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/Mindest- und Ø Einnahmen stammen aus Februar 2026 – Oktober 2026/)).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-11', expect.anything())
     expect(tile('Verplant').closest('.plan-bar')).toBeInTheDocument()
   })

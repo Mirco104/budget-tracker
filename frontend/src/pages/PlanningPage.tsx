@@ -13,14 +13,15 @@ export type PlanningBase = 'avg' | 'min'
 
 const BASE_NAMES: Record<PlanningBase, string> = { avg: 'Ø Einnahmen', min: 'Mindesteinnahmen' }
 
-// The chosen base is a convenience per browser (US7a); without storage the default applies
+// The chosen base is a convenience per browser (US7a); without a stored choice the minimum income is the default,
+// because careful planning starts from the weakest month
 const BASE_KEY = 'planning-base'
 
 function storedBase(): PlanningBase {
   try {
-    return localStorage.getItem(BASE_KEY) === 'min' ? 'min' : 'avg'
+    return localStorage.getItem(BASE_KEY) === 'avg' ? 'avg' : 'min'
   } catch {
-    return 'avg'
+    return 'min'
   }
 }
 
@@ -66,7 +67,7 @@ function BaseTile({
 }
 
 /**
- * Bar that stays at the top while scrolling (US7a): Ø and minimum income (R23), planned targets and the unplanned
+ * Bar that stays at the top while scrolling (US7a): minimum and Ø income (R23), planned targets and the unplanned
  * rest (R4) for the month "Gilt ab", taken from the dashboard. A click on an income tile makes it the base for
  * "Nicht verplant" and the input in percent. It refreshes after every saved target.
  */
@@ -86,7 +87,7 @@ function PlanningBar({
     return (
       <div className="plan-bar">
         <p className="hint">
-          Noch kein abgeschlossener Monat mit Einträgen. Ø Einnahmen, Mindesteinnahmen und „Nicht verplant“ gibt es,
+          Noch kein abgeschlossener Monat mit Einträgen. Mindesteinnahmen, Ø Einnahmen und „Nicht verplant“ gibt es,
           sobald einer da ist; bis dahin lässt sich das Soll nur in Euro eingeben.
         </p>
       </div>
@@ -101,17 +102,17 @@ function PlanningBar({
   return (
     <div className="plan-bar plan-tiles">
       <BaseTile
-        label="Ø Einnahmen"
-        value={data.averageIncome}
-        selected={!useMinimum}
-        onSelect={() => onBaseChange('avg')}
-        period={period}
-      />
-      <BaseTile
         label="Mindesteinnahmen"
         value={data.minimumIncome}
         selected={useMinimum}
         onSelect={() => onBaseChange('min')}
+        period={period}
+      />
+      <BaseTile
+        label="Ø Einnahmen"
+        value={data.averageIncome}
+        selected={!useMinimum}
+        onSelect={() => onBaseChange('avg')}
         period={period}
       />
       <div className="plan-tile">
@@ -189,7 +190,7 @@ function PlanningContent({ month }: { month: string }) {
         Lege fest, wie viel du je Kategorie im Monat ausgeben willst. Du kannst Euro oder Prozent der gewählten Basis
         eingeben, gespeichert wird immer der Euro-Betrag. Er gilt ab <strong>{formatMonth(month)}</strong> für alle
         folgenden Monate, bis ein späterer Monat ein neues Soll bekommt; frühere Monate bleiben unverändert.
-        {dashboard.data?.averageIncomeFrom && <> Ø und Mindesteinnahmen stammen aus {averagePeriod(dashboard.data)}.</>}{' '}
+        {dashboard.data?.averageIncomeFrom && <> Mindest- und Ø Einnahmen stammen aus {averagePeriod(dashboard.data)}.</>}{' '}
         Gespeichert wird automatisch, sobald du ein Feld verlässt oder Enter drückst.
       </p>
       <PlanningBar
