@@ -13,7 +13,9 @@ import { TransactionsPage } from './pages/TransactionsPage'
 import { ROUTES, usePage, type Page } from './router'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
-const ReservesPage = lazy(() => import('./pages/ReservesPage').then((module) => ({ default: module.ReservesPage })))
+const EvaluationPage = lazy(() =>
+  import('./pages/EvaluationPage').then((module) => ({ default: module.EvaluationPage })),
+)
 
 // The main tabs (US29); the settings live in the account menu
 const TABS: { page: Page; label: string; icon: IconName }[] = [
@@ -92,7 +94,7 @@ function SignedOut({ children }: { children: ReactNode }) {
 function SignedIn({ me }: { me: Me }) {
   const logout = useLogout()
   const page = usePage()
-  // Shared by the pages that still show a month; each page gets its own time control later (decision 28)
+  // The month of the overview; it stays when switching pages (decision 28: the other pages have their own time)
   const [month, setMonth] = useState(currentMonth)
 
   return (
@@ -128,7 +130,7 @@ function SignedIn({ me }: { me: Me }) {
         {page === 'planning' && <PlanningPage />}
         {page === 'evaluation' && (
           <Suspense fallback={<p>Lade Auswertung …</p>}>
-            <ReservesPage month={month} onMonthChange={setMonth} />
+            <EvaluationPage />
           </Suspense>
         )}
         {page === 'settings' && <SettingsPage me={me} />}

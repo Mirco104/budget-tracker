@@ -1,18 +1,27 @@
 import { useQuery } from '@tanstack/react-query'
 import { request } from './client'
-import type { ReserveData } from './types'
+import type { HistoryData, ReserveData } from './types'
 
-/** months is the period of the average and look back (R14); the backend defaults to 12. */
-export function fetchReserves(month: string, months = 12): Promise<ReserveData> {
-  return request<ReserveData>(`/reserves?month=${encodeURIComponent(month)}&months=${months}`)
+/** Outlook from the current month on: reserve pot and forecast (R14, decision 29). */
+export function fetchReserves(): Promise<ReserveData> {
+  return request<ReserveData>('/reserves')
 }
 
-// While another period of the same month loads, the last result stays, so the page and its period select stay
-// in place. A different month never shows the data of the previous one.
-export function useReserves(month: string, months = 12) {
+export function useReserves() {
+  return useQuery({ queryKey: ['reserves'], queryFn: fetchReserves })
+}
+
+/** Look back from month to month ("YYYY-MM", both included, R14). */
+export function fetchHistory(from: string, to: string): Promise<HistoryData> {
+  return request<HistoryData>(`/history?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+}
+
+// While another period loads, the last result stays, so the page does not jump.
+export function useHistory(from: string, to: string, enabled = true) {
   return useQuery({
-    queryKey: ['reserves', month, months],
-    queryFn: () => fetchReserves(month, months),
-    placeholderData: (previous) => (previous?.month === month ? previous : undefined),
+    queryKey: ['history', from, to],
+    queryFn: () => fetchHistory(from, to),
+    enabled,
+    placeholderData: (previous) => previous,
   })
 }

@@ -1065,17 +1065,6 @@ th.number {
   font-weight: 600;
 }
 
-.forecast-bar-cell {
-  width: 40%;
-}
-
-.period-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
 /* The hidden Recharts tooltip keeps its last position and would widen the page on narrow screens */
 .history-chart {
   width: 100%;
@@ -1091,35 +1080,6 @@ th.number {
 /* A mouse click focuses the chart for keyboard use; the outline stays only for keyboard focus */
 .history-chart :focus:not(:focus-visible) {
   outline: none;
-}
-
-.forecast-bar {
-  display: block;
-  height: 10px;
-  border-radius: 99px;
-  background: var(--chart-expense);
-}
-
-.forecast-entries {
-  margin: 4px 0;
-  padding-left: 16px;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.collapse-toggle {
-  min-height: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.collapse-toggle:hover:not(:disabled) {
-  background: none;
 }
 
 .history tfoot th,
@@ -1191,10 +1151,6 @@ th.number {
 
   .history .history-category td:first-child {
     padding-left: 12px;
-  }
-
-  .forecast-bar-cell {
-    width: 25%;
   }
 }
 
@@ -2008,4 +1964,174 @@ button.tx:hover:not(:disabled) {
   .filter-row select {
     flex: 1 1 100%;
   }
+}
+
+/* Sub pages of the Auswertung (decision 29) */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  margin: -8px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.subtabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.subtabs a[aria-current='page'] {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+.chart-tooltip {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow);
+}
+
+.history-category-name {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.history-category-name .category-icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Info symbol with a short explanation (decision 37) */
+.with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-tip {
+  display: inline-flex;
+}
+
+.info-tip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.info-tip-button:hover,
+.info-tip-button[aria-expanded='true'] {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.info-tip-bubble {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-menu);
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+}
+
+/* Date in front of an expense of an opened forecast month (decision 37) */
+.forecast-date {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-entry {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+/* On the phone the date stands above the name, and the badge goes, so four columns fit into 360 px */
+@media (max-width: 480px) {
+  .forecast-entry {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .forecast-entry .forecast-date {
+    font-size: 0.8rem;
+  }
+
+  .forecast-entry .badge {
+    display: none;
+  }
+}
+
+/* Rare expenses with their progress (decision 37) */
+.reserve-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.reserve-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.reserve-head,
+.reserve-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.reserve-saved {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reserve-item .progress {
+  height: 10px;
+  margin-top: 0;
+  border-radius: 5px;
+}
+
+/* The part of the forecast paid from the reserves, blue like in the chart */
+.history td.from-reserves {
+  color: var(--primary);
+  font-weight: 600;
 }
