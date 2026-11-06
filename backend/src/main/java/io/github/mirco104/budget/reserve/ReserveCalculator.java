@@ -7,7 +7,6 @@ import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.HistoryResponse.Total;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastMonth;
-import io.github.mirco104.budget.reserve.ReserveResponse.PotMonth;
 import io.github.mirco104.budget.reserve.ReserveResponse.ReserveLine;
 import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
 import java.math.BigDecimal;
@@ -90,7 +89,6 @@ public class ReserveCalculator {
                 .toList();
 
         List<ReserveLine> reserves = new ArrayList<>();
-        List<SeriesData> potSeries = new ArrayList<>();
         BigDecimal monthlyReserve = BigDecimal.ZERO;
         BigDecimal reserveBalance = BigDecimal.ZERO;
         for (SeriesData s : expenseSeries) {
@@ -105,47 +103,18 @@ public class ReserveCalculator {
             BigDecimal cost = s.amount().abs();
             BigDecimal monthly = cost.divide(BigDecimal.valueOf(interval), MathContext.DECIMAL64);
             BigDecimal saved = monthly.multiply(BigDecimal.valueOf(Math.max(0, interval - monthsUntilDue)));
-            potSeries.add(s);
             monthlyReserve = monthlyReserve.add(monthly);
             reserveBalance = reserveBalance.add(saved);
             reserves.add(new ReserveLine(
                     s.id(), s.description(), s.categoryName(), cost, s.interval(), next.get(),
-                    money(monthly), money(saved)));
+                    money(monthly), money(saved), (int) Math.min(interval, monthsUntilDue)));
         }
         reserves.sort(Comparator.comparing(ReserveLine::nextDate).thenComparing(ReserveLine::recurringId));
 
         List<ForecastMonth> forecast = IntStream.range(0, FORECAST_MONTHS)
                 .mapToObj(i -> forecastMonth(expenseSeries, singles, month.plusMonths(i)))
                 .toList();
-        List<PotMonth> potMonths = IntStream.range(0, FORECAST_MONTHS)
-                .mapToObj(i -> potMonth(potSeries, month.plusMonths(i)))
-                .toList();
-        return new ReserveResponse(month.toString(), money(monthlyReserve), money(reserveBalance), reserves,
-                potMonths, forecast);
-    }
-
-    /**
-     * Course of the pot (R14, decision 37): the balance in the month before due expenses are withdrawn, and the
-     * withdrawals of the month. A series without an occurrence in m..m+i-1 adds nothing to the balance.
-     */
-    private static PotMonth potMonth(List<SeriesData> potSeries, YearMonth month) {
-        BigDecimal balance = BigDecimal.ZERO;
-        BigDecimal withdrawal = BigDecimal.ZERO;
-        for (SeriesData s : potSeries) {
-            int interval = s.interval().months();
-            BigDecimal cost = s.amount().abs();
-            List<LocalDate> upcoming = schedule(s).occurrencesBetween(
-                    month.atDay(1), month.plusMonths(interval - 1).atEndOfMonth());
-            if (upcoming.isEmpty()) {
-                continue;
-            }
-            long monthsUntilDue = ChronoUnit.MONTHS.between(month, YearMonth.from(upcoming.get(0)));
-            balance = balance.add(cost.multiply(BigDecimal.valueOf(interval - monthsUntilDue))
-                    .divide(BigDecimal.valueOf(interval), MathContext.DECIMAL64));
-            long dueThisMonth = upcoming.stream().filter(date -> YearMonth.from(date).equals(month)).count();
-            withdrawal = withdrawal.add(cost.multiply(BigDecimal.valueOf(dueThisMonth)));
-        }
-        return new PotMonth(month.toString(), money(balance), money(withdrawal));
+        return new ReserveResponse(month.toString(), money(monthlyReserve), money(reserveBalance), reserves, forecast);
     }
 
     // Surplus E - A as in R7; a month without entries has 0 everywhere
@@ -191,10 +160,12 @@ public class ReserveCalculator {
         Stream<ForecastEntry> occurrences = expenseSeries.stream()
                 .flatMap(s -> schedule(s).occurrencesBetween(month.atDay(1), month.atEndOfMonth()).stream()
                         .map(date -> new ForecastEntry(
-                                Kind.RECURRING, null, s.id(), s.description(), date, s.amount().abs())));
+                                Kind.RECURRING, null, s.id(), s.description(), date, s.amount().abs(),
+                                s.interval().months() > 1)));
         Stream<ForecastEntry> singleExpenses = singles.stream()
                 .filter(t -> t.amount().signum() < 0 && YearMonth.from(t.date()).equals(month))
-                .map(t -> new ForecastEntry(Kind.SINGLE, t.id(), null, t.description(), t.date(), t.amount().abs()));
+                .map(t -> new ForecastEntry(
+                        Kind.SINGLE, t.id(), null, t.description(), t.date(), t.amount().abs(), false));
         List<ForecastEntry> entries = Stream.concat(occurrences, singleExpenses)
                 .sorted(Comparator.comparing(ForecastEntry::date)
                         .thenComparing(ForecastEntry::kind)
@@ -203,6 +174,10 @@ public class ReserveCalculator {
         BigDecimal total = entries.stream()
                 .map(ForecastEntry::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new ForecastMonth(month.toString(), money(total), entries);
+        BigDecimal fromReserves = entries.stream()
+                .filter(ForecastEntry::fromReserves)
+                .map(ForecastEntry::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new ForecastMonth(month.toString(), money(total), money(fromReserves), entries);
     }
 }
