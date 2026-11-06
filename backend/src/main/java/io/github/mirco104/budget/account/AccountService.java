@@ -113,7 +113,7 @@ public class AccountService {
                 .stream()
                 .map(CategoryTarget::toEntry)
                 .collect(Collectors.groupingBy(TargetEntry::categoryId, Collectors.mapping(
-                        entry -> new TargetExport(entry.validFrom(), entry.targetAmount(), entry.targetPercent()),
+                        entry -> new TargetExport(entry.validFrom(), entry.targetAmount()),
                         Collectors.toList())));
         List<CategoryExport> categories = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
                 .map(category -> new CategoryExport(category.getName(), category.getSortOrder(),

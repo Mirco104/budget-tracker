@@ -21,14 +21,14 @@ Budget tracker web app: set target budgets per category, record income and expen
 
 ## Architecture rules
 - Layers: controller → service → repository. Controllers contain no business logic.
-- All calculations live in plain classes without Spring dependencies: `RecurrenceSchedule` (occurrences of recurring transactions, R12), `DashboardCalculator` (categories, transactions, occurrences and a month in, dashboard DTO out, R1–R10) and `ReserveCalculator` (reserve analysis, R14), from AP 19c `IncomeAverage` (average income before a month, R23, used by both); later `SplitCalculator` (R17), `BalanceCalculator` (R18) and `InvestmentProjection` (R19, R20). Implement the rules exactly as written in the spec.
+- All calculations live in plain classes without Spring dependencies: `RecurrenceSchedule` (occurrences of recurring transactions, R12), `DashboardCalculator` (categories, transactions, occurrences and a month in, dashboard DTO out, R1–R10) and `ReserveCalculator` (reserve analysis, R14), from AP 19c `IncomeAverage` (average and minimum income before a month, R23, used by both), from AP 19f `FixedCosts` (monthly share of recurring expenses per category, R25); later `SplitCalculator` (R17), `BalanceCalculator` (R18) and `InvestmentProjection` (R19, R20). Implement the rules exactly as written in the spec.
 - Amounts carry their sign: positive is income, negative is expense (R11). Categories have no type. For a shared expense the amount is the user's own share (R16).
 - Money is `BigDecimal` (scale 2, `RoundingMode.HALF_UP`). Never use `double` or `float` for money.
 - Expose DTOs (Java records), never JPA entities.
 - Errors as RFC 7807 `ProblemDetail`; validate input with Bean Validation.
 - From AP 18: every entity belongs to a user (`owner`) and every query is scoped to the signed-in user (R15). Another user's resource in the URL is 404, a reference to it in the body is 400. Never take a user id from the request.
 - From AP 17: the schema comes only from Flyway migrations. Never change a migration that is merged.
-- Frontend: no business rules, only display and formatting (`Intl.NumberFormat('de-DE')`). API calls only in `src/api/`.
+- Frontend: no business rules, only display and formatting (`Intl.NumberFormat('de-DE')`). API calls only in `src/api/`. Input helpers are allowed: the planning page converts a percent input into euro before saving (decision 36), in one function with its own tests that calculates in cents; the backend only knows euro.
 - From AP 19b: build screens from the shared building blocks in `src/components/ui/` and the CSS variables for colors and spacing (light and dark mode); no UI library. Blue for actions and "within budget", orange as the warning color, petrol for income, red only for errors and delete. Icons are inline SVG. Every page has its own address (hash routing).
 - Keep it simple. No extra layers, patterns or dependencies unless the spec needs them.
 

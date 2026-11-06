@@ -12,8 +12,8 @@ import java.util.Map;
  */
 public final class TargetResolver {
 
-    /** targetPercent is a fraction of income (0..1). Both values null means "no target". */
-    public record TargetEntry(long categoryId, YearMonth validFrom, BigDecimal targetAmount, BigDecimal targetPercent) {
+    /** targetAmount null means "no target" from validFrom. */
+    public record TargetEntry(long categoryId, YearMonth validFrom, BigDecimal targetAmount) {
     }
 
     private TargetResolver() {

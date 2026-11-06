@@ -21,7 +21,7 @@ public class DashboardCalculator {
 
     private static final int MONEY_SCALE = 2;
 
-    public record CategoryData(long id, String name, BigDecimal targetAmount, BigDecimal targetPercent) {
+    public record CategoryData(long id, String name, BigDecimal targetAmount) {
     }
 
     /**
@@ -55,7 +55,7 @@ public class DashboardCalculator {
             // R10: W(k) = min(I(k), V(k)), so a refund lowers the one-off part first
             expensesRecurring = expensesRecurring.add(
                     actual.min(recurringExpenses.getOrDefault(category.id(), zero())));
-            BigDecimal target = target(category, averageIncome);
+            BigDecimal target = target(category);
             if (target == null && actual.signum() == 0) {
                 continue;
             }
@@ -69,9 +69,10 @@ public class DashboardCalculator {
         BigDecimal expensesDifference = expensesTarget.subtract(expensesActual);
         BigDecimal expensesOneOff = expensesActual.subtract(expensesRecurring);
 
-        // R4: based on the average income; empty without it
+        // R4: based on the average and on the minimum income (decision 36); empty without them
+        BigDecimal minimumIncome = average.minimum();
         BigDecimal unplanned = averageIncome == null ? null : money(averageIncome).subtract(expensesTarget);
-        String unplannedLabel = unplanned == null ? null : unplanned.signum() >= 0 ? "Nicht verplant" : "Überplant";
+        BigDecimal unplannedMinimum = minimumIncome == null ? null : money(minimumIncome).subtract(expensesTarget);
 
         // R7: a past month has a surplus, the current and later months show what is still free
         BigDecimal surplus = incomeTotal.subtract(expensesActual);
@@ -92,13 +93,16 @@ public class DashboardCalculator {
                 monthState,
                 incomeTotal,
                 averageIncome == null ? null : money(averageIncome),
+                minimumIncome == null ? null : money(minimumIncome),
                 averageExpenses == null ? null : money(averageExpenses),
                 average.months(),
                 average.from() == null ? null : average.from().toString(),
                 average.to() == null ? null : average.to().toString(),
                 new Totals(expensesTarget, expensesActual, expensesDifference, expensesRecurring, expensesOneOff),
                 unplanned,
-                unplannedLabel,
+                unplannedLabel(unplanned),
+                unplannedMinimum,
+                unplannedLabel(unplannedMinimum),
                 surplus,
                 surplusLabel,
                 categoryLines,
@@ -156,15 +160,14 @@ public class DashboardCalculator {
                 .reduce(zero(), BigDecimal::add);
     }
 
-    // R3: euro target wins, otherwise Ē(M) × percent (R23), otherwise no target; no Ē(M) means no target
-    private static BigDecimal target(CategoryData category, BigDecimal averageIncome) {
-        if (category.targetAmount() != null) {
-            return money(category.targetAmount());
-        }
-        if (category.targetPercent() != null && averageIncome != null) {
-            return money(averageIncome.multiply(category.targetPercent()));
-        }
-        return null;
+    // R4: "Nicht verplant" at or above zero, otherwise "Überplant"
+    private static String unplannedLabel(BigDecimal unplanned) {
+        return unplanned == null ? null : unplanned.signum() >= 0 ? "Nicht verplant" : "Überplant";
+    }
+
+    // R3: the target is the euro amount; only euro since decision 36
+    private static BigDecimal target(CategoryData category) {
+        return category.targetAmount() == null ? null : money(category.targetAmount());
     }
 
     private static BigDecimal netOf(Map<Long, BigDecimal> nets, CategoryData category) {
