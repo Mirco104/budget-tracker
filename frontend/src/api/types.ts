@@ -183,6 +183,8 @@ export interface ReserveLine {
   monthly: number
   /** What should be saved by now; the full amount in the month it is due. */
   saved: number
+  /** Monthly rates still to put aside until it is due; 0 in the month it is due (decision 37). */
+  ratesLeft: number
 }
 
 /** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). amount is positive. */
@@ -193,21 +195,15 @@ export interface ForecastEntry {
   description: string
   date: string
   amount: number
-}
-
-/**
- * Course of the reserve pot in a month (R14, decision 37): balance before the due expenses of the month are
- * withdrawn, withdrawal what is withdrawn in the month.
- */
-export interface PotMonth {
-  month: string
-  balance: number
-  withdrawal: number
+  /** An occurrence of a rare expense, paid from the reserve pot (decision 37). */
+  fromReserves: boolean
 }
 
 export interface ForecastMonth {
   month: string
   total: number
+  /** The part of total paid from the reserve pot (decision 37). */
+  fromReserves: number
   entries: ForecastEntry[]
 }
 
@@ -249,8 +245,6 @@ export interface ReserveData {
   monthlyReserve: number
   reserveBalance: number
   reserves: ReserveLine[]
-  /** The course of the pot, the month and the following 11 months (decision 37). */
-  potMonths: PotMonth[]
   /** The month and the following 11 months. */
   forecast: ForecastMonth[]
 }

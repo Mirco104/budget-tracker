@@ -2062,15 +2062,6 @@ button.tx:hover:not(:disabled) {
   white-space: normal;
 }
 
-/* In a table head the symbol may wrap below the label, so narrow tables keep their width */
-th .with-info {
-  display: inline;
-}
-
-th .info-tip {
-  vertical-align: middle;
-}
-
 /* Date in front of an expense of an opened forecast month (decision 37) */
 .forecast-date {
   color: var(--muted);
@@ -2099,4 +2090,48 @@ th .info-tip {
   .forecast-entry .badge {
     display: none;
   }
+}
+
+/* Rare expenses with their progress (decision 37) */
+.reserve-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.reserve-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.reserve-head,
+.reserve-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.reserve-saved {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reserve-item .progress {
+  height: 10px;
+  margin-top: 0;
+  border-radius: 5px;
+}
+
+/* The part of the forecast paid from the reserves, blue like in the chart */
+.history td.from-reserves {
+  color: var(--primary);
+  font-weight: 600;
 }

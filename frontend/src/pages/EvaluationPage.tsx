@@ -1,23 +1,12 @@
 import { useState } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { errorText } from '../api/client'
 import { useHistory, useReserves } from '../api/reserves'
-import type { ForecastEntry, ForecastMonth, HistoryData, HistoryMonth, ReserveData } from '../api/types'
+import type { ForecastMonth, HistoryData, HistoryMonth, ReserveData, ReserveLine } from '../api/types'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { InfoTip } from '../components/ui/InfoTip'
 import { PageHeader } from '../components/ui/PageHeader'
+import { ProgressBar } from '../components/ui/ProgressBar'
 import {
   currentMonth,
   formatAmount,
@@ -398,40 +387,37 @@ function Outlook() {
   if (error) {
     return <p className="error">Vorausschau konnte nicht geladen werden: {error.message}</p>
   }
-  const months = forecastMonths(data)
   return (
     <>
       <p className="hint">Ab {formatMonth(data.month)}, dem aktuellen Monat.</p>
       <h3 className="with-info">
-        Rücklagen
+        Rücklagen für seltene Ausgaben
         <InfoTip label="Rücklagen">
           Manche Ausgaben kommen nur alle 3, 6 oder 12 Monate, dann aber auf einmal. Legst du jeden Monat einen Teil
           zurück, ist das Geld da, wenn sie fällig werden. Die App rechnet aus, wie viel das ist; was du tatsächlich
           zurückgelegt hast, kennt sie nicht.
         </InfoTip>
       </h3>
-      <ReservePot data={data} />
+      <Reserves data={data} />
 
       <h3 className="with-info">
         Vorschau 12 Monate
         <InfoTip label="Vorschau 12 Monate">
-          Die Balken zeigen alle gebuchten Ausgaben je Monat, die Linie, wie viel im Rücklagen-Topf liegen sollte,
-          bevor fällige seltene Ausgaben abgebucht werden. Der Topf wächst jeden Monat um die Raten und fällt, wenn er
-          eine teure Abbuchung bezahlt.
+          Alle gebuchten Ausgaben je Monat, wiederkehrende und einzelne. Blau ist der Teil, den du aus deinen
+          Rücklagen bezahlst: seltene Ausgaben, für die du jeden Monat etwas beiseitelegst.
         </InfoTip>
       </h3>
-      <ForecastChart months={months} active={active} onActive={setActive} />
+      <ForecastChart months={data.forecast} active={active} onActive={setActive} />
       <table className="history" aria-label="Vorschau 12 Monate">
         <thead>
           <tr>
             <th>Monat</th>
             <th className="number">Ausgaben (€)</th>
-            <th className="number">Aus dem Topf (€)</th>
-            <th className="number">Soll-Stand Topf (€)</th>
+            <th className="number">davon aus den Rücklagen (€)</th>
           </tr>
         </thead>
         <tbody>
-          {months.map((m) => (
+          {data.forecast.map((m) => (
             <ForecastRows key={m.month} month={m} active={active === m.month} onActive={setActive} />
           ))}
         </tbody>
@@ -440,7 +426,25 @@ function Outlook() {
   )
 }
 
-function ReservePot({ data }: { data: ReserveData }) {
+/** Decision 37: the rate, the count and the next rare expense; the list is sorted by the due date. */
+function reserveSentence(data: ReserveData) {
+  const next = data.reserves[0]
+  const count = data.reserves.length
+  const nextText = `„${next.description}“ im ${formatMonth(next.nextDate.slice(0, 7))} (${formatEuro(next.amount)})`
+  const paid = count === 1
+    ? `Davon bezahlst du 1 seltene Ausgabe: ${nextText}.`
+    : `Davon bezahlst du ${count} seltene Ausgaben, als Nächstes ${nextText}.`
+  return `Leg jeden Monat ${formatEuro(data.monthlyReserve)} beiseite. ${paid}`
+}
+
+function ratesLeftText(line: ReserveLine) {
+  if (line.ratesLeft === 0) {
+    return 'diesen Monat fällig'
+  }
+  return `noch ${line.ratesLeft} ${line.ratesLeft === 1 ? 'Rate' : 'Raten'} à ${formatEuro(line.monthly)}`
+}
+
+function Reserves({ data }: { data: ReserveData }) {
   if (data.reserves.length === 0) {
     return (
       <p className="hint">
@@ -451,11 +455,12 @@ function ReservePot({ data }: { data: ReserveData }) {
   }
   return (
     <>
+      <p>{reserveSentence(data)}</p>
       <dl className="summary">
         <div>
           <dt className="with-info">
-            Monatlich zurücklegen
-            <InfoTip label="Monatlich zurücklegen">
+            Jeden Monat beiseitelegen
+            <InfoTip label="Jeden Monat beiseitelegen">
               Die Summe der Monatsraten aller seltenen Ausgaben. Eine Rate ist der Betrag geteilt durch die Monate des
               Intervalls, z. B. 120 € jährlich = 10 € im Monat.
             </InfoTip>
@@ -464,89 +469,46 @@ function ReservePot({ data }: { data: ReserveData }) {
         </div>
         <div>
           <dt className="with-info">
-            Sollte jetzt angespart sein
-            <InfoTip label="Sollte jetzt angespart sein">
-              So viel sollte jetzt im Topf liegen, wenn du seit der letzten Abbuchung jeder Ausgabe jeden Monat ihre
-              Rate zurückgelegt hast, die Rate dieses Monats eingeschlossen. Das ist ein Sollwert, kein Kontostand.
+            Sollte zurückgelegt sein
+            <InfoTip label="Sollte zurückgelegt sein">
+              So viel sollte jetzt zurückgelegt sein, wenn du seit der letzten Abbuchung jeder Ausgabe jeden Monat ihre
+              Rate beiseitegelegt hast, die Rate dieses Monats eingeschlossen. Das ist ein Sollwert, kein Kontostand.
             </InfoTip>
           </dt>
           <dd>{formatEuro(data.reserveBalance)}</dd>
+          <dd className="tile-note">Summe der Balken unten</dd>
         </div>
       </dl>
-      <p className="hint">
-        Lege jeden Monat {formatEuro(data.monthlyReserve)} zur Seite, dann ist jede seltene Abbuchung gedeckt, wenn
-        sie fällig wird.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Ausgabe</th>
-            <th className="number col-optional">Betrag (€)</th>
-            <th>Fällig am</th>
-            <th className="number">
-              <span className="with-info">
-                Pro Monat (€)
-                <InfoTip label="Pro Monat">
-                  Der Betrag geteilt durch die Monate des Intervalls: vierteljährlich 3, halbjährlich 6, jährlich 12.
-                </InfoTip>
+      <ul className="reserve-list" aria-label="Seltene Ausgaben">
+        {data.reserves.map((line) => (
+          <li key={line.recurringId} className="reserve-item">
+            <div className="reserve-head">
+              <span>
+                <strong>{line.description}</strong> <span className="badge">{INTERVAL_LABELS[line.interval]}</span>
               </span>
-            </th>
-            <th className="number">
-              <span className="with-info">
-                Angespart (€)
-                <InfoTip label="Angespart">
-                  Die Raten seit der letzten Abbuchung, diesen Monat eingeschlossen. Im Monat der Fälligkeit ist der
-                  volle Betrag angespart, danach beginnt es wieder bei einer Rate.
-                </InfoTip>
+              <span className="tile-note">
+                {formatEuro(line.amount)} · fällig am {formatDate(line.nextDate)}
               </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.reserves.map((line) => (
-            <tr key={line.recurringId}>
-              <td>
-                {line.description}
-                <span className="tile-note"> {INTERVAL_LABELS[line.interval]}</span>
-              </td>
-              <td className="number col-optional">{formatAmount(line.amount)}</td>
-              <td>{formatDate(line.nextDate)}</td>
-              <td className="number">{formatAmount(line.monthly)}</td>
-              <td className="number">{formatAmount(line.saved)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
+            </div>
+            <ProgressBar value={line.amount > 0 ? line.saved / line.amount : 0} />
+            <div className="reserve-foot">
+              <span className="reserve-saved">
+                {formatEuro(line.saved)} von {formatEuro(line.amount)}
+              </span>
+              <span className="tile-note reserve-rest">{ratesLeftText(line)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
     </>
   )
 }
 
-const POT_COLOR = 'var(--primary)'
+const RESERVES_COLOR = 'var(--primary)'
 
-/** A forecast month joined with the course of the pot of the same month (decision 37), for display only. */
-interface OutlookMonth extends ForecastMonth {
-  balance: number
-  withdrawal: number
-  /** recurringIds of the rare expenses in the pot, to mark their entries. */
-  potIds: Set<number>
-}
-
-function forecastMonths(data: ReserveData): OutlookMonth[] {
-  const potIds = new Set(data.reserves.map((line) => line.recurringId))
-  return data.forecast.map((month) => {
-    const pot = data.potMonths.find((p) => p.month === month.month)
-    return { ...month, balance: pot?.balance ?? 0, withdrawal: pot?.withdrawal ?? 0, potIds }
-  })
-}
-
-function isFromPot(entry: ForecastEntry, potIds: Set<number>) {
-  return entry.kind === 'RECURRING' && entry.recurringId !== null && potIds.has(entry.recurringId)
-}
-
-/** Expanded: one row per expense with its date; a withdrawal from the pot also stands in its column. */
+/** Expanded: one row per expense with its date; an expense paid from the reserves also stands in that column. */
 function ForecastRows({ month, active, onActive }: {
-  month: OutlookMonth
+  month: ForecastMonth
   active: boolean
   onActive: (month: string | null) => void
 }) {
@@ -574,8 +536,9 @@ function ForecastRows({ month, active, onActive }: {
           )}
         </th>
         <td className="number">{formatAmount(month.total)}</td>
-        <td className="number">{formatAmount(month.withdrawal)}</td>
-        <td className="number">{formatAmount(month.balance)}</td>
+        <td className={`number${month.fromReserves > 0 ? ' from-reserves' : ''}`}>
+          {month.fromReserves > 0 ? formatAmount(month.fromReserves) : '–'}
+        </td>
       </tr>
       {open &&
         month.entries.map((entry) => (
@@ -587,56 +550,55 @@ function ForecastRows({ month, active, onActive }: {
             <td>
               <span className="forecast-entry">
                 <span className="forecast-date">{formatDate(entry.date)}</span>
-                {entry.description}
+                <span>{entry.description}</span>
                 {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
               </span>
             </td>
             <td className="number">{formatAmount(entry.amount)}</td>
-            <td className="number">{isFromPot(entry, month.potIds) ? formatAmount(entry.amount) : ''}</td>
-            <td />
+            <td className="number from-reserves">{entry.fromReserves ? formatAmount(entry.amount) : ''}</td>
           </tr>
         ))}
     </>
   )
 }
 
-function ForecastTooltip({ active, payload }: { active?: boolean; payload?: { payload: OutlookMonth }[] }) {
+function ForecastTooltip({ active, payload }: { active?: boolean; payload?: { payload: ForecastMonth }[] }) {
   if (!active || !payload?.length) {
     return null
   }
   const month = payload[0].payload
-  const fromPot = month.entries.filter((entry) => isFromPot(entry, month.potIds)).map((entry) => entry.description)
+  const names = month.entries.filter((entry) => entry.fromReserves).map((entry) => entry.description)
   return (
     <div className="chart-tooltip">
       <strong>{formatMonth(month.month)}</strong>
       <span>Ausgaben {formatEuro(month.total)}</span>
-      {month.withdrawal > 0 && (
+      {month.fromReserves > 0 && (
         <span>
-          davon aus dem Topf {formatEuro(month.withdrawal)}
-          {fromPot.length > 0 && ` (${fromPot.join(', ')})`}
+          davon aus den Rücklagen {formatEuro(month.fromReserves)} ({names.join(', ')})
         </span>
       )}
-      <span>Soll-Stand Topf {formatEuro(month.balance)}</span>
     </div>
   )
 }
 
-/** Decision 37: expenses as bars and the balance of the pot as a line on one axis; the marked month is shared. */
+/** Decision 37: the expenses per month, the part from the reserves in blue on top; the marked month is shared. */
 function ForecastChart({ months, active, onActive }: {
-  months: OutlookMonth[]
+  months: ForecastMonth[]
   active: string | null
   onActive: (month: string | null) => void
 }) {
   const opacity = (month: string) => (active === null || active === month ? 1 : FADED_OPACITY)
+  // Split for the stacked bars only; both values come from the backend
+  const points = months.map((m) => ({ ...m, other: m.total - m.fromReserves }))
   return (
     <div
       className="history-chart"
       role="img"
-      aria-label="Diagramm Vorschau: Ausgaben und Soll-Stand des Topfs je Monat"
+      aria-label="Diagramm Vorschau: Ausgaben je Monat, der Teil aus den Rücklagen blau"
     >
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart
-          data={months}
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart
+          data={points}
           margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
           onMouseMove={(state) => onActive(state.activeLabel === undefined ? null : String(state.activeLabel))}
           onMouseLeave={() => onActive(null)}
@@ -646,21 +608,17 @@ function ForecastChart({ months, active, onActive }: {
           <YAxis tickFormatter={formatWholeNumber} fontSize={12} width={56} />
           <Tooltip content={<ForecastTooltip />} cursor={{ fill: 'var(--surface-3)', opacity: 0.6 }} />
           <Legend itemSorter={null} />
-          <Bar dataKey="total" name="Ausgaben" fill={EXPENSE_COLOR}>
-            {months.map((m) => (
+          <Bar dataKey="other" name="Ausgaben" stackId="month" fill={EXPENSE_COLOR}>
+            {points.map((m) => (
               <Cell key={m.month} fillOpacity={opacity(m.month)} />
             ))}
           </Bar>
-          <Line
-            dataKey="balance"
-            name="Soll-Stand Topf"
-            type="linear"
-            stroke={POT_COLOR}
-            strokeWidth={2}
-            dot={{ r: 3, fill: POT_COLOR }}
-            isAnimationActive={false}
-          />
-        </ComposedChart>
+          <Bar dataKey="fromReserves" name="davon aus den Rücklagen" stackId="month" fill={RESERVES_COLOR}>
+            {points.map((m) => (
+              <Cell key={m.month} fillOpacity={opacity(m.month)} />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     </div>
   )
