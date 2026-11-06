@@ -91,17 +91,17 @@ public class SampleDataSeeder implements ApplicationRunner {
         d.series("-85", "Haftpflicht", "Versicherungen", RecurringInterval.YEARLY, "2025-03-15", null);
         d.series("-240", "Kfz-Versicherung", "Versicherungen", RecurringInterval.HALF_YEARLY, "2025-04-01", null);
 
-        d.target("Wohnen", FIRST_MONTH, "950", null);
-        d.target("Nebenkosten", FIRST_MONTH, "130", null);
-        d.target("Versicherungen", FIRST_MONTH, "60", null);
-        d.target("Investitionen", FIRST_MONTH, "200", null);
-        d.target("Gesundheit", FIRST_MONTH, "20", null);
-        d.target("Lebensmittel", FIRST_MONTH, "400", null);
-        d.target("Mobilität", FIRST_MONTH, "150", null);
-        d.target("Freizeit", FIRST_MONTH, null, "0.05");
-        d.target("Urlaub", FIRST_MONTH, "100", null);
-        d.target("Persönlicher Bedarf", FIRST_MONTH, "60", null);
-        d.target("Lebensmittel", YearMonth.of(2026, 1), "450", null);
+        d.target("Wohnen", FIRST_MONTH, "950");
+        d.target("Nebenkosten", FIRST_MONTH, "130");
+        d.target("Versicherungen", FIRST_MONTH, "60");
+        d.target("Investitionen", FIRST_MONTH, "200");
+        d.target("Gesundheit", FIRST_MONTH, "20");
+        d.target("Lebensmittel", FIRST_MONTH, "400");
+        d.target("Mobilität", FIRST_MONTH, "150");
+        d.target("Freizeit", FIRST_MONTH, "150");
+        d.target("Urlaub", FIRST_MONTH, "100");
+        d.target("Persönlicher Bedarf", FIRST_MONTH, "60");
+        d.target("Lebensmittel", YearMonth.of(2026, 1), "450");
 
         int i = 0;
         for (YearMonth month = FIRST_MONTH; !month.isAfter(LAST_MONTH); month = month.plusMonths(1), i++) {
@@ -132,10 +132,10 @@ public class SampleDataSeeder implements ApplicationRunner {
         d.series("-45", "Handy und Internet", "Nebenkosten", RecurringInterval.MONTHLY, "2025-01-03", null);
         d.series("-120", "Software-Abo", "Selbstständigkeit", RecurringInterval.YEARLY, "2025-02-01", null);
 
-        d.target("Wohnen", FIRST_MONTH, "700", null);
-        d.target("Nebenkosten", FIRST_MONTH, "45", null);
-        d.target("Lebensmittel", FIRST_MONTH, "250", null);
-        d.target("Freizeit", FIRST_MONTH, "80", null);
+        d.target("Wohnen", FIRST_MONTH, "700");
+        d.target("Nebenkosten", FIRST_MONTH, "45");
+        d.target("Lebensmittel", FIRST_MONTH, "250");
+        d.target("Freizeit", FIRST_MONTH, "80");
 
         int i = 0;
         for (YearMonth month = FIRST_MONTH; !month.isAfter(LAST_MONTH); month = month.plusMonths(1), i++) {
@@ -150,7 +150,10 @@ public class SampleDataSeeder implements ApplicationRunner {
         }
     }
 
-    /** Starts in July 2025 (average over fewer than 12 months, R23), a loan that ends and percent targets. */
+    /**
+     * Starts in July 2025 (average over fewer than 12 months, R23) and has a loan that ends. Lebensmittel and Freizeit
+     * were 12 % and 4 % of the salary before decision 36; now the same amounts in euro.
+     */
     private void personC(Data d) {
         YearMonth start = YearMonth.of(2025, 7);
         d.series("2400", "Gehalt", "Gehalt/Lohn (netto)", RecurringInterval.MONTHLY, "2025-07-01", null);
@@ -158,11 +161,11 @@ public class SampleDataSeeder implements ApplicationRunner {
         d.series("-180", "Autokredit", "Kredite", RecurringInterval.MONTHLY, "2025-07-01", "2026-06-30");
         d.series("-35", "Patenschaft", "Spenden", RecurringInterval.MONTHLY, "2025-07-01", null);
 
-        d.target("Wohnen", start, "620", null);
-        d.target("Kredite", start, "180", null);
-        d.target("Lebensmittel", start, null, "0.12");
-        d.target("Freizeit", start, null, "0.04");
-        d.target("Mobilität", start, "60", null);
+        d.target("Wohnen", start, "620");
+        d.target("Kredite", start, "180");
+        d.target("Lebensmittel", start, "288");
+        d.target("Freizeit", start, "96");
+        d.target("Mobilität", start, "60");
 
         int i = 0;
         for (YearMonth month = start; !month.isAfter(LAST_MONTH); month = month.plusMonths(1), i++) {
@@ -220,9 +223,8 @@ public class SampleDataSeeder implements ApplicationRunner {
                     endDate == null ? null : LocalDate.parse(endDate)));
         }
 
-        void target(String category, YearMonth from, String amount, String percent) {
-            categoryService.updateTarget(id(category), from, new UpdateTargetRequest(
-                    amount == null ? null : new BigDecimal(amount), percent == null ? null : new BigDecimal(percent)));
+        void target(String category, YearMonth from, String amount) {
+            categoryService.updateTarget(id(category), from, new UpdateTargetRequest(new BigDecimal(amount)));
         }
 
         private long id(String category) {

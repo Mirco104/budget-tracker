@@ -4,6 +4,7 @@ import io.github.mirco104.budget.category.TargetResolver.TargetEntry;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
+import io.github.mirco104.budget.recurring.FixedCosts;
 import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
@@ -47,10 +48,22 @@ public class CategoryService {
     public List<CategoryResponse> findAll(YearMonth month) {
         Map<Long, TargetEntry> targets = targetsInEffect(month);
         Set<Long> incomeOnly = incomeOnlyIds();
+        Map<Long, FixedCosts.Result> fixedCosts = fixedCosts(month);
         return findAllOrdered().stream()
                 .map(category -> CategoryResponse.from(
-                        category, targets.get(category.getId()), incomeOnly.contains(category.getId())))
+                        category, targets.get(category.getId()), incomeOnly.contains(category.getId()),
+                        fixedCosts.get(category.getId())))
                 .toList();
+    }
+
+    /** R25: the monthly share of the user's recurring expenses per category id, for the month. */
+    private Map<Long, FixedCosts.Result> fixedCosts(YearMonth month) {
+        List<FixedCosts.SeriesData> series = recurringTransactionRepository
+                .findActiveBetween(currentUser.get(), month.atDay(1), month.atEndOfMonth()).stream()
+                .map(r -> new FixedCosts.SeriesData(r.getId(), r.getCategory().getId(), r.getDescription(),
+                        r.getAmount(), r.getInterval().months(), r.getStartDate(), r.getEndDate()))
+                .toList();
+        return FixedCosts.of(series, month);
     }
 
     /** The user's categories in their order. */
@@ -81,8 +94,8 @@ public class CategoryService {
                 .map(last -> last.getSortOrder() + SORT_ORDER_STEP)
                 .orElse(SORT_ORDER_STEP);
         Category category = categoryRepository.save(new Category(currentUser.get(), name, sortOrder, icon));
-        // A new category has no entries yet (R24)
-        return CategoryResponse.from(category, null, false);
+        // A new category has no entries yet (R24, R25)
+        return CategoryResponse.from(category, null, false, null);
     }
 
     /**
@@ -115,7 +128,9 @@ public class CategoryService {
         category.rename(name);
         category.setArchived(request.archived());
         category.changeIcon(icon);
-        return CategoryResponse.from(category, targetsInEffect(YearMonth.now()).get(id), incomeOnlyIds().contains(id));
+        YearMonth month = YearMonth.now();
+        return CategoryResponse.from(category, targetsInEffect(month).get(id), incomeOnlyIds().contains(id),
+                fixedCosts(month).get(id));
     }
 
     /** US10: only an unused category can be deleted; otherwise 409 with the hint to archive it. */
@@ -138,9 +153,9 @@ public class CategoryService {
 
         CategoryTarget target = categoryTargetRepository.findByCategoryIdAndValidFrom(id, month.atDay(1))
                 .orElseGet(() -> new CategoryTarget(category, month));
-        target.update(scale(request.targetAmount(), 2), scale(request.targetPercent(), 4));
+        target.update(scale(request.targetAmount(), 2));
         categoryTargetRepository.save(target);
-        return CategoryResponse.from(category, target.toEntry(), incomeOnlyIds().contains(id));
+        return CategoryResponse.from(category, target.toEntry(), incomeOnlyIds().contains(id), fixedCosts(month).get(id));
     }
 
     /**

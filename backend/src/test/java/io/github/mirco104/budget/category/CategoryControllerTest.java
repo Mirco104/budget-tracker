@@ -82,39 +82,29 @@ class CategoryControllerTest {
         putTarget(id, "{\"targetAmount\": 750.5}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
-                .andExpect(content().string(containsString("\"targetAmount\":750.50")))
-                .andExpect(jsonPath("$.targetPercent").value(nullValue()));
+                .andExpect(content().string(containsString("\"targetAmount\":750.50")));
     }
 
+    // Decision 36: a target is only an amount in euro; percent is an input helper in the frontend
     @Test
-    void setsTargetPercent() throws Exception {
-        long id = categoryId("Lebensmittel");
-
-        putTarget(id, "{\"targetPercent\": 0.15}")
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("\"targetPercent\":0.1500")))
-                .andExpect(jsonPath("$.targetAmount").value(nullValue()));
-    }
-
-    @Test
-    void storesAmountAndPercentTogether() throws Exception {
+    void targetHasNoPercent() throws Exception {
         long id = categoryId("Freizeit");
 
-        putTarget(id, "{\"targetAmount\": 100, \"targetPercent\": 0.05}")
+        putTarget(id, "{\"targetAmount\": 100}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.targetAmount").value(100.00))
-                .andExpect(jsonPath("$.targetPercent").value(0.05));
+                .andExpect(jsonPath("$.targetPercent").doesNotExist());
+        getCategories(MONTH).andExpect(jsonPath("$[0].targetPercent").doesNotExist());
     }
 
     @Test
-    void clearsTargetWhenBothValuesAreNull() throws Exception {
+    void clearsTargetWhenTheAmountIsNull() throws Exception {
         long id = categoryId("Urlaub");
         putTarget(id, "{\"targetAmount\": 200}").andExpect(status().isOk());
 
-        putTarget(id, "{\"targetAmount\": null, \"targetPercent\": null}")
+        putTarget(id, "{\"targetAmount\": null}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.targetAmount").value(nullValue()))
-                .andExpect(jsonPath("$.targetPercent").value(nullValue()));
+                .andExpect(jsonPath("$.targetAmount").value(nullValue()));
     }
 
     @Test
@@ -122,8 +112,7 @@ class CategoryControllerTest {
         long id = categoryId("Geschenke");
 
         putTarget(id, "{\"targetAmount\": 0}").andExpect(status().isOk());
-        putTarget(id, "{\"targetPercent\": 0}").andExpect(status().isOk());
-        putTarget(id, "{\"targetPercent\": 1}").andExpect(status().isOk());
+        putTarget(id, "{\"targetAmount\": 9999999999.99}").andExpect(status().isOk());
     }
 
     @Test
@@ -156,13 +145,12 @@ class CategoryControllerTest {
     void newerTargetReplacesOlderOneWithoutChangingEarlierMonths() throws Exception {
         long id = categoryId("Lebensmittel");
         putTarget(id, "2026-11", "{\"targetAmount\": 300}").andExpect(status().isOk());
-        putTarget(id, "2027-01", "{\"targetPercent\": 0.15}").andExpect(status().isOk());
+        putTarget(id, "2027-01", "{\"targetAmount\": 350}").andExpect(status().isOk());
 
         getCategories("2026-12")
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(300.00)));
         getCategories("2027-02")
-                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(nullValue())))
-                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetPercent", contains(0.15)))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].targetAmount", contains(350.00)))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].targetValidFrom", contains("2027-01")));
     }
 
@@ -219,21 +207,6 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"))
                 .andExpect(jsonPath("$.errors[0].field").value("targetAmount"))
                 .andExpect(jsonPath("$.errors[0].message").value("Der Soll-Betrag darf nicht negativ sein."));
-    }
-
-    @Test
-    void rejectsTargetPercentAboveOne() throws Exception {
-        putTarget(categoryId("Wohnen"), "{\"targetPercent\": 1.01}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("targetPercent"))
-                .andExpect(jsonPath("$.errors[0].message").value("Der Prozentwert muss zwischen 0 und 100 % liegen."));
-    }
-
-    @Test
-    void rejectsNegativeTargetPercent() throws Exception {
-        putTarget(categoryId("Wohnen"), "{\"targetPercent\": -0.01}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("targetPercent"));
     }
 
     @Test
@@ -325,6 +298,65 @@ class CategoryControllerTest {
                 .andExpect(status().isCreated());
 
         getCategories(MONTH).andExpect(incomeOnly("Gehalt/Lohn (netto)", false));
+    }
+
+    // --- Fixed costs (R25, decision 36) ---
+
+    @Test
+    void listsTheFixedCostsOfTheMonth() throws Exception {
+        long nebenkosten = categoryId("Nebenkosten");
+        postCreated("/api/recurring-transactions", """
+                {"amount": -165, "description": "Strom & Internet", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2026-01-01"}
+                """.formatted(nebenkosten));
+        postCreated("/api/recurring-transactions", """
+                {"amount": -55.08, "description": "Rundfunkbeitrag", "categoryId": %d, "interval": "QUARTERLY",
+                 "startDate": "2026-01-15"}
+                """.formatted(nebenkosten));
+        // Income, a series that starts later and one that ended do not count
+        postCreated("/api/recurring-transactions", """
+                {"amount": 3000, "description": "Gehalt", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2026-01-01"}
+                """.formatted(categoryId("Gehalt/Lohn (netto)")));
+        postCreated("/api/recurring-transactions", """
+                {"amount": -50, "description": "Garage", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2026-11-01"}
+                """.formatted(categoryId("Wohnen")));
+        postCreated("/api/recurring-transactions", """
+                {"amount": -30, "description": "Stellplatz", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2025-01-01", "endDate": "2026-09-30"}
+                """.formatted(categoryId("Wohnen")));
+
+        getCategories(MONTH)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Nebenkosten')].fixedCosts", contains(183.36)))
+                .andExpect(jsonPath("$[?(@.name == 'Nebenkosten')].fixedCostItems[*].description",
+                        contains("Strom & Internet", "Rundfunkbeitrag")))
+                .andExpect(jsonPath("$[?(@.name == 'Nebenkosten')].fixedCostItems[1].amount", contains(55.08)))
+                .andExpect(jsonPath("$[?(@.name == 'Nebenkosten')].fixedCostItems[1].interval", contains(3)))
+                .andExpect(jsonPath("$[?(@.name == 'Nebenkosten')].fixedCostItems[1].monthly", contains(18.36)))
+                .andExpect(jsonPath("$[?(@.name == 'Wohnen')].fixedCosts", contains(nullValue())))
+                .andExpect(jsonPath("$[?(@.name == 'Wohnen')].fixedCostItems[*]", hasSize(0)))
+                .andExpect(jsonPath("$[?(@.name == 'Gehalt/Lohn (netto)')].fixedCosts", contains(nullValue())));
+        getCategories("2026-11")
+                .andExpect(jsonPath("$[?(@.name == 'Wohnen')].fixedCosts", contains(50.00)));
+    }
+
+    @Test
+    void anotherUsersSeriesAreNoFixedCosts() throws Exception {
+        User other = TestUsers.create(userService, "person-c@example.test");
+        long otherWohnen = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).stream()
+                .filter(c -> c.getName().equals("Wohnen"))
+                .findFirst().orElseThrow().getId();
+        TestUsers.mockMvcFor(context, other).perform(post("/api/recurring-transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": -900, "description": "Miete", "categoryId": %d, "interval": "MONTHLY",
+                                 "startDate": "2026-01-01"}
+                                """.formatted(otherWohnen)))
+                .andExpect(status().isCreated());
+
+        getCategories(MONTH).andExpect(jsonPath("$[?(@.name == 'Wohnen')].fixedCosts", contains(nullValue())));
     }
 
     private void postCreated(String path, String body) throws Exception {

@@ -79,8 +79,7 @@ public class DashboardService {
                     return new CategoryData(
                             category.getId(),
                             category.getName(),
-                            target == null ? null : target.targetAmount(),
-                            target == null ? null : target.targetPercent());
+                            target == null ? null : target.targetAmount());
                 })
                 .toList();
         return calculator.calculate(categories, entries(month, month), month, average, averageExpenses, currentMonth);
