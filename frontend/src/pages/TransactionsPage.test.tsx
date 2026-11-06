@@ -6,8 +6,8 @@ import { TransactionsPage } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 6, name: 'Freizeit', icon: 'music', sortOrder: 6, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', sortOrder: 20, targetAmount: null, targetPercent: null, targetValidFrom: null, archived: false, incomeOnly: true },
+  { id: 6, name: 'Freizeit', icon: 'music', sortOrder: 6, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt', icon: 'wallet', sortOrder: 20, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: true },
 ]
 
 const transactions: Transaction[] = [
@@ -272,6 +272,54 @@ describe('TransactionsPage', () => {
     expect(screen.queryByText('Kino')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
+    expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
+  })
+
+  it('separates the months with a heading and the sums of each month, newest month first', async () => {
+    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit' }
+    renderPage([...transactions, september])
+
+    await screen.findByText('Buch')
+    const months = screen.getAllByRole('group', { name: /2026$/ })
+    expect(months.map((month) => month.getAttribute('aria-label'))).toEqual(['Oktober 2026', 'September 2026'])
+    expect(within(months[0]).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Oktober 2026Einnahmen 3.000,00 € · Ausgaben 67,10 €',
+    )
+    expect(within(months[0]).queryByText('Buch')).not.toBeInTheDocument()
+    expect(within(months[1]).getByText('Buch')).toBeInTheDocument()
+    expect(within(months[1]).getByRole('heading', { level: 2 })).toHaveTextContent('Einnahmen 0,00 € · Ausgaben 20,50 €')
+  })
+
+  it('shows no month heading when all entries are in one month', async () => {
+    renderPage()
+
+    await screen.findByText('Kino')
+    expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
+  })
+
+  it('filters by kind: recurring or one-off entries', async () => {
+    const fetchMock = renderPage()
+    await screen.findByText('Kino')
+    const calls = fetchMock.mock.calls.length
+    const kind = screen.getByLabelText('Art filtern')
+
+    fireEvent.change(kind, { target: { value: 'RECURRING' } })
+
+    expect(screen.getByText('Streaming')).toBeInTheDocument()
+    expect(screen.queryByText('Kino')).not.toBeInTheDocument()
+    expect(screen.queryByText('Lohn')).not.toBeInTheDocument()
+    expect(screen.getByText(/1 Eintrag ·/)).toHaveTextContent('Oktober 2026 · 1 Eintrag · Einnahmen 0,00 € · Ausgaben 15,00 €')
+
+    fireEvent.change(kind, { target: { value: 'SINGLE' } })
+
+    expect(screen.queryByText('Streaming')).not.toBeInTheDocument()
+    expect(screen.getByText('Kino')).toBeInTheDocument()
+    expect(screen.getByText('Lohn')).toBeInTheDocument()
+    expect(screen.getByText(/3 Einträge ·/)).toHaveTextContent('3 Einträge · Einnahmen 3.000,00 € · Ausgaben 52,10 €')
+    // The kind filters what is loaded, it does not ask the server again
+    expect(fetchMock.mock.calls.length).toBe(calls)
+
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Streaming' } })
     expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 })

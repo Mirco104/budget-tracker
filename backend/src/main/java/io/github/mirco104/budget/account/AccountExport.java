@@ -23,7 +23,7 @@ public record AccountExport(
     public record CategoryExport(String name, int sortOrder, boolean archived, List<TargetExport> targets) {
     }
 
-    public record TargetExport(YearMonth validFrom, BigDecimal targetAmount, BigDecimal targetPercent) {
+    public record TargetExport(YearMonth validFrom, BigDecimal targetAmount) {
     }
 
     public record TransactionExport(LocalDate date, BigDecimal amount, String description, String category) {
