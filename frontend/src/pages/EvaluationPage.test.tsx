@@ -54,29 +54,42 @@ const outlook: ReserveData = {
   monthlyReserve: 20,
   reserveBalance: 20,
   reserves: [
-    { recurringId: 2, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 20 },
+    { recurringId: 2, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 20, ratesLeft: 11 },
   ],
-  potMonths: forecastMonths.map((month, i) => ({ month, balance: 20 * (i + 1), withdrawal: i === 11 ? 240 : 0 })),
   forecast: forecastMonths.map((month, i): ForecastMonth =>
     i === 0
       ? {
           month,
           total: 1100,
+          fromReserves: 0,
           entries: [
-            { kind: 'RECURRING', id: null, recurringId: 1, description: 'Miete', date: '2026-11-01', amount: 900 },
-            { kind: 'SINGLE', id: 7, recurringId: null, description: 'Strom', date: '2026-11-02', amount: 200 },
+            { kind: 'RECURRING', id: null, recurringId: 1, description: 'Miete', date: '2026-11-01', amount: 900, fromReserves: false },
+            { kind: 'SINGLE', id: 7, recurringId: null, description: 'Strom', date: '2026-11-02', amount: 200, fromReserves: false },
           ],
         }
       : i === 11
         ? {
             month,
             total: 1155,
+            fromReserves: 240,
             entries: [
-              { kind: 'RECURRING', id: null, recurringId: 2, description: 'Haftpflicht', date: '2027-10-15', amount: 240 },
+              { kind: 'RECURRING', id: null, recurringId: 2, description: 'Haftpflicht', date: '2027-10-15', amount: 240, fromReserves: true },
             ],
           }
-        : { month, total: 915, entries: [] },
+        : { month, total: 915, fromReserves: 0, entries: [] },
   ),
+}
+
+// Fictional: two rare expenses, the next one due in two months, one due this month
+const twoReserves: ReserveData = {
+  ...outlook,
+  monthlyReserve: 58.36,
+  reserveBalance: 338.36,
+  reserves: [
+    { recurringId: 4, description: 'Grundsteuer', categoryName: 'Wohnen', amount: 60, interval: 'QUARTERLY', nextDate: '2026-11-15', monthly: 20, saved: 60, ratesLeft: 0 },
+    { recurringId: 3, description: 'Rundfunkbeitrag', categoryName: 'Wohnen', amount: 55.08, interval: 'QUARTERLY', nextDate: '2027-01-15', monthly: 18.36, saved: 18.36, ratesLeft: 2 },
+    { recurringId: 2, description: 'Kfz-Versicherung', categoryName: 'Mobilität', amount: 480, interval: 'YEARLY', nextDate: '2027-03-15', monthly: 40, saved: 440, ratesLeft: 1 },
+  ],
 }
 
 const emptyOutlook: ReserveData = {
@@ -84,8 +97,7 @@ const emptyOutlook: ReserveData = {
   monthlyReserve: 0,
   reserveBalance: 0,
   reserves: [],
-  potMonths: forecastMonths.map((month) => ({ month, balance: 0, withdrawal: 0 })),
-  forecast: forecastMonths.map((month) => ({ month, total: 0, entries: [] })),
+  forecast: forecastMonths.map((month) => ({ month, total: 0, fromReserves: 0, entries: [] })),
 }
 
 function renderPage(historyData: HistoryData | (() => Promise<Response>) = history, reserveData = outlook) {
@@ -256,7 +268,7 @@ describe('EvaluationPage', () => {
   })
 
   // R14: the outlook starts at the current month and has no look back
-  it('shows the reserve pot and the forecast on the Vorausschau', async () => {
+  it('shows the reserves with a sentence, tiles and a card per rare expense', async () => {
     window.location.hash = '#/auswertung/vorausschau'
     const fetchMock = renderPage()
 
@@ -264,30 +276,48 @@ describe('EvaluationPage', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/reserves', expect.anything())
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/history/), expect.anything())
     expect(screen.getByRole('link', { name: 'Vorausschau' })).toHaveAttribute('aria-current', 'page')
-    expect(tile('Monatlich zurücklegen')).toHaveTextContent('20,00 €')
-    expect(tile('Sollte jetzt angespart sein')).toHaveTextContent('20,00 €')
-    expect(screen.getByText('Haftpflicht').closest('tr')).toHaveTextContent('15.10.2027')
+    expect(screen.getByText('Leg jeden Monat 20,00 € beiseite. Davon bezahlst du 1 seltene Ausgabe: „Haftpflicht“ im Oktober 2027 (240,00 €).'))
+      .toBeInTheDocument()
+    expect(tile('Jeden Monat beiseitelegen')).toHaveTextContent('20,00 €')
+    expect(tile('Sollte zurückgelegt sein')).toHaveTextContent('20,00 €')
+    const card = within(screen.getByRole('list', { name: 'Seltene Ausgaben' })).getByRole('listitem')
+    expect(card).toHaveTextContent('Haftpflicht')
+    expect(card).toHaveTextContent('jährlich')
+    expect(card).toHaveTextContent('240,00 € · fällig am 15.10.2027')
+    expect(card).toHaveTextContent('20,00 € von 240,00 €')
+    expect(card).toHaveTextContent('noch 11 Raten à 20,00 €')
   })
 
-  // Decision 37: the forecast is built like the look back, with the course of the pot in its chart
-  it('shows the forecast as a chart and a table with the pot', async () => {
+  // Decision 37: the sentence names the count and only the next rare expense
+  it('names the next of several rare expenses and the rates left of each', async () => {
+    window.location.hash = '#/auswertung/vorausschau'
+    renderPage(history, twoReserves)
+
+    expect(await screen.findByText('Leg jeden Monat 58,36 € beiseite. Davon bezahlst du 3 seltene Ausgaben, als Nächstes „Grundsteuer“ im November 2026 (60,00 €).'))
+      .toBeInTheDocument()
+    const cards = within(screen.getByRole('list', { name: 'Seltene Ausgaben' })).getAllByRole('listitem')
+    expect(cards.map((card) => card.querySelector('.reserve-rest')?.textContent?.replace(/\s/g, ' '))).toEqual(
+      ['diesen Monat fällig', 'noch 2 Raten à 18,36 €', 'noch 1 Rate à 40,00 €'])
+  })
+
+  // Decision 37: the forecast is built like the look back, the part from the reserves marked
+  it('shows the forecast as a chart and a table with the part from the reserves', async () => {
     window.location.hash = '#/auswertung/vorausschau'
     renderPage()
 
-    expect(await screen.findByRole('img', { name: 'Diagramm Vorschau: Ausgaben und Soll-Stand des Topfs je Monat' }))
+    expect(await screen.findByRole('img', { name: 'Diagramm Vorschau: Ausgaben je Monat, der Teil aus den Rücklagen blau' }))
       .toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /Verlauf des Topfs/ })).not.toBeInTheDocument()
     const forecast = screen.getByRole('table', { name: 'Vorschau 12 Monate' })
     expect(within(forecast).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(
-      ['Monat', 'Ausgaben (€)', 'Aus dem Topf (€)', 'Soll-Stand Topf (€)'])
+      ['Monat', 'Ausgaben (€)', 'davon aus den Rücklagen (€)'])
     expect(within(forecast).getAllByRole('row')).toHaveLength(13)
     const november = within(forecast).getByRole('button', { name: /November 2026/ }).closest('tr') as HTMLElement
-    expect(within(november).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1.100,00', '0,00', '20,00'])
+    expect(within(november).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1.100,00', '–'])
     const october = within(forecast).getByRole('button', { name: /Oktober 2027/ }).closest('tr') as HTMLElement
-    expect(within(october).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1.155,00', '240,00', '240,00'])
+    expect(within(october).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1.155,00', '240,00'])
   })
 
-  it('opens a forecast month with its expenses and marks the withdrawals from the pot', async () => {
+  it('opens a forecast month with its expenses and marks those from the reserves', async () => {
     window.location.hash = '#/auswertung/vorausschau'
     renderPage()
     const forecast = await screen.findByRole('table', { name: 'Vorschau 12 Monate' })
@@ -295,12 +325,11 @@ describe('EvaluationPage', () => {
     fireEvent.click(within(forecast).getByRole('button', { name: /November 2026/ }))
     const strom = within(forecast).getByText(/Strom/).closest('tr') as HTMLElement
     expect(strom).toHaveTextContent('02.11.2026')
-    expect(within(strom).getAllByRole('cell').slice(1).map((cell) => cell.textContent)).toEqual(['200,00', '', ''])
+    expect(within(strom).getAllByRole('cell').slice(1).map((cell) => cell.textContent)).toEqual(['200,00', ''])
 
     fireEvent.click(within(forecast).getByRole('button', { name: /Oktober 2027/ }))
-    const haftpflicht = within(forecast).getByText(/Haftpflicht/).closest('tr') as HTMLElement
-    expect(within(haftpflicht).getAllByRole('cell').slice(1).map((cell) => cell.textContent))
-      .toEqual(['240,00', '240,00', ''])
+    const haftpflicht = within(forecast).getByText('Haftpflicht', { selector: '.forecast-entry *' }).closest('tr') as HTMLElement
+    expect(within(haftpflicht).getAllByRole('cell').slice(1).map((cell) => cell.textContent)).toEqual(['240,00', '240,00'])
   })
 
   it('marks a forecast month while the mouse is over it', async () => {
@@ -320,10 +349,12 @@ describe('EvaluationPage', () => {
     renderPage(history, emptyOutlook)
 
     expect(await screen.findByText(/Keine seltenen Ausgaben in den nächsten 12 Monaten/)).toBeInTheDocument()
+    expect(screen.queryByText(/Leg jeden Monat/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Seltene Ausgaben' })).not.toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Vorschau 12 Monate' })).toBeInTheDocument()
   })
 
-  // Decision 37: an info symbol explains the reserves, the tiles, two columns and the forecast
+  // Decision 37: an info symbol explains the reserves, the tiles and the forecast
   it('explains the reserves with info symbols', async () => {
     window.location.hash = '#/auswertung/vorausschau'
     renderPage()
@@ -334,15 +365,13 @@ describe('EvaluationPage', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent(/was du tatsächlich zurückgelegt hast, kennt sie nicht/)
     fireEvent.keyDown(general, { key: 'Escape' })
 
-    for (const label of ['Monatlich zurücklegen', 'Sollte jetzt angespart sein', 'Pro Monat', 'Angespart',
-      'Vorschau 12 Monate']) {
+    for (const label of ['Jeden Monat beiseitelegen', 'Sollte zurückgelegt sein', 'Vorschau 12 Monate']) {
       expect(screen.getByRole('button', { name: `Erklärung: ${label}` })).toBeInTheDocument()
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Erklärung: Sollte jetzt angespart sein' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Erklärung: Sollte zurückgelegt sein' }))
     expect(screen.getByRole('tooltip')).toHaveTextContent(/Sollwert, kein Kontostand/)
-    expect(tile('Sollte jetzt angespart sein')).toHaveTextContent('20,00 €')
     fireEvent.pointerDown(document.body)
     fireEvent.click(screen.getByRole('button', { name: 'Erklärung: Vorschau 12 Monate' }))
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/die Linie, wie viel im Rücklagen-Topf liegen sollte/)
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Blau ist der Teil/)
   })
 })

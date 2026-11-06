@@ -26,7 +26,7 @@ const reserves: Pick<ReserveData, 'monthlyReserve' | 'reserveBalance' | 'reserve
   monthlyReserve: 20,
   reserveBalance: 100,
   reserves: [
-    { recurringId: 4, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 100 },
+    { recurringId: 4, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 100, ratesLeft: 7 },
   ],
 }
 
