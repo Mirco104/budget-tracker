@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-Budget tracker web app: set target budgets per category, record income and expenses, see a monthly dashboard with target vs. actual. Started as an 8-hour practice project; it is now being prepared for real use by several people (first privately among friends, maybe public later), with user accounts, shared expenses and an investment part. The source of truth for behavior is `docs/spezifikation.md` (rules R1–R24, user stories US1–US29, work packages in sections 13, 14 and 17, operations in section 15). Read the relevant section before every task.
+Budget tracker web app: set target budgets per category, record income and expenses, see a monthly dashboard with target vs. actual. Started as an 8-hour practice project; it is now being prepared for real use by several people (first privately among friends, maybe public later), with user accounts, shared expenses and an investment part. The source of truth for behavior is `docs/spezifikation.md` (rules R1–R30, user stories US1–US35, work packages in sections 13, 14, 17 and 18, operations in section 15). Read the relevant section before every task.
 
 ## Stack
 - Backend: Java 21, Spring Boot 4.x, Maven, Spring Web, Spring Data JPA, Spring Security, Flyway, PostgreSQL (production), H2 (tests and local dev), Bean Validation, springdoc-openapi, JUnit 5, AssertJ, MockMvc
@@ -21,8 +21,9 @@ Budget tracker web app: set target budgets per category, record income and expen
 
 ## Architecture rules
 - Layers: controller → service → repository. Controllers contain no business logic.
-- All calculations live in plain classes without Spring dependencies: `RecurrenceSchedule` (occurrences of recurring transactions, R12), `DashboardCalculator` (categories, transactions, occurrences and a month in, dashboard DTO out, R1–R10) and `ReserveCalculator` (reserve analysis, R14), from AP 19c `IncomeAverage` (average and minimum income before a month, R23, used by both), from AP 19f `FixedCosts` (monthly share of recurring expenses per category, R25); later `SplitCalculator` (R17), `BalanceCalculator` (R18) and `InvestmentProjection` (R19, R20). Implement the rules exactly as written in the spec.
+- All calculations live in plain classes without Spring dependencies: `RecurrenceSchedule` (occurrences of recurring transactions, R12), `DashboardCalculator` (categories, transactions, occurrences and a month in, dashboard DTO out, R1–R10) and `ReserveCalculator` (reserve analysis, R14), from AP 19c `IncomeAverage` (average and minimum income before a month, R23, used by both), from AP 19f `FixedCosts` (monthly share of recurring expenses per category, R25), from AP 26 `CategorySuggester` (category suggestion from the user's history, R29), `OccurrenceMatcher` (which occurrence a booking replaces, R28) and the bank import in plain classes (CSV reading per bank profile, fingerprint, transfer and duplicate detection, R27, R30); later `SplitCalculator` (R17), `BalanceCalculator` (R18) and `InvestmentProjection` (R19, R20). Implement the rules exactly as written in the spec.
 - Amounts carry their sign: positive is income, negative is expense (R11). Categories have no type. For a shared expense the amount is the user's own share (R16).
+- From AP 26: every transaction and series belongs to a bank account (R26). A transfer between own accounts has no category and counts in no calculation (R27); every calculation must leave transfers out. A transaction that replaces an occurrence (R28) counts instead of it and as recurring.
 - Money is `BigDecimal` (scale 2, `RoundingMode.HALF_UP`). Never use `double` or `float` for money.
 - Expose DTOs (Java records), never JPA entities.
 - Errors as RFC 7807 `ProblemDetail`; validate input with Bean Validation.
