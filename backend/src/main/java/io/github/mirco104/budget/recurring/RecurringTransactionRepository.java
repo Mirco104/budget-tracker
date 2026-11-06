@@ -13,7 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 public interface RecurringTransactionRepository extends JpaRepository<RecurringTransaction, Long> {
 
     /** Series active in the period: start not after "to", end (if set) not before "from" */
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "account"})
     @Query("""
             select r from RecurringTransaction r
             where r.owner = :owner and r.startDate <= :to and (r.endDate is null or r.endDate >= :from)
@@ -29,12 +29,14 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
 
     boolean existsByCategoryId(Long categoryId);
 
+    boolean existsByAccountId(Long accountId);
+
     /** R24: the smallest amount per category, as rows [category id, min(amount)]. */
     @Query("select r.category.id, min(r.amount) from RecurringTransaction r where r.owner = :owner group by r.category.id")
     List<Object[]> findMinAmountPerCategory(User owner);
 
     /** US16: all series of the user, for the export. */
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "account"})
     List<RecurringTransaction> findByOwnerOrderByStartDateAscIdAsc(User owner);
 
     /** US16: deleting an account; the exceptions must be gone first. */

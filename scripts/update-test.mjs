@@ -149,5 +149,11 @@ if (command === 'seed') {
     console.error(`Expected the icon "home" for Wohnen after the update, got ${JSON.stringify(wohnen?.icon)}.`)
     process.exit(1)
   }
+  // R26: users from before the bank accounts got the default account "Girokonto" (migration V7)
+  const accounts = await (await new Client().signIn(personA)).request('GET', '/api/bank-accounts')
+  if (accounts.length !== 1 || accounts[0].name !== 'Girokonto' || !accounts[0].defaultAccount || !accounts[0].used) {
+    console.error(`Expected the used default account "Girokonto" after the update, got ${JSON.stringify(accounts)}.`)
+    process.exit(1)
+  }
   console.log('Data unchanged after the update.')
 }

@@ -50,7 +50,9 @@ public class OccurrenceService {
                                 recurring.getDescription(),
                                 date,
                                 recurring.getCategory().getId(),
-                                recurring.getCategory().getName())))
+                                recurring.getCategory().getName(),
+                                recurring.getAccount().getId(),
+                                recurring.getAccount().getName())))
                 .sorted(Comparator.comparing(Occurrence::date).thenComparing(Occurrence::recurringId))
                 .toList();
     }

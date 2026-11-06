@@ -12,7 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 /** Every query is scoped to the owner (R15). */
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "account"})
     List<Transaction> findByOwnerAndDateBetweenOrderByDateDescIdDesc(User owner, LocalDate from, LocalDate to);
 
     Optional<Transaction> findByIdAndOwner(Long id, User owner);
@@ -23,12 +23,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     boolean existsByCategoryId(Long categoryId);
 
+    boolean existsByAccountId(Long accountId);
+
     /** R24: the smallest amount per category, as rows [category id, min(amount)]. */
     @Query("select t.category.id, min(t.amount) from Transaction t where t.owner = :owner group by t.category.id")
     List<Object[]> findMinAmountPerCategory(User owner);
 
     /** US16: all transactions of the user, for the export. */
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "account"})
     List<Transaction> findByOwnerOrderByDateAscIdAsc(User owner);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)

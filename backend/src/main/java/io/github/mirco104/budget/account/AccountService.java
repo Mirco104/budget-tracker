@@ -1,10 +1,12 @@
 package io.github.mirco104.budget.account;
 
 import io.github.mirco104.budget.account.AccountExport.Account;
+import io.github.mirco104.budget.account.AccountExport.BankAccountExport;
 import io.github.mirco104.budget.account.AccountExport.CategoryExport;
 import io.github.mirco104.budget.account.AccountExport.RecurringExport;
 import io.github.mirco104.budget.account.AccountExport.TargetExport;
 import io.github.mirco104.budget.account.AccountExport.TransactionExport;
+import io.github.mirco104.budget.bankaccount.BankAccountRepository;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.category.CategoryTarget;
 import io.github.mirco104.budget.category.CategoryTargetRepository;
@@ -46,6 +48,7 @@ public class AccountService {
     private final RecurringTransactionRepository recurringRepository;
     private final RecurringExceptionRepository exceptionRepository;
     private final InvitationRepository invitationRepository;
+    private final BankAccountRepository bankAccountRepository;
     private final Clock clock;
 
     public AccountService(
@@ -53,7 +56,8 @@ public class AccountService {
             CategoryRepository categoryRepository, CategoryTargetRepository categoryTargetRepository,
             TransactionRepository transactionRepository, RecurringTransactionRepository recurringRepository,
             RecurringExceptionRepository exceptionRepository, InvitationRepository invitationRepository,
-            Clock clock) {
+            BankAccountRepository bankAccountRepository, Clock clock) {
+        this.bankAccountRepository = bankAccountRepository;
         this.currentUser = currentUser;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -115,13 +119,16 @@ public class AccountService {
                 .collect(Collectors.groupingBy(TargetEntry::categoryId, Collectors.mapping(
                         entry -> new TargetExport(entry.validFrom(), entry.targetAmount()),
                         Collectors.toList())));
+        List<BankAccountExport> bankAccounts = bankAccountRepository.findAllOrdered(user).stream()
+                .map(a -> new BankAccountExport(a.getName(), a.getIban(), a.isDefaultAccount(), a.isArchived()))
+                .toList();
         List<CategoryExport> categories = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
                 .map(category -> new CategoryExport(category.getName(), category.getSortOrder(),
                         category.isArchived(), targets.getOrDefault(category.getId(), List.of())))
                 .toList();
         List<TransactionExport> transactions = transactionRepository.findByOwnerOrderByDateAscIdAsc(user).stream()
                 .map(t -> new TransactionExport(t.getDate(), t.getAmount(), t.getDescription(),
-                        t.getCategory().getName()))
+                        t.getCategory().getName(), t.getAccount().getName()))
                 .toList();
         List<RecurringTransaction> series = recurringRepository.findByOwnerOrderByStartDateAscIdAsc(user);
         Map<Long, List<LocalDate>> exceptions = series.isEmpty() ? Map.of()
@@ -130,12 +137,13 @@ public class AccountService {
                                 RecurringException::getOccurrenceDate, Collectors.toList())));
         List<RecurringExport> recurring = series.stream()
                 .map(r -> new RecurringExport(r.getSeriesId(), r.getAmount(), r.getDescription(),
-                        r.getCategory().getName(), r.getInterval(), r.getStartDate(), r.getEndDate(),
+                        r.getCategory().getName(), r.getAccount().getName(), r.getInterval(), r.getStartDate(), r.getEndDate(),
                         exceptions.getOrDefault(r.getId(), List.of()).stream().sorted().toList()))
                 .toList();
         return new AccountExport(
                 Instant.now(clock),
                 new Account(user.getEmail(), user.getDisplayName(), user.getRole(), user.getCreatedAt()),
+                bankAccounts,
                 categories, transactions, recurring);
     }
 
@@ -153,6 +161,7 @@ public class AccountService {
         transactionRepository.deleteByOwner(user);
         categoryTargetRepository.deleteByOwner(user);
         categoryRepository.deleteByOwner(user);
+        bankAccountRepository.deleteByOwner(user);
         invitationRepository.deleteByCreatedBy(user);
         // The bulk deletes cleared the persistence context, so the user is removed by id
         userRepository.deleteById(user.getId());

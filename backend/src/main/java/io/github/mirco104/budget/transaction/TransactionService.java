@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
@@ -20,13 +21,15 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final CategoryService categoryService;
     private final OccurrenceService occurrenceService;
+    private final BankAccountService bankAccountService;
     private final CurrentUser currentUser;
 
     public TransactionService(
             TransactionRepository transactionRepository, CategoryService categoryService,
-            OccurrenceService occurrenceService, CurrentUser currentUser) {
+            OccurrenceService occurrenceService, BankAccountService bankAccountService, CurrentUser currentUser) {
         this.transactionRepository = transactionRepository;
         this.categoryService = categoryService;
+        this.bankAccountService = bankAccountService;
         this.occurrenceService = occurrenceService;
         this.currentUser = currentUser;
     }
@@ -63,7 +66,8 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                categoryService.findBookable(request.categoryId()));
+                categoryService.findBookable(request.categoryId()),
+                bankAccountService.findBookable(request.accountId()));
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
@@ -75,7 +79,8 @@ public class TransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
-                categoryService.findBookable(request.categoryId()));
+                categoryService.findBookable(request.categoryId()),
+                bankAccountService.findBookable(request.accountId()));
         return TransactionResponse.from(transaction);
     }
 

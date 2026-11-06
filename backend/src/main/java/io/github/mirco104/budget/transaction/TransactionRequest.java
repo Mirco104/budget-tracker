@@ -24,5 +24,8 @@ public record TransactionRequest(
         LocalDate date,
 
         @NotNull(message = "Die Kategorie ist Pflicht.")
-        Long categoryId) {
+        Long categoryId,
+
+        // R26: optional, the default account without it
+        Long accountId) {
 }
