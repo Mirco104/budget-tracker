@@ -10,8 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 /** Every query is scoped to the owner (R15). */
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
-    /** Ties on sortOrder (left by overlapping moves before they were renumbered) are broken by id. */
-    List<Category> findAllByOwnerOrderBySortOrderAscIdAsc(User owner);
+    /** In no particular order; {@link CategoryOrder} sorts them (decision 38). */
+    List<Category> findAllByOwner(User owner);
 
     Optional<Category> findByIdAndOwner(Long id, User owner);
 

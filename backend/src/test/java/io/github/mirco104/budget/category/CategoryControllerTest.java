@@ -57,20 +57,27 @@ class CategoryControllerTest {
 
     // --- GET /api/categories (US1) ---
 
+    // Decision 38: categories are listed alphabetically, ignoring case, umlauts sorted like German
     @Test
-    void listsAllSeededCategoriesSortedBySortOrder() throws Exception {
+    void listsAllSeededCategoriesAlphabetically() throws Exception {
         String json = getCategories(MONTH)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(20)))
-                .andExpect(jsonPath("$[0].name").value("Wohnen"))
-                .andExpect(jsonPath("$[0].icon").value("home"))
+                .andExpect(jsonPath("$[0].name").value("Einnahmen Selbstständigkeit"))
+                .andExpect(jsonPath("$[19].name").value("Wohnen"))
+                .andExpect(jsonPath("$[19].icon").value("home"))
+                .andExpect(jsonPath("$[0].sortOrder").doesNotExist())
                 .andExpect(jsonPath("$[0].type").doesNotExist())
                 .andExpect(jsonPath("$[0].system").doesNotExist())
                 .andExpect(jsonPath("$[0].group").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
-        List<Integer> sortOrders = JsonPath.read(json, "$[*].sortOrder");
-        assertThat(sortOrders).isSorted();
+        List<String> names = JsonPath.read(json, "$[*].name");
+        assertThat(names).containsExactly(
+                "Einnahmen Selbstständigkeit", "Freizeit", "Gehalt/Lohn (netto)", "Geschenke", "Gesundheit",
+                "Investitionen", "Kapitalerträge", "Kredite", "Lebensmittel", "Mobilität", "Nebenjob",
+                "Nebenkosten", "Persönlicher Bedarf", "Selbstständigkeit", "Sonstige Einnahmen", "Spenden",
+                "Staatliche Leistungen", "Urlaub", "Versicherungen", "Wohnen");
     }
 
     // --- PUT /api/categories/{id}/target (US2): success ---
@@ -287,7 +294,7 @@ class CategoryControllerTest {
     @Test
     void anotherUsersEntriesDoNotCount() throws Exception {
         User other = TestUsers.create(userService, "person-c@example.test");
-        long otherGehalt = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).stream()
+        long otherGehalt = categoryRepository.findAllByOwner(other).stream()
                 .filter(c -> c.getName().equals("Gehalt/Lohn (netto)"))
                 .findFirst().orElseThrow().getId();
         TestUsers.mockMvcFor(context, other).perform(post("/api/transactions")
@@ -345,7 +352,7 @@ class CategoryControllerTest {
     @Test
     void anotherUsersSeriesAreNoFixedCosts() throws Exception {
         User other = TestUsers.create(userService, "person-c@example.test");
-        long otherWohnen = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).stream()
+        long otherWohnen = categoryRepository.findAllByOwner(other).stream()
                 .filter(c -> c.getName().equals("Wohnen"))
                 .findFirst().orElseThrow().getId();
         TestUsers.mockMvcFor(context, other).perform(post("/api/recurring-transactions")
@@ -386,7 +393,7 @@ class CategoryControllerTest {
     }
 
     private long categoryId(String name) {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        return categoryRepository.findAllByOwner(user).stream()
                 .filter(c -> c.getName().equals(name))
                 .findFirst().orElseThrow()
                 .getId();

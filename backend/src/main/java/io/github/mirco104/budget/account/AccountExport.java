@@ -24,7 +24,7 @@ public record AccountExport(
     public record BankAccountExport(String name, String iban, boolean defaultAccount, boolean archived) {
     }
 
-    public record CategoryExport(String name, int sortOrder, boolean archived, List<TargetExport> targets) {
+    public record CategoryExport(String name, boolean archived, List<TargetExport> targets) {
     }
 
     public record TargetExport(YearMonth validFrom, BigDecimal targetAmount) {

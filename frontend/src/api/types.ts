@@ -5,7 +5,6 @@ export interface Category {
   name: string
   /** Icon key from the fixed list (US28); the frontend draws unknown keys as "tag". */
   icon: string
-  sortOrder: number
   /** The target in euro (R3); percent is only an input helper on the planning page (decision 36). */
   targetAmount: number | null
   /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
@@ -34,10 +33,9 @@ export interface CategoryInput {
   icon?: string
 }
 
-/** A sortOrder that another category has swaps the two categories (US10). Without an icon it stays (US28). */
+/** Rename and archive (US10); categories have no own order (decision 38). Without an icon it stays (US28). */
 export interface CategoryUpdate {
   name: string
-  sortOrder: number
   archived: boolean
   icon?: string
 }

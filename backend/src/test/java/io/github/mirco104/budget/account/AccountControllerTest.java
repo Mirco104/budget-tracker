@@ -180,9 +180,11 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.account.email").value(EMAIL))
                 .andExpect(jsonPath("$.account.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.categories.length()").value(20))
-                .andExpect(jsonPath("$.categories[0].name").value("Wohnen"))
-                .andExpect(jsonPath("$.categories[0].targets[0].validFrom").value(MONTH))
-                .andExpect(jsonPath("$.categories[0].targets[0].targetAmount").value(500.0))
+                // Alphabetical like everywhere (decision 38), without the former sortOrder
+                .andExpect(jsonPath("$.categories[19].name").value("Wohnen"))
+                .andExpect(jsonPath("$.categories[19].sortOrder").doesNotExist())
+                .andExpect(jsonPath("$.categories[19].targets[0].validFrom").value(MONTH))
+                .andExpect(jsonPath("$.categories[19].targets[0].targetAmount").value(500.0))
                 .andExpect(jsonPath("$.transactions.length()").value(1))
                 .andExpect(jsonPath("$.transactions[0].description").value("Einkauf B"))
                 .andExpect(jsonPath("$.transactions[0].category").value("Wohnen"))
@@ -224,7 +226,7 @@ class AccountControllerTest {
         assertThat(invitationRepository.findAll()).isEmpty();
         assertThat(exceptionRepository.findAll()).hasSize(1);
         // C keeps everything
-        assertThat(categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(c)).hasSize(20);
+        assertThat(categoryRepository.findAllByOwner(c)).hasSize(20);
         assertThat(transactionRepository.findByOwnerOrderByDateAscIdAsc(c)).hasSize(1);
         assertThat(recurringRepository.findByOwnerOrderByStartDateAscIdAsc(c)).hasSize(1);
         assertThat(categoryTargetRepository.findByCategoryOwnerOrderByValidFromAsc(c)).hasSize(1);
@@ -263,7 +265,8 @@ class AccountControllerTest {
 
     // A target, a transaction and a monthly series with one suspended occurrence (R13)
     private void createData(MockMvc mockMvc, User owner, String description) throws Exception {
-        long wohnen = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(owner).getFirst().getId();
+        long wohnen = categoryRepository.findAllByOwner(owner).stream()
+                .filter(category -> category.getName().equals("Wohnen")).findFirst().orElseThrow().getId();
         mockMvc.perform(put("/api/categories/{id}/target", wohnen).param("month", MONTH)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"targetAmount\": 500}"))
                 .andExpect(status().isOk());
