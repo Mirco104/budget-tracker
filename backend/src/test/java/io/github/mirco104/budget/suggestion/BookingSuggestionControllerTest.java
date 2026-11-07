@@ -82,7 +82,7 @@ class BookingSuggestionControllerTest {
         long freizeit = category(a, "Freizeit");
         book(asA, -30, "Verein Sport", freizeit);
         asA.perform(put("/api/categories/{id}", freizeit).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\": \"Freizeit\", \"sortOrder\": 80, \"archived\": true}"))
+                        .content("{\"name\": \"Freizeit\", \"archived\": true}"))
                 .andExpect(status().isOk());
 
         asA.perform(get("/api/booking-suggestion").param("text", "Tagesgeld Sparen"))
@@ -109,7 +109,7 @@ class BookingSuggestionControllerTest {
     }
 
     private long category(User owner, String name) {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(owner).stream()
+        return categoryRepository.findAllByOwner(owner).stream()
                 .filter(c -> c.getName().equals(name))
                 .map(Category::getId)
                 .findFirst()
