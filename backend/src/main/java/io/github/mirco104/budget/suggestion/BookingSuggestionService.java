@@ -37,8 +37,8 @@ public class BookingSuggestionService {
     public Suggester suggester() {
         User owner = currentUser.get();
         Stream<Entry> singles = transactionRepository.findByOwnerAndTransferFalse(owner).stream()
-                .map(t -> new Entry(t.getDescription(), t.getCategory().getId(), t.getDate(), t.getAmount().signum() > 0,
-                        null));
+                .map(t -> new Entry(t.getCounterparty() != null ? t.getCounterparty() : t.getDescription(),
+                        t.getCategory().getId(), t.getDate(), t.getAmount().signum() > 0, t.getBankCategory()));
         Stream<Entry> series = recurringRepository.findByOwnerOrderByStartDateAscIdAsc(owner).stream()
                 .map(r -> new Entry(r.getDescription(), r.getCategory().getId(), r.getStartDate(),
                         r.getAmount().signum() > 0, null));

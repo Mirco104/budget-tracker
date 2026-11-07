@@ -2,6 +2,7 @@ package io.github.mirco104.budget.transaction;
 
 import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.importer.ImportBatch;
 import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -41,6 +42,21 @@ public class Transaction {
 
     @Column(nullable = false)
     private boolean transfer;
+
+    // R30: set for a transaction from an import; the fingerprint keeps a row from being imported twice
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "import_batch_id")
+    private ImportBatch importBatch;
+
+    @Column(length = 64)
+    private String fingerprint;
+
+    // R29: the counterparty and the bank's category from the import, for the category suggestion
+    @Column(length = 100)
+    private String counterparty;
+
+    @Column(name = "bank_category", length = 100)
+    private String bankCategory;
 
     // R26: every transaction is booked on one bank account of its owner
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -88,6 +104,32 @@ public class Transaction {
 
     public Category getCategory() {
         return category;
+    }
+
+    /** R30: remembers the import, the fingerprint of the row, the counterparty and the bank's category. */
+    public void markImported(ImportBatch importBatch, String fingerprint, String counterparty, String bankCategory) {
+        this.importBatch = importBatch;
+        this.fingerprint = fingerprint;
+        this.counterparty = counterparty;
+        this.bankCategory = bankCategory;
+    }
+
+    /** R27: the counterpart of an imported transfer becomes a transfer as well; its category goes. */
+    public void makeTransfer() {
+        this.category = null;
+        this.transfer = true;
+    }
+
+    public ImportBatch getImportBatch() {
+        return importBatch;
+    }
+
+    public String getCounterparty() {
+        return counterparty;
+    }
+
+    public String getBankCategory() {
+        return bankCategory;
     }
 
     /** R27: a transfer between own accounts; it has no category and counts in no calculation. */

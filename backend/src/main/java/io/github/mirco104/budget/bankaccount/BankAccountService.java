@@ -18,11 +18,14 @@ public class BankAccountService {
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
     private final RecurringTransactionRepository recurringRepository;
+    private final BankAccountSourceRepository sourceRepository;
     private final CurrentUser currentUser;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
-            RecurringTransactionRepository recurringRepository, CurrentUser currentUser) {
+            RecurringTransactionRepository recurringRepository, BankAccountSourceRepository sourceRepository,
+            CurrentUser currentUser) {
+        this.sourceRepository = sourceRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.transactionRepository = transactionRepository;
         this.recurringRepository = recurringRepository;
@@ -94,7 +97,8 @@ public class BankAccountService {
             throw new ConflictException(
                     "Auf diesem Konto gibt es Buchungen. Das Konto kann nur archiviert werden.");
         }
-        bankAccountRepository.delete(account);
+        sourceRepository.deleteByAccount(account);
+        bankAccountRepository.deleteById(id);
     }
 
     /**

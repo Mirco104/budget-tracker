@@ -30,6 +30,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     Optional<Transaction> findByIdAndOwner(Long id, User owner);
 
+    /** R30: which of the fingerprints the user has imported already. */
+    @Query("select t.fingerprint from Transaction t where t.owner = :owner and t.fingerprint in :fingerprints")
+    List<String> findImportedFingerprints(User owner, java.util.Collection<String> fingerprints);
+
+    /** US34: undoing an import. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Transaction t where t.importBatch = :batch")
+    void deleteByImportBatch(io.github.mirco104.budget.importer.ImportBatch batch);
+
     /** Date of the earliest transaction that is no transfer (R27), null without one. */
     @Query("select min(t.date) from Transaction t where t.owner = :owner and t.transfer = false")
     LocalDate findMinDate(User owner);

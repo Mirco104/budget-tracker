@@ -32,7 +32,7 @@ public record AccountExport(
 
     public record TransactionExport(
             LocalDate date, BigDecimal amount, String description, String category, String account,
-            boolean transfer) {
+            boolean transfer, String counterparty, String bankCategory) {
     }
 
     public record RecurringExport(
