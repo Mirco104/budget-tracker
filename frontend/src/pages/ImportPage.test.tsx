@@ -264,7 +264,7 @@ describe('ImportPage', () => {
     ])
   })
 
-  it('creates a new category from a row and chooses it for the rows with the same key', async () => {
+  it('creates a new category from a row and offers it to the rows with the same key', async () => {
     const fetchMock = renderPage()
     await upload()
     const [first, second] = row('Spiele Shop')
@@ -274,7 +274,8 @@ describe('ImportPage', () => {
     fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('50'))
-    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('50')
+    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
+    expect(within(second).getByRole('button', { name: 'Vorschlag: Spiele' })).toBeInTheDocument()
     expect(within(first).queryByLabelText('Neue Kategorie für Spiele Shop')).not.toBeInTheDocument()
     const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Spiele' })
@@ -295,15 +296,30 @@ describe('ImportPage', () => {
     expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
   })
 
-  it('takes a chosen category over to the open rows with the same key', async () => {
+  // After the test (07.11.2026): a chosen category only suggests itself to the rows with the same key
+  it('offers a chosen category to the open rows with the same key without setting it', async () => {
     renderPage()
     await upload()
 
     const [first, second] = row('Spiele Shop')
-    fireEvent.click(within(first).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '1' } })
 
-    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
-    expect(screen.getByText('2 Zeilen fehlt noch die Kategorie.')).toBeInTheDocument()
+    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
+    fireEvent.click(within(second).getByRole('button', { name: 'Vorschlag: Wohnen' }))
+    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('1')
+  })
+
+  // The bug from the test: a transfer chosen for one row also set the next row with the same counterparty
+  it('never passes a chosen transfer on to other rows', async () => {
+    renderPage()
+    await upload()
+
+    const [first, second] = row('Spiele Shop')
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'transfer' } })
+
+    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
+    expect(within(second).queryByRole('button', { name: 'Vorschlag: Umbuchung' })).not.toBeInTheDocument()
+    expect(within(second).getByRole('button', { name: /Vorschlag: Freizeit/ })).toBeInTheDocument()
   })
 
   it('shows only the rows without category in the view Ohne Kategorie', async () => {
