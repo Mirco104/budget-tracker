@@ -42,7 +42,6 @@ function category(id: number, name: string, icon: string, targetAmount: number |
     id,
     name,
     icon,
-    sortOrder: id * 10,
     targetAmount,
     fixedCosts: null, fixedCostItems: [],
     targetValidFrom: targetAmount === null ? null : '2026-01',
