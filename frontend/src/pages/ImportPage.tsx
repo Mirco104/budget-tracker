@@ -1,6 +1,6 @@
-import { useState, type ChangeEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
-import { useCategories } from '../api/categories'
+import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import {
   useCommitImport,
@@ -19,11 +19,14 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
+import { byName } from '../sort'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
 /** The value of the account field for a new account. */
 const NEW_ACCOUNT = 'new'
+/** The value of the category field that opens the field for a new category. */
+const NEW_CATEGORY = 'new-category'
 
 /**
  * What the user chose for one row: import it or not, its category ('' while open, TRANSFER for a transfer) and whether
@@ -82,6 +85,27 @@ function PreviewRow({
   const suggested = categories.find((category) => category.id === entry.categoryId)
   const offerSuggestion = !entry.transfer && !entry.certain && suggested && choice.category === ''
   const open = choice.selected && choice.category === ''
+  const createCategory = useCreateCategory()
+  const [newName, setNewName] = useState<string | null>(null)
+  const [newError, setNewError] = useState<string | null>(null)
+
+  // A category that is missing is created right here and chosen for the row (after the first test, 07.11.2026)
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = (newName ?? '').trim()
+    if (name === '') {
+      setNewError('Der Name ist Pflicht.')
+      return
+    }
+    setNewError(null)
+    try {
+      const created = await createCategory.mutateAsync({ name })
+      setNewName(null)
+      onChange({ ...choice, category: String(created.id) })
+    } catch (e) {
+      setNewError(errorText(e, 'Anlegen fehlgeschlagen.'))
+    }
+  }
 
   return (
     <li className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}`} aria-label={description}>
@@ -132,7 +156,14 @@ function PreviewRow({
           value={choice.category}
           disabled={!choice.selected}
           aria-invalid={open ? true : undefined}
-          onChange={(e) => onChange({ ...choice, category: e.target.value })}
+          onChange={(e) => {
+            if (e.target.value === NEW_CATEGORY) {
+              setNewName('')
+              setNewError(null)
+            } else {
+              onChange({ ...choice, category: e.target.value })
+            }
+          }}
         >
           <option value="">Kategorie wählen …</option>
           <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
@@ -141,7 +172,34 @@ function PreviewRow({
               {category.name}
             </option>
           ))}
+          <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
         </select>
+        {newName !== null && (
+          <form className="import-new-category" noValidate onSubmit={(e) => void handleCreate(e)}>
+            <input
+              aria-label={`Neue Kategorie für ${description}`}
+              placeholder="Name der Kategorie"
+              // Opened on purpose from the selection
+              autoFocus
+              maxLength={50}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setNewName(null)}
+              aria-invalid={newError ? true : undefined}
+            />
+            <button type="submit" disabled={createCategory.isPending}>
+              Anlegen
+            </button>
+            <button type="button" onClick={() => setNewName(null)}>
+              Abbrechen
+            </button>
+            {newError && (
+              <span className="error" role="alert">
+                {newError}
+              </span>
+            )}
+          </form>
+        )}
         {offerSuggestion && choice.selected && (
           <button
             type="button"
@@ -429,7 +487,8 @@ export function ImportPage() {
     }
   }
 
-  const activeCategories = (categories.data ?? []).filter((category) => !category.archived)
+  // Alphabetical, like the booking dialog
+  const activeCategories = byName((categories.data ?? []).filter((category) => !category.archived))
   const ready = accounts.data !== undefined && categories.data !== undefined
 
   return (
