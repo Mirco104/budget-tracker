@@ -11,7 +11,6 @@ import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -66,10 +65,12 @@ public class CategoryService {
         return FixedCosts.of(series, month);
     }
 
-    /** The user's categories in their order. */
+    /** The user's categories, alphabetically (decision 38). */
     @Transactional(readOnly = true)
     public List<Category> findAllOrdered() {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(currentUser.get());
+        return categoryRepository.findAllByOwner(currentUser.get()).stream()
+                .sorted(CategoryOrder.ALPHABETICAL)
+                .toList();
     }
 
     /** Targets per category id in effect for the month (R3). */
@@ -82,7 +83,10 @@ public class CategoryService {
         return TargetResolver.inEffect(entries, month);
     }
 
-    /** US10: a new category goes to the end of the order. Names are unique ignoring case (409). */
+    /**
+     * US10: names are unique ignoring case (409). A new category appears at its alphabetical place (decision 38);
+     * the column sort_order is still filled, because the schema needs it, but nothing reads it any more.
+     */
     @Transactional
     public CategoryResponse create(CreateCategoryRequest request) {
         String name = request.name().trim();
@@ -98,11 +102,7 @@ public class CategoryService {
         return CategoryResponse.from(category, null, false, null);
     }
 
-    /**
-     * US10: renames, moves and archives. If another category has the requested sortOrder, the category takes its
-     * place, so moving to a neighbour's sortOrder swaps the two in a single call. Afterwards all categories are
-     * renumbered in steps of 10, which also repairs equal sortOrders.
-     */
+    /** US10: renames, archives and changes the icon (US28); the order follows the name (decision 38). */
     @Transactional
     public CategoryResponse update(long id, UpdateCategoryRequest request) {
         Category category = find(id);
@@ -112,19 +112,6 @@ public class CategoryService {
         }
         String icon = request.icon() == null ? category.getIcon() : knownIcon(request.icon());
 
-        List<Category> ordered = new ArrayList<>(findAllOrdered());
-        int sortOrder = request.sortOrder();
-        if (sortOrder != category.getSortOrder()) {
-            int target = indexOfOther(ordered, sortOrder, category);
-            ordered.remove(category);
-            if (target < 0) {
-                target = (int) ordered.stream().filter(other -> other.getSortOrder() <= sortOrder).count();
-            }
-            ordered.add(target, category);
-        }
-        for (int i = 0; i < ordered.size(); i++) {
-            ordered.get(i).moveTo((i + 1) * SORT_ORDER_STEP);
-        }
         category.rename(name);
         category.setArchived(request.archived());
         category.changeIcon(icon);
@@ -188,17 +175,6 @@ public class CategoryService {
     private Category find(long id) {
         return categoryRepository.findByIdAndOwner(id, currentUser.get())
                 .orElseThrow(() -> new NotFoundException("Kategorie " + id + " wurde nicht gefunden."));
-    }
-
-    /** Position of another category with this sortOrder, -1 if there is none. */
-    private static int indexOfOther(List<Category> ordered, int sortOrder, Category category) {
-        for (int i = 0; i < ordered.size(); i++) {
-            Category other = ordered.get(i);
-            if (other != category && other.getSortOrder() == sortOrder) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     /** US28: an icon key outside the fixed list is 400 on field icon. */

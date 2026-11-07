@@ -7,9 +7,9 @@ import { ImportPage } from './ImportPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', sortOrder: 10, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 8, name: 'Freizeit', icon: 'music', sortOrder: 80, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 9, name: 'Alt', icon: 'tag', sortOrder: 90, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 8, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 9, name: 'Alt', icon: 'tag', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 const accounts: BankAccount[] = [
   { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
