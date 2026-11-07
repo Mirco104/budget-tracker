@@ -47,7 +47,7 @@ class BankAccountControllerTest {
     void signIn() {
         User user = TestUsers.create(userService, "person-e@example.test");
         mockMvc = TestUsers.mockMvcFor(context, user);
-        categoryId = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).getFirst().getId();
+        categoryId = categoryRepository.findAllByOwner(user).getFirst().getId();
     }
 
     @Test
