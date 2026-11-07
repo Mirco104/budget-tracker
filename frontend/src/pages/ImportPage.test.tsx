@@ -56,6 +56,7 @@ function json(body: unknown, status = 200) {
 }
 
 function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)) {
+  let currentCategories = categories
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
@@ -72,7 +73,16 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
     if (url.startsWith('/api/bank-accounts')) {
       return json(accounts)
     }
-    return url.startsWith('/api/categories') ? json(categories) : json([])
+    if (url === '/api/categories' && init?.method === 'POST') {
+      const { name } = JSON.parse(String(init.body)) as { name: string }
+      if (name.toLowerCase() === 'wohnen') {
+        return json({ status: 409, detail: 'Eine Kategorie mit dem Namen "Wohnen" gibt es schon.' }, 409)
+      }
+      const created: Category = { ...categories[0], id: 50, name, icon: 'tag', sortOrder: 100 }
+      currentCategories = [...currentCategories, created]
+      return json(created, 201)
+    }
+    return url.startsWith('/api/categories') ? json(currentCategories) : json([])
   })
   vi.stubGlobal('fetch', fetchMock)
   render(
@@ -155,6 +165,52 @@ describe('ImportPage', () => {
     await screen.findByRole('status')
     body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
     expect(body.rows[0]).not.toHaveProperty('replaces')
+  })
+
+  // After the first test (07.11.2026): alphabetical categories and a new category right from the row
+  it('lists the categories alphabetically with a choice for a new one at the end', async () => {
+    renderPage()
+    await upload()
+
+    const select = within(row('Kino Nord')[0]).getByLabelText('Kategorie für Kino Nord')
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Kategorie wählen …',
+      'Umbuchung (zählt nicht)',
+      'Freizeit',
+      'Wohnen',
+      '+ Neue Kategorie …',
+    ])
+  })
+
+  it('creates a new category from a row and chooses it for the rows with the same key', async () => {
+    const fetchMock = renderPage()
+    await upload()
+    const [first, second] = row('Spiele Shop')
+
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new-category' } })
+    fireEvent.change(within(first).getByLabelText('Neue Kategorie für Spiele Shop'), { target: { value: 'Spiele' } })
+    fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
+
+    await waitFor(() => expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('50'))
+    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('50')
+    expect(within(first).queryByLabelText('Neue Kategorie für Spiele Shop')).not.toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Spiele' })
+  })
+
+  it('shows why a new category cannot be created and keeps the row open', async () => {
+    renderPage()
+    await upload()
+    const [first] = row('Spiele Shop')
+
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new-category' } })
+    fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
+    expect(within(first).getByRole('alert')).toHaveTextContent('Der Name ist Pflicht.')
+
+    fireEvent.change(within(first).getByLabelText('Neue Kategorie für Spiele Shop'), { target: { value: 'Wohnen' } })
+    fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
+    expect(await within(first).findByText(/gibt es schon/)).toBeInTheDocument()
+    expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
   })
 
   it('takes a chosen category over to the open rows with the same key', async () => {

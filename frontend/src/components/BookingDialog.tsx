@@ -13,6 +13,7 @@ import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateT
 import type { Category, OccurrenceScope, RecurringInterval, Transaction } from '../api/types'
 import { formatDate, formatEuro, parseAmountInput } from '../format'
 import { INTERVAL_LABELS } from '../labels'
+import { byName } from '../sort'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
 import { Segmented } from './ui/Segmented'
@@ -167,7 +168,8 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
     setCategoryChosen(true)
   }
 
-  const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
+  // Alphabetical, so a category is quick to find (after the first test, 07.11.2026)
+  const options = byName(categories.filter((c) => !c.archived || String(c.id) === categoryId))
   // An archived account only when it is already chosen; one account needs no field (US30)
   const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
   const defaultAccount = bankAccounts.find((a) => a.defaultAccount)

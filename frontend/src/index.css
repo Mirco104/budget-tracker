@@ -2424,6 +2424,21 @@ button.tx:hover:not(:disabled) {
   gap: 4px;
 }
 
+.import-new-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.import-new-category input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.import-new-category .error {
+  flex-basis: 100%;
+}
+
 .import-category .chip {
   align-self: flex-start;
 }
