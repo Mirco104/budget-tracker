@@ -171,7 +171,7 @@ public class ImportService {
         Map<Integer, Suggestion> suggestions = new HashMap<>();
         for (Candidate c : fresh) {
             if (!transfers.containsKey(c.index())) {
-                suggester.suggest(c.text(), c.line().row().amount().signum() > 0, c.bankCategory())
+                suggester.suggest(c.text(), c.line().row().amount().signum() > 0, c.bankCategory(), profile.kindHints())
                         .ifPresent(suggestion -> suggestions.put(c.index(), suggestion));
             }
         }

@@ -80,7 +80,13 @@ public class BookingSuggestionService {
     public record Suggester(List<Entry> history, List<CategoryData> categories) {
 
         public Optional<Suggestion> suggest(String text, boolean income, String bankCategory) {
-            return CategorySuggester.suggest(text, income, bankCategory, history, categories);
+            return suggest(text, income, bankCategory, List.of());
+        }
+
+        /** With the kind hints of the bank profile of an import (decision 46). */
+        public Optional<Suggestion> suggest(
+                String text, boolean income, String bankCategory, List<CategorySuggester.KindHint> kindHints) {
+            return CategorySuggester.suggest(text, income, bankCategory, kindHints, history, categories);
         }
     }
 }

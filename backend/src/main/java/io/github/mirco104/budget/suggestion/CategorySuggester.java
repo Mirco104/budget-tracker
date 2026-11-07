@@ -38,6 +38,13 @@ public final class CategorySuggester {
     public record Suggestion(long categoryId, boolean certain) {
     }
 
+    /**
+     * A hint of a bank profile (decision 46): a kind that contains the keyword points to the category with the name.
+     * Only the profile knows its kinds, so this class stays free of any bank.
+     */
+    public record KindHint(String keyword, String categoryName) {
+    }
+
     private CategorySuggester() {
     }
 
@@ -63,12 +70,13 @@ public final class CategorySuggester {
     }
 
     /**
-     * R29 for a booking with the text, the sign (income true for a positive amount) and the bank category (null outside
-     * the import). Only categories in the list (not archived) are suggested; history entries of other categories are
-     * left out before anything is counted.
+     * R29 for a booking with the text, the sign (income true for a positive amount), the bank category and the kind
+     * hints of the bank profile (null and none outside the import). Only categories in the list (not archived) are
+     * suggested; history entries of other categories are left out before anything is counted.
      */
     public static Optional<Suggestion> suggest(
-            String text, boolean income, String bankCategory, List<Entry> history, List<CategoryData> categories) {
+            String text, boolean income, String bankCategory, List<KindHint> kindHints, List<Entry> history,
+            List<CategoryData> categories) {
         Set<Long> allowed = categories.stream().map(CategoryData::id).collect(Collectors.toSet());
         List<Entry> usable = history.stream()
                 .filter(entry -> allowed.contains(entry.categoryId()))
@@ -101,7 +109,7 @@ public final class CategorySuggester {
             if (!sameBankCategory.isEmpty()) {
                 return Optional.of(new Suggestion(mostFrequent(sameBankCategory), false));
             }
-            return byName(bankCategory, categories).map(id -> new Suggestion(id, false));
+            return byName(bankCategory, kindHints, categories).map(id -> new Suggestion(id, false));
         }
         return Optional.empty();
     }
@@ -125,14 +133,14 @@ public final class CategorySuggester {
                 .getKey();
     }
 
-    // Trade Republic kinds by their parts, else a category whose first word is the first word of the bank category
-    private static Optional<Long> byName(String bankCategory, List<CategoryData> categories) {
+    // The first kind hint of the profile whose keyword the kind contains, else a category whose first word is the first
+    // word of the bank category
+    private static Optional<Long> byName(String bankCategory, List<KindHint> kindHints, List<CategoryData> categories) {
         String kind = bankCategory.toUpperCase(Locale.ROOT);
-        if (kind.contains("BUY") || kind.contains("SELL") || kind.contains("SAVINGS")) {
-            return named("Investitionen", categories);
-        }
-        if (kind.contains("INTEREST") || kind.contains("DIVIDEND")) {
-            return named("Kapitalerträge", categories);
+        for (KindHint hint : kindHints) {
+            if (kind.contains(hint.keyword().toUpperCase(Locale.ROOT))) {
+                return named(hint.categoryName(), categories);
+            }
         }
         String first = firstWord(bankCategory);
         if (first.isEmpty()) {
