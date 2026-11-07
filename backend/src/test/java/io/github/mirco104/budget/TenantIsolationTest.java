@@ -200,7 +200,7 @@ class TenantIsolationTest {
         MockMvc anonymous = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
 
         for (String url : new String[] {"/api/categories", "/api/transactions", "/api/recurring-transactions",
-                "/api/dashboard", "/api/reserves", "/api/history", "/api/auth/me", "/api/bank-accounts"}) {
+                "/api/dashboard", "/api/reserves", "/api/history", "/api/auth/me", "/api/bank-accounts", "/api/booking-suggestion"}) {
             anonymous.perform(get(url).param("month", MONTH))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.status").value(401));

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { ApiError } from '../api/client'
 import {
@@ -8,6 +8,7 @@ import {
   useUpdateOccurrenceFollowing,
   useUpdateOccurrenceThis,
 } from '../api/recurring'
+import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
 import type { Category, OccurrenceScope, RecurringInterval, Transaction } from '../api/types'
 import { formatDate, parseAmountInput } from '../format'
@@ -54,6 +55,16 @@ function isOccurrence(entry: Transaction | null): entry is Transaction & { recur
   return entry?.kind === 'RECURRING' && entry.recurringId !== null && entry.occurrenceDate !== null
 }
 
+/** The value after it has not changed for the delay, so typing does not send a request per key. */
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
 /** The categories last used with the sign, newest first, without archived ones and transfers (display only). */
 function lastUsed(recent: Transaction[], categories: Category[], kind: Kind): Category[] {
   const result: Category[] = []
@@ -98,7 +109,9 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [amount, setAmount] = useState(entry ? toAmountText(entry.amount) : '')
   const [description, setDescription] = useState(entry?.description ?? '')
   // TRANSFER stands for a transfer between own accounts, which has no category (R27)
-  const [categoryId, setCategoryId] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
+  const [chosenCategory, setChosenCategory] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
+  // US32: a new booking takes the suggested category until the user chooses one; an edited entry keeps its own
+  const [categoryChosen, setCategoryChosen] = useState(entry !== null)
   // '' is the default account (R26)
   const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? defaultDate)
@@ -110,17 +123,33 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [submitting, setSubmitting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
+  const quick = lastUsed(recent, categories, kind)
+  // US32: the suggestion for the description, asked for once typing pauses
+  const suggestionText = useDebounced(description.trim(), 300)
+  const suggestion = useBookingSuggestion(suggestionText, kind === 'income', !categoryChosen && suggestionText.length >= 2)
+  const suggestedId = suggestion.data?.categoryId
+  const suggested =
+    !categoryChosen && suggestedId != null && categories.some((c) => c.id === suggestedId && !c.archived)
+      ? String(suggestedId)
+      : null
+  const categoryId = categoryChosen ? chosenCategory : (suggested ?? '')
+
   const transfer = categoryId === TRANSFER
   const recurring = repeat !== 'NONE' && !transfer
-  // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry.
+  // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry or a transfer.
   const repeatOption: 'optional' | 'required' | 'none' = transfer
     ? 'none'
     : !entry
-    ? 'optional'
-    : occurrence && scope === 'FOLLOWING'
-      ? 'required'
-      : 'none'
-  const quick = lastUsed(recent, categories, kind)
+      ? 'optional'
+      : occurrence && scope === 'FOLLOWING'
+        ? 'required'
+        : 'none'
+
+  function chooseCategory(value: string) {
+    setChosenCategory(value)
+    setCategoryChosen(true)
+  }
+
   const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
   // An archived account only when it is already chosen; one account needs no field (US30)
   const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
@@ -281,7 +310,10 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
         </label>
 
         <div className="field">
-          <span id="booking-category-label">Kategorie</span>
+          <span className="field-label">
+            <span id="booking-category-label">Kategorie</span>
+            {suggested !== null && <span className="badge suggestion">Vorschlag</span>}
+          </span>
           {quick.length > 0 && (
             <div className="chips" role="group" aria-label="Zuletzt genutzt">
               {quick.map((category) => (
@@ -290,7 +322,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
                   type="button"
                   className="chip"
                   aria-pressed={String(category.id) === categoryId}
-                  onClick={() => setCategoryId(String(category.id))}
+                  onClick={() => chooseCategory(String(category.id))}
                 >
                   <CategoryIcon icon={category.icon} size={14} />
                   {category.name}
@@ -301,7 +333,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
           <select
             aria-labelledby="booking-category-label"
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+            onChange={(e) => chooseCategory(e.target.value)}
             aria-invalid={errors.categoryId ? true : undefined}
           >
             <option value="">Kategorie wählen …</option>

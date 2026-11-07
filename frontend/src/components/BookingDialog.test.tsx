@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { BankAccount, Category, RecurringTransaction, Transaction } from '../api/types'
+import type { BookingSuggestion } from '../api/suggestions'
 import { BookingDialog } from './BookingDialog'
 
 // Fictional values, shaped like the backend responses.
@@ -34,6 +35,7 @@ function renderDialog(
   entry: Transaction | null = null,
   answer: () => Promise<Response> = () => json({}),
   bankAccounts: BankAccount[] = [],
+  suggestion: BookingSuggestion = { categoryId: null, certain: false },
 ) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
@@ -47,6 +49,9 @@ function renderDialog(
     }
     if (url.startsWith('/api/bank-accounts')) {
       return json(bankAccounts)
+    }
+    if (url.startsWith('/api/booking-suggestion')) {
+      return json(suggestion)
     }
     return url.startsWith('/api/recurring-transactions') ? json(series) : json([])
   })
@@ -89,6 +94,47 @@ const twoAccounts: BankAccount[] = [
 ]
 
 describe('BookingDialog', () => {
+  // US32: the suggestion fills the category of a new booking until the user chooses one
+  it('preselects the suggested category for the description and marks it', async () => {
+    const { fetchMock } = renderDialog(null, () => json({}), [], { categoryId: 7, certain: true })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'REWE Markt' } })
+
+    await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('7'))
+    expect(screen.getByText('Vorschlag')).toBeInTheDocument()
+    const call = fetchMock.mock.calls.map(([url]) => String(url)).find((url) => url.startsWith('/api/booking-suggestion'))
+    expect(call).toBe('/api/booking-suggestion?text=REWE%20Markt&income=false')
+  })
+
+  it('keeps the category the user chose', async () => {
+    renderDialog(null, () => json({}), [], { categoryId: 7, certain: true })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'REWE Markt' } })
+
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+    expect(screen.queryByText('Vorschlag')).not.toBeInTheDocument()
+  })
+
+  it('asks for no suggestion when an entry is edited', async () => {
+    const { fetchMock } = renderDialog(kino, () => json({}), [], { categoryId: 7, certain: true })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Kino am Abend' } })
+
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith('/api/booking-suggestion'))).toBe(false)
+  })
+
+  it('saves the suggested category', async () => {
+    const { fetchMock, onDone } = renderDialog(null, () => json({}), [], { categoryId: 7, certain: false })
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '23,40' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'REWE Markt' } })
+    await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('7'))
+    save()
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 7, amount: -23.4 })
+  })
+
   // US30: the account field appears with more than one account, preset to the default account
   it('books on the chosen account and hides the field with only one account', async () => {
     const { fetchMock, onDone } = renderDialog(null, () => json({}), twoAccounts)

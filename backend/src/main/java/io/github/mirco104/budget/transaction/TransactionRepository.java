@@ -24,6 +24,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             """)
     List<Transaction> findCountedBetween(User owner, LocalDate from, LocalDate to);
 
+    /** R29: every transaction of the user with a category, for the category suggestion. */
+    @EntityGraph(attributePaths = "category")
+    List<Transaction> findByOwnerAndTransferFalse(User owner);
+
     Optional<Transaction> findByIdAndOwner(Long id, User owner);
 
     /** Date of the earliest transaction that is no transfer (R27), null without one. */
