@@ -47,11 +47,19 @@ interface RowSuggestion {
   icon: string | null
 }
 
-function suggestionOf(entry: ImportEntry, categories: Category[]): RowSuggestion | null {
+/**
+ * The suggestion of a row: a recognized transfer (R27); else the category the user chose in this preview for a row with
+ * the same key (R29), which only suggests and never sets (after the test, 07.11.2026); else the suggestion of the
+ * backend. A transfer the user chose is never passed on, because the same counterparty (e.g. a payment service) can
+ * stand for both.
+ */
+function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: Record<string, string>): RowSuggestion | null {
   if (entry.transfer) {
     return { value: TRANSFER, name: 'Umbuchung', icon: null }
   }
-  const category = categories.find((c) => c.id === entry.categoryId)
+  const chosen = entry.suggestionKey ? chosenByKey[entry.suggestionKey] : undefined
+  const id = chosen !== undefined ? Number(chosen) : entry.categoryId
+  const category = categories.find((c) => c.id === id)
   return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
 }
 
@@ -90,15 +98,16 @@ function PreviewRow({
   entry,
   choice,
   categories,
+  suggested,
   onChange,
 }: {
   entry: ImportEntry
   choice: Choice
   categories: Category[]
+  suggested: RowSuggestion | null
   onChange: (choice: Choice) => void
 }) {
   const description = entry.description ?? ''
-  const suggested = suggestionOf(entry, categories)
   const open = choice.selected && choice.category === ''
   const createCategory = useCreateCategory()
   const [newName, setNewName] = useState<string | null>(null)
@@ -330,32 +339,27 @@ function Preview({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [ignoredSeries, setIgnoredSeries] = useState<string[]>([])
+  // The last category the user chose per key; it is a suggestion for the other rows with that key
+  const [chosenByKey, setChosenByKey] = useState<Record<string, string>>({})
 
   const rows = preview.entries.filter(importable)
   const notImportable = preview.entries.filter((entry) => !importable(entry))
   const selected = rows.filter((entry) => entry.fingerprint !== null && choices[entry.fingerprint].selected)
   const open = selected.filter((entry) => choices[entry.fingerprint as string].category === '')
   const finished = selected.filter((entry) => choices[entry.fingerprint as string].category !== '')
-  const withSuggestion = open.filter((entry) => suggestionOf(entry, categories) !== null)
+  const suggestionFor = (entry: ImportEntry) => suggestionOf(entry, categories, chosenByKey)
+  const withSuggestion = open.filter((entry) => suggestionFor(entry) !== null)
   const activeAccounts = accounts.filter((account) => !account.archived)
   const shown = view === 'open' ? open : rows
   const series = preview.series.filter((s) => !ignoredSeries.includes(s.lines.join()))
 
-  // US33: a category chosen for a row also goes to the open rows with the same key (R29)
+  // US33: a category chosen for a row becomes the suggestion of the open rows with the same key (R29); a transfer does not
   function change(entry: ImportEntry, next: Choice) {
-    setChoices((current) => {
-      const updated = { ...current, [entry.fingerprint as string]: next }
-      const chose = next.category !== '' && next.category !== current[entry.fingerprint as string].category
-      if (chose && entry.suggestionKey) {
-        for (const other of rows) {
-          const otherChoice = updated[other.fingerprint as string]
-          if (other !== entry && other.suggestionKey === entry.suggestionKey && otherChoice.category === '' && !other.transfer) {
-            updated[other.fingerprint as string] = { ...otherChoice, category: next.category }
-          }
-        }
-      }
-      return updated
-    })
+    setChoices((current) => ({ ...current, [entry.fingerprint as string]: next }))
+    const chose = next.category !== '' && next.category !== choices[entry.fingerprint as string].category
+    if (chose && next.category !== TRANSFER && entry.suggestionKey) {
+      setChosenByKey((current) => ({ ...current, [entry.suggestionKey as string]: next.category }))
+    }
   }
 
   // Decision 46: one click takes over the shown suggestion of every open row
@@ -363,7 +367,7 @@ function Preview({
     setChoices((current) => {
       const updated = { ...current }
       for (const entry of withSuggestion) {
-        const suggestion = suggestionOf(entry, categories)
+        const suggestion = suggestionFor(entry)
         if (suggestion) {
           updated[entry.fingerprint as string] = { ...updated[entry.fingerprint as string], category: suggestion.value }
         }
@@ -517,6 +521,7 @@ function Preview({
               entry={entry}
               choice={choices[entry.fingerprint as string]}
               categories={categories}
+              suggested={suggestionFor(entry)}
               onChange={(next) => change(entry, next)}
             />
           ))}
