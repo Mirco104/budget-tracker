@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -30,5 +31,9 @@ public record TransactionRequest(
         Long accountId,
 
         // R27: optional, false without it
-        Boolean transfer) {
+        Boolean transfer,
+
+        // R28: optional, the occurrence of a series this transaction replaces (only when it is created)
+        @Valid
+        OccurrenceRef replaces) {
 }

@@ -22,11 +22,17 @@ public record TransactionResponse(
         String categoryName,
         Long accountId,
         String accountName,
-        boolean transfer) {
+        boolean transfer,
+        OccurrenceRef replaces) {
 
     public enum Kind { SINGLE, RECURRING }
 
     static TransactionResponse from(Transaction transaction) {
+        return from(transaction, null);
+    }
+
+    /** replaces is the occurrence the transaction replaces (R28), null when it replaces none. */
+    static TransactionResponse from(Transaction transaction, OccurrenceRef replaces) {
         Category category = transaction.getCategory();
         return new TransactionResponse(
                 Kind.SINGLE,
@@ -40,7 +46,8 @@ public record TransactionResponse(
                 category == null ? null : category.getName(),
                 transaction.getAccount().getId(),
                 transaction.getAccount().getName(),
-                transaction.isTransfer());
+                transaction.isTransfer(),
+                replaces);
     }
 
     static TransactionResponse from(Occurrence occurrence) {
@@ -56,6 +63,7 @@ public record TransactionResponse(
                 occurrence.categoryName(),
                 occurrence.accountId(),
                 occurrence.accountName(),
-                false);
+                false,
+                null);
     }
 }

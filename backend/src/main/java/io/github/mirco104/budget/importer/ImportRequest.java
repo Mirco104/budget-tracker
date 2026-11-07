@@ -66,6 +66,10 @@ public record ImportRequest(
 
             Boolean transfer,
 
-            Long transferPeerId) {
+            Long transferPeerId,
+
+            // R28: the occurrence the row replaces
+            @Valid
+            io.github.mirco104.budget.transaction.OccurrenceRef replaces) {
     }
 }

@@ -213,7 +213,7 @@ public class SampleDataSeeder implements ApplicationRunner {
 
         void book(long cents, String description, LocalDate date, String category) {
             transactionService.create(
-                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null));
+                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null, null));
         }
 
         void series(String amount, String description, String category, RecurringInterval interval,
