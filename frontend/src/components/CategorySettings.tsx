@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent } from 'react'
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
@@ -8,12 +8,28 @@ import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
 import { Icon } from './ui/Icon'
 import { RowMenu } from './ui/RowMenu'
 
-/** "+ Kategorie" opens a field for the name; a new category comes last (US10). */
+/** The icon a new category starts with, as in the backend (US28). */
+const DEFAULT_ICON = 'tag'
+
+/**
+ * "+ Kategorie" opens a field for the name and the choice of an icon (US10, US28). The category appears at its
+ * alphabetical place (decision 38).
+ */
 function NewCategory() {
   const create = useCreateCategory()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [icon, setIcon] = useState(DEFAULT_ICON)
+  const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function close() {
+    setOpen(false)
+    setName('')
+    setIcon(DEFAULT_ICON)
+    setPicking(false)
+    setError(null)
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -23,9 +39,8 @@ function NewCategory() {
     }
     setError(null)
     try {
-      await create.mutateAsync({ name: name.trim() })
-      setName('')
-      setOpen(false)
+      await create.mutateAsync({ name: name.trim(), icon })
+      close()
     } catch (e) {
       setError(errorText(e, 'Anlegen fehlgeschlagen.'))
     }
@@ -41,7 +56,23 @@ function NewCategory() {
   }
   return (
     <form className="category-new" noValidate onSubmit={handleSubmit}>
-      <label className="field">
+      <div className="field">
+        <span id="new-category-icon">Icon</span>
+        <button
+          type="button"
+          className="icon-button category-icon-button"
+          aria-labelledby="new-category-icon"
+          aria-describedby="new-category-icon-name"
+          aria-expanded={picking}
+          onClick={() => setPicking(!picking)}
+        >
+          <CategoryIcon icon={icon} />
+        </button>
+        <span id="new-category-icon-name" hidden>
+          {categoryIconLabel(icon)}
+        </span>
+      </div>
+      <label className="field category-new-name">
         Neue Kategorie
         <input
           // Opened on purpose, so typing can start right away
@@ -49,18 +80,28 @@ function NewCategory() {
           value={name}
           maxLength={50}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+          onKeyDown={(e) => e.key === 'Escape' && close()}
           aria-invalid={error ? true : undefined}
         />
       </label>
       <div className="dialog-buttons">
-        <button type="button" onClick={() => setOpen(false)}>
+        <button type="button" onClick={close}>
           Abbrechen
         </button>
         <button type="submit" disabled={create.isPending}>
           Hinzufügen
         </button>
       </div>
+      {picking && (
+        <IconPicker
+          icon={icon}
+          onPick={(picked) => {
+            setIcon(picked)
+            setPicking(false)
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
       {error && <p className="error">{error}</p>}
     </form>
   )
@@ -95,26 +136,14 @@ function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (icon: st
 
 type Mode = 'view' | 'rename' | 'icon' | 'confirmDelete'
 
-interface RowProps {
-  category: Category
-  previous?: Category
-  next?: Category
-  /** Drag and drop: the row being dragged and the row it is over. */
-  dragging: number | null
-  onDragStart: (id: number) => void
-  onDragEnd: () => void
-  onDrop: (target: Category) => void
-}
-
-/** One active category: drag handle, icon, name and the menu "⋯" (US10, US28). */
-function CategoryRow({ category, previous, next, dragging, onDragStart, onDragEnd, onDrop }: RowProps) {
+/** One active category: icon, name and the menu "⋯" (US10, US28). */
+function CategoryRow({ category }: { category: Category }) {
   const update = useUpdateCategory()
   const remove = useDeleteCategory()
   const [mode, setMode] = useState<Mode>('view')
   const [menuOpen, setMenuOpen] = useState(false)
   const [name, setName] = useState(category.name)
   const [error, setError] = useState<string | null>(null)
-  const [over, setOver] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const busy = update.isPending || remove.isPending
 
@@ -125,7 +154,6 @@ function CategoryRow({ category, previous, next, dragging, onDragStart, onDragEn
         id: category.id,
         input: {
           name: category.name,
-          sortOrder: category.sortOrder,
           archived: category.archived,
           icon: category.icon,
           ...changes,
@@ -182,40 +210,9 @@ function CategoryRow({ category, previous, next, dragging, onDragStart, onDragEn
     }
   }
 
-  function handleDragOver(event: DragEvent<HTMLLIElement>) {
-    if (dragging !== null && dragging !== category.id) {
-      event.preventDefault()
-      setOver(true)
-    }
-  }
-
   return (
-    <li
-      className={`category-row${over ? ' drop-target' : ''}${dragging === category.id ? ' dragging' : ''}`}
-      aria-label={category.name}
-      onDragOver={handleDragOver}
-      onDragLeave={() => setOver(false)}
-      onDrop={(event) => {
-        event.preventDefault()
-        setOver(false)
-        onDrop(category)
-      }}
-    >
+    <li className="category-row" aria-label={category.name}>
       <div className="category-line">
-        <span
-          className="drag-handle"
-          draggable={!busy}
-          title="Zum Sortieren ziehen"
-          aria-hidden="true"
-          onDragStart={(event) => {
-            event.dataTransfer.effectAllowed = 'move'
-            event.dataTransfer.setData('text/plain', String(category.id))
-            onDragStart(category.id)
-          }}
-          onDragEnd={onDragEnd}
-        >
-          <Icon name="grip" size={18} />
-        </span>
         <button
           type="button"
           className="icon-button category-icon-button"
@@ -279,22 +276,6 @@ function CategoryRow({ category, previous, next, dragging, onDragStart, onDragEn
               <button type="button" className="menu-item" onClick={() => choose(() => setMode('icon'))}>
                 Icon ändern
               </button>
-              <button
-                type="button"
-                className="menu-item"
-                disabled={!previous}
-                onClick={() => choose(() => previous && void send({ sortOrder: previous.sortOrder }))}
-              >
-                Nach oben
-              </button>
-              <button
-                type="button"
-                className="menu-item"
-                disabled={!next}
-                onClick={() => choose(() => next && void send({ sortOrder: next.sortOrder }))}
-              >
-                Nach unten
-              </button>
               <button type="button" className="menu-item" onClick={() => choose(() => void send({ archived: true }))}>
                 Archivieren
               </button>
@@ -357,7 +338,7 @@ function ArchivedRow({ category }: { category: Category }) {
     try {
       await update.mutateAsync({
         id: category.id,
-        input: { name: category.name, sortOrder: category.sortOrder, archived: false, icon: category.icon },
+        input: { name: category.name, archived: false, icon: category.icon },
       })
     } catch (e) {
       setError(errorText(e, 'Speichern fehlgeschlagen.'))
@@ -412,12 +393,9 @@ function ArchivedRow({ category }: { category: Category }) {
   )
 }
 
-/** Settings › Kategorien (US10, US28): sort by dragging, and per row a menu "⋯" for everything else. */
+/** Settings › Kategorien (US10, US28): alphabetical (decision 38), per row a menu "⋯". */
 export function CategorySettings() {
   const categories = useCategories(currentMonth())
-  const update = useUpdateCategory()
-  const [dragging, setDragging] = useState<number | null>(null)
-  const [moveError, setMoveError] = useState<string | null>(null)
 
   if (categories.isPending) {
     return <p>Lade Kategorien …</p>
@@ -429,24 +407,6 @@ export function CategorySettings() {
   const active = categories.data.filter((c) => !c.archived)
   const archived = categories.data.filter((c) => c.archived)
 
-  // The dropped category takes the place of the target; the backend renumbers the rest (one request)
-  async function drop(target: Category) {
-    const moved = active.find((c) => c.id === dragging)
-    setDragging(null)
-    if (!moved || moved.id === target.id) {
-      return
-    }
-    setMoveError(null)
-    try {
-      await update.mutateAsync({
-        id: moved.id,
-        input: { name: moved.name, sortOrder: target.sortOrder, archived: false, icon: moved.icon },
-      })
-    } catch (e) {
-      setMoveError(errorText(e, 'Verschieben fehlgeschlagen.'))
-    }
-  }
-
   return (
     <>
       <section className="card settings-card" aria-labelledby="categories-title">
@@ -454,29 +414,15 @@ export function CategorySettings() {
           <div>
             <h2 id="categories-title">Kategorien</h2>
             <p className="hint">
-              Reihenfolge per Ziehen am Griff ändern oder im Menü „⋯“ mit „Nach oben“ und „Nach unten“. Neue
-              Kategorien kommen ans Ende.
+              Kategorien stehen überall alphabetisch. Umbenennen, Icon ändern, Archivieren und Löschen findest du im
+              Menü „⋯“.
             </p>
           </div>
           <NewCategory />
         </div>
-        {moveError && (
-          <p className="error" role="alert">
-            {moveError}
-          </p>
-        )}
         <ul className="category-list">
-          {active.map((category, index) => (
-            <CategoryRow
-              key={`${category.id}-${category.name}`}
-              category={category}
-              previous={active[index - 1]}
-              next={active[index + 1]}
-              dragging={dragging}
-              onDragStart={setDragging}
-              onDragEnd={() => setDragging(null)}
-              onDrop={(target) => void drop(target)}
-            />
+          {active.map((category) => (
+            <CategoryRow key={`${category.id}-${category.name}`} category={category} />
           ))}
         </ul>
       </section>

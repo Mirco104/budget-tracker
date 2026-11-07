@@ -74,7 +74,7 @@ public class ReserveService {
         }
         // Income E and expenses A per month (R2) come from the dashboard, so the rules stay in one place
         YearMonth firstEntryMonth = dashboardService.firstEntryMonth();
-        Map<Long, String> icons = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(currentUser.get())
+        Map<Long, String> icons = categoryRepository.findAllByOwner(currentUser.get())
                 .stream()
                 .collect(Collectors.toMap(Category::getId, Category::getIcon));
         List<PastMonth> pastMonths = firstEntryMonth == null

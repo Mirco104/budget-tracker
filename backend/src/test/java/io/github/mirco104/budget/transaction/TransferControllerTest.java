@@ -61,9 +61,9 @@ class TransferControllerTest {
     void signIn() {
         User user = TestUsers.create(userService, "person-f@example.test");
         mockMvc = TestUsers.mockMvcFor(context, user);
-        wohnen = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        wohnen = categoryRepository.findAllByOwner(user).stream()
                 .filter(c -> c.getName().equals("Wohnen")).findFirst().orElseThrow().getId();
-        gehalt = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        gehalt = categoryRepository.findAllByOwner(user).stream()
                 .filter(c -> c.getName().startsWith("Gehalt")).findFirst().orElseThrow().getId();
     }
 

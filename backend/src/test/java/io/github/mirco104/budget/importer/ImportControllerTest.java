@@ -352,7 +352,7 @@ class ImportControllerTest {
     }
 
     private long category(User owner, String name) {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(owner).stream()
+        return categoryRepository.findAllByOwner(owner).stream()
                 .filter(c -> c.getName().equals(name))
                 .map(Category::getId)
                 .findFirst()
