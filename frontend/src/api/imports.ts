@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 
-export type ImportProfile = 'C24' | 'TRADE_REPUBLIC' | 'N26'
+export type ImportProfile = 'C24' | 'TRADE_REPUBLIC' | 'N26' | 'SPARKASSE'
 
 /** NEW and POSSIBLE_DUPLICATE can be imported; DUPLICATE was imported before; SKIPPED cannot be imported (R30). */
 export type ImportStatus = 'NEW' | 'POSSIBLE_DUPLICATE' | 'DUPLICATE' | 'SKIPPED'

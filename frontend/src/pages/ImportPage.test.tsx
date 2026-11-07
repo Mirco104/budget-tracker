@@ -114,6 +114,14 @@ function sent(fetchMock: ReturnType<typeof vi.fn>, url: string) {
 }
 
 describe('ImportPage', () => {
+  it('names the supported banks, the Sparkasse included (decision 47)', () => {
+    renderPage()
+
+    expect(screen.getByRole('region', { name: 'Datei wählen' })).toHaveTextContent(
+      'Unterstützt werden C24, Trade Republic, N26 und die Sparkasse (alle vier CSV-Exporte).',
+    )
+  })
+
   it('uploads the file as multipart and shows the summary and the accounts of the file', async () => {
     const fetchMock = renderPage()
     await upload()

@@ -630,7 +630,7 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
 }
 
 /**
- * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic or N26, check the preview and
+ * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic, N26 or the Sparkasse, check the preview and
  * take the rows over; earlier imports can be undone.
  */
 export function ImportPage() {
@@ -712,7 +712,8 @@ export function ImportPage() {
       {!preview && (
         <section className="card import-upload" aria-label="Datei wählen">
           <p>
-            CSV-Export deiner Bank hochladen. Unterstützt werden C24, Trade Republic und N26. Die Datei wird nur gelesen
+            CSV-Export deiner Bank hochladen. Unterstützt werden C24, Trade Republic, N26 und die Sparkasse (alle vier
+            CSV-Exporte). Die Datei wird nur gelesen
             und nicht gespeichert; vorgemerkte Umsätze werden übersprungen.
           </p>
           <label className="button-link primary file-button">
