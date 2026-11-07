@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rule R30: reading the CSV exports of C24, Trade Republic and N26. The files have the format of the real exports
+ * Rule R30: reading the CSV exports of C24, Trade Republic, N26 and the Sparkasse. The files have the format of the real exports
  * (header, delimiter, number and date format) with fictional values only: no real account numbers, IBANs or names.
  */
 class BankCsvTest {
@@ -44,6 +44,120 @@ class BankCsvTest {
             2026-01-12,2026-01-13,"Versand Händler S.a.r.l.",LU280019400644750000,"Credit Transfer",Penny-Test,Hauptkonto,0.01,,,
             2026-01-14,2026-01-14,"Kino ""Am Markt""\",,Presentment,"Kino, 2 Karten",Hauptkonto,-24.00,,,
             """;
+
+    // Sparkasse (decision 47): the same fictional bookings in three of the four exports (CSV-CAMT V2 and V8 are equal).
+    // Every field quoted, ";", dd.MM.yy, a credit without sign; the IBANs are ISO 13616 documentation examples.
+    static final String SPARKASSE_CAMT = """
+            "Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Glaeubiger ID";"Mandatsreferenz";"Kundenreferenz (End-to-End)";"Sammlerreferenz";"Lastschrift Ursprungsbetrag";"Auslagenersatz Ruecklastschrift";"Beguenstigter/Zahlungspflichtiger";"Kontonummer/IBAN";"BIC (SWIFT-Code)";"Betrag";"Waehrung";"Info"
+            "DE89370400440532013000";"05.11.26";"05.11.26";"FOLGELASTSCHRIFT";"Beitrag 11/2026 : Mitglied 4711 ";"DE00ZZZ00000000001";"M-0001";"E2E-0001";"";"";"";"Beispiel Verein e.V.";"GB82WEST12345698765432";"WESTGB2L   ";"-12,00";"EUR";"Umsatz gebucht"
+            "DE89370400440532013000";"31.10.26";"01.11.26";"GUTSCHR. UEBERWEISUNG";"Lohn 10/2026 ";"";"";"";"";"";"";"Firma Beispiel GmbH";"GB29NWBK60161331926819";"NWBKGB2L";"2.500,00";"EUR";"Umsatz gebucht"
+            "DE89370400440532013000";"30.10.26";"01.11.26";"ABSCHLUSS";"Entgeltabrechnung siehe Anlage ";"";"";"";"";"";"";"";"";"";"0,00";"EUR";"Umsatz gebucht"
+            "DE89370400440532013000";"06.11.26";"06.11.26";"KARTENZAHLUNG";"Baeckerei Beispiel ";"";"";"";"";"";"";"Baeckerei Beispiel";"";"";"-4,20";"EUR";"Umsatz vorgemerkt"
+            "DE89370400440532013000";"";"06.11.26";"KARTENZAHLUNG";"Kiosk ";"";"";"";"";"";"";"Kiosk Beispiel";"";"";"-2,00";"EUR";""
+            "DE89370400440532013000";"04.11.26";"04.11.26";"KARTENZAHLUNG";"Shop ";"";"";"";"";"";"";"Shop Beispiel";"";"";"-9,99";"EUR";"Umsatz storniert"
+            """;
+
+    static final String SPARKASSE_MT940 = """
+            "Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Beguenstigter/Zahlungspflichtiger";"Kontonummer";"BLZ";"Betrag";"Waehrung";"Info"
+            "DE89370400440532013000";"05.11.26";"05.11.26";"FOLGELASTSCHRIFT";"EREF+E2E-0001MREF+M-0001CRED+DE00ZZZ00000000001SVWZ+Beitrag 11/2026 . Mitglied4711ABWA+Beispiel Dachverband";"Beispiel Verein e.V.";"GB82WEST12345698765432";"WESTGB2L";"-12,00";"EUR";"Umsatz gebucht"
+            "DE89370400440532013000";"31.10.26";"01.11.26";"GUTSCHR. UEBERWEISUNG";"SVWZ+Lohn 10/2026";"Firma Beispiel GmbH";"GB29NWBK60161331926819";"NWBKGB2L";"2.500,00";"EUR";"Umsatz gebucht"
+            "DE89370400440532013000";"03.11.26";"03.11.26";"FOLGELASTSCHRIFT";"EREF+E2E-0002MREF+M-0002CRED+DE00ZZZ00000000002SVWZ+Abo+ Monat 11";"Beispiel Medien";"GB82WEST12345698765432";"WESTGB2L";"-11,75";"EUR";"Umsatz gebucht"
+            """;
+
+    // "mit Kategorien" is Windows-1252 and puts the end-to-end reference into Sammlerreferenz
+    static final String SPARKASSE_CATEGORIES = """
+            "Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Glaeubiger ID";"Mandatsreferenz";"Kundenreferenz (End-to-End)";"Sammlerreferenz";"Lastschrift Ursprungsbetrag";"Auslagenersatz Ruecklastschrift";"Beguenstigter/Zahlungspflichtiger";"Kontonummer/IBAN";"BIC (SWIFT-Code)";"Betrag";"Waehrung";"Info";"Kategorie"
+            "DE89370400440532013000";"05.11.26";"05.11.26";"FOLGELASTSCHRIFT";"Beitrag 11/2026 : Mitglied 4711 ";"DE00ZZZ00000000001";"M-0001";"";"E2E-0001";"";"";"Beispiel Verein e.V.";"GB82WEST12345698765432";"WESTGB2L   ";"-12,00";"EUR";"Umsatz gebucht";"Sport und Hobby"
+            "DE89370400440532013000";"31.10.26";"01.11.26";"GUTSCHR. UEBERWEISUNG";"Lohn 10/2026 ";"";"";"";"";"";"";"Firma Beispiel GmbH";"GB29NWBK60161331926819";"NWBKGB2L";"2.500,00";"EUR";"Umsatz gebucht";"Einkünfte"
+            """;
+
+    @Test
+    void readsTheSparkasseCamtExport() {
+        BankFile file = BankCsv.read(SPARKASSE_CAMT.getBytes(StandardCharsets.US_ASCII));
+
+        assertThat(file.profile()).isEqualTo(BankProfile.SPARKASSE);
+        BankTransaction debit = row(file, 2);
+        assertThat(debit.accountName()).isEqualTo("DE89370400440532013000");
+        assertThat(debit.accountIban()).isEqualTo("DE89370400440532013000");
+        assertThat(debit.bookingDate()).isEqualTo(LocalDate.of(2026, 11, 5));
+        assertThat(debit.amount()).isEqualByComparingTo("-12.00");
+        assertThat(debit.currency()).isEqualTo("EUR");
+        assertThat(debit.status()).isEqualTo(Status.BOOKED);
+        assertThat(debit.counterpartyName()).isEqualTo("Beispiel Verein e.V.");
+        assertThat(debit.counterpartyIban()).isEqualTo("GB82WEST12345698765432");
+        assertThat(debit.counterpartyBic()).isEqualTo("WESTGB2L");
+        assertThat(debit.remittanceInformation()).isEqualTo("Beitrag 11/2026 : Mitglied 4711");
+        assertThat(debit.creditorId()).isEqualTo("DE00ZZZ00000000001");
+        assertThat(debit.mandateId()).isEqualTo("M-0001");
+        assertThat(debit.endToEndId()).isEqualTo("E2E-0001");
+        assertThat(debit.bankTransactionCode()).isEqualTo("FOLGELASTSCHRIFT");
+        assertThat(debit.bankCategory()).isEqualTo("FOLGELASTSCHRIFT");
+        assertThat(debit.entryReference()).isNull();
+
+        // A credit has no sign; the booking date, not the value date, and the year 2026 from "26"
+        BankTransaction salary = row(file, 3);
+        assertThat(salary.amount()).isEqualByComparingTo("2500.00");
+        assertThat(salary.bookingDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThat(salary.valueDate()).isEqualTo(LocalDate.of(2026, 11, 1));
+        assertThat(salary.creditorId()).isNull();
+        assertThat(skipReason(file, 4)).isEqualTo("ohne Betrag");
+    }
+
+    // Decision 47: no sample had a pending row; "vorgemerkt" or an empty Buchungstag is pending, other states are not read
+    @Test
+    void readsPendingSparkasseRowsAndRejectsAnUnknownState() {
+        BankFile file = BankCsv.read(SPARKASSE_CAMT.getBytes(StandardCharsets.US_ASCII));
+
+        assertThat(row(file, 5).status()).isEqualTo(Status.PENDING);
+        assertThat(row(file, 5).bookingDate()).isEqualTo(LocalDate.of(2026, 11, 6));
+        assertThat(row(file, 6).status()).isEqualTo(Status.PENDING);
+        assertThat(row(file, 6).bookingDate()).isNull();
+        assertThat(skipReason(file, 7)).isEqualTo("Status unbekannt: Umsatz storniert");
+    }
+
+    @Test
+    void readsTheSepaTagsOfTheSparkasseMt940Export() {
+        BankFile file = BankCsv.read(SPARKASSE_MT940.getBytes(StandardCharsets.US_ASCII));
+
+        assertThat(file.profile()).isEqualTo(BankProfile.SPARKASSE);
+        BankTransaction debit = row(file, 2);
+        // The purpose ends before the next tag (ABWA+)
+        assertThat(debit.remittanceInformation()).isEqualTo("Beitrag 11/2026 . Mitglied4711");
+        assertThat(debit.endToEndId()).isEqualTo("E2E-0001");
+        assertThat(debit.mandateId()).isEqualTo("M-0001");
+        assertThat(debit.creditorId()).isEqualTo("DE00ZZZ00000000001");
+        assertThat(debit.counterpartyIban()).isEqualTo("GB82WEST12345698765432");
+        assertThat(debit.counterpartyBic()).isEqualTo("WESTGB2L");
+        assertThat(row(file, 3).remittanceInformation()).isEqualTo("Lohn 10/2026");
+        assertThat(row(file, 3).amount()).isEqualByComparingTo("2500.00");
+        // "Abo+" is no tag
+        assertThat(row(file, 4).remittanceInformation()).isEqualTo("Abo+ Monat 11");
+    }
+
+    @Test
+    void readsTheSparkasseExportWithCategoriesInWindows1252() {
+        BankFile file = BankCsv.read(SPARKASSE_CATEGORIES.getBytes(Charset.forName("windows-1252")));
+
+        assertThat(file.profile()).isEqualTo(BankProfile.SPARKASSE);
+        BankTransaction debit = row(file, 2);
+        assertThat(debit.bankCategory()).isEqualTo("Sport und Hobby");
+        assertThat(debit.endToEndId()).isEqualTo("E2E-0001");
+        assertThat(row(file, 3).bankCategory()).isEqualTo("Einkünfte");
+    }
+
+    // Decision 47: one booking is the same in every export, apart from the purpose that MT940 changes
+    @Test
+    void theSparkasseExportsGiveTheSameBooking() {
+        BankTransaction camt = row(BankCsv.read(SPARKASSE_CAMT.getBytes(StandardCharsets.US_ASCII)), 2);
+        BankTransaction mt940 = row(BankCsv.read(SPARKASSE_MT940.getBytes(StandardCharsets.US_ASCII)), 2);
+        BankTransaction categories = row(BankCsv.read(SPARKASSE_CATEGORIES.getBytes(Charset.forName("windows-1252"))), 2);
+
+        for (BankTransaction other : List.of(mt940, categories)) {
+            assertThat(other).usingRecursiveComparison()
+                    .ignoringFields("remittanceInformation", "bankCategory")
+                    .isEqualTo(camt);
+        }
+    }
 
     @Test
     void readsC24WithGermanAmountsAndTheAccountName() {

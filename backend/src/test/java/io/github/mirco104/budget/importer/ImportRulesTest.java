@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.mirco104.budget.importer.BankTransaction.Status;
 import java.math.BigDecimal;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
@@ -69,8 +71,49 @@ class ImportRulesTest {
     void sameRowKeyCountsEqualRows() {
         BankTransaction coffee = row("Hauptkonto", "-3.50", "Café", null);
 
-        assertThat(ImportRules.sameRowKey(coffee)).isEqualTo(ImportRules.sameRowKey(row("Hauptkonto", "-3.5", "Café", null)));
-        assertThat(ImportRules.sameRowKey(coffee)).isNotEqualTo(ImportRules.sameRowKey(row("Hauptkonto", "-3.60", "Café", null)));
+        assertThat(ImportRules.sameRowKey(BankProfile.N26, coffee))
+                .isEqualTo(ImportRules.sameRowKey(BankProfile.N26, row("Hauptkonto", "-3.5", "Café", null)));
+        assertThat(ImportRules.sameRowKey(BankProfile.N26, coffee))
+                .isNotEqualTo(ImportRules.sameRowKey(BankProfile.N26, row("Hauptkonto", "-3.60", "Café", null)));
+    }
+
+    // Rows imported before AP 26h must keep their fingerprint, else they would come again
+    @Test
+    void theFingerprintOfTheOtherBanksIsUnchanged() {
+        assertThat(ImportRules.fingerprint(BankProfile.N26, row("Hauptkonto", "-3.50", "Café", null), 1))
+                .isEqualTo("a3aad7c2159bb310d74c7d9f0d409bf9f669eaea9cf33b0e3dd9d42595fb3ebb");
+    }
+
+    // Decision 47: the purpose is not part of a Sparkasse fingerprint, because CSV-MT940 changes it
+    @Test
+    void aSparkasseBookingHasTheSameFingerprintInEveryExport() {
+        BankCsv.BankFile camt = BankCsv.read(BankCsvTest.SPARKASSE_CAMT.getBytes(StandardCharsets.US_ASCII));
+        BankCsv.BankFile mt940 = BankCsv.read(BankCsvTest.SPARKASSE_MT940.getBytes(StandardCharsets.US_ASCII));
+        BankCsv.BankFile categories = BankCsv.read(
+                BankCsvTest.SPARKASSE_CATEGORIES.getBytes(Charset.forName("windows-1252")));
+
+        for (int line : new int[] {2, 3}) {
+            BankTransaction row = row(camt, line);
+            assertThat(ImportRules.sameRowKey(BankProfile.SPARKASSE, row(mt940, line)))
+                    .isEqualTo(ImportRules.sameRowKey(BankProfile.SPARKASSE, row));
+            String fingerprint = ImportRules.fingerprint(BankProfile.SPARKASSE, row, 1);
+            assertThat(ImportRules.fingerprint(BankProfile.SPARKASSE, row(mt940, line), 1)).isEqualTo(fingerprint);
+            assertThat(ImportRules.fingerprint(BankProfile.SPARKASSE, row(categories, line), 1)).isEqualTo(fingerprint);
+        }
+        assertThat(ImportRules.fingerprint(BankProfile.SPARKASSE, row(camt, 2), 2))
+                .isNotEqualTo(ImportRules.fingerprint(BankProfile.SPARKASSE, row(camt, 2), 1));
+    }
+
+    @Test
+    void namesASparkasseAccountByTheEndOfItsIban() {
+        assertThat(ImportRules.sourceKey(BankProfile.SPARKASSE, "DE89370400440532013000"))
+                .isEqualTo("SPARKASSE:DE89370400440532013000");
+        assertThat(ImportRules.accountName(BankProfile.SPARKASSE, "DE89370400440532013000")).isEqualTo("Sparkasse …3000");
+        assertThat(ImportRules.accountName(BankProfile.SPARKASSE, "")).isEqualTo("Sparkasse");
+    }
+
+    private static BankTransaction row(BankCsv.BankFile file, int number) {
+        return file.lines().stream().filter(l -> l.number() == number).findFirst().orElseThrow().row();
     }
 
     // Decision 46: pending rows and other currencies are read, and this rule leaves them out (R30)

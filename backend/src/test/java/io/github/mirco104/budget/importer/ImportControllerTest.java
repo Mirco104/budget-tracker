@@ -239,6 +239,50 @@ class ImportControllerTest {
         assertThat(incoming.get("categoryId")).isNull();
     }
 
+    // --- Sparkasse (decision 47) ---
+
+    @Test
+    void aSparkasseBookingIsImportedOnceWhicheverExportComesLater() throws Exception {
+        String camt = previewJson(mockMvc, BankCsvTest.SPARKASSE_CAMT);
+        assertThat(JsonPath.<String>read(camt, "$.profile")).isEqualTo("SPARKASSE");
+        assertThat(JsonPath.<String>read(camt, "$.profileLabel")).isEqualTo("Sparkasse");
+        assertThat(JsonPath.<Integer>read(camt, "$.rows")).isEqualTo(6);
+        assertThat(JsonPath.<Integer>read(camt, "$.newRows")).isEqualTo(2);
+        assertThat(JsonPath.<Integer>read(camt, "$.skipped")).isEqualTo(4);
+        assertThat(JsonPath.<String>read(camt, "$.sources[0].key")).isEqualTo("SPARKASSE:" + GIRO_IBAN);
+        assertThat(JsonPath.<String>read(camt, "$.sources[0].suggestedName")).isEqualTo("Sparkasse …3000");
+        List<String> reasons = JsonPath.read(camt, "$.entries[?(@.status == 'SKIPPED')].reason");
+        assertThat(reasons).containsExactlyInAnyOrder("ohne Betrag", "vorgemerkt (noch nicht gebucht)",
+                "vorgemerkt (noch nicht gebucht)", "Status unbekannt: Umsatz storniert");
+        long freizeit = category(user, "Freizeit");
+        commit(mockMvc, camt, entry -> freizeit, true)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(2))
+                .andExpect(jsonPath("$.batch.profile").value("SPARKASSE"));
+
+        // The same bookings as MT940 and "mit Kategorien" are already imported; only the new one is open
+        String mt940 = previewJson(mockMvc, BankCsvTest.SPARKASSE_MT940);
+        assertThat(JsonPath.<Integer>read(mt940, "$.duplicates")).isEqualTo(2);
+        assertThat(JsonPath.<Integer>read(mt940, "$.newRows")).isEqualTo(1);
+        assertThat(JsonPath.<Object>read(mt940, "$.sources[0].accountId")).isNotNull();
+        String categories = previewJson(mockMvc, BankCsvTest.SPARKASSE_CATEGORIES);
+        assertThat(JsonPath.<Integer>read(categories, "$.duplicates")).isEqualTo(2);
+    }
+
+    @Test
+    void aSourceGoesToTheOwnAccountWithItsIban() throws Exception {
+        long giro = ((Number) JsonPath.read(mockMvc.perform(get("/api/bank-accounts")).andReturn().getResponse()
+                .getContentAsString(), "$[0].id")).longValue();
+        mockMvc.perform(put("/api/bank-accounts/{id}", giro).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Girokonto", "iban": "%s", "archived": false, "defaultAccount": true}"""
+                        .formatted("DE89 3704 0044 0532 0130 00")))
+                .andExpect(status().isOk());
+
+        String preview = previewJson(mockMvc, BankCsvTest.SPARKASSE_MT940);
+
+        assertThat(((Number) JsonPath.read(preview, "$.sources[0].accountId")).longValue()).isEqualTo(giro);
+    }
+
     // --- R30 possible duplicates ---
 
     @Test
