@@ -35,6 +35,8 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
   const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
   const [query, setQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  // US26, US30: only with more than one account
+  const [accountFilter, setAccountFilter] = useState('')
   // Wiederkehrend, einmalig (single transactions that are no transfer) or Umbuchung (R27)
   const [kind, setKind] = useState<'' | Transaction['kind'] | 'TRANSFER'>('')
 
@@ -59,11 +61,13 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
   const shown = (transactions.data ?? []).filter(
     (entry) =>
       (categoryId === '' || String(entry.categoryId) === categoryId) &&
+      (accountFilter === '' || String(entry.accountId) === accountFilter) &&
       (kind === '' || kindOf(entry) === kind) &&
       (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search)),
   )
   const sums = totals(shown)
-  const filtered = search !== '' || categoryId !== '' || kind !== ''
+  const filtered = search !== '' || categoryId !== '' || kind !== '' || accountFilter !== ''
+  const accounts = bankAccounts.data ?? []
 
   return (
     <section>
@@ -131,6 +135,16 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
               </option>
             ))}
           </select>
+          {accounts.length > 1 && (
+            <select aria-label="Konto filtern" value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
+              <option value="">Alle Konten</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.archived ? `${account.name} (archiviert)` : account.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             aria-label="Art filtern"
             value={kind}
@@ -177,7 +191,7 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
           entries={shown}
           categories={categories.data ?? []}
           today={today}
-          showAccount={(bankAccounts.data?.length ?? 0) > 1}
+          showAccount={accounts.length > 1}
           onSelect={booking.openEdit}
         />
       )}

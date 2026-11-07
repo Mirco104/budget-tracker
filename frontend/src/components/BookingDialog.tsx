@@ -109,9 +109,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [amount, setAmount] = useState(entry ? toAmountText(entry.amount) : '')
   const [description, setDescription] = useState(entry?.description ?? '')
   // TRANSFER stands for a transfer between own accounts, which has no category (R27)
-  const [chosenCategory, setChosenCategory] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
-  // US32: a new booking takes the suggested category until the user chooses one; an edited entry keeps its own
-  const [categoryChosen, setCategoryChosen] = useState(entry !== null)
+  const [categoryId, setCategoryId] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
   // '' is the default account (R26)
   const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? defaultDate)
@@ -126,7 +124,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const quick = lastUsed(recent, categories, kind)
   // US32: the suggestion for the description, asked for once typing pauses; R28: for a new single booking also the
   // occurrence of a series it replaces, from amount and date
-  const newSingle = !entry && repeat === 'NONE' && chosenCategory !== TRANSFER
+  const newSingle = !entry && repeat === 'NONE' && categoryId !== TRANSFER
   const parsedAmount = parseAmountInput(amount)
   const signedAmount = parsedAmount === null || parsedAmount <= 0 ? null : kind === 'expense' ? -parsedAmount : parsedAmount
   // Debounced as a string, so equal values do not start the timer again
@@ -139,17 +137,15 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const suggestion = useBookingSuggestion(
     asked.text,
     kind === 'income',
-    (!categoryChosen || newSingle) && asked.text.length >= 2,
+    (categoryId === '' || newSingle) && asked.text.length >= 2,
     asked,
   )
   const suggestedOccurrence = newSingle ? (suggestion.data?.occurrence ?? null) : null
   const [keepReplace, setKeepReplace] = useState(true)
+  // US32, decision 46: the suggestion is never preset; it is offered as a button while no category is chosen
   const suggestedId = suggestion.data?.categoryId
   const suggested =
-    !categoryChosen && suggestedId != null && categories.some((c) => c.id === suggestedId && !c.archived)
-      ? String(suggestedId)
-      : null
-  const categoryId = categoryChosen ? chosenCategory : (suggested ?? '')
+    categoryId === '' && suggestedId != null ? categories.find((c) => c.id === suggestedId && !c.archived) : undefined
 
   const transfer = categoryId === TRANSFER
   const recurring = repeat !== 'NONE' && !transfer
@@ -163,8 +159,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
         : 'none'
 
   function chooseCategory(value: string) {
-    setChosenCategory(value)
-    setCategoryChosen(true)
+    setCategoryId(value)
   }
 
   const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
@@ -333,10 +328,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
         </label>
 
         <div className="field">
-          <span className="field-label">
-            <span id="booking-category-label">Kategorie</span>
-            {suggested !== null && <span className="badge suggestion">Vorschlag</span>}
-          </span>
+          <span id="booking-category-label">Kategorie</span>
           {quick.length > 0 && (
             <div className="chips" role="group" aria-label="Zuletzt genutzt">
               {quick.map((category) => (
@@ -367,6 +359,12 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
               </option>
             ))}
           </select>
+          {suggested && (
+            <button type="button" className="chip suggestion-chip" onClick={() => chooseCategory(String(suggested.id))}>
+              <CategoryIcon icon={suggested.icon} size={14} />
+              Vorschlag: {suggested.name}
+            </button>
+          )}
           {errors.categoryId && <span className="error">{errors.categoryId}</span>}
         </div>
 

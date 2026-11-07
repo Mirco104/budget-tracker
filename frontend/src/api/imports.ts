@@ -40,6 +40,16 @@ export interface ImportEntry {
   duplicateOf: { id: number; date: string; description: string } | null
 }
 
+/** R31: rows that look like a monthly series that does not exist yet; categoryId is only a suggestion. */
+export interface ImportSeries {
+  lines: number[]
+  startDate: string
+  amount: number
+  description: string
+  source: string
+  categoryId: number | null
+}
+
 export interface ImportPreview {
   profile: ImportProfile
   profileLabel: string
@@ -49,6 +59,7 @@ export interface ImportPreview {
   skipped: number
   sources: ImportSource[]
   entries: ImportEntry[]
+  series: ImportSeries[]
 }
 
 export interface ImportRequest {

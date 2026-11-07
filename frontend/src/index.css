@@ -1935,16 +1935,9 @@ button.tx:hover:not(:disabled) {
   margin: 2px 0 0;
 }
 
-/* US32: the category came from the suggestion */
-.field-label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.badge.suggestion {
-  background: var(--primary-soft);
-  color: var(--primary);
+/* US32, decision 46: a suggestion is a button, never preset */
+.suggestion-chip {
+  align-self: flex-start;
 }
 
 .tx-amount.transfer {
@@ -2319,8 +2312,30 @@ button.tx:hover:not(:disabled) {
   font-weight: 600;
 }
 
-.import-view {
+.import-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
+}
+
+/* R31: a monthly series the rows suggest */
+.import-series {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+}
+
+.import-series p {
+  margin: 0 0 8px;
+}
+
+.import-series-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .import-list {
