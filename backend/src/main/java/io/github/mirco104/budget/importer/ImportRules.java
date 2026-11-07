@@ -70,11 +70,14 @@ public final class ImportRules {
         return null;
     }
 
-    /** The values that make two rows of a file equal; equal rows are told apart by their number (R30). */
-    public static String sameRowKey(BankTransaction row) {
-        return String.join("|", row.accountName(), row.bookingDate().toString(),
-                row.amount().stripTrailingZeros().toPlainString(), nullToEmpty(row.counterpartyName()),
-                nullToEmpty(row.remittanceInformation()));
+    /**
+     * The values that make two rows of a file equal; equal rows are told apart by their number (R30). Without the
+     * purpose for the Sparkasse (decision 47); for every other bank exactly as before, so fingerprints stay the same.
+     */
+    public static String sameRowKey(BankProfile profile, BankTransaction row) {
+        String key = String.join("|", row.accountName(), row.bookingDate().toString(),
+                row.amount().stripTrailingZeros().toPlainString(), nullToEmpty(row.counterpartyName()));
+        return profile.purposeInFingerprint() ? key + "|" + nullToEmpty(row.remittanceInformation()) : key;
     }
 
     /**
@@ -84,7 +87,7 @@ public final class ImportRules {
     public static String fingerprint(BankProfile profile, BankTransaction row, int number) {
         String text = row.entryReference() != null
                 ? profile.name() + "|id|" + row.entryReference()
-                : profile.name() + "|" + sameRowKey(row) + "|" + number;
+                : profile.name() + "|" + sameRowKey(profile, row) + "|" + number;
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
@@ -98,10 +101,17 @@ public final class ImportRules {
         return cut(profile.name() + ":" + source, MAX_SOURCE_KEY, "");
     }
 
-    /** The name of a new account for a source: "C24 Ausgabenkonto", "Trade Republic" for its default account. */
+    /**
+     * The name of a new account for a source: "C24 Ausgabenkonto", "Trade Republic" for its default account,
+     * "Sparkasse …3000" with the end of the IBAN.
+     */
     public static String accountName(BankProfile profile, String source) {
         boolean plain = source == null || source.isBlank()
                 || (profile == BankProfile.TRADE_REPUBLIC && source.equalsIgnoreCase("DEFAULT"));
+        if (!plain && profile == BankProfile.SPARKASSE) {
+            String iban = source.replaceAll("\\s", "");
+            return profile.label() + " …" + iban.substring(Math.max(0, iban.length() - 4));
+        }
         return cut(plain ? profile.label() : profile.label() + " " + source.trim(), MAX_ACCOUNT_NAME, "");
     }
 

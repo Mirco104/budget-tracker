@@ -9,12 +9,15 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.github.mirco104.budget.importer.BankTransaction.Status;
 
@@ -32,6 +35,13 @@ public final class BankCsv {
     private static final Pattern GERMAN_NUMBER = Pattern.compile("[+-]?\\d+(,\\d+)?");
     private static final Pattern PLAIN_NUMBER = Pattern.compile("[+-]?\\d+(\\.\\d+)?");
     private static final String NO_AMOUNT = "ohne Betrag";
+    // Sparkasse: "05.11.26" is 05.11.2026 (years 2000 to 2099)
+    private static final DateTimeFormatter SHORT_GERMAN_DATE = new DateTimeFormatterBuilder()
+            .appendPattern("dd.MM.")
+            .appendValueReduced(ChronoField.YEAR, 2, 2, 2000)
+            .toFormatter(Locale.ROOT);
+    // SEPA tags in the purpose of CSV-MT940 ("EREF+…MREF+…CRED+…SVWZ+…")
+    private static final Pattern SEPA_TAG = Pattern.compile("(EREF|KREF|MREF|CRED|DEBT|SVWZ|ABWA|ABWE|IBAN|BIC|COAM|OAMT)\\+");
 
     /**
      * A record after the header: its line in the file and either the normalized booking (decision 46) or why it could
@@ -46,7 +56,8 @@ public final class BankCsv {
     /** The file has no header of a known profile among its first records. */
     public static class UnknownFormatException extends RuntimeException {
         UnknownFormatException() {
-            super("Das Format der Datei ist unbekannt. Unterstützt werden CSV-Exporte von C24, Trade Republic und N26.");
+            super("Das Format der Datei ist unbekannt. Unterstützt werden CSV-Exporte von C24, Trade Republic, N26 und der "
+                    + "Sparkasse.");
         }
     }
 
@@ -185,6 +196,7 @@ public final class BankCsv {
             case C24 -> c24(values);
             case TRADE_REPUBLIC -> tradeRepublic(values);
             case N26 -> n26(values);
+            case SPARKASSE -> sparkasse(values);
         };
     }
 
@@ -253,6 +265,79 @@ public final class BankCsv {
                 get(v, "Payment Reference"),
                 null, null, null,
                 type, null, type);
+    }
+
+    // Sparkasse (decision 47): one reader for all four exports, led by the columns the file has
+    private static BankTransaction sparkasse(Map<String, String> v) {
+        String dateText = get(v, "Buchungstag");
+        LocalDate date = dateText == null ? null : date(dateText, SHORT_GERMAN_DATE);
+        String valueText = get(v, "Valutadatum");
+        LocalDate valueDate = valueText == null ? null : date(valueText, SHORT_GERMAN_DATE);
+        BigDecimal amount = amount(get(v, "Betrag"), true);
+        Status status = sparkasseStatus(get(v, "Info"), date);
+        String purpose = get(v, "Verwendungszweck");
+        Map<String, String> tags = sepaTags(purpose);
+        String account = orEmpty(get(v, "Auftragskonto"));
+        String kind = get(v, "Buchungstext");
+        String category = get(v, "Kategorie");
+        String currency = get(v, "Waehrung");
+        return new BankTransaction(
+                account, account.isEmpty() ? null : account,
+                date, valueDate, amount, currency != null ? currency.toUpperCase(Locale.ROOT) : "EUR", status,
+                get(v, "Beguenstigter/Zahlungspflichtiger"),
+                firstOf(get(v, "Kontonummer/IBAN"), get(v, "Kontonummer")),
+                firstOf(get(v, "BIC (SWIFT-Code)"), get(v, "BLZ")),
+                tags.isEmpty() ? purpose : tags.get("SVWZ"),
+                // "mit Kategorien" puts the end-to-end reference into Sammlerreferenz
+                tags.isEmpty() ? firstOf(get(v, "Kundenreferenz (End-to-End)"), get(v, "Sammlerreferenz")) : tags.get("EREF"),
+                tags.isEmpty() ? get(v, "Mandatsreferenz") : tags.get("MREF"),
+                tags.isEmpty() ? get(v, "Glaeubiger ID") : tags.get("CRED"),
+                kind, null, category != null ? category : kind);
+    }
+
+    // No export had a pending row (decision 47): "vorgemerkt" or no booking date is pending, another state is not read
+    private static Status sparkasseStatus(String info, LocalDate date) {
+        if (date == null || (info != null && info.toLowerCase(Locale.ROOT).contains("vorgemerkt"))) {
+            return Status.PENDING;
+        }
+        if (info == null || info.equalsIgnoreCase("Umsatz gebucht")) {
+            return Status.BOOKED;
+        }
+        throw new SkipException("Status unbekannt: " + info);
+    }
+
+    /**
+     * The SEPA tags of a purpose that starts with one (CSV-MT940), each with the text up to the next tag; empty for any
+     * other purpose. A tag only counts with its name in capitals and "+" ("Abo+" is none).
+     */
+    static Map<String, String> sepaTags(String purpose) {
+        if (purpose == null) {
+            return Map.of();
+        }
+        Matcher matcher = SEPA_TAG.matcher(purpose);
+        if (!matcher.lookingAt()) {
+            return Map.of();
+        }
+        Map<String, String> tags = new HashMap<>();
+        String tag = matcher.group(1);
+        int start = matcher.end();
+        while (matcher.find()) {
+            putTag(tags, tag, purpose.substring(start, matcher.start()));
+            tag = matcher.group(1);
+            start = matcher.end();
+        }
+        putTag(tags, tag, purpose.substring(start));
+        return tags;
+    }
+
+    private static void putTag(Map<String, String> tags, String tag, String value) {
+        if (!value.isBlank()) {
+            tags.putIfAbsent(tag, value.trim());
+        }
+    }
+
+    private static String firstOf(String first, String second) {
+        return first != null ? first : second;
     }
 
     // The value of a column, null when the column is missing or empty

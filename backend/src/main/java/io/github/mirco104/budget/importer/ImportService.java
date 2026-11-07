@@ -4,6 +4,7 @@ import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.bankaccount.BankAccountSource;
 import io.github.mirco104.budget.bankaccount.BankAccountSourceRepository;
+import io.github.mirco104.budget.bankaccount.Iban;
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
@@ -134,7 +135,7 @@ public class ImportService {
             if (row == null || ruleSkips.containsKey(line.number())) {
                 continue;
             }
-            int number = equalRows.merge(ImportRules.sameRowKey(row), 1, Integer::sum);
+            int number = equalRows.merge(ImportRules.sameRowKey(profile, row), 1, Integer::sum);
             String counterparty = cut(row.counterpartyName());
             String description = ImportRules.describe(row.counterpartyName(),
                     ImportRules.cleanPurpose(row.remittanceInformation()), row.bankTransactionCode());
@@ -212,6 +213,15 @@ public class ImportService {
         if (accountId == null) {
             accountId = accounts.stream()
                     .filter(a -> a.getName().equalsIgnoreCase(suggestedName))
+                    .map(BankAccount::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+        // AP 26h: a source that is an IBAN (Sparkasse) goes to the own account with that IBAN
+        String iban = Iban.normalize(name);
+        if (accountId == null && iban != null) {
+            accountId = accounts.stream()
+                    .filter(a -> iban.equals(a.getIban()))
                     .map(BankAccount::getId)
                     .findFirst()
                     .orElse(null);
