@@ -96,6 +96,22 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$.entries[3].reason").value("vorgemerkt (noch nicht gebucht)"));
     }
 
+    // Decision 46: the hints of the kind come from the profile Trade Republic only
+    @Test
+    void onlyTradeRepublicKindsPointToInvestitionen() throws Exception {
+        long investitionen = category(user, "Investitionen");
+        String tradeRepublic = previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC);
+        Map<String, Object> plan = JsonPath.<List<Map<String, Object>>>read(tradeRepublic, "$.entries[?(@.line == 3)]").getFirst();
+        assertThat(((Number) plan.get("categoryId")).longValue()).isEqualTo(investitionen);
+
+        String c24 = """
+                Transaktionstyp,Buchungsdatum,Betrag,Zahlungsempfänger,IBAN,Verwendungszweck,Beschreibung,Kontonummer,Kontoname,Kategorie,Unterkategorie
+                Lastschrift,03.11.2026,"-150,00 €",Broker,,Sparplan,,1000000001,Ausgabenkonto,SAVINGS_PLAN,
+                """;
+        Map<String, Object> row = JsonPath.<List<Map<String, Object>>>read(previewJson(mockMvc, c24), "$.entries").getFirst();
+        assertThat(row.get("categoryId")).isNull();
+    }
+
     @Test
     void anUnknownFileIsAFieldError() throws Exception {
         preview(mockMvc, "Datum;Wert\n01.01.2026;5\n")

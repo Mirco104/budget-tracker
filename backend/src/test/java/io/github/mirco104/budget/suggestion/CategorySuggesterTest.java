@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.mirco104.budget.suggestion.CategorySuggester.CategoryData;
 import io.github.mirco104.budget.suggestion.CategorySuggester.Entry;
+import io.github.mirco104.budget.suggestion.CategorySuggester.KindHint;
 import io.github.mirco104.budget.suggestion.CategorySuggester.Suggestion;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -133,15 +134,26 @@ class CategorySuggesterTest {
     }
 
     @Test
-    void tradeRepublicKindsPointToInvestitionenAndKapitalertraege() {
-        assertThat(suggest("Kauf Welt-ETF", false, "BUY", List.of())).contains(new Suggestion(INVESTITIONEN, false));
-        assertThat(suggest("Sparplan Welt-ETF", false, "SAVINGS_PLAN", List.of()))
-                .contains(new Suggestion(INVESTITIONEN, false));
-        assertThat(suggest("Verkauf Welt-ETF", true, "SELL", List.of())).contains(new Suggestion(INVESTITIONEN, false));
-        assertThat(suggest("Zinsen", true, "INTEREST_PAYOUT", List.of()))
-                .contains(new Suggestion(KAPITALERTRAEGE, false));
-        assertThat(suggest("Dividende Welt-ETF", true, "DIVIDEND", List.of()))
-                .contains(new Suggestion(KAPITALERTRAEGE, false));
+    void kindHintsOfTheProfilePointToInvestitionenAndKapitalertraege() {
+        assertThat(withHints("Kauf Welt-ETF", false, "BUY")).contains(new Suggestion(INVESTITIONEN, false));
+        assertThat(withHints("Sparplan Welt-ETF", false, "SAVINGS_PLAN")).contains(new Suggestion(INVESTITIONEN, false));
+        assertThat(withHints("Verkauf Welt-ETF", true, "SELL")).contains(new Suggestion(INVESTITIONEN, false));
+        assertThat(withHints("Zinsen", true, "INTEREST_PAYOUT")).contains(new Suggestion(KAPITALERTRAEGE, false));
+        assertThat(withHints("Dividende Welt-ETF", true, "DIVIDEND")).contains(new Suggestion(KAPITALERTRAEGE, false));
+    }
+
+    // Decision 46: without the hints of the profile Trade Republic a kind like BUY means nothing
+    @Test
+    void withoutKindHintsTheKindsOfTradeRepublicSuggestNothing() {
+        assertThat(suggest("Kauf Welt-ETF", false, "BUY", List.of())).isEmpty();
+        assertThat(suggest("Zinsen", true, "INTEREST_PAYOUT", List.of())).isEmpty();
+    }
+
+    @Test
+    void aHintForACategoryTheUserDoesNotHaveSuggestsNothing() {
+        List<KindHint> hints = List.of(new KindHint("BUY", "Sparen"));
+
+        assertThat(CategorySuggester.suggest("Kauf", false, "BUY", hints, List.of(), CATEGORIES)).isEmpty();
     }
 
     @Test
@@ -179,7 +191,17 @@ class CategorySuggesterTest {
     }
 
     private static Optional<Suggestion> suggest(String text, boolean income, String bankCategory, List<Entry> history) {
-        return CategorySuggester.suggest(text, income, bankCategory, history, CATEGORIES);
+        return CategorySuggester.suggest(text, income, bankCategory, List.of(), history, CATEGORIES);
+    }
+
+    // The hints the profile Trade Republic gives (BankProfile)
+    private static final List<KindHint> TRADE_REPUBLIC = List.of(
+            new KindHint("BUY", "Investitionen"), new KindHint("SELL", "Investitionen"),
+            new KindHint("SAVINGS", "Investitionen"), new KindHint("INTEREST", "Kapitalerträge"),
+            new KindHint("DIVIDEND", "Kapitalerträge"));
+
+    private static Optional<Suggestion> withHints(String text, boolean income, String bankCategory) {
+        return CategorySuggester.suggest(text, income, bankCategory, TRADE_REPUBLIC, List.of(), CATEGORIES);
     }
 
     private static Entry expense(String text, long categoryId, String date) {
