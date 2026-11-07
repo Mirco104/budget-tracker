@@ -192,7 +192,8 @@ public class ImportService {
         int duplicateCount = (int) ordered.stream().filter(e -> e.status() == Status.DUPLICATE).count();
         int skipped = (int) ordered.stream().filter(e -> e.status() == Status.SKIPPED).count();
         return new ImportPreviewResponse(profile, profile.label(), ordered.size(), ordered.size() - duplicateCount - skipped,
-                duplicateCount, skipped, List.copyOf(sources.values()), ordered);
+                duplicateCount, skipped, List.copyOf(sources.values()), ordered,
+                seriesSuggestions(fresh, transfers, matches, suggestions));
     }
 
     private static Source source(
@@ -217,6 +218,33 @@ public class ImportService {
         LocalDate to = fresh.stream().map(c -> c.line().row().date()).max(Comparator.naturalOrder()).orElseThrow();
         return transactionRepository.findCountedBetween(owner, from.minusDays(ImportMatcher.TRANSFER_DAYS),
                 to.plusDays(ImportMatcher.TRANSFER_DAYS));
+    }
+
+    // R31: monthly series among the new rows that are no transfer and replace no occurrence of an existing series
+    private static List<ImportPreviewResponse.SeriesSuggestion> seriesSuggestions(List<Candidate> fresh,
+            Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Planned> matches,
+            Map<Integer, Suggestion> suggestions) {
+        Map<Integer, Candidate> byIndex = new HashMap<>();
+        List<SeriesDetector.Row> rows = new ArrayList<>();
+        for (Candidate c : fresh) {
+            if (!transfers.containsKey(c.index()) && !matches.containsKey(c.index())) {
+                byIndex.put(c.index(), c);
+                rows.add(new SeriesDetector.Row(c.index(), c.line().row().date(), c.line().row().amount(),
+                        CategorySuggester.key(c.text()), c.description()));
+            }
+        }
+        return SeriesDetector.detect(rows).stream().map(series -> {
+            List<Candidate> covered = series.indices().stream().map(byIndex::get).toList();
+            Map<Long, Long> votes = covered.stream()
+                    .map(c -> suggestions.get(c.index()))
+                    .filter(java.util.Objects::nonNull)
+                    .collect(java.util.stream.Collectors.groupingBy(Suggestion::categoryId,
+                            java.util.stream.Collectors.counting()));
+            Long category = votes.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+            return new ImportPreviewResponse.SeriesSuggestion(
+                    covered.stream().map(c -> c.line().number()).toList(), series.startDate(), series.amount(),
+                    series.description(), covered.getLast().source(), category);
+        }).toList();
     }
 
     // R28: occurrences around the dates of the file that the rows (no transfers) replace
