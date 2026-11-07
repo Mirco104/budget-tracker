@@ -20,7 +20,7 @@ public record AccountExport(
     public record Account(String email, String displayName, Role role, Instant createdAt) {
     }
 
-    public record CategoryExport(String name, int sortOrder, boolean archived, List<TargetExport> targets) {
+    public record CategoryExport(String name, boolean archived, List<TargetExport> targets) {
     }
 
     public record TargetExport(YearMonth validFrom, BigDecimal targetAmount) {
