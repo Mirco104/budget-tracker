@@ -73,6 +73,7 @@ const transactions: Transaction[] = [
     accountId: 1,
     accountName: 'Girokonto',
     transfer: false,
+    replaces: null,
   },
   {
     kind: 'SINGLE',
@@ -87,6 +88,7 @@ const transactions: Transaction[] = [
     accountId: 1,
     accountName: 'Girokonto',
     transfer: false,
+    replaces: null,
   },
 ]
 

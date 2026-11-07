@@ -11,10 +11,10 @@ const categories: Category[] = [
 ]
 
 const transactions: Transaction[] = [
-  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false },
-  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false },
-  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false },
-  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false },
+  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
 ]
 
 const series: RecurringTransaction[] = [
@@ -76,6 +76,7 @@ describe('TransactionsPage', () => {
     const transfer: Transaction = {
       kind: 'SINGLE', id: 99, recurringId: null, occurrenceDate: null, amount: -500, description: 'Aufs Tagesgeld',
       date: '2026-10-05', categoryId: null, categoryName: null, accountId: 1, accountName: 'Girokonto', transfer: true,
+      replaces: null,
     }
     renderPage([...transactions, transfer])
 
@@ -111,6 +112,23 @@ describe('TransactionsPage', () => {
       expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('/api/transactions?from=2026-10-05&to=2026-10-20'),
     )
     window.location.hash = ''
+  })
+
+  // R28: a booking that replaces an occurrence is marked recurring and found with the kind Wiederkehrend
+  it('marks a booking that replaces an occurrence as recurring', async () => {
+    const replacing: Transaction = {
+      kind: 'SINGLE', id: 98, recurringId: null, occurrenceDate: null, amount: -905, description: 'Miete Bank',
+      date: '2026-10-02', categoryId: 1, categoryName: 'Wohnen', accountId: 1, accountName: 'Girokonto', transfer: false,
+      replaces: { recurringId: 4, date: '2026-10-01' },
+    }
+    renderPage([...transactions, replacing])
+
+    const row = await screen.findByRole('button', { name: /Miete Bank/ })
+    expect(row).toHaveTextContent('wiederkehrend')
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
+    expect(screen.queryByRole('button', { name: /Miete Bank/ })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'RECURRING' } })
+    expect(screen.getByRole('button', { name: /Miete Bank/ })).toBeInTheDocument()
   })
 
   // US30: with more than one account each entry names its account
@@ -338,7 +356,7 @@ describe('TransactionsPage', () => {
   })
 
   it('separates the months with a heading and the sums of each month, newest month first', async () => {
-    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false }
+    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
     renderPage([...transactions, september])
 
     await screen.findByText('Buch')
