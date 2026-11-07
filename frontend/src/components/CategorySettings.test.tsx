@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Category } from '../api/types'
 import { CategorySettings } from './CategorySettings'
@@ -7,10 +7,10 @@ import { categoryIconLabel } from './ui/categoryIcons'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', sortOrder: 10, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 2, name: 'Freizeit', icon: 'music', sortOrder: 20, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 4, name: 'Urlaub', icon: 'suitcase', sortOrder: 40, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 3, name: 'Kredite', icon: 'card', sortOrder: 30, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 2, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 4, name: 'Urlaub', icon: 'suitcase', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 3, name: 'Kredite', icon: 'card', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
 function json(body: unknown, status = 200) {
@@ -49,7 +49,8 @@ function openMenu(name: string) {
 }
 
 describe('CategorySettings', () => {
-  it('lists active categories in order with icon and archived ones in their own section', async () => {
+  // Decision 38: the backend sends them alphabetically; the page keeps that order and offers no sorting
+  it('lists active categories in the order of the backend, with icon, and archived ones apart', async () => {
     renderSettings()
 
     await screen.findByRole('listitem', { name: 'Wohnen' })
@@ -62,11 +63,12 @@ describe('CategorySettings', () => {
     expect(row('Wohnen').querySelector('.category-icon')).toHaveAttribute('data-icon', 'home')
     expect(screen.getByRole('heading', { name: 'Archiviert (1)' })).toBeInTheDocument()
     expect(within(archived).getByRole('button', { name: 'Wiederherstellen' })).toBeInTheDocument()
-    // No buttons per row except icon and menu (decision: everything else is in "⋯")
+    // No buttons per row except icon and menu (decision: everything else is in "⋯"), and no drag handle
     expect(within(row('Wohnen')).getAllByRole('button')).toHaveLength(2)
+    expect(row('Wohnen').querySelector('[draggable="true"]')).toBeNull()
   })
 
-  it('offers rename, icon, move, archive and delete in the menu "⋯"', async () => {
+  it('offers rename, icon, archive and delete in the menu "⋯", no moving', async () => {
     renderSettings()
     await screen.findByRole('listitem', { name: 'Wohnen' })
 
@@ -75,13 +77,9 @@ describe('CategorySettings', () => {
     expect(menu.getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Umbenennen',
       'Icon ändern',
-      'Nach oben',
-      'Nach unten',
       'Archivieren',
       'Löschen',
     ])
-    // The first category cannot move up
-    expect(menu.getByRole('button', { name: 'Nach oben' })).toBeDisabled()
     expect(menu.getByRole('button', { name: 'Umbenennen' })).toHaveFocus()
   })
 
@@ -108,7 +106,44 @@ describe('CategorySettings', () => {
     const [url, init] = writeCalls(fetchMock)[0]
     expect(url).toBe('/api/categories')
     expect(init?.method).toBe('POST')
-    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Haustier' })
+    // Without choosing, the new category gets the default icon (US28)
+    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Haustier', icon: 'tag' })
+  })
+
+  // A new category can get its icon right away (US28)
+  it('creates a category with a chosen icon', async () => {
+    const fetchMock = renderSettings(() => json({ ...categories[0], id: 5, name: 'Haustier', icon: 'paw' }, 201))
+    await screen.findByRole('listitem', { name: 'Wohnen' })
+    fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
+
+    const iconButton = screen.getByRole('button', { name: 'Icon' })
+    expect(iconButton.querySelector('.category-icon')).toHaveAttribute('data-icon', 'tag')
+    fireEvent.click(iconButton)
+    const picker = screen.getByRole('group', { name: 'Icon wählen' })
+    const chosen = within(picker).getAllByRole('button', { pressed: false })[0]
+    const key = chosen.querySelector('.category-icon')?.getAttribute('data-icon')
+    fireEvent.click(chosen)
+
+    expect(screen.queryByRole('group', { name: 'Icon wählen' })).not.toBeInTheDocument()
+    expect(iconButton.querySelector('.category-icon')).toHaveAttribute('data-icon', key)
+    fireEvent.change(screen.getByLabelText('Neue Kategorie'), { target: { value: 'Haustier' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    expect(JSON.parse(String(writeCalls(fetchMock)[0][1]?.body))).toEqual({ name: 'Haustier', icon: key })
+  })
+
+  it('starts again with the default icon after cancelling', async () => {
+    renderSettings()
+    await screen.findByRole('listitem', { name: 'Wohnen' })
+    fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Icon' }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Icon wählen' })).getAllByRole('button', { pressed: false })[0])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
+
+    expect(screen.getByRole('button', { name: 'Icon' }).querySelector('.category-icon')).toHaveAttribute('data-icon', 'tag')
   })
 
   it('does not create a category without a name', async () => {
@@ -136,7 +171,7 @@ describe('CategorySettings', () => {
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
     const [url, init] = writeCalls(fetchMock)[0]
     expect(url).toBe('/api/categories/1')
-    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Miete und Wohnen', sortOrder: 10, archived: false, icon: 'home' })
+    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Miete und Wohnen', archived: false, icon: 'home' })
   })
 
   it('cancels renaming with Escape', async () => {
@@ -164,55 +199,6 @@ describe('CategorySettings', () => {
     expect(await within(row('Wohnen')).findByRole('alert')).toHaveTextContent('Den Namen „Freizeit“ gibt es schon.')
   })
 
-  // US10: "Nach oben" / "Nach unten" also work with the keyboard; the backend swaps neighbours
-  it('moves down and up from the menu', async () => {
-    const fetchMock = renderSettings()
-    await screen.findByRole('listitem', { name: 'Wohnen' })
-
-    openMenu('Wohnen').getByRole('button', { name: 'Nach unten' }).click()
-    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
-    expect(lastBody(fetchMock)).toEqual({ name: 'Wohnen', sortOrder: 20, archived: false, icon: 'home' })
-
-    openMenu('Urlaub').getByRole('button', { name: 'Nach oben' }).click()
-    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(2))
-    expect(lastBody(fetchMock)).toEqual({ name: 'Urlaub', sortOrder: 20, archived: false, icon: 'suitcase' })
-  })
-
-  it('cannot move the last category down', async () => {
-    renderSettings()
-    await screen.findByRole('listitem', { name: 'Urlaub' })
-
-    expect(openMenu('Urlaub').getByRole('button', { name: 'Nach unten' })).toBeDisabled()
-  })
-
-  // US10: sort by dragging; the dropped category takes the place of the target in one request
-  it('moves a category by dragging it onto another one', async () => {
-    const fetchMock = renderSettings()
-    await screen.findByRole('listitem', { name: 'Urlaub' })
-
-    const handle = row('Urlaub').querySelector('.drag-handle') as HTMLElement
-    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
-    fireEvent(handle, Object.assign(createEvent.dragStart(handle), { dataTransfer }))
-    fireEvent.dragOver(row('Wohnen'))
-    expect(row('Wohnen')).toHaveClass('drop-target')
-    fireEvent.drop(row('Wohnen'))
-
-    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
-    expect(writeCalls(fetchMock)[0][0]).toBe('/api/categories/4')
-    expect(lastBody(fetchMock)).toEqual({ name: 'Urlaub', sortOrder: 10, archived: false, icon: 'suitcase' })
-  })
-
-  it('does nothing when a category is dropped onto itself', async () => {
-    const fetchMock = renderSettings()
-    await screen.findByRole('listitem', { name: 'Urlaub' })
-
-    const handle = row('Urlaub').querySelector('.drag-handle') as HTMLElement
-    fireEvent(handle, Object.assign(createEvent.dragStart(handle), { dataTransfer: { setData: vi.fn() } }))
-    fireEvent.drop(row('Urlaub'))
-
-    expect(writeCalls(fetchMock)).toHaveLength(0)
-  })
-
   it('changes the icon from the picker, by the icon button or the menu', async () => {
     const fetchMock = renderSettings()
     await screen.findByRole('listitem', { name: 'Wohnen' })
@@ -238,11 +224,11 @@ describe('CategorySettings', () => {
 
     openMenu('Freizeit').getByRole('button', { name: 'Archivieren' }).click()
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
-    expect(lastBody(fetchMock)).toEqual({ name: 'Freizeit', sortOrder: 20, archived: true, icon: 'music' })
+    expect(lastBody(fetchMock)).toEqual({ name: 'Freizeit', archived: true, icon: 'music' })
 
     fireEvent.click(within(row('Kredite')).getByRole('button', { name: 'Wiederherstellen' }))
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(2))
-    expect(lastBody(fetchMock)).toEqual({ name: 'Kredite', sortOrder: 30, archived: false, icon: 'card' })
+    expect(lastBody(fetchMock)).toEqual({ name: 'Kredite', archived: false, icon: 'card' })
   })
 
   it('deletes only after asking once more', async () => {

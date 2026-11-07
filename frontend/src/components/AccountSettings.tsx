@@ -119,14 +119,21 @@ function PasswordForm({ onDone, onCancel }: EditProps) {
   const change = useChangePassword()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  // Typed twice, so a typo cannot lock the user out (US16)
+  const [repeat, setRepeat] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (currentPassword === '' || newPassword === '') {
-      setError('Bitte beide Passwörter eingeben.')
+    if (currentPassword === '' || newPassword === '' || repeat === '') {
+      setError('Bitte alle drei Felder ausfüllen.')
       return
     }
+    if (newPassword !== repeat) {
+      setError('Die neuen Passwörter stimmen nicht überein.')
+      return
+    }
+    setError(null)
     try {
       await change.mutateAsync({ currentPassword, newPassword })
       onDone('Das Passwort ist geändert.')
@@ -153,6 +160,15 @@ function PasswordForm({ onDone, onCancel }: EditProps) {
           autoComplete="new-password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
+        />
+      </label>
+      <label>
+        Neues Passwort wiederholen
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={repeat}
+          onChange={(e) => setRepeat(e.target.value)}
         />
       </label>
       <FormButtons pending={change.isPending} onCancel={onCancel} />

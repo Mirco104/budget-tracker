@@ -103,7 +103,7 @@ class ReplacementControllerTest {
 
         User other = TestUsers.create(userService, "person-l@example.test");
         MockMvc asOther = TestUsers.mockMvcFor(context, other);
-        long othersCategory = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).getFirst().getId();
+        long othersCategory = categoryRepository.findAllByOwner(other).getFirst().getId();
         asOther.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
                         {"amount": -900, "description": "Fremd", "date": "2026-12-01", "categoryId": %d,
                          "replaces": {"recurringId": %d, "date": "2026-12-01"}}""".formatted(othersCategory, rent)))
@@ -265,7 +265,7 @@ class ReplacementControllerTest {
     }
 
     private long category(String name) {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        return categoryRepository.findAllByOwner(user).stream()
                 .filter(c -> c.getName().equals(name))
                 .map(Category::getId)
                 .findFirst()

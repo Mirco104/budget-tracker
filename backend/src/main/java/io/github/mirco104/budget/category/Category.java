@@ -80,10 +80,6 @@ public class Category {
         this.name = name;
     }
 
-    public void moveTo(int sortOrder) {
-        this.sortOrder = sortOrder;
-    }
-
     public void setArchived(boolean archived) {
         this.archived = archived;
     }
