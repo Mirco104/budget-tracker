@@ -9,6 +9,7 @@ import io.github.mirco104.budget.account.AccountExport.TransactionExport;
 import io.github.mirco104.budget.bankaccount.BankAccountRepository;
 import io.github.mirco104.budget.bankaccount.BankAccountSourceRepository;
 import io.github.mirco104.budget.importer.ImportBatchRepository;
+import io.github.mirco104.budget.category.CategoryOrder;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.category.CategoryTarget;
 import io.github.mirco104.budget.category.CategoryTargetRepository;
@@ -129,8 +130,9 @@ public class AccountService {
         List<BankAccountExport> bankAccounts = bankAccountRepository.findAllOrdered(user).stream()
                 .map(a -> new BankAccountExport(a.getName(), a.getIban(), a.isDefaultAccount(), a.isArchived()))
                 .toList();
-        List<CategoryExport> categories = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
-                .map(category -> new CategoryExport(category.getName(), category.getSortOrder(),
+        List<CategoryExport> categories = categoryRepository.findAllByOwner(user).stream()
+                .sorted(CategoryOrder.ALPHABETICAL)
+                .map(category -> new CategoryExport(category.getName(),
                         category.isArchived(), targets.getOrDefault(category.getId(), List.of())))
                 .toList();
         List<TransactionExport> transactions = transactionRepository.findByOwnerOrderByDateAscIdAsc(user).stream()
