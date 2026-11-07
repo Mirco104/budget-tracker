@@ -18,6 +18,10 @@ public record ImportPreviewResponse(
     public record Source(String key, String name, Long accountId, String suggestedName) {
     }
 
+    /** R28: the planned occurrence of a series the row replaces, with the values of the series. */
+    public record Replaces(long recurringId, LocalDate date, String description, BigDecimal amount, long categoryId) {
+    }
+
     /** A booking by hand that may be the same as the row (R30). */
     public record DuplicateOf(long id, LocalDate date, String description) {
     }
@@ -25,16 +29,18 @@ public record ImportPreviewResponse(
     /**
      * One line of the file. For SKIPPED only line, status and reason are set. categoryId is the suggestion (R29) and
      * certain its certainty; transfer is the suggestion of R27 with transferCertain, transferPeerId a stored
-     * counterpart that becomes a transfer as well.
+     * counterpart that becomes a transfer as well; replaces is the occurrence the row replaces (R28), and then
+     * categoryId is the category of its series.
      */
     public record Entry(
             int line, Status status, String reason, String fingerprint, String source, LocalDate date, BigDecimal amount,
             String description, String counterparty, String bankCategory, String suggestionKey, Long categoryId,
-            boolean certain, boolean transfer, boolean transferCertain, Long transferPeerId, DuplicateOf duplicateOf) {
+            boolean certain, boolean transfer, boolean transferCertain, Long transferPeerId, Replaces replaces,
+            DuplicateOf duplicateOf) {
 
         static Entry skipped(int line, String reason) {
             return new Entry(line, Status.SKIPPED, reason, null, null, null, null, null, null, null, null, null, false,
-                    false, false, null, null);
+                    false, false, null, null, null);
         }
     }
 }

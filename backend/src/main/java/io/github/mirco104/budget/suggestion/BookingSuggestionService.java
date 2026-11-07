@@ -1,7 +1,12 @@
 package io.github.mirco104.budget.suggestion;
 
 import io.github.mirco104.budget.category.CategoryService;
+import io.github.mirco104.budget.recurring.OccurrenceMatcher;
+import io.github.mirco104.budget.recurring.OccurrenceMatcher.Planned;
 import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
+import io.github.mirco104.budget.recurring.ReplacementService;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import io.github.mirco104.budget.suggestion.CategorySuggester.CategoryData;
 import io.github.mirco104.budget.suggestion.CategorySuggester.Entry;
 import io.github.mirco104.budget.suggestion.CategorySuggester.Suggestion;
@@ -21,11 +26,13 @@ public class BookingSuggestionService {
     private final TransactionRepository transactionRepository;
     private final RecurringTransactionRepository recurringRepository;
     private final CategoryService categoryService;
+    private final ReplacementService replacementService;
     private final CurrentUser currentUser;
 
     public BookingSuggestionService(
             TransactionRepository transactionRepository, RecurringTransactionRepository recurringRepository,
-            CategoryService categoryService, CurrentUser currentUser) {
+            CategoryService categoryService, ReplacementService replacementService, CurrentUser currentUser) {
+        this.replacementService = replacementService;
         this.transactionRepository = transactionRepository;
         this.recurringRepository = recurringRepository;
         this.categoryService = categoryService;
@@ -49,10 +56,24 @@ public class BookingSuggestionService {
         return new Suggester(Stream.concat(singles, series).toList(), categories);
     }
 
-    /** R29 for one booking. */
+    /** R29 for one booking; with amount and date also the occurrence of R28, whose series gives the category. */
     @Transactional(readOnly = true)
-    public Optional<Suggestion> suggest(String text, boolean income) {
-        return suggester().suggest(text, income, null);
+    public BookingSuggestionResponse suggest(String text, boolean income, BigDecimal amount, LocalDate date) {
+        Optional<Suggestion> suggestion = suggester().suggest(text, income, null);
+        Planned match = null;
+        if (amount != null && date != null && amount.signum() != 0 && (amount.signum() > 0) == income) {
+            OccurrenceMatcher.Booking booking = new OccurrenceMatcher.Booking(0, date, amount, text,
+                    suggestion.map(Suggestion::categoryId).orElse(null));
+            match = OccurrenceMatcher.match(List.of(booking),
+                    replacementService.plannedBetween(date.minusDays(5), date.plusDays(5))).get(0);
+        }
+        if (match != null) {
+            return new BookingSuggestionResponse(match.categoryId(), true, new BookingSuggestionResponse.Occurrence(
+                    match.recurringId(), match.date(), match.description(), match.amount().abs(), match.categoryId()));
+        }
+        return suggestion
+                .map(s -> new BookingSuggestionResponse(s.categoryId(), s.certain(), null))
+                .orElse(BookingSuggestionResponse.NONE);
     }
 
     /** The loaded history; suggests for any number of bookings without loading it again. */

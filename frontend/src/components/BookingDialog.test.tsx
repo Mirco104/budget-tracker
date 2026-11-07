@@ -14,13 +14,13 @@ const categories: Category[] = [
   { id: 30, name: 'Kredite', icon: 'card', sortOrder: 30, targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
 ]
 
-const kino: Transaction = { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false }
-const streaming: Transaction = { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false }
+const kino: Transaction = { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
+const streaming: Transaction = { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
 const recent: Transaction[] = [
-  { kind: 'SINGLE', id: 1, recurringId: null, occurrenceDate: null, amount: -50, description: 'Markt', date: '2026-10-02', categoryId: 7, categoryName: 'Lebensmittel', accountId: 1, accountName: 'Girokonto', transfer: false },
+  { kind: 'SINGLE', id: 1, recurringId: null, occurrenceDate: null, amount: -50, description: 'Markt', date: '2026-10-02', categoryId: 7, categoryName: 'Lebensmittel', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
   kino,
-  { kind: 'SINGLE', id: 2, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-01', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false },
-  { kind: 'SINGLE', id: 3, recurringId: null, occurrenceDate: null, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto', transfer: false },
+  { kind: 'SINGLE', id: 2, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-01', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 3, recurringId: null, occurrenceDate: null, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
 ]
 
 const series: RecurringTransaction[] = [
@@ -93,7 +93,48 @@ const twoAccounts: BankAccount[] = [
   { id: 3, name: 'Alt', iban: null, defaultAccount: false, archived: true, used: true },
 ]
 
+const miete = {
+  categoryId: 1,
+  certain: true,
+  occurrence: { recurringId: 3, date: '2026-10-01', description: 'Miete Wohnung', amount: 900, categoryId: 1 },
+}
+
 describe('BookingDialog', () => {
+  // R28, US35: a new booking replaces the planned occurrence the backend finds for amount and date
+  it('replaces the planned occurrence of a series unless the user unticks it', async () => {
+    const { fetchMock, onDone } = renderDialog(null, () => json({}), [], miete)
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Miete Oktober' } })
+
+    const replace = await screen.findByRole('checkbox', { name: /Ersetzt das geplante „Miete Wohnung“ vom 01.10.2026/ })
+    expect(replace).toBeChecked()
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('1')
+    const urls = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith('/api/booking-suggestion'))
+    expect(urls).toContain('/api/booking-suggestion?text=Miete%20Oktober&income=false&amount=-905&date=2026-10-18')
+    save()
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(sent(fetchMock, 'POST')?.body).toMatchObject({ amount: -905, replaces: { recurringId: 3, date: '2026-10-01' } })
+  })
+
+  it('books without replacing when the user unticks it', async () => {
+    const { fetchMock, onDone } = renderDialog(null, () => json({}), [], miete)
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Miete Oktober' } })
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Ersetzt das geplante/ }))
+    save()
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(sent(fetchMock, 'POST')?.body).not.toHaveProperty('replaces')
+  })
+
+  it('offers no replacement for a series or when an entry is edited', async () => {
+    renderDialog(kino, () => json({}), [], miete)
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(screen.queryByRole('checkbox', { name: /Ersetzt das geplante/ })).not.toBeInTheDocument()
+  })
+
   // US32: the suggestion fills the category of a new booking until the user chooses one
   it('preselects the suggested category for the description and marks it', async () => {
     const { fetchMock } = renderDialog(null, () => json({}), [], { categoryId: 7, certain: true })
@@ -281,7 +322,7 @@ describe('BookingDialog', () => {
   })
 
   it('opens a transfer with the transfer chosen', () => {
-    renderDialog({ ...kino, categoryId: null, categoryName: null, transfer: true })
+    renderDialog({ ...kino, categoryId: null, categoryName: null, transfer: true, replaces: null })
 
     expect(screen.getByLabelText('Kategorie')).toHaveValue('transfer')
   })

@@ -13,6 +13,13 @@ import io.github.mirco104.budget.importer.BankCsv.BankRow;
 import io.github.mirco104.budget.importer.BankCsv.Line;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.DuplicateOf;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Entry;
+import io.github.mirco104.budget.importer.ImportPreviewResponse.Replaces;
+import io.github.mirco104.budget.recurring.OccurrenceMatcher;
+import io.github.mirco104.budget.recurring.OccurrenceMatcher.Planned;
+import io.github.mirco104.budget.recurring.RecurringExceptionRepository;
+import io.github.mirco104.budget.recurring.RecurringTransaction;
+import io.github.mirco104.budget.recurring.ReplacementService;
+import io.github.mirco104.budget.transaction.OccurrenceRef;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Source;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Status;
 import io.github.mirco104.budget.suggestion.BookingSuggestionService;
@@ -53,14 +60,19 @@ public class ImportService {
     private final BankAccountSourceRepository sourceRepository;
     private final CategoryService categoryService;
     private final BookingSuggestionService suggestionService;
+    private final ReplacementService replacementService;
+    private final RecurringExceptionRepository exceptionRepository;
     private final CurrentUser currentUser;
     private final Clock clock;
 
     public ImportService(
             TransactionRepository transactionRepository, ImportBatchRepository batchRepository,
             BankAccountService bankAccountService, BankAccountSourceRepository sourceRepository,
-            CategoryService categoryService, BookingSuggestionService suggestionService, CurrentUser currentUser,
-            Clock clock) {
+            CategoryService categoryService, BookingSuggestionService suggestionService,
+            ReplacementService replacementService, RecurringExceptionRepository exceptionRepository,
+            CurrentUser currentUser, Clock clock) {
+        this.replacementService = replacementService;
+        this.exceptionRepository = exceptionRepository;
         this.transactionRepository = transactionRepository;
         this.batchRepository = batchRepository;
         this.bankAccountService = bankAccountService;
@@ -129,7 +141,10 @@ public class ImportService {
         List<Candidate> fresh = candidates.stream().filter(c -> !imported.contains(c.fingerprint())).toList();
 
         // R27 and R30 against the stored single transactions around the dates of the file
-        List<Transaction> stored = storedAround(owner, fresh);
+        Set<Long> replacing = replacementService.replacingIds();
+        List<Transaction> stored = storedAround(owner, fresh).stream()
+                .filter(t -> !replacing.contains(t.getId()))
+                .toList();
         Map<Long, Transaction> storedById = stored.stream().collect(Collectors.toMap(Transaction::getId, Function.identity()));
         List<ImportMatcher.Existing> existing = stored.stream()
                 .map(t -> new ImportMatcher.Existing(t.getId(), t.getAccount().getId(), t.getDate(), t.getAmount(),
@@ -146,20 +161,29 @@ public class ImportService {
         Map<Integer, Long> duplicates = ImportMatcher.possibleDuplicates(matcherRows, existing);
         BookingSuggestionService.Suggester suggester = suggestionService.suggester();
 
+        Map<Integer, Suggestion> suggestions = new HashMap<>();
+        for (Candidate c : fresh) {
+            if (!transfers.containsKey(c.index())) {
+                suggester.suggest(c.text(), c.line().row().amount().signum() > 0, c.bankCategory())
+                        .ifPresent(suggestion -> suggestions.put(c.index(), suggestion));
+            }
+        }
+        Map<Integer, Planned> matches = occurrenceMatches(fresh, transfers, suggestions);
+
         Map<Integer, Entry> entries = new HashMap<>();
         for (Candidate c : candidates) {
-            BankRow row = c.line().row();
             if (imported.contains(c.fingerprint())) {
-                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null));
+                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null));
                 continue;
             }
             ImportMatcher.Transfer transfer = transfers.get(c.index());
             Long duplicateId = duplicates.get(c.index());
             Status status = duplicateId != null ? Status.POSSIBLE_DUPLICATE : Status.NEW;
-            Suggestion suggestion = transfer != null ? null
-                    : suggester.suggest(c.text(), row.amount().signum() > 0, c.bankCategory()).orElse(null);
+            Planned match = matches.get(c.index());
+            // R28: a match goes before the suggestion, with the category of its series
+            Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
-            entries.put(c.line().number(), entry(c, status, null, suggestion, transfer, duplicateOf));
+            entries.put(c.line().number(), entry(c, status, null, suggestion, transfer, match, duplicateOf));
         }
         List<Entry> ordered = file.lines().stream()
                 .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason()) : entries.get(line.number()))
@@ -195,14 +219,35 @@ public class ImportService {
                 to.plusDays(ImportMatcher.TRANSFER_DAYS));
     }
 
+    // R28: occurrences around the dates of the file that the rows (no transfers) replace
+    private Map<Integer, Planned> occurrenceMatches(
+            List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Suggestion> suggestions) {
+        List<OccurrenceMatcher.Booking> bookings = fresh.stream()
+                .filter(c -> !transfers.containsKey(c.index()))
+                .map(c -> new OccurrenceMatcher.Booking(c.index(), c.line().row().date(), c.line().row().amount(), c.text(),
+                        suggestions.containsKey(c.index()) ? suggestions.get(c.index()).categoryId() : null))
+                .toList();
+        if (bookings.isEmpty()) {
+            return Map.of();
+        }
+        LocalDate from = bookings.stream().map(OccurrenceMatcher.Booking::date).min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate to = bookings.stream().map(OccurrenceMatcher.Booking::date).max(Comparator.naturalOrder()).orElseThrow();
+        List<Planned> planned = replacementService.plannedBetween(from.minusDays(5), to.plusDays(5));
+        return OccurrenceMatcher.match(bookings, planned);
+    }
+
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,
-            ImportMatcher.Transfer transfer, DuplicateOf duplicateOf) {
+            ImportMatcher.Transfer transfer, Planned match, DuplicateOf duplicateOf) {
         BankRow row = c.line().row();
         return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.date(), row.amount(),
                 c.description(), c.counterparty(), c.bankCategory(), CategorySuggester.key(c.text()),
                 suggestion == null ? null : suggestion.categoryId(), suggestion != null && suggestion.certain(),
                 transfer != null, transfer != null && transfer.certain(),
-                transfer == null ? null : transfer.peerTransactionId(), duplicateOf);
+                transfer == null ? null : transfer.peerTransactionId(),
+                match == null ? null
+                        : new Replaces(match.recurringId(), match.date(), match.description(), match.amount().abs(),
+                                match.categoryId()),
+                duplicateOf);
     }
 
     private static DuplicateOf duplicateOf(Transaction transaction) {
@@ -220,7 +265,7 @@ public class ImportService {
     // --- store ---
 
     /** A checked row: its category (null for a transfer) and the stored counterpart that becomes a transfer. */
-    private record Checked(ImportRequest.Row row, Category category, Transaction peer) {
+    private record Checked(ImportRequest.Row row, Category category, Transaction peer, RecurringTransaction replaced) {
     }
 
     /**
@@ -259,6 +304,7 @@ public class ImportService {
         Set<String> imported = new HashSet<>(transactionRepository.findImportedFingerprints(owner,
                 request.rows().stream().map(ImportRequest.Row::fingerprint).toList()));
         List<Checked> checked = new ArrayList<>();
+        Set<OccurrenceRef> replacedOccurrences = new HashSet<>();
         int skipped = 0;
         for (int i = 0; i < request.rows().size(); i++) {
             ImportRequest.Row row = request.rows().get(i);
@@ -271,11 +317,21 @@ public class ImportService {
             }
             Category category = categoryOf(row, field);
             Transaction peer = row.transferPeerId() == null ? null : peerOf(owner, row, field);
+            RecurringTransaction replaced = null;
+            if (row.replaces() != null) {
+                if (Boolean.TRUE.equals(row.transfer())) {
+                    throw new InvalidFieldException(field + ".replaces", "Eine Umbuchung kann kein Vorkommen ersetzen.");
+                }
+                replaced = replacementService.countingOccurrence(row.replaces(), field + ".replaces");
+                if (!replacedOccurrences.add(row.replaces())) {
+                    throw new InvalidFieldException(field + ".replaces", "Dieses Vorkommen ersetzt schon eine andere Zeile.");
+                }
+            }
             if (!imported.add(row.fingerprint())) {
                 skipped++;
                 continue;
             }
-            checked.add(new Checked(row, category, peer));
+            checked.add(new Checked(row, category, peer, replaced));
         }
 
         Map<String, BankAccount> accounts = new HashMap<>(existingAccounts);
@@ -307,6 +363,12 @@ public class ImportService {
             }
         }
         transactionRepository.saveAll(created);
+        for (int i = 0; i < checked.size(); i++) {
+            Checked c = checked.get(i);
+            if (c.replaced() != null) {
+                replacementService.replace(c.replaced(), c.row().replaces().date(), created.get(i));
+            }
+        }
         return new ImportResultResponse(ImportBatchResponse.from(batch), created.size(), skipped);
     }
 
@@ -351,10 +413,13 @@ public class ImportService {
     }
 
     /** US34: deletes every transaction of the import; another user's import is 404 (R15). */
+    // The bulk deletes clear the persistence context, so the batch is deleted by id
     @Transactional
     public void delete(long id) {
         ImportBatch batch = batchRepository.findByIdAndOwner(id, currentUser.get())
                 .orElseThrow(() -> new NotFoundException("Import " + id + " wurde nicht gefunden."));
+        // R28: replaced occurrences count again
+        exceptionRepository.deleteByImportBatch(batch);
         transactionRepository.deleteByImportBatch(batch);
         batchRepository.deleteById(id);
     }

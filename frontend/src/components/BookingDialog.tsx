@@ -11,7 +11,7 @@ import {
 import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
 import type { Category, OccurrenceScope, RecurringInterval, Transaction } from '../api/types'
-import { formatDate, parseAmountInput } from '../format'
+import { formatDate, formatEuro, parseAmountInput } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
@@ -124,9 +124,26 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const quick = lastUsed(recent, categories, kind)
-  // US32: the suggestion for the description, asked for once typing pauses
-  const suggestionText = useDebounced(description.trim(), 300)
-  const suggestion = useBookingSuggestion(suggestionText, kind === 'income', !categoryChosen && suggestionText.length >= 2)
+  // US32: the suggestion for the description, asked for once typing pauses; R28: for a new single booking also the
+  // occurrence of a series it replaces, from amount and date
+  const newSingle = !entry && repeat === 'NONE' && chosenCategory !== TRANSFER
+  const parsedAmount = parseAmountInput(amount)
+  const signedAmount = parsedAmount === null || parsedAmount <= 0 ? null : kind === 'expense' ? -parsedAmount : parsedAmount
+  // Debounced as a string, so equal values do not start the timer again
+  const asked = JSON.parse(
+    useDebounced(
+      JSON.stringify({ text: description.trim(), amount: newSingle ? signedAmount : null, date: newSingle ? date : '' }),
+      300,
+    ),
+  ) as { text: string; amount: number | null; date: string }
+  const suggestion = useBookingSuggestion(
+    asked.text,
+    kind === 'income',
+    (!categoryChosen || newSingle) && asked.text.length >= 2,
+    asked,
+  )
+  const suggestedOccurrence = newSingle ? (suggestion.data?.occurrence ?? null) : null
+  const [keepReplace, setKeepReplace] = useState(true)
   const suggestedId = suggestion.data?.categoryId
   const suggested =
     !categoryChosen && suggestedId != null && categories.some((c) => c.id === suggestedId && !c.archived)
@@ -202,7 +219,13 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
       description: description.trim(),
       ...(accountId === '' ? {} : { accountId: Number(accountId) }),
     }
-    const single = transfer ? { ...common, date, transfer: true } : { ...common, categoryId: Number(categoryId), date }
+    const replaces =
+      suggestedOccurrence && keepReplace && !entry
+        ? { replaces: { recurringId: suggestedOccurrence.recurringId, date: suggestedOccurrence.date } }
+        : {}
+    const single = transfer
+      ? { ...common, date, transfer: true }
+      : { ...common, categoryId: Number(categoryId), date, ...replaces }
     if (recurring) {
       const input = {
         ...common,
@@ -409,6 +432,17 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
               aria-invalid={errors.endDate ? true : undefined}
             />
             {errors.endDate && <span className="error">{errors.endDate}</span>}
+          </label>
+        )}
+
+        {suggestedOccurrence && !transfer && (
+          <label className="replace-choice">
+            <input type="checkbox" checked={keepReplace} onChange={(e) => setKeepReplace(e.target.checked)} />
+            <span>
+              Ersetzt das geplante „{suggestedOccurrence.description}“ vom {formatDate(suggestedOccurrence.date)} (
+              {formatEuro(suggestedOccurrence.amount)})
+              <span className="hint">Dann zählt diese Buchung statt des geplanten Betrags.</span>
+            </span>
           </label>
         )}
 

@@ -25,10 +25,14 @@ const TRANSFER = 'transfer'
 /** The value of the account field for a new account. */
 const NEW_ACCOUNT = 'new'
 
-/** What the user chose for one row: import it or not, and its category ('' while open, TRANSFER for a transfer). */
+/**
+ * What the user chose for one row: import it or not, its category ('' while open, TRANSFER for a transfer) and whether
+ * it replaces the planned occurrence the preview found (R28).
+ */
 interface Choice {
   selected: boolean
   category: string
+  replace: boolean
 }
 
 type View = 'all' | 'open' | 'skipped'
@@ -48,7 +52,7 @@ function initialChoices(preview: ImportPreview): Record<string, Choice> {
       continue
     }
     const category = entry.transfer ? TRANSFER : entry.certain && entry.categoryId !== null ? String(entry.categoryId) : ''
-    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category }
+    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category, replace: entry.replaces !== null }
   }
   return choices
 }
@@ -100,6 +104,17 @@ function PreviewRow({
           )}
           {entry.transferPeerId !== null && choice.category === TRANSFER && (
             <span className="badge">Gegenbuchung wird ebenfalls zur Umbuchung</span>
+          )}
+          {entry.replaces && choice.category !== TRANSFER && (
+            <label className="badge replace">
+              <input
+                type="checkbox"
+                checked={choice.replace}
+                disabled={!choice.selected}
+                onChange={(e) => onChange({ ...choice, replace: e.target.checked })}
+              />
+              ersetzt „{entry.replaces.description}“ vom {formatDate(entry.replaces.date)}
+            </label>
           )}
           {entry.duplicateOf && (
             <span className="badge warning">
@@ -197,7 +212,8 @@ function Preview({
           : { key: source.key, accountId: Number(chosen) }
       }),
       rows: selected.map((entry) => {
-        const category = choices[entry.fingerprint as string].category
+        const choice = choices[entry.fingerprint as string]
+        const category = choice.category
         const transfer = category === TRANSFER
         return {
           fingerprint: entry.fingerprint as string,
@@ -210,6 +226,9 @@ function Preview({
           categoryId: transfer ? null : Number(category),
           transfer,
           ...(transfer && entry.transferPeerId !== null ? { transferPeerId: entry.transferPeerId } : {}),
+          ...(!transfer && choice.replace && entry.replaces
+            ? { replaces: { recurringId: entry.replaces.recurringId, date: entry.replaces.date } }
+            : {}),
         }
       }),
     }

@@ -20,7 +20,7 @@ function entry(values: Partial<ImportEntry>): ImportEntry {
   return {
     line: 2, status: 'NEW', reason: null, fingerprint: 'f'.repeat(64), source: 'C24:Ausgabenkonto', date: '2026-11-04',
     amount: -2.99, description: 'Spiele Shop', counterparty: 'Spiele Shop', bankCategory: null, suggestionKey: 'spiele shop',
-    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, duplicateOf: null,
+    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, replaces: null, duplicateOf: null,
     ...values,
   }
 }
@@ -37,7 +37,7 @@ const preview: ImportPreview = {
     { key: 'C24:Pocket Urlaub', name: 'Pocket Urlaub', accountId: null, suggestedName: 'C24 Pocket Urlaub' },
   ],
   entries: [
-    entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Kino Nord', suggestionKey: 'kino nord', categoryId: 8, certain: true }),
+    entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Kino Nord', suggestionKey: 'kino nord', categoryId: 8, certain: true, replaces: { recurringId: 3, date: '2026-11-03', description: 'Kino-Abo', amount: 2.99, categoryId: 8 } }),
     entry({ line: 3, fingerprint: 'b'.repeat(64), description: 'Spiele Shop', categoryId: 8, certain: false, bankCategory: 'Freizeit & Unterhaltung' }),
     entry({ line: 4, fingerprint: 'c'.repeat(64), description: 'Spiele Shop', amount: -4.99, categoryId: 8, certain: false }),
     entry({ line: 5, fingerprint: 'd'.repeat(64), description: 'Auf Pocket', amount: -100, source: 'C24:Pocket Urlaub', suggestionKey: 'auf pocket', transfer: true, transferPeerId: 77 }),
@@ -134,6 +134,29 @@ describe('ImportPage', () => {
     expect(screen.getByText('2 Zeilen fehlt noch die Kategorie.')).toBeInTheDocument()
   })
 
+  // R28, US35: a row that replaces a planned occurrence says so and can be unticked
+  it('replaces the found occurrence unless the user unticks it', async () => {
+    const fetchMock = renderPage()
+    await upload()
+    const kino = row('Kino Nord')[0]
+    const replace = within(kino).getByRole('checkbox', { name: /ersetzt „Kino-Abo“ vom 03.11.2026/ })
+    expect(replace).toBeChecked()
+    fireEvent.click(within(row('Spiele Shop')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+    await screen.findByRole('status')
+    let body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.rows[0].replaces).toEqual({ recurringId: 3, date: '2026-11-03' })
+
+    fetchMock.mockClear()
+    await upload()
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“/ }))
+    fireEvent.click(within(row('Spiele Shop')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+    await screen.findByRole('status')
+    body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.rows[0]).not.toHaveProperty('replaces')
+  })
+
   it('takes a chosen category over to the open rows with the same key', async () => {
     renderPage()
     await upload()
@@ -179,6 +202,7 @@ describe('ImportPage', () => {
     expect(body.rows[0]).toEqual({
       fingerprint: 'a'.repeat(64), source: 'C24:Ausgabenkonto', date: '2026-11-04', amount: -2.99,
       description: 'Kino Nord', counterparty: 'Spiele Shop', bankCategory: null, categoryId: 8, transfer: false,
+      replaces: { recurringId: 3, date: '2026-11-03' },
     })
     expect(body.rows[3]).toMatchObject({ description: 'Auf Pocket', categoryId: null, transfer: true, transferPeerId: 77 })
     expect(body.rows.map((r: { description: string }) => r.description)).not.toContain('Bäcker')

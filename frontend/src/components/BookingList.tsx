@@ -73,7 +73,7 @@ export function BookingList({ entries, categories, today, showAccount = false, o
                         <span className="tx-meta">
                           {entry.transfer ? 'Umbuchung' : entry.categoryName}
                           {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
-                          {entry.kind === 'RECURRING' && (
+                          {(entry.kind === 'RECURRING' || entry.replaces) && (
                             <span className="badge">
                               <Icon name="repeat" size={12} />
                               wiederkehrend

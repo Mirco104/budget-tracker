@@ -35,6 +35,8 @@ export interface ImportEntry {
   transfer: boolean
   transferCertain: boolean
   transferPeerId: number | null
+  /** R28: the planned occurrence the row replaces; categoryId is then the category of its series. */
+  replaces: { recurringId: number; date: string; description: string; amount: number; categoryId: number } | null
   duplicateOf: { id: number; date: string; description: string } | null
 }
 
@@ -63,6 +65,7 @@ export interface ImportRequest {
     categoryId: number | null
     transfer: boolean
     transferPeerId?: number
+    replaces?: { recurringId: number; date: string }
   }[]
 }
 

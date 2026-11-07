@@ -6,12 +6,15 @@ import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.recurring.OccurrenceService;
+import io.github.mirco104.budget.recurring.RecurringTransaction;
+import io.github.mirco104.budget.recurring.ReplacementService;
 import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +26,14 @@ public class TransactionService {
     private final CategoryService categoryService;
     private final OccurrenceService occurrenceService;
     private final BankAccountService bankAccountService;
+    private final ReplacementService replacementService;
     private final CurrentUser currentUser;
 
     public TransactionService(
             TransactionRepository transactionRepository, CategoryService categoryService,
-            OccurrenceService occurrenceService, BankAccountService bankAccountService, CurrentUser currentUser) {
+            OccurrenceService occurrenceService, BankAccountService bankAccountService,
+            ReplacementService replacementService, CurrentUser currentUser) {
+        this.replacementService = replacementService;
         this.transactionRepository = transactionRepository;
         this.categoryService = categoryService;
         this.bankAccountService = bankAccountService;
@@ -48,10 +54,12 @@ public class TransactionService {
         if (!to.isBefore(from.plusYears(MAX_PERIOD_YEARS))) {
             throw new InvalidFieldException("to", "Der Zeitraum darf höchstens 10 Jahre lang sein.");
         }
-        Stream<TransactionResponse> singles = transactionRepository
-                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from, to)
-                .stream()
-                .map(TransactionResponse::from);
+        List<Transaction> transactions = transactionRepository
+                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from, to);
+        Map<Long, OccurrenceRef> replaced = replacementService.replacedBy(
+                transactions.stream().map(Transaction::getId).toList());
+        Stream<TransactionResponse> singles = transactions.stream()
+                .map(transaction -> TransactionResponse.from(transaction, replaced.get(transaction.getId())));
         Stream<TransactionResponse> occurrences = occurrenceService.occurrencesBetween(from, to).stream()
                 .map(TransactionResponse::from);
         return Stream.concat(singles, occurrences)
@@ -59,9 +67,17 @@ public class TransactionService {
                 .toList();
     }
 
+    /** R28: with replaces the transaction counts instead of that occurrence of a series. */
     @Transactional
     public TransactionResponse create(TransactionRequest request) {
         checkAmount(request.amount());
+        RecurringTransaction replaced = null;
+        if (request.replaces() != null) {
+            if (Boolean.TRUE.equals(request.transfer())) {
+                throw new InvalidFieldException("replaces", "Eine Umbuchung kann kein Vorkommen ersetzen.");
+            }
+            replaced = replacementService.countingOccurrence(request.replaces(), "replaces");
+        }
         Transaction transaction = new Transaction(
                 currentUser.get(),
                 request.amount().setScale(2, RoundingMode.HALF_UP),
@@ -69,7 +85,12 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
-        return TransactionResponse.from(transactionRepository.save(transaction));
+        Transaction saved = transactionRepository.save(transaction);
+        if (replaced != null) {
+            replacementService.replace(replaced, request.replaces().date(), saved);
+            return TransactionResponse.from(saved, request.replaces());
+        }
+        return TransactionResponse.from(saved);
     }
 
     @Transactional
@@ -82,12 +103,20 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
-        return TransactionResponse.from(transaction);
+        // R28: a transfer replaces no occurrence; otherwise the link stays as it is
+        if (transaction.isTransfer()) {
+            replacementService.unlink(transaction);
+        }
+        return TransactionResponse.from(transaction,
+                replacementService.replacedBy(List.of(transaction.getId())).get(transaction.getId()));
     }
 
+    /** R28: an occurrence the transaction replaced counts again. */
     @Transactional
     public void delete(long id) {
-        transactionRepository.delete(findTransaction(id));
+        Transaction transaction = findTransaction(id);
+        replacementService.unlink(transaction);
+        transactionRepository.delete(transaction);
     }
 
     // R27: a transfer has no category (400 if one is sent), every other booking needs one

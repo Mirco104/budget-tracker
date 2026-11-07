@@ -1925,6 +1925,25 @@ button.tx:hover:not(:disabled) {
 }
 
 /* R27: a transfer counts nowhere, so its amount is muted */
+/* R28: the booking replaces a planned occurrence */
+.replace-choice {
+  display: flex;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+
+.replace-choice input {
+  margin-top: 3px;
+}
+
+.replace-choice .hint {
+  display: block;
+  margin: 2px 0 0;
+}
+
 /* US32: the category came from the suggestion */
 .field-label {
   display: flex;
@@ -2371,6 +2390,20 @@ button.tx:hover:not(:disabled) {
 .import-hints .hint {
   margin: 0;
   font-size: 0.8rem;
+}
+
+/* R28: a row replaces a planned occurrence; the tick takes it back */
+.badge.replace {
+  gap: 6px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.badge.replace input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
 }
 
 .badge.warning {
