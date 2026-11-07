@@ -288,17 +288,18 @@ describe('BookingDialog', () => {
     ).toEqual(['Gehalt'])
   })
 
-  it('lists all active categories in the selection, without archived ones', () => {
+  // Alphabetical after the first test (07.11.2026)
+  it('lists all active categories in the selection alphabetically, without archived ones', () => {
     renderDialog()
 
     const options = within(screen.getByLabelText('Kategorie')).getAllByRole('option').map((o) => o.textContent)
     expect(options).toEqual([
       'Kategorie wählen …',
       'Umbuchung zwischen eigenen Konten (zählt nicht)',
-      'Wohnen',
       'Freizeit',
-      'Lebensmittel',
       'Gehalt',
+      'Lebensmittel',
+      'Wohnen',
     ])
   })
 
