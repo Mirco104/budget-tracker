@@ -19,7 +19,6 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
-import { byName } from '../sort'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
@@ -487,8 +486,8 @@ export function ImportPage() {
     }
   }
 
-  // Alphabetical, like the booking dialog
-  const activeCategories = byName((categories.data ?? []).filter((category) => !category.archived))
+  // Already alphabetical from the backend (decision 38)
+  const activeCategories = (categories.data ?? []).filter((category) => !category.archived)
   const ready = accounts.data !== undefined && categories.data !== undefined
 
   return (

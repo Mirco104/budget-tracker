@@ -7,9 +7,10 @@ import { ImportPage } from './ImportPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 8, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  // Alphabetical, as the backend sends them (decision 38)
   { id: 9, name: 'Alt', icon: 'tag', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 8, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
 ]
 const accounts: BankAccount[] = [
   { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
@@ -78,7 +79,7 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
       if (name.toLowerCase() === 'wohnen') {
         return json({ status: 409, detail: 'Eine Kategorie mit dem Namen "Wohnen" gibt es schon.' }, 409)
       }
-      const created: Category = { ...categories[0], id: 50, name, icon: 'tag', sortOrder: 100 }
+      const created: Category = { ...categories[2], id: 50, name, icon: 'tag' }
       currentCategories = [...currentCategories, created]
       return json(created, 201)
     }
@@ -167,8 +168,8 @@ describe('ImportPage', () => {
     expect(body.rows[0]).not.toHaveProperty('replaces')
   })
 
-  // After the first test (07.11.2026): alphabetical categories and a new category right from the row
-  it('lists the categories alphabetically with a choice for a new one at the end', async () => {
+  // After the first test (07.11.2026): a new category right from the row
+  it('offers a new category at the end of the selection', async () => {
     renderPage()
     await upload()
 

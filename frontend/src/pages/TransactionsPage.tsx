@@ -14,7 +14,6 @@ import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
 import { ImportPage } from './ImportPage'
-import { byName } from '../sort'
 import { totals } from '../sums'
 
 /** For the filter Art: a booking that replaces an occurrence counts as recurring (R28), a transfer has its own kind. */
@@ -126,7 +125,7 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
           </label>
           <select aria-label="Kategorie filtern" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">Alle Kategorien</option>
-            {byName(categories.data ?? []).map((category) => (
+            {(categories.data ?? []).map((category) => (
               <option key={category.id} value={category.id}>
                 {category.archived ? `${category.name} (archiviert)` : category.name}
               </option>
