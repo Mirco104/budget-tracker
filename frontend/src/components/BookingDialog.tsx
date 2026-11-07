@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { useBankAccounts } from '../api/bankAccounts'
 import { ApiError } from '../api/client'
 import {
   useCreateRecurringTransaction,
@@ -7,9 +8,10 @@ import {
   useUpdateOccurrenceFollowing,
   useUpdateOccurrenceThis,
 } from '../api/recurring'
+import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
 import type { Category, OccurrenceScope, RecurringInterval, Transaction } from '../api/types'
-import { formatDate, parseAmountInput } from '../format'
+import { formatDate, formatEuro, parseAmountInput } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
@@ -18,7 +20,7 @@ import { Segmented } from './ui/Segmented'
 type Kind = 'expense' | 'income'
 /** NONE is a single transaction; an interval makes it a series (R12). */
 type Repeat = 'NONE' | RecurringInterval
-type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'repeat' | 'endDate'
+type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'repeat' | 'endDate' | 'accountId'
 type Errors = Partial<Record<Field, string>>
 
 interface Props {
@@ -42,6 +44,9 @@ const SERVER_FIELDS: Record<string, Field> = { startDate: 'date', interval: 'rep
 
 const QUICK_PICKS = 4
 
+/** The value of the category field for a transfer (R27). */
+const TRANSFER = 'transfer'
+
 function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
 }
@@ -50,7 +55,17 @@ function isOccurrence(entry: Transaction | null): entry is Transaction & { recur
   return entry?.kind === 'RECURRING' && entry.recurringId !== null && entry.occurrenceDate !== null
 }
 
-/** The categories last used with the sign, newest first, without archived ones (display only). */
+/** The value after it has not changed for the delay, so typing does not send a request per key. */
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
+/** The categories last used with the sign, newest first, without archived ones and transfers (display only). */
 function lastUsed(recent: Transaction[], categories: Category[], kind: Kind): Category[] {
   const result: Category[] = []
   const sorted = [...recent].sort((a, b) => b.date.localeCompare(a.date))
@@ -87,12 +102,16 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const updateThis = useUpdateOccurrenceThis()
   const updateFollowing = useUpdateOccurrenceFollowing()
   const deleteOccurrence = useDeleteOccurrence()
+  const bankAccounts = useBankAccounts().data ?? []
 
   // The amount is entered positive; the switch sets the sign (R11).
   const [kind, setKind] = useState<Kind>(entry && entry.amount > 0 ? 'income' : 'expense')
   const [amount, setAmount] = useState(entry ? toAmountText(entry.amount) : '')
   const [description, setDescription] = useState(entry?.description ?? '')
-  const [categoryId, setCategoryId] = useState(entry ? String(entry.categoryId) : '')
+  // TRANSFER stands for a transfer between own accounts, which has no category (R27)
+  const [categoryId, setCategoryId] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
+  // '' is the default account (R26)
+  const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? defaultDate)
   const [repeat, setRepeat] = useState<Repeat>('NONE')
   const [endDate, setEndDate] = useState('')
@@ -102,15 +121,51 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const [submitting, setSubmitting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
-  const recurring = repeat !== 'NONE'
-  // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry.
-  const repeatOption: 'optional' | 'required' | 'none' = !entry
-    ? 'optional'
-    : occurrence && scope === 'FOLLOWING'
-      ? 'required'
-      : 'none'
   const quick = lastUsed(recent, categories, kind)
+  // US32: the suggestion for the description, asked for once typing pauses; R28: for a new single booking also the
+  // occurrence of a series it replaces, from amount and date
+  const newSingle = !entry && repeat === 'NONE' && categoryId !== TRANSFER
+  const parsedAmount = parseAmountInput(amount)
+  const signedAmount = parsedAmount === null || parsedAmount <= 0 ? null : kind === 'expense' ? -parsedAmount : parsedAmount
+  // Debounced as a string, so equal values do not start the timer again
+  const asked = JSON.parse(
+    useDebounced(
+      JSON.stringify({ text: description.trim(), amount: newSingle ? signedAmount : null, date: newSingle ? date : '' }),
+      300,
+    ),
+  ) as { text: string; amount: number | null; date: string }
+  const suggestion = useBookingSuggestion(
+    asked.text,
+    kind === 'income',
+    (categoryId === '' || newSingle) && asked.text.length >= 2,
+    asked,
+  )
+  const suggestedOccurrence = newSingle ? (suggestion.data?.occurrence ?? null) : null
+  const [keepReplace, setKeepReplace] = useState(true)
+  // US32, decision 46: the suggestion is never preset; it is offered as a button while no category is chosen
+  const suggestedId = suggestion.data?.categoryId
+  const suggested =
+    categoryId === '' && suggestedId != null ? categories.find((c) => c.id === suggestedId && !c.archived) : undefined
+
+  const transfer = categoryId === TRANSFER
+  const recurring = repeat !== 'NONE' && !transfer
+  // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry or a transfer.
+  const repeatOption: 'optional' | 'required' | 'none' = transfer
+    ? 'none'
+    : !entry
+      ? 'optional'
+      : occurrence && scope === 'FOLLOWING'
+        ? 'required'
+        : 'none'
+
+  function chooseCategory(value: string) {
+    setCategoryId(value)
+  }
+
   const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
+  // An archived account only when it is already chosen; one account needs no field (US30)
+  const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
+  const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
 
   function chooseScope(next: OccurrenceScope) {
     setScope(next)
@@ -157,11 +212,23 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
     const common = {
       amount: kind === 'expense' ? -parsed : parsed,
       description: description.trim(),
-      categoryId: Number(categoryId),
+      ...(accountId === '' ? {} : { accountId: Number(accountId) }),
     }
-    const single = { ...common, date }
+    const replaces =
+      suggestedOccurrence && keepReplace && !entry
+        ? { replaces: { recurringId: suggestedOccurrence.recurringId, date: suggestedOccurrence.date } }
+        : {}
+    const single = transfer
+      ? { ...common, date, transfer: true }
+      : { ...common, categoryId: Number(categoryId), date, ...replaces }
     if (recurring) {
-      const input = { ...common, interval: repeat, startDate: date, endDate: endDate === '' ? null : endDate }
+      const input = {
+        ...common,
+        categoryId: Number(categoryId),
+        interval: repeat,
+        startDate: date,
+        endDate: endDate === '' ? null : endDate,
+      }
       return occurrence
         ? updateFollowing.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
         : createSeries.mutateAsync(input)
@@ -270,7 +337,7 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
                   type="button"
                   className="chip"
                   aria-pressed={String(category.id) === categoryId}
-                  onClick={() => setCategoryId(String(category.id))}
+                  onClick={() => chooseCategory(String(category.id))}
                 >
                   <CategoryIcon icon={category.icon} size={14} />
                   {category.name}
@@ -281,16 +348,23 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
           <select
             aria-labelledby="booking-category-label"
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+            onChange={(e) => chooseCategory(e.target.value)}
             aria-invalid={errors.categoryId ? true : undefined}
           >
             <option value="">Kategorie wählen …</option>
+            {!occurrence && <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>}
             {options.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </select>
+          {suggested && (
+            <button type="button" className="chip suggestion-chip" onClick={() => chooseCategory(String(suggested.id))}>
+              <CategoryIcon icon={suggested.icon} size={14} />
+              Vorschlag: {suggested.name}
+            </button>
+          )}
           {errors.categoryId && <span className="error">{errors.categoryId}</span>}
         </div>
 
@@ -356,6 +430,35 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
               aria-invalid={errors.endDate ? true : undefined}
             />
             {errors.endDate && <span className="error">{errors.endDate}</span>}
+          </label>
+        )}
+
+        {suggestedOccurrence && !transfer && (
+          <label className="replace-choice">
+            <input type="checkbox" checked={keepReplace} onChange={(e) => setKeepReplace(e.target.checked)} />
+            <span>
+              Ersetzt das geplante „{suggestedOccurrence.description}“ vom {formatDate(suggestedOccurrence.date)} (
+              {formatEuro(suggestedOccurrence.amount)})
+              <span className="hint">Dann zählt diese Buchung statt des geplanten Betrags.</span>
+            </span>
+          </label>
+        )}
+
+        {accountOptions.length > 1 && (
+          <label className="field">
+            Konto
+            <select
+              value={accountId === '' ? String(defaultAccount?.id ?? '') : accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              aria-invalid={errors.accountId ? true : undefined}
+            >
+              {accountOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            {errors.accountId && <span className="error">{errors.accountId}</span>}
           </label>
         )}
 

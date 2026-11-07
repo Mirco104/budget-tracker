@@ -6,6 +6,7 @@ import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
 import io.github.mirco104.budget.recurring.OccurrenceService;
 import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
+import io.github.mirco104.budget.recurring.ReplacementService;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ public class DashboardService {
     private final TransactionRepository transactionRepository;
     private final RecurringTransactionRepository recurringRepository;
     private final OccurrenceService occurrenceService;
+    private final ReplacementService replacementService;
     private final CurrentUser currentUser;
     private final Clock clock;
     private final DashboardCalculator calculator = new DashboardCalculator();
@@ -33,7 +35,8 @@ public class DashboardService {
     public DashboardService(
             CategoryService categoryService, TransactionRepository transactionRepository,
             RecurringTransactionRepository recurringRepository, OccurrenceService occurrenceService,
-            CurrentUser currentUser, Clock clock) {
+            ReplacementService replacementService, CurrentUser currentUser, Clock clock) {
+        this.replacementService = replacementService;
         this.categoryService = categoryService;
         this.transactionRepository = transactionRepository;
         this.recurringRepository = recurringRepository;
@@ -107,13 +110,17 @@ public class DashboardService {
                 IncomeAverage.of(expenses, firstEntryMonth, month, currentMonth).average());
     }
 
-    // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction
+    // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction; R27: no
+    // transfers
     private List<TransactionData> entries(YearMonth from, YearMonth to) {
+        // R28: a transaction that replaces an occurrence counts as recurring
+        java.util.Set<Long> replacing = replacementService.replacingIds();
         Stream<TransactionData> singles = transactionRepository
-                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from.atDay(1), to.atEndOfMonth())
+                .findCountedBetween(currentUser.get(), from.atDay(1), to.atEndOfMonth())
                 .stream()
                 .map(transaction -> new TransactionData(
-                        transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(), false));
+                        transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(),
+                        replacing.contains(transaction.getId())));
         Stream<TransactionData> occurrences = Stream.iterate(from, m -> !m.isAfter(to), m -> m.plusMonths(1))
                 .flatMap(m -> occurrenceService.occurrencesIn(m).stream())
                 .map(occurrence -> new TransactionData(

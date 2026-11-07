@@ -1,6 +1,8 @@
 package io.github.mirco104.budget.transaction;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.importer.ImportBatch;
 import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,9 +35,33 @@ public class Transaction {
     @Column(name = "booking_date", nullable = false)
     private LocalDate date;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "category_id", nullable = false)
+    // R27: null exactly for a transfer between own accounts
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
     private Category category;
+
+    @Column(nullable = false)
+    private boolean transfer;
+
+    // R30: set for a transaction from an import; the fingerprint keeps a row from being imported twice
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "import_batch_id")
+    private ImportBatch importBatch;
+
+    @Column(length = 64)
+    private String fingerprint;
+
+    // R29: the counterparty and the bank's category from the import, for the category suggestion
+    @Column(length = 100)
+    private String counterparty;
+
+    @Column(name = "bank_category", length = 100)
+    private String bankCategory;
+
+    // R26: every transaction is booked on one bank account of its owner
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "account_id", nullable = false)
+    private BankAccount account;
 
     // R15: every transaction belongs to one user
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -45,16 +71,19 @@ public class Transaction {
     protected Transaction() {
     }
 
-    public Transaction(User owner, BigDecimal amount, String description, LocalDate date, Category category) {
+    public Transaction(
+            User owner, BigDecimal amount, String description, LocalDate date, Category category, BankAccount account) {
         this.owner = owner;
-        update(amount, description, date, category);
+        update(amount, description, date, category, account);
     }
 
-    public void update(BigDecimal amount, String description, LocalDate date, Category category) {
+    public void update(BigDecimal amount, String description, LocalDate date, Category category, BankAccount account) {
         this.amount = amount;
         this.description = description;
         this.date = date;
         this.category = category;
+        this.transfer = category == null;
+        this.account = account;
     }
 
     public Long getId() {
@@ -75,5 +104,40 @@ public class Transaction {
 
     public Category getCategory() {
         return category;
+    }
+
+    /** R30: remembers the import, the fingerprint of the row, the counterparty and the bank's category. */
+    public void markImported(ImportBatch importBatch, String fingerprint, String counterparty, String bankCategory) {
+        this.importBatch = importBatch;
+        this.fingerprint = fingerprint;
+        this.counterparty = counterparty;
+        this.bankCategory = bankCategory;
+    }
+
+    /** R27: the counterpart of an imported transfer becomes a transfer as well; its category goes. */
+    public void makeTransfer() {
+        this.category = null;
+        this.transfer = true;
+    }
+
+    public ImportBatch getImportBatch() {
+        return importBatch;
+    }
+
+    public String getCounterparty() {
+        return counterparty;
+    }
+
+    public String getBankCategory() {
+        return bankCategory;
+    }
+
+    /** R27: a transfer between own accounts; it has no category and counts in no calculation. */
+    public boolean isTransfer() {
+        return transfer;
+    }
+
+    public BankAccount getAccount() {
+        return account;
     }
 }

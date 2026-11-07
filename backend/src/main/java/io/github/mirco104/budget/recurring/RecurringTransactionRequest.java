@@ -29,5 +29,8 @@ public record RecurringTransactionRequest(
         @NotNull(message = "Das Startdatum ist Pflicht.")
         LocalDate startDate,
 
-        LocalDate endDate) {
+        LocalDate endDate,
+
+        // R26: optional, the default account without it
+        Long accountId) {
 }

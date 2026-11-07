@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.github.mirco104.budget.bankaccount.BankAccountRepository;
 import io.github.mirco104.budget.category.CategoryOrder;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.user.AppUserDetails;
@@ -55,12 +56,16 @@ class TenantIsolationTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @Autowired
+    private BankAccountRepository bankAccountRepository;
+
     private MockMvc asB;
     private MockMvc asC;
     private User c;
     private long categoryOfB;
     private long transactionOfB;
     private long seriesOfB;
+    private long accountOfB;
 
     @BeforeEach
     void createDataOfB() throws Exception {
@@ -70,6 +75,7 @@ class TenantIsolationTest {
         asC = TestUsers.mockMvcFor(context, c);
 
         categoryOfB = categoryRepository.findAllByOwner(b).stream().min(CategoryOrder.ALPHABETICAL).orElseThrow().getId();
+        accountOfB = bankAccountRepository.findAllOrdered(b).getFirst().getId();
         asB.perform(put("/api/categories/{id}/target", categoryOfB).param("month", MONTH)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"targetAmount\": 500}"))
                 .andExpect(status().isOk());
@@ -113,7 +119,9 @@ class TenantIsolationTest {
                 Arguments.of("DELETE transaction", "deleteTransaction"),
                 Arguments.of("PUT occurrence THIS", "occurrenceThis"),
                 Arguments.of("PUT occurrence FOLLOWING", "occurrenceFollowing"),
-                Arguments.of("DELETE occurrence", "deleteOccurrence"));
+                Arguments.of("DELETE occurrence", "deleteOccurrence"),
+                Arguments.of("PUT bank account", "bankAccount"),
+                Arguments.of("DELETE bank account", "deleteBankAccount"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -134,6 +142,9 @@ class TenantIsolationTest {
                     OCCURRENCE).param("scope", "FOLLOWING").content(series(ownCategory));
             case "deleteOccurrence" -> delete("/api/recurring-transactions/{id}/occurrences/{date}", seriesOfB,
                     OCCURRENCE).param("scope", "THIS");
+            case "bankAccount" -> put("/api/bank-accounts/{id}", accountOfB)
+                    .content("{\"name\": \"Neu\", \"archived\": false, \"defaultAccount\": true}");
+            case "deleteBankAccount" -> delete("/api/bank-accounts/{id}", accountOfB);
             default -> throw new IllegalArgumentException(request);
         };
 
@@ -160,6 +171,23 @@ class TenantIsolationTest {
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
     }
 
+    // R26: another user's bank account in the body is 400 on accountId
+    @Test
+    void bankAccountOfAnotherUserInTheBodyIsInvalid() throws Exception {
+        long ownCategory = categoryRepository.findAllByOwner(c).getFirst().getId();
+        asC.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON)
+                        .content(transaction(ownCategory).replace("}", ", \"accountId\": " + accountOfB + "}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("accountId"));
+        asC.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON)
+                        .content(series(ownCategory).replace("}", ", \"accountId\": " + accountOfB + "}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("accountId"));
+        asC.perform(get("/api/bank-accounts"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id", not(org.hamcrest.Matchers.equalTo((int) accountOfB))));
+    }
+
     @Test
     void sameCategoryNameIsAllowedForAnotherUser() throws Exception {
         asB.perform(post("/api/categories").contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"Haustier\"}"))
@@ -173,7 +201,7 @@ class TenantIsolationTest {
         MockMvc anonymous = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
 
         for (String url : new String[] {"/api/categories", "/api/transactions", "/api/recurring-transactions",
-                "/api/dashboard", "/api/reserves", "/api/history", "/api/auth/me"}) {
+                "/api/dashboard", "/api/reserves", "/api/history", "/api/auth/me", "/api/bank-accounts", "/api/booking-suggestion", "/api/imports"}) {
             anonymous.perform(get(url).param("month", MONTH))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.status").value(401));

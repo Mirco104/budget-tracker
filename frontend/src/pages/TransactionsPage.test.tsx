@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
-import { TransactionsPage } from './TransactionsPage'
+import type { BankAccount, Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
+import { TransactionsPage, TransactionsRoute } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
@@ -11,14 +11,14 @@ const categories: Category[] = [
 ]
 
 const transactions: Transaction[] = [
-  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit' },
-  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt' },
-  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit' },
-  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit' },
+  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
 ]
 
 const series: RecurringTransaction[] = [
-  { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', interval: 'MONTHLY', startDate: '2026-01-05', endDate: null, monthlyEquivalent: 15 },
+  { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', interval: 'MONTHLY', startDate: '2026-01-05', endDate: null, monthlyEquivalent: 15 },
 ]
 
 // Only the fields the reserve summary uses.
@@ -30,7 +30,7 @@ const reserves: Pick<ReserveData, 'monthlyReserve' | 'reserveBalance' | 'reserve
   ],
 }
 
-function renderPage(entries: Transaction[] = transactions) {
+function renderPage(entries: Transaction[] = transactions, bankAccounts: BankAccount[] = []) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
@@ -43,7 +43,9 @@ function renderPage(entries: Transaction[] = transactions) {
           ? categories
           : url.startsWith('/api/reserves')
             ? reserves
-            : series
+            : url.startsWith('/api/bank-accounts')
+              ? bankAccounts
+              : series
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -67,6 +69,107 @@ describe('TransactionsPage', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  // R27, US31: a transfer is marked, counts in no sum and has its own kind in the filter
+  it('marks transfers, leaves them out of the sums and filters them by kind', async () => {
+    const transfer: Transaction = {
+      kind: 'SINGLE', id: 99, recurringId: null, occurrenceDate: null, amount: -500, description: 'Aufs Tagesgeld',
+      date: '2026-10-05', categoryId: null, categoryName: null, accountId: 1, accountName: 'Girokonto', transfer: true,
+      replaces: null,
+    }
+    renderPage([...transactions, transfer])
+
+    const row = await screen.findByRole('button', { name: /Aufs Tagesgeld/ })
+    expect(row).toHaveTextContent('Umbuchung')
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'TRANSFER' } })
+    expect(screen.getByText(/1 Eintrag · Einnahmen 0,00\s€ · Ausgaben 0,00\s€/)).toBeInTheDocument()
+    expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).not.toHaveTextContent('500')
+    // A day with only the transfer has the sum 0 without a sign
+    expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).toHaveTextContent(/0,00\s€$/)
+    expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).not.toHaveTextContent('−0,00')
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
+    expect(screen.queryByRole('button', { name: /Aufs Tagesgeld/ })).not.toBeInTheDocument()
+  })
+
+  // US33: the import has its own address below Transaktionen, and a period in the address bar starts the list
+  it('links to the import and starts with the period from the address bar', async () => {
+    window.location.hash = '#/transaktionen?von=2026-10-05&bis=2026-10-20'
+    const fetchMock = vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify(
+      url.startsWith('/api/categories') ? categories : url.startsWith('/api/reserves') ? reserves : [],
+    ), { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <TransactionsRoute />
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Importieren' })).toHaveAttribute('href', '#/transaktionen/import')
+    expect(screen.getByLabelText('Von')).toHaveValue('2026-10-05')
+    expect(screen.getByLabelText('Bis')).toHaveValue('2026-10-20')
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('/api/transactions?from=2026-10-05&to=2026-10-20'),
+    )
+    window.location.hash = ''
+  })
+
+  // R28: a booking that replaces an occurrence is marked recurring and found with the kind Wiederkehrend
+  it('marks a booking that replaces an occurrence as recurring', async () => {
+    const replacing: Transaction = {
+      kind: 'SINGLE', id: 98, recurringId: null, occurrenceDate: null, amount: -905, description: 'Miete Bank',
+      date: '2026-10-02', categoryId: 1, categoryName: 'Wohnen', accountId: 1, accountName: 'Girokonto', transfer: false,
+      replaces: { recurringId: 4, date: '2026-10-01' },
+    }
+    renderPage([...transactions, replacing])
+
+    const row = await screen.findByRole('button', { name: /Miete Bank/ })
+    expect(row).toHaveTextContent('wiederkehrend')
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
+    expect(screen.queryByRole('button', { name: /Miete Bank/ })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'RECURRING' } })
+    expect(screen.getByRole('button', { name: /Miete Bank/ })).toBeInTheDocument()
+  })
+
+  // US30: with more than one account each entry names its account
+  it('names the account of each entry when there is more than one account', async () => {
+    renderPage(transactions, [
+      { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
+      { id: 2, name: 'Kreditkarte', iban: null, defaultAccount: false, archived: false, used: false },
+    ])
+
+    const kino = await screen.findByRole('button', { name: /Kino/ })
+    await waitFor(() => expect(kino).toHaveTextContent('· Girokonto'))
+  })
+
+  // After the second test (07.11.2026): a filter for the account with more than one account
+  it('filters the entries by account', async () => {
+    const onCard: Transaction = { ...transactions[0], id: 97, description: 'Tankstelle', accountId: 2, accountName: 'Kreditkarte' }
+    renderPage([...transactions, onCard], [
+      { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
+      { id: 2, name: 'Kreditkarte', iban: null, defaultAccount: false, archived: false, used: true },
+    ])
+    await screen.findByRole('button', { name: /Tankstelle/ })
+
+    fireEvent.change(await screen.findByLabelText('Konto filtern'), { target: { value: '2' } })
+
+    expect(screen.getByRole('button', { name: /Tankstelle/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Kino/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/1 Eintrag ·/)).toBeInTheDocument()
+  })
+
+  it('offers no account filter with only one account', async () => {
+    renderPage(transactions, [{ id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true }])
+    await screen.findByRole('button', { name: /Kino/ })
+
+    expect(screen.queryByLabelText('Konto filtern')).not.toBeInTheDocument()
+  })
+
+  it('names no account with only one account', async () => {
+    renderPage(transactions, [{ id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true }])
+
+    const kino = await screen.findByRole('button', { name: /Kino/ })
+    expect(kino).not.toHaveTextContent('Girokonto')
   })
 
   // Decision 30: grouped by day, newest first, with the sum of the day
@@ -276,7 +379,7 @@ describe('TransactionsPage', () => {
   })
 
   it('separates the months with a heading and the sums of each month, newest month first', async () => {
-    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit' }
+    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
     renderPage([...transactions, september])
 
     await screen.findByText('Buch')

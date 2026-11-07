@@ -1,0 +1,157 @@
+package io.github.mirco104.budget.importer;
+
+import io.github.mirco104.budget.bankaccount.Iban;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ * Transfers between own accounts (R27) and possible duplicates of bookings entered by hand (R30) among the new rows of
+ * an import. No Spring dependencies.
+ */
+public final class ImportMatcher {
+
+    /** Days between a transfer and its counterpart (R27). */
+    static final int TRANSFER_DAYS = 3;
+    /** Days between a row and a booking by hand with the same amount (R30). */
+    static final int DUPLICATE_DAYS = 2;
+
+    /** A new row of the file; accountId is the own account it goes to, null when a new account is created for it. */
+    public record Row(int index, String source, Long accountId, LocalDate date, BigDecimal amount, String counterpartyIban) {
+
+        public Row(int index, String source, Long accountId, LocalDate date, String amount, String counterpartyIban) {
+            this(index, source, accountId, date, new BigDecimal(amount), counterpartyIban);
+        }
+    }
+
+    /** A stored single transaction that is no transfer; imported is true when it came from an import. */
+    public record Existing(long id, long accountId, LocalDate date, BigDecimal amount, boolean imported) {
+
+        public Existing(long id, long accountId, LocalDate date, String amount, boolean imported) {
+            this(id, accountId, date, new BigDecimal(amount), imported);
+        }
+    }
+
+    public record OwnAccount(long id, String iban) {
+    }
+
+    /**
+     * certain for the IBAN of an own account (R27 a); peerIndex is a row of the file and peerTransactionId a stored
+     * booking with the opposite amount (R27 b), at most one of them.
+     */
+    public record Transfer(boolean certain, Integer peerIndex, Long peerTransactionId) {
+    }
+
+    private ImportMatcher() {
+    }
+
+    /** R27: the rows that are transfers, by index. */
+    public static Map<Integer, Transfer> transfers(List<Row> rows, List<Existing> existing, List<OwnAccount> accounts) {
+        Map<Integer, Boolean> certain = new HashMap<>();
+        for (Row row : rows) {
+            String iban = Iban.normalize(row.counterpartyIban());
+            boolean own = iban != null && accounts.stream()
+                    .anyMatch(account -> iban.equals(account.iban()) && !Objects.equals(account.id(), row.accountId()));
+            certain.put(row.index(), own);
+        }
+
+        Map<Integer, Integer> rowPeers = new HashMap<>();
+        Map<Integer, Long> storedPeers = new HashMap<>();
+        Set<Long> usedStored = new HashSet<>();
+        for (Row row : byDate(rows)) {
+            if (rowPeers.containsKey(row.index())) {
+                continue;
+            }
+            BigDecimal opposite = row.amount().negate();
+            Row bestRow = null;
+            long bestRowDays = Long.MAX_VALUE;
+            for (Row other : byDate(rows)) {
+                long days = days(row.date(), other.date());
+                if (other.index() != row.index() && !rowPeers.containsKey(other.index())
+                        && !other.source().equals(row.source()) && !sameAccount(row, other)
+                        && other.amount().compareTo(opposite) == 0
+                        && days <= TRANSFER_DAYS && days < bestRowDays) {
+                    bestRow = other;
+                    bestRowDays = days;
+                }
+            }
+            Existing bestStored = null;
+            long bestStoredDays = Long.MAX_VALUE;
+            for (Existing stored : existing.stream().sorted(Comparator.comparingLong(Existing::id)).toList()) {
+                long days = days(row.date(), stored.date());
+                if (!usedStored.contains(stored.id()) && !Objects.equals(stored.accountId(), row.accountId())
+                        && stored.amount().compareTo(opposite) == 0 && days <= TRANSFER_DAYS && days < bestStoredDays) {
+                    bestStored = stored;
+                    bestStoredDays = days;
+                }
+            }
+            // The closest counterpart; on a tie the row of the file
+            if (bestRow != null && bestRowDays <= bestStoredDays) {
+                rowPeers.put(row.index(), bestRow.index());
+                rowPeers.put(bestRow.index(), row.index());
+            } else if (bestStored != null) {
+                storedPeers.put(row.index(), bestStored.id());
+                usedStored.add(bestStored.id());
+            }
+        }
+
+        Map<Integer, Transfer> result = new LinkedHashMap<>();
+        for (Row row : rows) {
+            boolean sure = certain.get(row.index());
+            Integer peerIndex = rowPeers.get(row.index());
+            Long peerTransaction = storedPeers.get(row.index());
+            if (sure || peerIndex != null || peerTransaction != null) {
+                result.put(row.index(), new Transfer(sure, peerIndex, peerTransaction));
+            }
+        }
+        return result;
+    }
+
+    /** R30: per row index the id of a booking by hand with the same amount, at most 2 days away; each one once. */
+    public static Map<Integer, Long> possibleDuplicates(List<Row> rows, List<Existing> existing) {
+        Map<Integer, Long> result = new LinkedHashMap<>();
+        Set<Long> used = new HashSet<>();
+        List<Existing> byHand = existing.stream()
+                .filter(stored -> !stored.imported())
+                .sorted(Comparator.comparingLong(Existing::id))
+                .toList();
+        for (Row row : byDate(rows)) {
+            Existing best = null;
+            long bestDays = Long.MAX_VALUE;
+            for (Existing stored : byHand) {
+                long days = days(row.date(), stored.date());
+                if (!used.contains(stored.id()) && stored.amount().compareTo(row.amount()) == 0
+                        && days <= DUPLICATE_DAYS && days < bestDays) {
+                    best = stored;
+                    bestDays = days;
+                }
+            }
+            if (best != null) {
+                result.put(row.index(), best.id());
+                used.add(best.id());
+            }
+        }
+        return result;
+    }
+
+    // Two sources the user put on the same account are no transfer between accounts
+    private static boolean sameAccount(Row a, Row b) {
+        return a.accountId() != null && a.accountId().equals(b.accountId());
+    }
+
+    private static List<Row> byDate(List<Row> rows) {
+        return rows.stream().sorted(Comparator.comparing(Row::date).thenComparingInt(Row::index)).toList();
+    }
+
+    private static long days(LocalDate a, LocalDate b) {
+        return Math.abs(ChronoUnit.DAYS.between(a, b));
+    }
+}

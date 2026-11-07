@@ -48,6 +48,7 @@ const PATHS = {
   'chevron-up': <path d="m6 15 6-6 6 6" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
   repeat: <path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3" />,
+  transfer: <path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4" />,
   history: <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" />,
   info: (
     <>

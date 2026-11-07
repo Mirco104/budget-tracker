@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
@@ -6,6 +6,7 @@ import { currentMonth } from '../format'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
 import { Icon } from './ui/Icon'
+import { RowMenu } from './ui/RowMenu'
 
 /** The icon a new category starts with, as in the backend (US28). */
 const DEFAULT_ICON = 'tag'
@@ -134,44 +135,6 @@ function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (icon: st
 }
 
 type Mode = 'view' | 'rename' | 'icon' | 'confirmDelete'
-
-/** The "⋯" menu of a row; closes on Escape and on a click outside. */
-function RowMenu({ category, onClose, children }: { category: Category; onClose: () => void; children: ReactNode }) {
-  const root = useRef<HTMLDivElement>(null)
-  const close = useRef(onClose)
-
-  useEffect(() => {
-    close.current = onClose
-  }, [onClose])
-
-  useEffect(() => {
-    root.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
-    function handlePointer(event: MouseEvent) {
-      if (root.current && !root.current.contains(event.target as Node)) {
-        close.current()
-      }
-    }
-    document.addEventListener('mousedown', handlePointer)
-    return () => document.removeEventListener('mousedown', handlePointer)
-  }, [])
-
-  return (
-    <div
-      ref={root}
-      className="menu row-menu"
-      role="group"
-      aria-label={`Aktionen für ${category.name}`}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.stopPropagation()
-          close.current()
-        }
-      }}
-    >
-      {children}
-    </div>
-  )
-}
 
 /** One active category: icon, name and the menu "⋯" (US10, US28). */
 function CategoryRow({ category }: { category: Category }) {
@@ -306,7 +269,7 @@ function CategoryRow({ category }: { category: Category }) {
             <Icon name="more" />
           </button>
           {menuOpen && (
-            <RowMenu category={category} onClose={closeMenu}>
+            <RowMenu label={`Aktionen für ${category.name}`} onClose={closeMenu}>
               <button type="button" className="menu-item" onClick={() => choose(() => setMode('rename'))}>
                 Umbenennen
               </button>

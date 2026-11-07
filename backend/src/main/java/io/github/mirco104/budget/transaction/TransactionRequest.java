@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,16 @@ public record TransactionRequest(
         @NotNull(message = "Das Datum ist Pflicht.")
         LocalDate date,
 
-        @NotNull(message = "Die Kategorie ist Pflicht.")
-        Long categoryId) {
+        // Required unless transfer is true, then it must be missing (R27); checked by TransactionService
+        Long categoryId,
+
+        // R26: optional, the default account without it
+        Long accountId,
+
+        // R27: optional, false without it
+        Boolean transfer,
+
+        // R28: optional, the occurrence of a series this transaction replaces (only when it is created)
+        @Valid
+        OccurrenceRef replaces) {
 }

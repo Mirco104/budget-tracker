@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.recurring;
 
+import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
@@ -29,11 +30,16 @@ public class RecurringTransactionService {
     private final RecurringExceptionRepository exceptionRepository;
     private final CategoryService categoryService;
     private final TransactionService transactionService;
+    private final BankAccountService bankAccountService;
+    private final ReplacementService replacementService;
     private final CurrentUser currentUser;
 
     public RecurringTransactionService(
             RecurringTransactionRepository recurringRepository, RecurringExceptionRepository exceptionRepository,
-            CategoryService categoryService, TransactionService transactionService, CurrentUser currentUser) {
+            CategoryService categoryService, TransactionService transactionService,
+            BankAccountService bankAccountService, ReplacementService replacementService, CurrentUser currentUser) {
+        this.replacementService = replacementService;
+        this.bankAccountService = bankAccountService;
         this.recurringRepository = recurringRepository;
         this.exceptionRepository = exceptionRepository;
         this.categoryService = categoryService;
@@ -58,6 +64,7 @@ public class RecurringTransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 category,
+                bankAccountService.findBookable(request.accountId()),
                 request.interval(),
                 request.startDate(),
                 request.endDate());
@@ -68,6 +75,13 @@ public class RecurringTransactionService {
     @Transactional
     public TransactionResponse updateThis(long id, LocalDate occurrence, TransactionRequest request) {
         RecurringTransaction recurring = findOccurrence(id, occurrence);
+        if (request.replaces() != null) {
+            throw new InvalidFieldException("replaces", "„Nur dieser Eintrag“ ersetzt schon dieses Vorkommen.");
+        }
+        // R27: a transfer counts nowhere, so it cannot stand for an occurrence
+        if (Boolean.TRUE.equals(request.transfer())) {
+            throw new InvalidFieldException("transfer", "Eine Umbuchung kann kein Vorkommen ersetzen.");
+        }
         TransactionResponse replacement = transactionService.create(request);
         exceptionRepository.save(new RecurringException(recurring, occurrence));
         return replacement;
@@ -84,14 +98,17 @@ public class RecurringTransactionService {
         Category category = validate(request);
 
         if (occurrence.equals(recurring.getStartDate())) {
+            List<RecurringException> linked = replacementService.linkedFrom(recurring, occurrence);
             exceptionRepository.deleteByRecurringAndOccurrenceDateGreaterThanEqual(recurring, occurrence);
             recurring.update(
                     request.amount().setScale(2, RoundingMode.HALF_UP),
                     request.description().trim(),
                     category,
+                    bankAccountService.findBookable(request.accountId()),
                     request.interval(),
                     request.startDate(),
                     request.endDate());
+            replacementService.relink(linked, recurring);
             return RecurringTransactionResponse.from(recurring);
         }
 
@@ -101,6 +118,7 @@ public class RecurringTransactionService {
                     "Das Startdatum muss nach dem vorherigen Vorkommen (" + previous.format(GERMAN_DATE)
                             + ") liegen.");
         }
+        List<RecurringException> linked = replacementService.linkedFrom(recurring, occurrence);
         endBefore(recurring, occurrence);
         RecurringTransaction following = new RecurringTransaction(
                 currentUser.get(),
@@ -108,10 +126,14 @@ public class RecurringTransactionService {
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 category,
+                bankAccountService.findBookable(request.accountId()),
                 request.interval(),
                 request.startDate(),
                 request.endDate());
-        return RecurringTransactionResponse.from(recurringRepository.save(following));
+        RecurringTransaction saved = recurringRepository.save(following);
+        // R28: a booking that replaced an occurrence from here on replaces the one of the new series on its date
+        replacementService.relink(linked, saved);
+        return RecurringTransactionResponse.from(saved);
     }
 
     /** THIS suspends the occurrence; FOLLOWING ends the series before it, or deletes it from its first one. */

@@ -108,7 +108,7 @@ public class ReserveService {
                         exceptions.getOrDefault(recurring.getId(), Set.of())))
                 .toList();
         List<SingleData> singles = transactionRepository
-                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), forecastStart, forecastEnd).stream()
+                .findCountedBetween(currentUser.get(), forecastStart, forecastEnd).stream()
                 .map(t -> new SingleData(t.getId(), t.getDescription(), t.getDate(), t.getAmount()))
                 .toList();
         return calculator.outlook(seriesData, singles, start);

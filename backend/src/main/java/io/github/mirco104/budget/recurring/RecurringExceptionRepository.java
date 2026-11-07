@@ -1,5 +1,7 @@
 package io.github.mirco104.budget.recurring;
 
+import io.github.mirco104.budget.importer.ImportBatch;
+import io.github.mirco104.budget.transaction.Transaction;
 import io.github.mirco104.budget.user.User;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -14,6 +16,26 @@ public interface RecurringExceptionRepository extends JpaRepository<RecurringExc
 
     // Derived delete: removes through the EntityManager, so loaded exceptions do not go stale
     void deleteByRecurringAndOccurrenceDateGreaterThanEqual(RecurringTransaction recurring, LocalDate from);
+
+    /** R28: the exception that points to the transaction, removed so the occurrence counts again. */
+    void deleteByTransaction(Transaction transaction);
+
+    @Query("select e from RecurringException e join fetch e.recurring where e.transaction.id in :ids")
+    List<RecurringException> findByTransactionIdIn(Collection<Long> ids);
+
+    @Query("select e.transaction.id from RecurringException e where e.transaction.owner = :owner")
+    List<Long> findReplacingTransactionIds(User owner);
+
+    List<RecurringException> findByRecurringAndOccurrenceDateGreaterThanEqualAndTransactionIsNotNull(
+            RecurringTransaction recurring, LocalDate from);
+
+    /** US34: undoing an import; before its transactions. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            delete from RecurringException e
+            where e.transaction in (select t from Transaction t where t.importBatch = :batch)
+            """)
+    void deleteByImportBatch(ImportBatch batch);
 
     /** US16: deleting an account. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

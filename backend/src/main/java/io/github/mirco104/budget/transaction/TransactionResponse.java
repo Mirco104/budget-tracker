@@ -7,7 +7,8 @@ import java.time.LocalDate;
 
 /**
  * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
- * recurring transaction (kind RECURRING, recurringId and occurrenceDate). Fields of the other kind are null.
+ * recurring transaction (kind RECURRING, recurringId and occurrenceDate). Fields of the other kind are null. A transfer
+ * (R27) has no category.
  */
 public record TransactionResponse(
         Kind kind,
@@ -18,11 +19,20 @@ public record TransactionResponse(
         String description,
         LocalDate date,
         Long categoryId,
-        String categoryName) {
+        String categoryName,
+        Long accountId,
+        String accountName,
+        boolean transfer,
+        OccurrenceRef replaces) {
 
     public enum Kind { SINGLE, RECURRING }
 
     static TransactionResponse from(Transaction transaction) {
+        return from(transaction, null);
+    }
+
+    /** replaces is the occurrence the transaction replaces (R28), null when it replaces none. */
+    static TransactionResponse from(Transaction transaction, OccurrenceRef replaces) {
         Category category = transaction.getCategory();
         return new TransactionResponse(
                 Kind.SINGLE,
@@ -32,8 +42,12 @@ public record TransactionResponse(
                 transaction.getAmount(),
                 transaction.getDescription(),
                 transaction.getDate(),
-                category.getId(),
-                category.getName());
+                category == null ? null : category.getId(),
+                category == null ? null : category.getName(),
+                transaction.getAccount().getId(),
+                transaction.getAccount().getName(),
+                transaction.isTransfer(),
+                replaces);
     }
 
     static TransactionResponse from(Occurrence occurrence) {
@@ -46,6 +60,10 @@ public record TransactionResponse(
                 occurrence.description(),
                 occurrence.date(),
                 occurrence.categoryId(),
-                occurrence.categoryName());
+                occurrence.categoryName(),
+                occurrence.accountId(),
+                occurrence.accountName(),
+                false,
+                null);
     }
 }

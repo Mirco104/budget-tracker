@@ -48,7 +48,7 @@ export interface TargetInput {
 /**
  * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
  * recurring transaction (kind RECURRING, recurringId, occurrenceDate). amount is signed: positive is income,
- * negative is expense.
+ * negative is expense. A transfer between own accounts (R27) has no category and counts nowhere.
  */
 export interface Transaction {
   kind: 'SINGLE' | 'RECURRING'
@@ -58,15 +58,33 @@ export interface Transaction {
   amount: number
   description: string
   date: string
-  categoryId: number
-  categoryName: string
+  categoryId: number | null
+  categoryName: string | null
+  /** The bank account the entry is booked on (R26). */
+  accountId: number
+  accountName: string
+  transfer: boolean
+  /** The occurrence of a series this single transaction replaces (R28); it then counts as recurring. */
+  replaces: OccurrenceRef | null
+}
+
+/** An occurrence of a series by series and date. */
+export interface OccurrenceRef {
+  recurringId: number
+  date: string
 }
 
 export interface TransactionInput {
   amount: number
   description: string
   date: string
-  categoryId: number
+  /** Missing exactly for a transfer (R27). */
+  categoryId?: number
+  /** Without it the default account (R26). */
+  accountId?: number
+  transfer?: boolean
+  /** Only when created: the occurrence the transaction replaces (R28). */
+  replaces?: OccurrenceRef
 }
 
 export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
@@ -79,6 +97,8 @@ export interface RecurringTransaction {
   description: string
   categoryId: number
   categoryName: string
+  accountId: number
+  accountName: string
   interval: RecurringInterval
   startDate: string
   endDate: string | null
@@ -93,6 +113,8 @@ export interface RecurringTransactionInput {
   interval: RecurringInterval
   startDate: string
   endDate: string | null
+  /** Without it the default account (R26). */
+  accountId?: number
 }
 
 /** "Nur dieser Eintrag" (THIS) or "Dieser und alle folgenden" (FOLLOWING). */
@@ -155,6 +177,29 @@ export interface DashboardData {
   surplusLabel: string
   categories: CategoryLine[]
   income: IncomeLine[]
+}
+
+/** A bank account (R26); used means that entries are booked on it, so it can only be archived. */
+export interface BankAccount {
+  id: number
+  name: string
+  iban: string | null
+  defaultAccount: boolean
+  archived: boolean
+  used: boolean
+}
+
+export interface BankAccountInput {
+  name: string
+  iban?: string | null
+}
+
+/** defaultAccount true makes this the default account; the previous one becomes a normal account. */
+export interface BankAccountUpdate {
+  name: string
+  iban: string | null
+  archived: boolean
+  defaultAccount: boolean
 }
 
 export interface FieldError {

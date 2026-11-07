@@ -9,6 +9,8 @@ interface Props {
   categories: Category[]
   /** Today as "YYYY-MM-DD"; later entries are marked "geplant" (US26). */
   today: string
+  /** Shows the account of each entry; only useful with more than one account (US30). */
+  showAccount?: boolean
   onSelect: (entry: Transaction) => void
 }
 
@@ -39,10 +41,10 @@ function groupBy(entries: Transaction[], keyOf: (entry: Transaction) => string):
  * one month, each month starts with a heading and its income and expenses (US26). A click on a row opens it for
  * editing, so a row needs no buttons of its own.
  */
-export function BookingList({ entries, categories, today, onSelect }: Props) {
+export function BookingList({ entries, categories, today, showAccount = false, onSelect }: Props) {
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const months = groupBy(sorted, (entry) => entry.date.slice(0, 7))
-  const iconOf = (id: number) => categories.find((category) => category.id === id)?.icon ?? 'tag'
+  const iconOf = (id: number | null) => categories.find((category) => category.id === id)?.icon ?? 'tag'
 
   function dayList(items: Transaction[]) {
     return (
@@ -59,12 +61,19 @@ export function BookingList({ entries, categories, today, onSelect }: Props) {
                 {dayItems.map((entry) => (
                   <li key={entryKey(entry)}>
                     <button type="button" className="tx" onClick={() => onSelect(entry)}>
-                      <CategoryIcon icon={iconOf(entry.categoryId)} />
+                      {entry.transfer ? (
+                        <span className="category-icon transfer-icon">
+                          <Icon name="transfer" size={18} />
+                        </span>
+                      ) : (
+                        <CategoryIcon icon={iconOf(entry.categoryId)} />
+                      )}
                       <span className="tx-main">
                         <span className="tx-description">{entry.description}</span>
                         <span className="tx-meta">
-                          {entry.categoryName}
-                          {entry.kind === 'RECURRING' && (
+                          {entry.transfer ? 'Umbuchung' : entry.categoryName}
+                          {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
+                          {(entry.kind === 'RECURRING' || entry.replaces) && (
                             <span className="badge">
                               <Icon name="repeat" size={12} />
                               wiederkehrend
@@ -73,7 +82,9 @@ export function BookingList({ entries, categories, today, onSelect }: Props) {
                           {entry.date > today && <span className="badge planned">geplant</span>}
                         </span>
                       </span>
-                      <span className={entry.amount > 0 ? 'tx-amount positive' : 'tx-amount'}>
+                      <span
+                        className={entry.transfer ? 'tx-amount transfer' : entry.amount > 0 ? 'tx-amount positive' : 'tx-amount'}
+                      >
                         {formatSigned(entry.amount)}
                       </span>
                     </button>

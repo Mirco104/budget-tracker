@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatIban,
+  formatSigned,
   formatAmount,
   formatDate,
   formatEuro,
@@ -63,5 +65,17 @@ describe('shiftMonth', () => {
     ['2026-01', -1, '2025-12'],
   ])('moves %s by %i to %s', (month, delta, expected) => {
     expect(shiftMonth(month, delta)).toBe(expected)
+  })
+})
+
+describe('formatSigned and formatIban', () => {
+  it('signs income and expenses and shows 0 without a sign', () => {
+    expect(formatSigned(12)).toBe('+12,00 €')
+    expect(formatSigned(-3.5)).toBe('−3,50 €')
+    expect(formatSigned(0)).toBe('0,00 €')
+  })
+
+  it('groups an IBAN in fours', () => {
+    expect(formatIban('DE89370400440532013000')).toBe('DE89 3704 0044 0532 0130 00')
   })
 })

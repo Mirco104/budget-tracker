@@ -119,14 +119,16 @@ button:disabled {
 }
 
 button[type='submit'],
-button.primary {
+button.primary,
+.button-link.primary {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--on-primary);
 }
 
 button[type='submit']:hover:not(:disabled),
-button.primary:hover:not(:disabled) {
+button.primary:hover:not(:disabled),
+.button-link.primary:hover {
   border-color: var(--primary-hover);
   background: var(--primary-hover);
 }
@@ -1240,6 +1242,31 @@ th.number {
   justify-content: space-between;
 }
 
+.account-form {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.account-form .hint {
+  margin: 0;
+}
+
+.account-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-name .badge {
+  margin-left: 8px;
+}
+
+.account-name .hint {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 button.add-category {
   display: inline-flex;
   gap: 6px;
@@ -1888,6 +1915,40 @@ button.tx:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+/* R27: a transfer counts nowhere, so its amount is muted */
+/* R28: the booking replaces a planned occurrence */
+.replace-choice {
+  display: flex;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+
+.replace-choice input {
+  margin-top: 3px;
+}
+
+.replace-choice .hint {
+  display: block;
+  margin: 2px 0 0;
+}
+
+/* US32, decision 46: a suggestion is a button, never preset */
+.suggestion-chip {
+  align-self: flex-start;
+}
+
+.tx-amount.transfer {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.transfer-icon {
+  color: var(--muted);
+}
+
 .card.empty {
   color: var(--muted);
   text-align: center;
@@ -2197,4 +2258,265 @@ button.tx:hover:not(:disabled) {
 .history td.from-reserves {
   color: var(--primary);
   font-weight: 600;
+}
+
+/* Import of bank files (US33, US34) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.file-button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.file-button:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.import-upload p,
+.import-summary p {
+  margin: 0 0 12px;
+}
+
+.import-upload,
+.import-summary {
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.import-summary h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+
+.import-sources {
+  display: grid;
+  gap: 8px;
+}
+
+.import-sources h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.success {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.import-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+/* R31: a monthly series the rows suggest */
+.import-series {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+}
+
+.import-series p {
+  margin: 0 0 8px;
+}
+
+.import-series-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.import-list {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.import-row {
+  display: grid;
+  grid-template-columns: auto 6.5rem minmax(0, 1fr) auto minmax(12rem, 16rem);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.import-row.unselected {
+  color: var(--muted);
+}
+
+/* An open row still needs its category (US33) */
+.import-row.open .import-category select {
+  border-color: var(--warn);
+}
+
+.import-check {
+  width: 20px;
+  height: 20px;
+}
+
+.import-date {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.import-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.import-description {
+  overflow-wrap: anywhere;
+}
+
+.import-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.import-hints .badge {
+  margin-left: 0;
+}
+
+.import-hints .hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+/* R28: a row replaces a planned occurrence; the tick takes it back */
+.badge.replace {
+  gap: 6px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.badge.replace input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.badge.warning {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.import-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.import-category {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-new-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.import-new-category input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.import-new-category .error {
+  flex-basis: 100%;
+}
+
+.import-category .chip {
+  align-self: flex-start;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.import-open {
+  text-align: right;
+}
+
+.import-batches {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-batch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.import-batch-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.import-batch-main .hint {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  /* Cards instead of a table on phones */
+  .import-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .import-date {
+    grid-column: 2 / 4;
+    grid-row: 1;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .import-check {
+    grid-row: 1 / 3;
+  }
+
+  .import-main {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .import-amount {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .import-category {
+    grid-column: 1 / 4;
+  }
+
+  .import-open {
+    text-align: left;
+  }
 }

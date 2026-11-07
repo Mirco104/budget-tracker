@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import { useReserves } from '../api/reserves'
@@ -11,24 +12,39 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
+import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
+import { ImportPage } from './ImportPage'
 import { totals } from '../sums'
+
+/** For the filter Art: a booking that replaces an occurrence counts as recurring (R28), a transfer has its own kind. */
+function kindOf(entry: Transaction): Transaction['kind'] | 'TRANSFER' {
+  if (entry.transfer) {
+    return 'TRANSFER'
+  }
+  return entry.replaces ? 'RECURRING' : entry.kind
+}
 
 /**
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
  * entries. Booking is in a dialog (US27, decision 30).
  */
-export function TransactionsPage() {
+export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Period | null }) {
   const today = todayIso()
-  const [preset, setPreset] = useState<PeriodPreset>('month')
-  const [custom, setCustom] = useState<Period>(() => presetPeriod('month', today))
+  // A period in the address bar (e.g. after an import, US33) starts as a custom period
+  const [preset, setPreset] = useState<PeriodPreset>(initialPeriod ? 'custom' : 'month')
+  const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
   const [query, setQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [kind, setKind] = useState<'' | Transaction['kind']>('')
+  // US26, US30: only with more than one account
+  const [accountFilter, setAccountFilter] = useState('')
+  // Wiederkehrend, einmalig (single transactions that are no transfer) or Umbuchung (R27)
+  const [kind, setKind] = useState<'' | Transaction['kind'] | 'TRANSFER'>('')
 
   const period = preset === 'custom' ? custom : presetPeriod(preset, today)
   const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
   const transactions = useTransactionsBetween(period.from, period.to, complete)
   const categories = useCategories(currentMonth())
+  const bankAccounts = useBankAccounts()
   // Compact reserve pot (R14, decision 15); details on the Auswertung page.
   const reserves = useReserves()
   const booking = useBookingDialog({ categories: categories.data, defaultDate: today })
@@ -45,15 +61,20 @@ export function TransactionsPage() {
   const shown = (transactions.data ?? []).filter(
     (entry) =>
       (categoryId === '' || String(entry.categoryId) === categoryId) &&
-      (kind === '' || entry.kind === kind) &&
+      (accountFilter === '' || String(entry.accountId) === accountFilter) &&
+      (kind === '' || kindOf(entry) === kind) &&
       (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search)),
   )
   const sums = totals(shown)
-  const filtered = search !== '' || categoryId !== '' || kind !== ''
+  const filtered = search !== '' || categoryId !== '' || kind !== '' || accountFilter !== ''
+  const accounts = bankAccounts.data ?? []
 
   return (
     <section>
       <PageHeader title="Transaktionen">
+        <a className="button-link" href={IMPORT_ROUTE}>
+          Importieren
+        </a>
         <AddBookingButton onClick={booking.openNew} />
       </PageHeader>
 
@@ -114,14 +135,25 @@ export function TransactionsPage() {
               </option>
             ))}
           </select>
+          {accounts.length > 1 && (
+            <select aria-label="Konto filtern" value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
+              <option value="">Alle Konten</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.archived ? `${account.name} (archiviert)` : account.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             aria-label="Art filtern"
             value={kind}
-            onChange={(e) => setKind(e.target.value as '' | Transaction['kind'])}
+            onChange={(e) => setKind(e.target.value as '' | Transaction['kind'] | 'TRANSFER')}
           >
             <option value="">Alle Arten</option>
             <option value="RECURRING">Wiederkehrend</option>
             <option value="SINGLE">Einmalig</option>
+            <option value="TRANSFER">Umbuchung</option>
           </select>
         </div>
 
@@ -155,11 +187,26 @@ export function TransactionsPage() {
         </p>
       )}
       {shown.length > 0 && (
-        <BookingList entries={shown} categories={categories.data ?? []} today={today} onSelect={booking.openEdit} />
+        <BookingList
+          entries={shown}
+          categories={categories.data ?? []}
+          today={today}
+          showAccount={accounts.length > 1}
+          onSelect={booking.openEdit}
+        />
       )}
 
       <AddBookingFab onClick={booking.openNew} />
       {booking.element}
     </section>
   )
+}
+
+/** Transaktionen with its sub page Importieren (US33); a new period in the address bar starts the list afresh. */
+export function TransactionsRoute() {
+  const route = useTransactionsRoute()
+  if (route.importPage) {
+    return <ImportPage />
+  }
+  return <TransactionsPage key={route.hash} initialPeriod={route.period} />
 }

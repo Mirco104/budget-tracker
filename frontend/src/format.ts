@@ -10,8 +10,11 @@ export function formatEuro(value: number | null): string {
 }
 
 
-/** "+12,00 €" for income, "−12,00 €" for expenses. */
+/** "+12,00 €" for income, "−12,00 €" for expenses, "0,00 €" without a sign (e.g. a day of transfers, R27). */
 export function formatSigned(value: number): string {
+  if (value === 0) {
+    return euro.format(0)
+  }
   return `${value > 0 ? '+' : '−'}${euro.format(Math.abs(value))}`
 }
 
@@ -99,4 +102,9 @@ export function todayIso(): string {
 export function shiftMonth(month: string, delta: number): string {
   const [year, monthNumber] = month.split('-').map(Number)
   return toMonthString(new Date(year, monthNumber - 1 + delta, 1))
+}
+
+/** "DE89 3704 0044 0532 0130 00": an IBAN in groups of four, for display only. */
+export function formatIban(iban: string): string {
+  return iban.replace(/(.{4})(?=.)/g, '$1 ')
 }
