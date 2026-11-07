@@ -239,6 +239,36 @@ class ImportControllerTest {
         assertThat(duplicateOf.get("description")).isEqualTo("Kino");
     }
 
+    // --- R31 monthly series ---
+
+    @Test
+    void suggestsAMonthlySeriesAndItsRowsReplaceTheOccurrencesOnceItExists() throws Exception {
+        String file = """
+                "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)"
+                2026-08-01,2026-08-01,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+                2026-08-31,2026-08-31,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+                2026-10-01,2026-10-01,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+                2026-11-02,2026-11-02,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+                2026-11-03,2026-11-03,"Kino Nord",,Presentment,,Hauptkonto,-12.00
+                """;
+        String preview = previewJson(mockMvc, file);
+        assertThat(JsonPath.<List<Integer>>read(preview, "$.series[0].lines")).containsExactly(2, 3, 4, 5);
+        assertThat(JsonPath.<String>read(preview, "$.series[0].startDate")).isEqualTo("2026-08-01");
+        assertThat(JsonPath.<String>read(preview, "$.series[0].description")).isEqualTo("Firma Beispiel · Lohn");
+        assertThat(JsonPath.<String>read(preview, "$.series[0].source")).isEqualTo("N26:Hauptkonto");
+        assertThat(JsonPath.<List<Object>>read(preview, "$.series")).hasSize(1);
+
+        mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": 2500, "description": "Firma Beispiel · Lohn", "categoryId": %d, "interval": "MONTHLY",
+                         "startDate": "2026-08-01"}""".formatted(category(user, "Gehalt/Lohn (netto)"))))
+                .andExpect(status().isCreated());
+
+        String again = previewJson(mockMvc, file);
+        assertThat(JsonPath.<List<Object>>read(again, "$.series")).isEmpty();
+        assertThat(JsonPath.<List<String>>read(again, "$.entries[?(@.line < 6)].replaces.date"))
+                .containsExactly("2026-08-01", "2026-09-01", "2026-10-01", "2026-11-01");
+    }
+
     // --- US34 ---
 
     @Test
