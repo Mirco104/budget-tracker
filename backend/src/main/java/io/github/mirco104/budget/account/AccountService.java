@@ -7,6 +7,8 @@ import io.github.mirco104.budget.account.AccountExport.RecurringExport;
 import io.github.mirco104.budget.account.AccountExport.TargetExport;
 import io.github.mirco104.budget.account.AccountExport.TransactionExport;
 import io.github.mirco104.budget.bankaccount.BankAccountRepository;
+import io.github.mirco104.budget.bankaccount.BankAccountSourceRepository;
+import io.github.mirco104.budget.importer.ImportBatchRepository;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.category.CategoryTarget;
 import io.github.mirco104.budget.category.CategoryTargetRepository;
@@ -49,6 +51,8 @@ public class AccountService {
     private final RecurringExceptionRepository exceptionRepository;
     private final InvitationRepository invitationRepository;
     private final BankAccountRepository bankAccountRepository;
+    private final BankAccountSourceRepository sourceRepository;
+    private final ImportBatchRepository importBatchRepository;
     private final Clock clock;
 
     public AccountService(
@@ -56,8 +60,11 @@ public class AccountService {
             CategoryRepository categoryRepository, CategoryTargetRepository categoryTargetRepository,
             TransactionRepository transactionRepository, RecurringTransactionRepository recurringRepository,
             RecurringExceptionRepository exceptionRepository, InvitationRepository invitationRepository,
-            BankAccountRepository bankAccountRepository, Clock clock) {
+            BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
+            ImportBatchRepository importBatchRepository, Clock clock) {
         this.bankAccountRepository = bankAccountRepository;
+        this.sourceRepository = sourceRepository;
+        this.importBatchRepository = importBatchRepository;
         this.currentUser = currentUser;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -129,7 +136,7 @@ public class AccountService {
         List<TransactionExport> transactions = transactionRepository.findByOwnerOrderByDateAscIdAsc(user).stream()
                 .map(t -> new TransactionExport(t.getDate(), t.getAmount(), t.getDescription(),
                         t.getCategory() == null ? null : t.getCategory().getName(), t.getAccount().getName(),
-                        t.isTransfer()))
+                        t.isTransfer(), t.getCounterparty(), t.getBankCategory()))
                 .toList();
         List<RecurringTransaction> series = recurringRepository.findByOwnerOrderByStartDateAscIdAsc(user);
         Map<Long, List<LocalDate>> exceptions = series.isEmpty() ? Map.of()
@@ -160,8 +167,10 @@ public class AccountService {
         exceptionRepository.deleteByOwner(user);
         recurringRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);
+        importBatchRepository.deleteByOwner(user);
         categoryTargetRepository.deleteByOwner(user);
         categoryRepository.deleteByOwner(user);
+        sourceRepository.deleteByOwner(user);
         bankAccountRepository.deleteByOwner(user);
         invitationRepository.deleteByCreatedBy(user);
         // The bulk deletes cleared the persistence context, so the user is removed by id
