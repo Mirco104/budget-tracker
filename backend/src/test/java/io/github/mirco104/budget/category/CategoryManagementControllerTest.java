@@ -267,7 +267,9 @@ class CategoryManagementControllerTest {
     @Test
     void returns404WhenChangingIconOfAnotherUsersCategory() throws Exception {
         User other = TestUsers.create(userService, "person-c@example.test");
-        Category foreign = categoryRepository.findAllByOwner(other).getFirst();
+        Category foreign = categoryRepository.findAllByOwner(other).stream()
+                .filter(category -> category.getName().equals("Wohnen"))
+                .findFirst().orElseThrow();
 
         putCategory(foreign.getId(), "{\"name\": \"Wohnen\", \"archived\": false, \"icon\": \"car\"}")
                 .andExpect(status().isNotFound());

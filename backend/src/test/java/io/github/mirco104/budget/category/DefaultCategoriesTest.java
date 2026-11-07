@@ -6,12 +6,17 @@ import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserService;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Every new user gets the default categories from the spec, without targets (section 4, US15). */
+/**
+ * Every new user gets the default categories from the spec, without targets (section 4, US15). The repository
+ * returns them in no particular order (PostgreSQL and H2 differ); the app sorts them alphabetically (decision 38).
+ */
 @SpringBootTest
 @Transactional
 class DefaultCategoriesTest {
@@ -26,14 +31,14 @@ class DefaultCategoriesTest {
     private CategoryTargetRepository categoryTargetRepository;
 
     @Test
-    void seedsUniqueNamesAsOneListInSpecOrder() {
+    void seedsTheUniqueNamesOfTheSpec() {
         User user = TestUsers.create(userService, "person-b@example.test");
 
         List<String> names = categoryRepository.findAllByOwner(user).stream()
                 .map(Category::getName)
                 .toList();
 
-        assertThat(names).doesNotHaveDuplicates().containsExactly(
+        assertThat(names).doesNotHaveDuplicates().containsExactlyInAnyOrder(
                 "Wohnen", "Nebenkosten", "Versicherungen", "Mobilität", "Kredite", "Spenden",
                 "Lebensmittel", "Freizeit", "Urlaub", "Persönlicher Bedarf", "Geschenke", "Gesundheit",
                 "Investitionen", "Selbstständigkeit",
@@ -47,16 +52,20 @@ class DefaultCategoriesTest {
     void seedsMatchingIcons() {
         User user = TestUsers.create(userService, "person-b@example.test");
 
-        List<String> icons = categoryRepository.findAllByOwner(user).stream()
-                .map(Category::getIcon)
-                .toList();
+        Map<String, String> icons = categoryRepository.findAllByOwner(user).stream()
+                .collect(Collectors.toMap(Category::getName, Category::getIcon));
 
-        assertThat(icons).containsExactly(
-                "home", "bolt", "shield", "car", "card", "heart",
-                "cart", "music", "suitcase", "bag", "gift", "pulse",
-                "trend", "briefcase",
-                "wallet", "laptop", "receipt",
-                "coins", "landmark", "plus");
+        assertThat(icons).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
+                Map.entry("Wohnen", "home"), Map.entry("Nebenkosten", "bolt"),
+                Map.entry("Versicherungen", "shield"), Map.entry("Mobilität", "car"),
+                Map.entry("Kredite", "card"), Map.entry("Spenden", "heart"),
+                Map.entry("Lebensmittel", "cart"), Map.entry("Freizeit", "music"),
+                Map.entry("Urlaub", "suitcase"), Map.entry("Persönlicher Bedarf", "bag"),
+                Map.entry("Geschenke", "gift"), Map.entry("Gesundheit", "pulse"),
+                Map.entry("Investitionen", "trend"), Map.entry("Selbstständigkeit", "briefcase"),
+                Map.entry("Gehalt/Lohn (netto)", "wallet"), Map.entry("Nebenjob", "laptop"),
+                Map.entry("Einnahmen Selbstständigkeit", "receipt"), Map.entry("Kapitalerträge", "coins"),
+                Map.entry("Staatliche Leistungen", "landmark"), Map.entry("Sonstige Einnahmen", "plus")));
     }
 
     @Test
@@ -71,7 +80,6 @@ class DefaultCategoriesTest {
         assertThat(ofC).hasSize(20);
         assertThat(ofB).extracting(Category::getId).doesNotContainAnyElementsOf(
                 ofC.stream().map(Category::getId).toList());
-        assertThat(ofB).extracting(Category::getSortOrder).startsWith(10, 20, 30).endsWith(200);
         assertThat(categoryTargetRepository.findAll()).isEmpty();
     }
 }
