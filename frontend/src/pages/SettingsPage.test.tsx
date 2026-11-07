@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from '../api/types'
 import { SettingsPage } from './SettingsPage'
 
@@ -11,8 +11,13 @@ function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
-// Categories load as an empty list; writing calls get the answer of the test
-function renderSettings(me: Me, onWrite: (url: string, init: RequestInit) => Promise<Response> = () => json({})) {
+// Categories load as an empty list; writing calls get the answer of the test. Most tests are about the account.
+function renderSettings(
+  me: Me,
+  onWrite: (url: string, init: RequestInit) => Promise<Response> = () => json({}),
+  hash = '#/einstellungen/konto',
+) {
+  window.location.hash = hash
   const fetchMock = vi.fn((url: string, init?: RequestInit) =>
     init?.method && init.method !== 'GET' ? onWrite(url, init) : json([]),
   )
@@ -29,17 +34,52 @@ function writeCalls(fetchMock: ReturnType<typeof renderSettings>) {
   return fetchMock.mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')
 }
 
+function subPages() {
+  return within(screen.getByRole('navigation', { name: 'Einstellungen' }))
+    .getAllByRole('link')
+    .map((link) => [link.textContent, link.getAttribute('href')])
+}
+
 describe('SettingsPage', () => {
-  it('shows users and invitations to admins and the system admin, not to users', () => {
+  afterEach(() => {
+    window.location.hash = ''
+  })
+
+  // US10: sub pages with their own address (US29); invitations and users only for admins
+  it('has the sub pages Kategorien and Konto, for admins also Einladungen and Nutzer', () => {
     renderSettings(user)
+    expect(subPages()).toEqual([
+      ['Kategorien', '#/einstellungen/kategorien'],
+      ['Konto', '#/einstellungen/konto'],
+    ])
+    expect(screen.getByRole('link', { name: 'Konto' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('heading', { name: 'Konto' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Einladungen' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Nutzer' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Kategorien' })).not.toBeInTheDocument()
     cleanup()
 
-    renderSettings({ ...admin, role: 'SYSTEM_ADMIN' })
-    expect(screen.getByRole('heading', { name: 'Einladungen' })).toBeInTheDocument()
+    renderSettings({ ...admin, role: 'SYSTEM_ADMIN' }, undefined, '#/einstellungen/nutzer')
+    expect(subPages()).toEqual([
+      ['Kategorien', '#/einstellungen/kategorien'],
+      ['Konto', '#/einstellungen/konto'],
+      ['Einladungen', '#/einstellungen/einladungen'],
+      ['Nutzer', '#/einstellungen/nutzer'],
+    ])
     expect(screen.getByRole('heading', { name: 'Nutzer' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Konto' })).not.toBeInTheDocument()
+  })
+
+  it('shows the categories without a sub page in the address', async () => {
+    renderSettings(user, undefined, '#/einstellungen')
+
+    expect(screen.getByRole('link', { name: 'Kategorien' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('heading', { name: 'Kategorien' })).toBeInTheDocument()
+  })
+
+  it('shows the categories instead of an admin sub page to a user', async () => {
+    renderSettings(user, undefined, '#/einstellungen/nutzer')
+
+    expect(await screen.findByRole('heading', { name: 'Kategorien' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Nutzer' })).not.toBeInTheDocument()
   })
 
   it('shows name and e-mail and opens a form only after Ändern', () => {
@@ -106,8 +146,10 @@ describe('SettingsPage', () => {
   })
 
   it('creates an invitation link for an admin', async () => {
-    renderSettings(admin, () =>
-      json({ link: 'http://localhost:5173/?einladung=token-abc', expiresAt: '2026-11-08T17:00:00Z' }, 201),
+    renderSettings(
+      admin,
+      () => json({ link: 'http://localhost:5173/?einladung=token-abc', expiresAt: '2026-11-08T17:00:00Z' }, 201),
+      '#/einstellungen/einladungen',
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Einladungslink erzeugen' }))
@@ -131,7 +173,8 @@ describe('SettingsPage', () => {
     const form = screen.getByRole('form', { name: 'Passwort ändern' })
 
     fireEvent.change(within(form).getByLabelText('Bisheriges Passwort'), { target: { value: 'wrong-password' } })
-    fireEvent.change(within(form).getByLabelText(/Neues Passwort/), { target: { value: 'new-test-password' } })
+    fireEvent.change(within(form).getByLabelText(/Neues Passwort \(/), { target: { value: 'new-test-password' } })
+    fireEvent.change(within(form).getByLabelText('Neues Passwort wiederholen'), { target: { value: 'new-test-password' } })
     fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('Das Passwort ist falsch.')
@@ -140,6 +183,31 @@ describe('SettingsPage', () => {
     expect(init?.method).toBe('PUT')
     expect(JSON.parse(init?.body as string)).toEqual({
       currentPassword: 'wrong-password',
+      newPassword: 'new-test-password',
+    })
+  })
+
+  // US16: the new password is typed twice, so a typo cannot lock the user out
+  it('sends no new password until both entries match', async () => {
+    const fetchMock = renderSettings(user)
+    fireEvent.click(screen.getByRole('button', { name: 'Passwort ändern' }))
+    const form = screen.getByRole('form', { name: 'Passwort ändern' })
+    fireEvent.change(within(form).getByLabelText('Bisheriges Passwort'), { target: { value: 'old-test-password' } })
+    fireEvent.change(within(form).getByLabelText(/Neues Passwort \(/), { target: { value: 'new-test-password' } })
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+    expect(within(form).getByRole('alert')).toHaveTextContent('Bitte alle drei Felder ausfüllen.')
+
+    fireEvent.change(within(form).getByLabelText('Neues Passwort wiederholen'), { target: { value: 'new-test-pasword' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+    expect(within(form).getByRole('alert')).toHaveTextContent('Die neuen Passwörter stimmen nicht überein.')
+    expect(writeCalls(fetchMock)).toHaveLength(0)
+
+    fireEvent.change(within(form).getByLabelText('Neues Passwort wiederholen'), { target: { value: 'new-test-password' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({
+      currentPassword: 'old-test-password',
       newPassword: 'new-test-password',
     })
   })

@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.github.mirco104.budget.category.CategoryOrder;
 import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.user.AppUserDetails;
 import io.github.mirco104.budget.user.User;
@@ -68,7 +69,7 @@ class TenantIsolationTest {
         asB = TestUsers.mockMvcFor(context, b);
         asC = TestUsers.mockMvcFor(context, c);
 
-        categoryOfB = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(b).getFirst().getId();
+        categoryOfB = categoryRepository.findAllByOwner(b).stream().min(CategoryOrder.ALPHABETICAL).orElseThrow().getId();
         asB.perform(put("/api/categories/{id}/target", categoryOfB).param("month", MONTH)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"targetAmount\": 500}"))
                 .andExpect(status().isOk());
@@ -118,7 +119,7 @@ class TenantIsolationTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("urlsWithResourceOfB")
     void resourceOfAnotherUserInTheUrlIsNotFound(String name, String request) throws Exception {
-        long ownCategory = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(c).getFirst().getId();
+        long ownCategory = categoryRepository.findAllByOwner(c).stream().min(CategoryOrder.ALPHABETICAL).orElseThrow().getId();
         MockHttpServletRequestBuilder builder = switch (request) {
             case "category" -> put("/api/categories/{id}", categoryOfB)
                     .content("{\"name\": \"Neu\", \"sortOrder\": 10, \"archived\": false}");
@@ -187,7 +188,7 @@ class TenantIsolationTest {
         MockMvc withoutCsrf = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
                 .defaultRequest(get("/").with(user(AppUserDetails.from(c))))
                 .build();
-        long ownCategory = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(c).getFirst().getId();
+        long ownCategory = categoryRepository.findAllByOwner(c).stream().min(CategoryOrder.ALPHABETICAL).orElseThrow().getId();
 
         withoutCsrf.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON)
                         .content(transaction(ownCategory)))
