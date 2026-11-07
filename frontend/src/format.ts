@@ -10,8 +10,11 @@ export function formatEuro(value: number | null): string {
 }
 
 
-/** "+12,00 €" for income, "−12,00 €" for expenses. */
+/** "+12,00 €" for income, "−12,00 €" for expenses, "0,00 €" without a sign (e.g. a day of transfers, R27). */
 export function formatSigned(value: number): string {
+  if (value === 0) {
+    return euro.format(0)
+  }
   return `${value > 0 ? '+' : '−'}${euro.format(Math.abs(value))}`
 }
 

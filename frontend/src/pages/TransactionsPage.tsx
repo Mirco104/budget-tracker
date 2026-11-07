@@ -12,16 +12,19 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
+import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
+import { ImportPage } from './ImportPage'
 import { totals } from '../sums'
 
 /**
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
  * entries. Booking is in a dialog (US27, decision 30).
  */
-export function TransactionsPage() {
+export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Period | null }) {
   const today = todayIso()
-  const [preset, setPreset] = useState<PeriodPreset>('month')
-  const [custom, setCustom] = useState<Period>(() => presetPeriod('month', today))
+  // A period in the address bar (e.g. after an import, US33) starts as a custom period
+  const [preset, setPreset] = useState<PeriodPreset>(initialPeriod ? 'custom' : 'month')
+  const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
   const [query, setQuery] = useState('')
   const [categoryId, setCategoryId] = useState('')
   // Wiederkehrend, einmalig (single transactions that are no transfer) or Umbuchung (R27)
@@ -57,6 +60,9 @@ export function TransactionsPage() {
   return (
     <section>
       <PageHeader title="Transaktionen">
+        <a className="button-link" href={IMPORT_ROUTE}>
+          Importieren
+        </a>
         <AddBookingButton onClick={booking.openNew} />
       </PageHeader>
 
@@ -172,4 +178,13 @@ export function TransactionsPage() {
       {booking.element}
     </section>
   )
+}
+
+/** Transaktionen with its sub page Importieren (US33); a new period in the address bar starts the list afresh. */
+export function TransactionsRoute() {
+  const route = useTransactionsRoute()
+  if (route.importPage) {
+    return <ImportPage />
+  }
+  return <TransactionsPage key={route.hash} initialPeriod={route.period} />
 }
