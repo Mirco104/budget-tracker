@@ -9,7 +9,7 @@ const noFixedCosts = { fixedCosts: null, fixedCostItems: [] }
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
   {
-    id: 1, name: 'Wohnen', icon: 'home', sortOrder: 1, targetAmount: 800, targetValidFrom: '2026-09', archived: false,
+    id: 1, name: 'Wohnen', icon: 'home', targetAmount: 800, targetValidFrom: '2026-09', archived: false,
     incomeOnly: false,
     // R25: 900 a month and 600 a year, 950 in total
     fixedCosts: 950,
@@ -18,18 +18,18 @@ const categories: Category[] = [
       { recurringId: 12, description: 'Hausrat', amount: 600, interval: 12, monthly: 50 },
     ],
   },
-  { id: 7, name: 'Lebensmittel', icon: 'cart', sortOrder: 7, targetAmount: 480, targetValidFrom: '2026-11', archived: false, incomeOnly: false, ...noFixedCosts },
+  { id: 7, name: 'Lebensmittel', icon: 'cart', targetAmount: 480, targetValidFrom: '2026-11', archived: false, incomeOnly: false, ...noFixedCosts },
   {
-    id: 8, name: 'Freizeit', icon: 'tag', sortOrder: 8, targetAmount: null, targetValidFrom: null, archived: false,
+    id: 8, name: 'Freizeit', icon: 'tag', targetAmount: null, targetValidFrom: null, archived: false,
     incomeOnly: false, fixedCosts: 15,
     fixedCostItems: [{ recurringId: 13, description: 'Streaming', amount: 15, interval: 1, monthly: 15 }],
   },
   // R24: only positive entries and no target, hidden by default
-  { id: 20, name: 'Gehalt/Lohn (netto)', icon: 'wallet', sortOrder: 20, targetAmount: null, targetValidFrom: null, archived: false, incomeOnly: true, ...noFixedCosts },
+  { id: 20, name: 'Gehalt/Lohn (netto)', icon: 'wallet', targetAmount: null, targetValidFrom: null, archived: false, incomeOnly: true, ...noFixedCosts },
   // R24: income only, but with a target in the month, so it stays
-  { id: 21, name: 'Nebenjob', icon: 'tag', sortOrder: 21, targetAmount: 10, targetValidFrom: '2026-11', archived: false, incomeOnly: true, ...noFixedCosts },
+  { id: 21, name: 'Nebenjob', icon: 'tag', targetAmount: 10, targetValidFrom: '2026-11', archived: false, incomeOnly: true, ...noFixedCosts },
   // US10: archived categories are not planned
-  { id: 30, name: 'Kredite', icon: 'tag', sortOrder: 30, targetAmount: null, targetValidFrom: null, archived: true, incomeOnly: false, ...noFixedCosts },
+  { id: 30, name: 'Kredite', icon: 'tag', targetAmount: null, targetValidFrom: null, archived: true, incomeOnly: false, ...noFixedCosts },
 ]
 
 // Only the fields the planning page uses.

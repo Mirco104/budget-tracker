@@ -102,7 +102,7 @@ class InvitationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(NEW_EMAIL));
         User created = userRepository.findByEmail(NEW_EMAIL).orElseThrow();
-        assertThat(categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(created)).hasSize(20);
+        assertThat(categoryRepository.findAllByOwner(created)).hasSize(20);
         assertThat(created.getLastLoginAt()).isNotNull();
         assertThat(invitationRepository.findByToken(token).orElseThrow().getUsedAt()).isNotNull();
     }

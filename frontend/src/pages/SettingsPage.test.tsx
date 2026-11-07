@@ -173,7 +173,8 @@ describe('SettingsPage', () => {
     const form = screen.getByRole('form', { name: 'Passwort ändern' })
 
     fireEvent.change(within(form).getByLabelText('Bisheriges Passwort'), { target: { value: 'wrong-password' } })
-    fireEvent.change(within(form).getByLabelText(/Neues Passwort/), { target: { value: 'new-test-password' } })
+    fireEvent.change(within(form).getByLabelText(/Neues Passwort \(/), { target: { value: 'new-test-password' } })
+    fireEvent.change(within(form).getByLabelText('Neues Passwort wiederholen'), { target: { value: 'new-test-password' } })
     fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('Das Passwort ist falsch.')
@@ -182,6 +183,31 @@ describe('SettingsPage', () => {
     expect(init?.method).toBe('PUT')
     expect(JSON.parse(init?.body as string)).toEqual({
       currentPassword: 'wrong-password',
+      newPassword: 'new-test-password',
+    })
+  })
+
+  // US16: the new password is typed twice, so a typo cannot lock the user out
+  it('sends no new password until both entries match', async () => {
+    const fetchMock = renderSettings(user)
+    fireEvent.click(screen.getByRole('button', { name: 'Passwort ändern' }))
+    const form = screen.getByRole('form', { name: 'Passwort ändern' })
+    fireEvent.change(within(form).getByLabelText('Bisheriges Passwort'), { target: { value: 'old-test-password' } })
+    fireEvent.change(within(form).getByLabelText(/Neues Passwort \(/), { target: { value: 'new-test-password' } })
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+    expect(within(form).getByRole('alert')).toHaveTextContent('Bitte alle drei Felder ausfüllen.')
+
+    fireEvent.change(within(form).getByLabelText('Neues Passwort wiederholen'), { target: { value: 'new-test-pasword' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+    expect(within(form).getByRole('alert')).toHaveTextContent('Die neuen Passwörter stimmen nicht überein.')
+    expect(writeCalls(fetchMock)).toHaveLength(0)
+
+    fireEvent.change(within(form).getByLabelText('Neues Passwort wiederholen'), { target: { value: 'new-test-password' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Speichern' }))
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({
+      currentPassword: 'old-test-password',
       newPassword: 'new-test-password',
     })
   })
