@@ -23,7 +23,8 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(`/api${path}`, {
       ...init,
       headers: {
-        'Content-Type': 'application/json',
+        // A file upload sets its own multipart content type with the boundary
+        ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { 'X-XSRF-TOKEN': token } : {}),
         ...init?.headers,
       },

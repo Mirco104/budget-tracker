@@ -9,7 +9,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { TransactionsPage } from './pages/TransactionsPage'
+import { TransactionsRoute } from './pages/TransactionsPage'
 import { ROUTES, usePage, type Page } from './router'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
@@ -126,7 +126,7 @@ function SignedIn({ me }: { me: Me }) {
 
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
-        {page === 'transactions' && <TransactionsPage />}
+        {page === 'transactions' && <TransactionsRoute />}
         {page === 'planning' && <PlanningPage />}
         {page === 'evaluation' && (
           <Suspense fallback={<p>Lade Auswertung …</p>}>
