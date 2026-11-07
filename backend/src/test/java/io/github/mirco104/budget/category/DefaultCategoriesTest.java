@@ -29,7 +29,7 @@ class DefaultCategoriesTest {
     void seedsUniqueNamesAsOneListInSpecOrder() {
         User user = TestUsers.create(userService, "person-b@example.test");
 
-        List<String> names = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        List<String> names = categoryRepository.findAllByOwner(user).stream()
                 .map(Category::getName)
                 .toList();
 
@@ -47,7 +47,7 @@ class DefaultCategoriesTest {
     void seedsMatchingIcons() {
         User user = TestUsers.create(userService, "person-b@example.test");
 
-        List<String> icons = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        List<String> icons = categoryRepository.findAllByOwner(user).stream()
                 .map(Category::getIcon)
                 .toList();
 
@@ -64,8 +64,8 @@ class DefaultCategoriesTest {
         User b = TestUsers.create(userService, "person-b@example.test");
         User c = TestUsers.create(userService, "person-c@example.test");
 
-        List<Category> ofB = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(b);
-        List<Category> ofC = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(c);
+        List<Category> ofB = categoryRepository.findAllByOwner(b);
+        List<Category> ofC = categoryRepository.findAllByOwner(c);
 
         assertThat(ofB).hasSize(20);
         assertThat(ofC).hasSize(20);

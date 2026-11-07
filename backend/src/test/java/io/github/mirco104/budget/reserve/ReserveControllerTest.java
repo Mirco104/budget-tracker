@@ -322,7 +322,7 @@ class ReserveControllerTest {
     }
 
     private long categoryId(String name) {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        return categoryRepository.findAllByOwner(user).stream()
                 .filter(c -> c.getName().equals(name))
                 .findFirst().orElseThrow()
                 .getId();

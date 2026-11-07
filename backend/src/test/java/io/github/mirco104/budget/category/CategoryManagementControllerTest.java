@@ -55,21 +55,35 @@ class CategoryManagementControllerTest {
 
     // --- POST /api/categories ---
 
+    // Decision 38: a new category takes its alphabetical place
     @Test
-    void createsCategoryAtTheEndWithTrimmedName() throws Exception {
-        int lastSortOrder = categoryRepository.findTopByOwnerOrderBySortOrderDesc(user).orElseThrow().getSortOrder();
-
+    void createsCategoryAtItsAlphabeticalPlaceWithTrimmedName() throws Exception {
         var result = postCategory("{\"name\": \"  Haustier  \"}")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Haustier"))
-                .andExpect(jsonPath("$.sortOrder").value(lastSortOrder + 10))
+                .andExpect(jsonPath("$.sortOrder").doesNotExist())
                 .andExpect(jsonPath("$.archived").value(false));
         int id = JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id");
         result.andExpect(header().string("Location", endsWith("/api/categories/" + id)));
 
         mockMvc.perform(get("/api/categories").param("month", MONTH))
                 .andExpect(jsonPath("$", hasSize(21)))
-                .andExpect(jsonPath("$[20].name").value("Haustier"));
+                .andExpect(jsonPath("$[4].name").value("Gesundheit"))
+                .andExpect(jsonPath("$[5].name").value("Haustier"));
+    }
+
+    // Umlauts sort like their base letter and case does not matter (German collation)
+    @Test
+    void sortsUmlautsAndLowerCaseLikeGerman() throws Exception {
+        postCategory("{\"name\": \"ärztliche Kosten\"}").andExpect(status().isCreated());
+        postCategory("{\"name\": \"Zoo\"}").andExpect(status().isCreated());
+        postCategory("{\"name\": \"bücher\"}").andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/categories").param("month", MONTH))
+                .andExpect(jsonPath("$[0].name").value("ärztliche Kosten"))
+                .andExpect(jsonPath("$[1].name").value("bücher"))
+                .andExpect(jsonPath("$[2].name").value("Einnahmen Selbstständigkeit"))
+                .andExpect(jsonPath("$[22].name").value("Zoo"));
     }
 
     @Test
@@ -103,7 +117,7 @@ class CategoryManagementControllerTest {
     void renamesCategory() throws Exception {
         Category category = category("Urlaub");
 
-        putCategory(category.getId(), "Reisen", category.getSortOrder(), false)
+        putCategory(category.getId(), "Reisen", false)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Reisen"));
     }
@@ -112,7 +126,7 @@ class CategoryManagementControllerTest {
     void keepsOwnNameWithDifferentCase() throws Exception {
         Category category = category("Urlaub");
 
-        putCategory(category.getId(), "URLAUB", category.getSortOrder(), false)
+        putCategory(category.getId(), "URLAUB", false)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("URLAUB"));
     }
@@ -121,95 +135,47 @@ class CategoryManagementControllerTest {
     void rejectsRenameToExistingName() throws Exception {
         Category category = category("Urlaub");
 
-        putCategory(category.getId(), "Freizeit", category.getSortOrder(), false)
+        putCategory(category.getId(), "Freizeit", false)
                 .andExpect(status().isConflict());
     }
 
+    // Decision 38: there is no own order any more; a renamed category moves to its alphabetical place
     @Test
-    void swapsPlacesWithTheCategoryThatHasTheRequestedSortOrder() throws Exception {
+    void movesARenamedCategoryToItsAlphabeticalPlace() throws Exception {
         Category wohnen = category("Wohnen");
-        Category nebenkosten = category("Nebenkosten");
-        int wohnenOrder = wohnen.getSortOrder();
-        int nebenkostenOrder = nebenkosten.getSortOrder();
 
-        putCategory(nebenkosten.getId(), "Nebenkosten", wohnenOrder, false)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.sortOrder").value(wohnenOrder));
+        putCategory(wohnen.getId(), "Abo und Miete", false).andExpect(status().isOk());
 
         mockMvc.perform(get("/api/categories").param("month", MONTH))
-                .andExpect(jsonPath("$[0].name").value("Nebenkosten"))
-                .andExpect(jsonPath("$[1].name").value("Wohnen"))
-                .andExpect(jsonPath("$[1].sortOrder").value(nebenkostenOrder));
+                .andExpect(jsonPath("$[0].name").value("Abo und Miete"))
+                .andExpect(jsonPath("$[1].name").value("Einnahmen Selbstständigkeit"));
     }
 
+    // Older clients still send a sortOrder; it is ignored
     @Test
-    void renamesAndMovesInOneRequestAndRenumbersAllCategories() throws Exception {
-        Category wohnen = category("Wohnen");
-        Category nebenkosten = category("Nebenkosten");
-
-        putCategory(wohnen.getId(), "Miete", nebenkosten.getSortOrder(), false)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Miete"))
-                .andExpect(jsonPath("$.sortOrder").value(20));
-
-        mockMvc.perform(get("/api/categories").param("month", MONTH))
-                .andExpect(jsonPath("$[0].name").value("Nebenkosten"))
-                .andExpect(jsonPath("$[1].name").value("Miete"))
-                .andExpect(jsonPath("$[*].sortOrder", contains(
-                        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200)));
-    }
-
-    @Test
-    void repairsDuplicateSortOrdersOnTheNextChange() throws Exception {
-        // Two categories with the same sortOrder, as left behind by two overlapping requests
-        Category wohnen = category("Wohnen");
-        Category nebenkosten = category("Nebenkosten");
-        nebenkosten.moveTo(wohnen.getSortOrder());
-        categoryRepository.flush();
-
-        mockMvc.perform(get("/api/categories").param("month", MONTH))
-                .andExpect(jsonPath("$[0].name").value("Wohnen"))
-                .andExpect(jsonPath("$[1].name").value("Nebenkosten"));
-
-        putCategory(wohnen.getId(), "Miete", wohnen.getSortOrder(), false)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.sortOrder").value(10));
-
-        mockMvc.perform(get("/api/categories").param("month", MONTH))
-                .andExpect(jsonPath("$[0].name").value("Miete"))
-                .andExpect(jsonPath("$[1].name").value("Nebenkosten"))
-                .andExpect(jsonPath("$[1].sortOrder").value(20))
-                .andExpect(jsonPath("$[2].sortOrder").value(30));
-
-        putCategory(wohnen.getId(), "Miete", 20, false)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.sortOrder").value(20));
-    }
-
-    @Test
-    void keepsTheOrderWhenOnlyTheNameChanges() throws Exception {
+    void ignoresASortOrderInTheRequest() throws Exception {
         Category wohnen = category("Wohnen");
 
-        putCategory(wohnen.getId(), "Miete", wohnen.getSortOrder(), false)
+        putCategory(wohnen.getId(), "{\"name\": \"Wohnen\", \"sortOrder\": 10, \"archived\": false}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.sortOrder").value(wohnen.getSortOrder()));
+                .andExpect(jsonPath("$.sortOrder").doesNotExist());
 
         mockMvc.perform(get("/api/categories").param("month", MONTH))
-                .andExpect(jsonPath("$[0].name").value("Miete"))
-                .andExpect(jsonPath("$[1].name").value("Nebenkosten"));
+                .andExpect(jsonPath("$[0].name").value("Einnahmen Selbstständigkeit"))
+                .andExpect(jsonPath("$[19].name").value("Wohnen"));
     }
 
     @Test
     void archivesAndReactivatesCategory() throws Exception {
         Category category = category("Kredite");
 
-        putCategory(category.getId(), "Kredite", category.getSortOrder(), true)
+        putCategory(category.getId(), "Kredite", true)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.archived").value(true));
         mockMvc.perform(get("/api/categories").param("month", MONTH))
                 .andExpect(jsonPath("$[?(@.name == 'Kredite')].archived", contains(true)));
 
-        putCategory(category.getId(), "Kredite", category.getSortOrder(), false)
+        putCategory(category.getId(), "Kredite", false)
                 .andExpect(jsonPath("$.archived").value(false));
     }
 
@@ -223,7 +189,7 @@ class CategoryManagementControllerTest {
 
     @Test
     void returns404WhenUpdatingUnknownCategory() throws Exception {
-        putCategory(999_999L, "Neu", 10, false)
+        putCategory(999_999L, "Neu", false)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Kategorie 999999 wurde nicht gefunden."));
     }
@@ -234,7 +200,7 @@ class CategoryManagementControllerTest {
         Category category = category("Geschenke");
         postTransaction(category.getId(), "2026-09-10").andExpect(status().isCreated());
 
-        putCategory(category.getId(), "Geschenke", category.getSortOrder(), true).andExpect(status().isOk());
+        putCategory(category.getId(), "Geschenke", true).andExpect(status().isOk());
 
         mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
                 .andExpect(status().isOk())
@@ -272,8 +238,7 @@ class CategoryManagementControllerTest {
     void changesIcon() throws Exception {
         Category category = category("Urlaub");
 
-        putCategory(category.getId(), "{\"name\": \"Urlaub\", \"sortOrder\": %d, \"archived\": false, \"icon\": \"car\"}"
-                        .formatted(category.getSortOrder()))
+        putCategory(category.getId(), "{\"name\": \"Urlaub\", \"archived\": false, \"icon\": \"car\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.icon").value("car"));
     }
@@ -282,7 +247,7 @@ class CategoryManagementControllerTest {
     void keepsIconWhenUpdateHasNone() throws Exception {
         Category category = category("Urlaub");
 
-        putCategory(category.getId(), "Ferien", category.getSortOrder(), false)
+        putCategory(category.getId(), "Ferien", false)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.icon").value("suitcase"));
     }
@@ -291,8 +256,7 @@ class CategoryManagementControllerTest {
     void rejectsUnknownIconOnUpdate() throws Exception {
         Category category = category("Urlaub");
 
-        putCategory(category.getId(), "{\"name\": \"Urlaub\", \"sortOrder\": %d, \"archived\": false, \"icon\": \"\"}"
-                        .formatted(category.getSortOrder()))
+        putCategory(category.getId(), "{\"name\": \"Urlaub\", \"archived\": false, \"icon\": \"\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("icon"));
         mockMvc.perform(get("/api/categories").param("month", MONTH))
@@ -303,9 +267,9 @@ class CategoryManagementControllerTest {
     @Test
     void returns404WhenChangingIconOfAnotherUsersCategory() throws Exception {
         User other = TestUsers.create(userService, "person-c@example.test");
-        Category foreign = categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(other).getFirst();
+        Category foreign = categoryRepository.findAllByOwner(other).getFirst();
 
-        putCategory(foreign.getId(), "{\"name\": \"Wohnen\", \"sortOrder\": 10, \"archived\": false, \"icon\": \"car\"}")
+        putCategory(foreign.getId(), "{\"name\": \"Wohnen\", \"archived\": false, \"icon\": \"car\"}")
                 .andExpect(status().isNotFound());
         assertThat(categoryRepository.findById(foreign.getId()).orElseThrow().getIcon())
                 .isEqualTo("home");
@@ -371,8 +335,8 @@ class CategoryManagementControllerTest {
         return mockMvc.perform(post("/api/categories").contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
-    private ResultActions putCategory(long id, String name, int sortOrder, boolean archived) throws Exception {
-        return putCategory(id, "{\"name\": \"%s\", \"sortOrder\": %d, \"archived\": %b}".formatted(name, sortOrder, archived));
+    private ResultActions putCategory(long id, String name, boolean archived) throws Exception {
+        return putCategory(id, "{\"name\": \"%s\", \"archived\": %b}".formatted(name, archived));
     }
 
     private ResultActions putCategory(long id, String body) throws Exception {
@@ -388,7 +352,7 @@ class CategoryManagementControllerTest {
     }
 
     private Category category(String name) {
-        return categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(user).stream()
+        return categoryRepository.findAllByOwner(user).stream()
                 .filter(c -> c.getName().equals(name))
                 .findFirst().orElseThrow();
     }

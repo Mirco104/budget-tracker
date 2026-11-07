@@ -43,7 +43,7 @@ class AdminBootstrapTest {
         assertThat(admin.getRole()).isEqualTo(Role.SYSTEM_ADMIN);
         assertThat(admin.getDisplayName()).isEqualTo("Person A");
         assertThat(admin.getPasswordHash()).startsWith("$2").doesNotContain("test-only-password");
-        assertThat(categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(admin)).hasSize(20);
+        assertThat(categoryRepository.findAllByOwner(admin)).hasSize(20);
     }
 
     @Test
@@ -63,7 +63,7 @@ class AdminBootstrapTest {
         User created = userRepository.findByEmail("person-x@example.test").orElseThrow();
         assertThat(created.getRole()).isEqualTo(Role.SYSTEM_ADMIN);
         assertThat(created.getDisplayName()).isEqualTo("Person X");
-        assertThat(categoryRepository.findAllByOwnerOrderBySortOrderAscIdAsc(created)).hasSize(20);
+        assertThat(categoryRepository.findAllByOwner(created)).hasSize(20);
         assertThat(userRepository.findByEmail(FIRST_ADMIN).orElseThrow().getRole()).isEqualTo(Role.ADMIN);
         assertThat(userRepository.findByRole(Role.SYSTEM_ADMIN)).hasSize(1);
     }
