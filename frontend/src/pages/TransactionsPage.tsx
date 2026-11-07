@@ -16,6 +16,14 @@ import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
 import { ImportPage } from './ImportPage'
 import { totals } from '../sums'
 
+/** For the filter Art: a booking that replaces an occurrence counts as recurring (R28), a transfer has its own kind. */
+function kindOf(entry: Transaction): Transaction['kind'] | 'TRANSFER' {
+  if (entry.transfer) {
+    return 'TRANSFER'
+  }
+  return entry.replaces ? 'RECURRING' : entry.kind
+}
+
 /**
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
  * entries. Booking is in a dialog (US27, decision 30).
@@ -51,7 +59,7 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
   const shown = (transactions.data ?? []).filter(
     (entry) =>
       (categoryId === '' || String(entry.categoryId) === categoryId) &&
-      (kind === '' || (kind === 'TRANSFER' ? entry.transfer : entry.kind === kind && !entry.transfer)) &&
+      (kind === '' || kindOf(entry) === kind) &&
       (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search)),
   )
   const sums = totals(shown)

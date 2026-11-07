@@ -66,6 +66,14 @@ export interface Transaction {
   accountId: number
   accountName: string
   transfer: boolean
+  /** The occurrence of a series this single transaction replaces (R28); it then counts as recurring. */
+  replaces: OccurrenceRef | null
+}
+
+/** An occurrence of a series by series and date. */
+export interface OccurrenceRef {
+  recurringId: number
+  date: string
 }
 
 export interface TransactionInput {
@@ -77,6 +85,8 @@ export interface TransactionInput {
   /** Without it the default account (R26). */
   accountId?: number
   transfer?: boolean
+  /** Only when created: the occurrence the transaction replaces (R28). */
+  replaces?: OccurrenceRef
 }
 
 export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
