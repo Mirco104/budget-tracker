@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.mirco104.budget.importer.BankCsv.BankFile;
-import io.github.mirco104.budget.importer.BankCsv.BankRow;
+import io.github.mirco104.budget.importer.BankTransaction.Status;
 import io.github.mirco104.budget.importer.BankCsv.Line;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
@@ -50,33 +50,69 @@ class BankCsvTest {
         BankFile file = BankCsv.read(C24.getBytes(StandardCharsets.UTF_8));
 
         assertThat(file.profile()).isEqualTo(BankProfile.C24);
-        BankRow card = row(file, 2);
-        assertThat(card.date()).isEqualTo(LocalDate.of(2026, 11, 4));
+        BankTransaction card = row(file, 2);
+        assertThat(card.bookingDate()).isEqualTo(LocalDate.of(2026, 11, 4));
         assertThat(card.amount()).isEqualByComparingTo("-2.99");
         assertThat(card.amount().scale()).isEqualTo(2);
-        assertThat(card.source()).isEqualTo("Ausgabenkonto");
-        assertThat(card.counterparty()).isEqualTo("SPIELE SHOP");
+        assertThat(card.accountName()).isEqualTo("Ausgabenkonto");
+        assertThat(card.counterpartyName()).isEqualTo("SPIELE SHOP");
         // No Verwendungszweck: the Beschreibung is the purpose
-        assertThat(card.purpose()).isEqualTo("SPIELESHOP.EXAMPLE/BILL");
+        assertThat(card.remittanceInformation()).isEqualTo("SPIELESHOP.EXAMPLE/BILL");
         assertThat(card.bankCategory()).isEqualTo("Freizeit & Unterhaltung › Digitale Produkte & Dienste");
-        assertThat(card.kind()).isEqualTo("Online-Kartenzahlung");
-        assertThat(card.externalId()).isNull();
+        assertThat(card.bankTransactionCode()).isEqualTo("Online-Kartenzahlung");
+        assertThat(card.entryReference()).isNull();
 
-        BankRow rent = row(file, 3);
+        BankTransaction rent = row(file, 3);
         assertThat(rent.amount()).isEqualByComparingTo("-1234.50");
         assertThat(rent.counterpartyIban()).isEqualTo("DE89370400440532013000");
         assertThat(rent.bankCategory()).isEqualTo("Wohnen");
         assertThat(row(file, 4).amount()).isEqualByComparingTo("2500.00");
     }
 
+    // Decision 46: reading only normalizes; whether a pending row is imported is a rule (ImportRules.skipReason)
     @Test
-    void skipsPendingC24RowsWithoutBookingDate() {
+    void readsAPendingC24RowWithoutBookingDateAsPending() {
         BankFile file = BankCsv.read(C24.getBytes(StandardCharsets.UTF_8));
 
-        Line pending = file.lines().stream().filter(line -> line.number() == 5).findFirst().orElseThrow();
-        assertThat(pending.row()).isNull();
-        assertThat(pending.skipReason()).isEqualTo("vorgemerkt (noch nicht gebucht)");
-        assertThat(row(file, 6).source()).isEqualTo("Pocket Urlaub");
+        BankTransaction pending = row(file, 5);
+        assertThat(pending.status()).isEqualTo(Status.PENDING);
+        assertThat(pending.bookingDate()).isNull();
+        assertThat(pending.amount()).isEqualByComparingTo("-4.20");
+        assertThat(row(file, 2).status()).isEqualTo(Status.BOOKED);
+        assertThat(row(file, 6).accountName()).isEqualTo("Pocket Urlaub");
+    }
+
+    @Test
+    void fillsTheNormalizedFieldsEachBankHas() {
+        BankTransaction rent = row(BankCsv.read(C24.getBytes(StandardCharsets.UTF_8)), 3);
+        assertThat(rent.counterpartyBic()).isEqualTo("COBADEFFXXX");
+        assertThat(rent.currency()).isEqualTo("EUR");
+        assertThat(rent.valueDate()).isNull();
+
+        BankTransaction transfer = row(BankCsv.read(N26.getBytes(StandardCharsets.UTF_8)), 3);
+        assertThat(transfer.valueDate()).isEqualTo(LocalDate.of(2026, 1, 13));
+        assertThat(transfer.currency()).isEqualTo("EUR");
+        assertThat(transfer.bankTransactionCode()).isEqualTo("Credit Transfer");
+
+        BankTransaction saveback = row(BankCsv.read(TRADE_REPUBLIC.getBytes(StandardCharsets.UTF_8)), 2);
+        assertThat(saveback.currency()).isEqualTo("EUR");
+        assertThat(saveback.status()).isEqualTo(Status.BOOKED);
+        // No bank delivers these yet; they stay empty
+        assertThat(saveback.endToEndId()).isNull();
+        assertThat(saveback.mandateId()).isNull();
+        assertThat(saveback.creditorId()).isNull();
+        assertThat(saveback.accountIban()).isNull();
+    }
+
+    @Test
+    void readsATradeRepublicRowWithoutTransactionId() {
+        String file = TRADE_REPUBLIC.lines().findFirst().orElseThrow() + "\n"
+                + "\"2026-01-06T10:00:00Z\",\"2026-01-06\",\"DEFAULT\",\"CASH\",\"INTEREST_PAYOUT\",\"\",\"\",\"\",\"\",\"\",\"1.23\",\"\",\"\",\"EUR\",\"\",\"\",\"\",\"Zinsen\",\"\",\"\",\"\",\"\",\"\"\n";
+
+        BankTransaction interest = row(BankCsv.read(file.getBytes(StandardCharsets.UTF_8)), 2);
+
+        assertThat(interest.entryReference()).isNull();
+        assertThat(interest.amount()).isEqualByComparingTo("1.23");
     }
 
     @Test
@@ -84,30 +120,31 @@ class BankCsvTest {
         BankFile file = BankCsv.read(TRADE_REPUBLIC.getBytes(StandardCharsets.UTF_8));
 
         assertThat(file.profile()).isEqualTo(BankProfile.TRADE_REPUBLIC);
-        BankRow saveback = row(file, 2);
+        BankTransaction saveback = row(file, 2);
         assertThat(saveback.amount()).isEqualByComparingTo("8.17");
         assertThat(saveback.amount().scale()).isEqualTo(2);
-        assertThat(saveback.date()).isEqualTo(LocalDate.of(2026, 1, 1));
-        assertThat(saveback.externalId()).isEqualTo("00000000-0000-4000-8000-000000000001");
-        assertThat(saveback.source()).isEqualTo("DEFAULT");
+        assertThat(saveback.bookingDate()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(saveback.entryReference()).isEqualTo("00000000-0000-4000-8000-000000000001");
+        assertThat(saveback.accountName()).isEqualTo("DEFAULT");
         assertThat(saveback.bankCategory()).isEqualTo("BENEFITS_SAVEBACK");
-        assertThat(saveback.kind()).isEqualTo("BENEFITS_SAVEBACK");
+        assertThat(saveback.bankTransactionCode()).isEqualTo("BENEFITS_SAVEBACK");
 
-        BankRow plan = row(file, 3);
-        assertThat(plan.counterparty()).isEqualTo("Kauf Welt ETF");
+        BankTransaction plan = row(file, 3);
+        assertThat(plan.counterpartyName()).isEqualTo("Kauf Welt ETF");
         assertThat(plan.amount()).isEqualByComparingTo("-150.00");
 
-        BankRow incoming = row(file, 4);
-        assertThat(incoming.counterparty()).isEqualTo("Person A");
+        BankTransaction incoming = row(file, 4);
+        assertThat(incoming.counterpartyName()).isEqualTo("Person A");
         assertThat(incoming.counterpartyIban()).isEqualTo("DE89370400440532013000");
-        assertThat(incoming.purpose()).isEqualTo("Sparen");
+        assertThat(incoming.remittanceInformation()).isEqualTo("Sparen");
     }
 
     @Test
-    void skipsForeignCurrencyAndRowsWithoutMoney() {
+    void readsAForeignCurrencyAndSkipsRowsWithoutMoney() {
         BankFile file = BankCsv.read(TRADE_REPUBLIC.getBytes(StandardCharsets.UTF_8));
 
-        assertThat(skipReason(file, 5)).isEqualTo("andere Währung als EUR (USD)");
+        // The rule leaves it out later (ImportRules.skipReason)
+        assertThat(row(file, 5).currency()).isEqualTo("USD");
         assertThat(skipReason(file, 6)).isEqualTo("ohne Betrag");
     }
 
@@ -116,15 +153,15 @@ class BankCsvTest {
         BankFile file = BankCsv.read(N26.getBytes(StandardCharsets.UTF_8));
 
         assertThat(file.profile()).isEqualTo(BankProfile.N26);
-        BankRow transfer = row(file, 3);
+        BankTransaction transfer = row(file, 3);
         // The booking date, not the value date
-        assertThat(transfer.date()).isEqualTo(LocalDate.of(2026, 1, 12));
+        assertThat(transfer.bookingDate()).isEqualTo(LocalDate.of(2026, 1, 12));
         assertThat(transfer.counterpartyIban()).isEqualTo("LU280019400644750000");
-        assertThat(transfer.source()).isEqualTo("Hauptkonto");
+        assertThat(transfer.accountName()).isEqualTo("Hauptkonto");
         assertThat(transfer.bankCategory()).isEqualTo("Credit Transfer");
-        BankRow cinema = row(file, 4);
-        assertThat(cinema.counterparty()).isEqualTo("Kino \"Am Markt\"");
-        assertThat(cinema.purpose()).isEqualTo("Kino, 2 Karten");
+        BankTransaction cinema = row(file, 4);
+        assertThat(cinema.counterpartyName()).isEqualTo("Kino \"Am Markt\"");
+        assertThat(cinema.remittanceInformation()).isEqualTo("Kino, 2 Karten");
         assertThat(cinema.amount()).isEqualByComparingTo("-24.00");
     }
 
@@ -141,9 +178,9 @@ class BankCsvTest {
         BankFile parsed = BankCsv.read(file.getBytes(Charset.forName("windows-1252")));
 
         assertThat(parsed.profile()).isEqualTo(BankProfile.C24);
-        BankRow row = row(parsed, 5);
-        assertThat(row.counterparty()).isEqualTo("Bäckerei Müller");
-        assertThat(row.purpose()).isEqualTo("Brötchen");
+        BankTransaction row = row(parsed, 5);
+        assertThat(row.counterpartyName()).isEqualTo("Bäckerei Müller");
+        assertThat(row.remittanceInformation()).isEqualTo("Brötchen");
         assertThat(row.amount()).isEqualByComparingTo("-3.10");
     }
 
@@ -159,7 +196,7 @@ class BankCsvTest {
 
         assertThat(file.profile()).isEqualTo(BankProfile.N26);
         assertThat(row(file, 2).amount()).isEqualByComparingTo("0.01");
-        assertThat(row(file, 2).source()).isEqualTo("Hauptkonto");
+        assertThat(row(file, 2).accountName()).isEqualTo("Hauptkonto");
     }
 
     @Test
@@ -209,7 +246,7 @@ class BankCsvTest {
         assertThat(records).containsExactly(List.of("a", "b\nc", "d"), List.of("e \"f\"", "", ""));
     }
 
-    private static BankRow row(BankFile file, int number) {
+    private static BankTransaction row(BankFile file, int number) {
         Line line = file.lines().stream().filter(l -> l.number() == number).findFirst().orElseThrow();
         assertThat(line.skipReason()).as("line %d", number).isNull();
         return line.row();

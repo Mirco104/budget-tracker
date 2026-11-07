@@ -2,7 +2,7 @@ package io.github.mirco104.budget.importer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.mirco104.budget.importer.BankCsv.BankRow;
+import io.github.mirco104.budget.importer.BankTransaction.Status;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -43,8 +43,8 @@ class ImportRulesTest {
 
     @Test
     void fingerprintOfTradeRepublicIsTheTransactionId() {
-        BankRow row = row("DEFAULT", "-150.00", "Kauf Welt ETF", "id-1");
-        BankRow sameIdOtherValues = row("DEFAULT", "-151.00", "Anders", "id-1");
+        BankTransaction row = row("DEFAULT", "-150.00", "Kauf Welt ETF", "id-1");
+        BankTransaction sameIdOtherValues = row("DEFAULT", "-151.00", "Anders", "id-1");
 
         assertThat(ImportRules.fingerprint(BankProfile.TRADE_REPUBLIC, row, 1))
                 .isEqualTo(ImportRules.fingerprint(BankProfile.TRADE_REPUBLIC, sameIdOtherValues, 2))
@@ -54,7 +54,7 @@ class ImportRulesTest {
 
     @Test
     void fingerprintWithoutIdUsesTheValuesAndTheNumberOfEqualRows() {
-        BankRow coffee = row("Hauptkonto", "-3.50", "Café", null);
+        BankTransaction coffee = row("Hauptkonto", "-3.50", "Café", null);
 
         String first = ImportRules.fingerprint(BankProfile.N26, coffee, 1);
         assertThat(ImportRules.fingerprint(BankProfile.N26, coffee, 1)).isEqualTo(first);
@@ -67,10 +67,34 @@ class ImportRulesTest {
 
     @Test
     void sameRowKeyCountsEqualRows() {
-        BankRow coffee = row("Hauptkonto", "-3.50", "Café", null);
+        BankTransaction coffee = row("Hauptkonto", "-3.50", "Café", null);
 
         assertThat(ImportRules.sameRowKey(coffee)).isEqualTo(ImportRules.sameRowKey(row("Hauptkonto", "-3.5", "Café", null)));
         assertThat(ImportRules.sameRowKey(coffee)).isNotEqualTo(ImportRules.sameRowKey(row("Hauptkonto", "-3.60", "Café", null)));
+    }
+
+    // Decision 46: pending rows and other currencies are read, and this rule leaves them out (R30)
+    @Test
+    void leavesOutPendingRowsAndOtherCurrencies() {
+        LocalDate day = LocalDate.of(2026, 11, 3);
+        assertThat(ImportRules.skipReason(transaction("Giro", null, "-4.20", "EUR", Status.PENDING, "Bäcker", null)))
+                .isEqualTo("vorgemerkt (noch nicht gebucht)");
+        assertThat(ImportRules.skipReason(transaction("Giro", day, "-12.35", "USD", Status.BOOKED, "Shop", null)))
+                .isEqualTo("andere Währung als EUR (USD)");
+        assertThat(ImportRules.skipReason(transaction("Giro", day, "-12.35", null, Status.BOOKED, "Shop", null))).isNull();
+        assertThat(ImportRules.skipReason(transaction("Giro", day, "-12.35", "eur", Status.BOOKED, "Shop", null))).isNull();
+    }
+
+    // R30: the ID of the bank when the row has one, else the checksum, for every profile
+    @Test
+    void aTradeRepublicRowWithoutIdGetsTheChecksum() {
+        BankTransaction interest = row("DEFAULT", "1.23", null, null);
+
+        String first = ImportRules.fingerprint(BankProfile.TRADE_REPUBLIC, interest, 1);
+        assertThat(first).hasSize(64).isEqualTo(ImportRules.fingerprint(BankProfile.TRADE_REPUBLIC, interest, 1));
+        assertThat(ImportRules.fingerprint(BankProfile.TRADE_REPUBLIC, interest, 2)).isNotEqualTo(first);
+        assertThat(ImportRules.fingerprint(BankProfile.TRADE_REPUBLIC, row("DEFAULT", "1.23", null, "id-9"), 1))
+                .isNotEqualTo(first);
     }
 
     @Test
@@ -85,8 +109,13 @@ class ImportRulesTest {
         assertThat(ImportRules.sourceKey(BankProfile.C24, "y".repeat(200))).hasSize(120);
     }
 
-    private static BankRow row(String source, String amount, String counterparty, String externalId) {
-        return new BankRow(source, LocalDate.of(2026, 11, 3), new BigDecimal(amount), counterparty, null,
-                "Zweck", null, null, externalId);
+    private static BankTransaction row(String source, String amount, String counterparty, String externalId) {
+        return transaction(source, LocalDate.of(2026, 11, 3), amount, "EUR", Status.BOOKED, counterparty, externalId);
+    }
+
+    static BankTransaction transaction(String account, LocalDate bookingDate, String amount, String currency, Status status,
+            String counterparty, String entryReference) {
+        return new BankTransaction(account, null, bookingDate, null, new BigDecimal(amount), currency, status, counterparty,
+                null, null, "Zweck", null, null, null, null, entryReference, null);
     }
 }
