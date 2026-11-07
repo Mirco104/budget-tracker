@@ -142,6 +142,29 @@ describe('TransactionsPage', () => {
     await waitFor(() => expect(kino).toHaveTextContent('· Girokonto'))
   })
 
+  // After the second test (07.11.2026): a filter for the account with more than one account
+  it('filters the entries by account', async () => {
+    const onCard: Transaction = { ...transactions[0], id: 97, description: 'Tankstelle', accountId: 2, accountName: 'Kreditkarte' }
+    renderPage([...transactions, onCard], [
+      { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
+      { id: 2, name: 'Kreditkarte', iban: null, defaultAccount: false, archived: false, used: true },
+    ])
+    await screen.findByRole('button', { name: /Tankstelle/ })
+
+    fireEvent.change(await screen.findByLabelText('Konto filtern'), { target: { value: '2' } })
+
+    expect(screen.getByRole('button', { name: /Tankstelle/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Kino/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/1 Eintrag ·/)).toBeInTheDocument()
+  })
+
+  it('offers no account filter with only one account', async () => {
+    renderPage(transactions, [{ id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true }])
+    await screen.findByRole('button', { name: /Kino/ })
+
+    expect(screen.queryByLabelText('Konto filtern')).not.toBeInTheDocument()
+  })
+
   it('names no account with only one account', async () => {
     renderPage(transactions, [{ id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true }])
 

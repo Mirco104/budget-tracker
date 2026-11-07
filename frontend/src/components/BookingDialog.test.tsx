@@ -108,6 +108,9 @@ describe('BookingDialog', () => {
 
     const replace = await screen.findByRole('checkbox', { name: /Ersetzt das geplante „Miete Wohnung“ vom 01.10.2026/ })
     expect(replace).toBeChecked()
+    // The category of the series is only a suggestion (decision 46)
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('')
+    fireEvent.click(screen.getByRole('button', { name: /Vorschlag: Wohnen/ }))
     expect(screen.getByLabelText('Kategorie')).toHaveValue('1')
     const urls = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith('/api/booking-suggestion'))
     expect(urls).toContain('/api/booking-suggestion?text=Miete%20Oktober&income=false&amount=-905&date=2026-10-18')
@@ -122,6 +125,7 @@ describe('BookingDialog', () => {
     fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Miete Oktober' } })
     fireEvent.click(await screen.findByRole('checkbox', { name: /Ersetzt das geplante/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Vorschlag: Wohnen/ }))
     save()
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
@@ -136,12 +140,16 @@ describe('BookingDialog', () => {
   })
 
   // US32: the suggestion fills the category of a new booking until the user chooses one
-  it('preselects the suggested category for the description and marks it', async () => {
+  // Decision 46: even a certain suggestion is not preset; it is a button below the field
+  it('offers the suggested category as a button and presets nothing', async () => {
     const { fetchMock } = renderDialog(null, () => json({}), [], { categoryId: 7, certain: true })
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'REWE Markt' } })
 
-    await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('7'))
-    expect(screen.getByText('Vorschlag')).toBeInTheDocument()
+    const button = await screen.findByRole('button', { name: /Vorschlag: Lebensmittel/ })
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('')
+    fireEvent.click(button)
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('7')
+    expect(screen.queryByRole('button', { name: /Vorschlag:/ })).not.toBeInTheDocument()
     const call = fetchMock.mock.calls.map(([url]) => String(url)).find((url) => url.startsWith('/api/booking-suggestion'))
     expect(call).toBe('/api/booking-suggestion?text=REWE%20Markt&income=false')
   })
@@ -153,7 +161,7 @@ describe('BookingDialog', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 400))
     expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
-    expect(screen.queryByText('Vorschlag')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Vorschlag:/ })).not.toBeInTheDocument()
   })
 
   it('asks for no suggestion when an entry is edited', async () => {
@@ -169,7 +177,7 @@ describe('BookingDialog', () => {
     const { fetchMock, onDone } = renderDialog(null, () => json({}), [], { categoryId: 7, certain: false })
     fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '23,40' } })
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'REWE Markt' } })
-    await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('7'))
+    fireEvent.click(await screen.findByRole('button', { name: /Vorschlag: Lebensmittel/ }))
     save()
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
