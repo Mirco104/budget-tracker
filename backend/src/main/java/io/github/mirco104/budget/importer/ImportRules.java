@@ -1,6 +1,6 @@
 package io.github.mirco104.budget.importer;
 
-import io.github.mirco104.budget.importer.BankCsv.BankRow;
+import io.github.mirco104.budget.importer.BankTransaction.Status;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -56,19 +56,34 @@ public final class ImportRules {
         return cut(description, MAX_DESCRIPTION);
     }
 
+    /**
+     * R30: why a booking that could be read is not imported: pending, or another currency than EUR; null if it is
+     * imported (decision 46: reading only normalizes, this rule decides).
+     */
+    public static String skipReason(BankTransaction row) {
+        if (row.status() == Status.PENDING) {
+            return "vorgemerkt (noch nicht gebucht)";
+        }
+        if (row.currency() != null && !row.currency().equalsIgnoreCase("EUR")) {
+            return "andere Währung als EUR (" + row.currency() + ")";
+        }
+        return null;
+    }
+
     /** The values that make two rows of a file equal; equal rows are told apart by their number (R30). */
-    public static String sameRowKey(BankRow row) {
-        return String.join("|", row.source(), row.date().toString(), row.amount().stripTrailingZeros().toPlainString(),
-                nullToEmpty(row.counterparty()), nullToEmpty(row.purpose()));
+    public static String sameRowKey(BankTransaction row) {
+        return String.join("|", row.accountName(), row.bookingDate().toString(),
+                row.amount().stripTrailingZeros().toPlainString(), nullToEmpty(row.counterpartyName()),
+                nullToEmpty(row.remittanceInformation()));
     }
 
     /**
-     * R30: SHA-256 over the profile and the transaction id when the bank has one, else over the profile, the values of
-     * the row and its number among equal rows (1, 2, …).
+     * R30: SHA-256 over the profile and the bank's id of the booking when the row has one, else, for every profile,
+     * over the profile, the values of the row and its number among equal rows (1, 2, …).
      */
-    public static String fingerprint(BankProfile profile, BankRow row, int number) {
-        String text = row.externalId() != null
-                ? profile.name() + "|id|" + row.externalId()
+    public static String fingerprint(BankProfile profile, BankTransaction row, int number) {
+        String text = row.entryReference() != null
+                ? profile.name() + "|id|" + row.entryReference()
                 : profile.name() + "|" + sameRowKey(row) + "|" + number;
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));

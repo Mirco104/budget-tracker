@@ -16,11 +16,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import io.github.mirco104.budget.importer.BankTransaction.Status;
 
 /**
  * Reads the CSV export of a bank, rule R30 from docs/spezifikation.md, section 2. No Spring dependencies. The file is
  * decoded (UTF-8, else Windows-1252), split into records (";" or ","), the header found among the first 20 records
- * and every following record read with the profile of that header.
+ * and every following record read with the profile of that header into a normalized BankTransaction (decision 46).
  */
 public final class BankCsv {
 
@@ -30,20 +31,13 @@ public final class BankCsv {
     private static final DateTimeFormatter GERMAN_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final Pattern GERMAN_NUMBER = Pattern.compile("[+-]?\\d+(,\\d+)?");
     private static final Pattern PLAIN_NUMBER = Pattern.compile("[+-]?\\d+(\\.\\d+)?");
-    private static final String PENDING = "vorgemerkt (noch nicht gebucht)";
     private static final String NO_AMOUNT = "ohne Betrag";
 
     /**
-     * One booking of the file. source is the account of the bank it belongs to (C24 Kontoname, N26 Account Name,
-     * Trade Republic account_type); amount is signed (R11); the other fields are null when the file has no value.
+     * A record after the header: its line in the file and either the normalized booking (decision 46) or why it could
+     * not be read. Whether a booking is imported is up to the rules (ImportRules.skipReason).
      */
-    public record BankRow(
-            String source, LocalDate date, BigDecimal amount, String counterparty, String counterpartyIban,
-            String purpose, String bankCategory, String kind, String externalId) {
-    }
-
-    /** A record after the header: its line in the file and either the booking or why it is not imported. */
-    public record Line(int number, BankRow row, String skipReason) {
+    public record Line(int number, BankTransaction row, String skipReason) {
     }
 
     public record BankFile(BankProfile profile, List<Line> lines) {
@@ -186,7 +180,7 @@ public final class BankCsv {
         }
     }
 
-    private static BankRow read(BankProfile profile, Map<String, String> values) {
+    private static BankTransaction read(BankProfile profile, Map<String, String> values) {
         return switch (profile) {
             case C24 -> c24(values);
             case TRADE_REPUBLIC -> tradeRepublic(values);
@@ -194,58 +188,43 @@ public final class BankCsv {
         };
     }
 
-    private static BankRow c24(Map<String, String> v) {
+    // C24: Buchungsdatum (empty: pending), German amounts in EUR, Kontoname (else Kontonummer) as account
+    private static BankTransaction c24(Map<String, String> v) {
         String dateText = get(v, "Buchungsdatum");
-        if (dateText == null) {
-            throw new SkipException(PENDING);
-        }
-        LocalDate date = date(dateText, GERMAN_DATE);
+        LocalDate date = dateText == null ? null : date(dateText, GERMAN_DATE);
         BigDecimal amount = amount(get(v, "Betrag"), true);
-        String source = get(v, "Kontoname");
+        String account = get(v, "Kontoname");
         String category = get(v, "Kategorie");
         String subcategory = get(v, "Unterkategorie");
         String bankCategory = category == null ? null : subcategory == null ? category : category + " › " + subcategory;
         String purpose = get(v, "Verwendungszweck");
-        return new BankRow(
-                source != null ? source : orEmpty(get(v, "Kontonummer")),
-                date, amount,
-                get(v, "Zahlungsempfänger"),
-                get(v, "IBAN"),
+        return new BankTransaction(
+                account != null ? account : orEmpty(get(v, "Kontonummer")), null,
+                date, null, amount, "EUR",
+                date == null ? Status.PENDING : Status.BOOKED,
+                get(v, "Zahlungsempfänger"), get(v, "IBAN"), get(v, "BIC"),
                 purpose != null ? purpose : get(v, "Beschreibung"),
-                bankCategory,
-                get(v, "Transaktionstyp"),
-                null);
+                null, null, null,
+                get(v, "Transaktionstyp"), null, bankCategory);
     }
 
-    private static BankRow tradeRepublic(Map<String, String> v) {
+    // Trade Republic: ISO dates, plain amounts in the given currency, the transaction_id as the bank's id
+    private static BankTransaction tradeRepublic(Map<String, String> v) {
         LocalDate date = date(get(v, "date"), DateTimeFormatter.ISO_LOCAL_DATE);
-        String amountText = get(v, "amount");
-        if (amountText == null) {
-            throw new SkipException(NO_AMOUNT);
-        }
-        BigDecimal amount = plainAmount(amountText);
-        if (amount == null) {
-            throw new SkipException("Betrag unlesbar: " + amountText);
-        }
-        String currency = get(v, "currency");
-        if (currency != null && !currency.equalsIgnoreCase("EUR")) {
-            throw new SkipException("andere Währung als EUR (" + currency + ")");
-        }
-        if (amount.signum() == 0) {
-            throw new SkipException(NO_AMOUNT);
-        }
+        BigDecimal amount = amount(get(v, "amount"), false);
         String type = get(v, "type");
         String security = get(v, "name");
         String counterparty = security != null ? tradePrefix(type) + security : get(v, "counterparty_name");
         String purpose = get(v, "payment_reference");
-        String source = get(v, "account_type");
-        return new BankRow(
-                source != null ? source : "DEFAULT",
-                date, amount, counterparty,
-                get(v, "counterparty_iban"),
+        String account = get(v, "account_type");
+        String currency = get(v, "currency");
+        return new BankTransaction(
+                account != null ? account : "DEFAULT", null,
+                date, null, amount, currency != null ? currency.toUpperCase(Locale.ROOT) : "EUR", Status.BOOKED,
+                counterparty, get(v, "counterparty_iban"), null,
                 purpose != null ? purpose : get(v, "description"),
-                type, type,
-                get(v, "transaction_id"));
+                null, null, null,
+                type, get(v, "transaction_id"), type);
     }
 
     // R30: "Kauf ", "Verkauf " or "Dividende " before the name of a security
@@ -260,17 +239,20 @@ public final class BankCsv {
         return kind.contains("DIVIDEND") ? "Dividende " : "";
     }
 
-    private static BankRow n26(Map<String, String> v) {
+    // N26: ISO booking and value date, plain amounts in EUR
+    private static BankTransaction n26(Map<String, String> v) {
         LocalDate date = date(get(v, "Booking Date"), DateTimeFormatter.ISO_LOCAL_DATE);
+        String valueText = get(v, "Value Date");
+        LocalDate valueDate = valueText == null ? null : date(valueText, DateTimeFormatter.ISO_LOCAL_DATE);
         BigDecimal amount = amount(get(v, "Amount (EUR)"), false);
         String type = get(v, "Type");
-        return new BankRow(
-                orEmpty(get(v, "Account Name")),
-                date, amount,
-                get(v, "Partner Name"),
-                get(v, "Partner Iban"),
+        return new BankTransaction(
+                orEmpty(get(v, "Account Name")), null,
+                date, valueDate, amount, "EUR", Status.BOOKED,
+                get(v, "Partner Name"), get(v, "Partner Iban"), null,
                 get(v, "Payment Reference"),
-                type, type, null);
+                null, null, null,
+                type, null, type);
     }
 
     // The value of a column, null when the column is missing or empty
@@ -285,7 +267,7 @@ public final class BankCsv {
 
     private static LocalDate date(String text, DateTimeFormatter format) {
         if (text == null) {
-            throw new SkipException(PENDING);
+            throw new SkipException("Datum fehlt");
         }
         try {
             return LocalDate.parse(text, format);

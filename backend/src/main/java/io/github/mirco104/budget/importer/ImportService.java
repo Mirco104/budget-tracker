@@ -9,7 +9,6 @@ import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.importer.BankCsv.BankFile;
-import io.github.mirco104.budget.importer.BankCsv.BankRow;
 import io.github.mirco104.budget.importer.BankCsv.Line;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.DuplicateOf;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Entry;
@@ -112,11 +111,18 @@ public class ImportService {
         // Sources in the order they appear, with the account they go to so far
         Map<String, Long> remembered = sourceRepository.findByOwner(owner).stream()
                 .collect(Collectors.toMap(BankAccountSource::getSourceKey, s -> s.getAccount().getId()));
+        // R30: rows the rules leave out (pending, another currency) count as skipped
+        Map<Integer, String> ruleSkips = new HashMap<>();
+        for (Line line : file.lines()) {
+            if (line.row() != null && ImportRules.skipReason(line.row()) != null) {
+                ruleSkips.put(line.number(), ImportRules.skipReason(line.row()));
+            }
+        }
         Map<String, Source> sources = new LinkedHashMap<>();
         for (Line line : file.lines()) {
-            if (line.row() != null) {
-                String key = ImportRules.sourceKey(profile, line.row().source());
-                sources.computeIfAbsent(key, k -> source(profile, line.row().source(), k, remembered, accounts));
+            if (line.row() != null && !ruleSkips.containsKey(line.number())) {
+                String key = ImportRules.sourceKey(profile, line.row().accountName());
+                sources.computeIfAbsent(key, k -> source(profile, line.row().accountName(), k, remembered, accounts));
             }
         }
 
@@ -124,14 +130,15 @@ public class ImportService {
         List<Candidate> candidates = new ArrayList<>();
         Map<String, Integer> equalRows = new HashMap<>();
         for (Line line : file.lines()) {
-            BankRow row = line.row();
-            if (row == null) {
+            BankTransaction row = line.row();
+            if (row == null || ruleSkips.containsKey(line.number())) {
                 continue;
             }
             int number = equalRows.merge(ImportRules.sameRowKey(row), 1, Integer::sum);
-            String counterparty = cut(row.counterparty());
-            String description = ImportRules.describe(row.counterparty(), ImportRules.cleanPurpose(row.purpose()), row.kind());
-            candidates.add(new Candidate(candidates.size(), line, ImportRules.sourceKey(profile, row.source()),
+            String counterparty = cut(row.counterpartyName());
+            String description = ImportRules.describe(row.counterpartyName(),
+                    ImportRules.cleanPurpose(row.remittanceInformation()), row.bankTransactionCode());
+            candidates.add(new Candidate(candidates.size(), line, ImportRules.sourceKey(profile, row.accountName()),
                     ImportRules.fingerprint(profile, row, number), description, counterparty, cut(row.bankCategory()),
                     counterparty != null ? counterparty : description));
         }
@@ -152,7 +159,7 @@ public class ImportService {
                 .toList();
         List<ImportMatcher.Row> matcherRows = fresh.stream()
                 .map(c -> new ImportMatcher.Row(c.index(), c.source(), sources.get(c.source()).accountId(),
-                        c.line().row().date(), c.line().row().amount(), c.line().row().counterpartyIban()))
+                        c.line().row().bookingDate(), c.line().row().amount(), c.line().row().counterpartyIban()))
                 .toList();
         List<ImportMatcher.OwnAccount> ownAccounts = accounts.stream()
                 .map(a -> new ImportMatcher.OwnAccount(a.getId(), a.getIban()))
@@ -186,7 +193,9 @@ public class ImportService {
             entries.put(c.line().number(), entry(c, status, null, suggestion, transfer, match, duplicateOf));
         }
         List<Entry> ordered = file.lines().stream()
-                .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason()) : entries.get(line.number()))
+                .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason())
+                        : ruleSkips.containsKey(line.number()) ? Entry.skipped(line.number(), ruleSkips.get(line.number()))
+                        : entries.get(line.number()))
                 .toList();
 
         int duplicateCount = (int) ordered.stream().filter(e -> e.status() == Status.DUPLICATE).count();
@@ -214,8 +223,8 @@ public class ImportService {
         if (fresh.isEmpty()) {
             return List.of();
         }
-        LocalDate from = fresh.stream().map(c -> c.line().row().date()).min(Comparator.naturalOrder()).orElseThrow();
-        LocalDate to = fresh.stream().map(c -> c.line().row().date()).max(Comparator.naturalOrder()).orElseThrow();
+        LocalDate from = fresh.stream().map(c -> c.line().row().bookingDate()).min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate to = fresh.stream().map(c -> c.line().row().bookingDate()).max(Comparator.naturalOrder()).orElseThrow();
         return transactionRepository.findCountedBetween(owner, from.minusDays(ImportMatcher.TRANSFER_DAYS),
                 to.plusDays(ImportMatcher.TRANSFER_DAYS));
     }
@@ -229,7 +238,7 @@ public class ImportService {
         for (Candidate c : fresh) {
             if (!transfers.containsKey(c.index()) && !matches.containsKey(c.index())) {
                 byIndex.put(c.index(), c);
-                rows.add(new SeriesDetector.Row(c.index(), c.line().row().date(), c.line().row().amount(),
+                rows.add(new SeriesDetector.Row(c.index(), c.line().row().bookingDate(), c.line().row().amount(),
                         CategorySuggester.key(c.text()), c.description()));
             }
         }
@@ -252,7 +261,7 @@ public class ImportService {
             List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Suggestion> suggestions) {
         List<OccurrenceMatcher.Booking> bookings = fresh.stream()
                 .filter(c -> !transfers.containsKey(c.index()))
-                .map(c -> new OccurrenceMatcher.Booking(c.index(), c.line().row().date(), c.line().row().amount(), c.text(),
+                .map(c -> new OccurrenceMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(), c.text(),
                         suggestions.containsKey(c.index()) ? suggestions.get(c.index()).categoryId() : null))
                 .toList();
         if (bookings.isEmpty()) {
@@ -266,8 +275,8 @@ public class ImportService {
 
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,
             ImportMatcher.Transfer transfer, Planned match, DuplicateOf duplicateOf) {
-        BankRow row = c.line().row();
-        return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.date(), row.amount(),
+        BankTransaction row = c.line().row();
+        return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.bookingDate(), row.amount(),
                 c.description(), c.counterparty(), c.bankCategory(), CategorySuggester.key(c.text()),
                 suggestion == null ? null : suggestion.categoryId(), suggestion != null && suggestion.certain(),
                 transfer != null, transfer != null && transfer.certain(),
