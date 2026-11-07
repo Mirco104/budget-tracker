@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BankAccount, Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
-import { TransactionsPage } from './TransactionsPage'
+import { TransactionsPage, TransactionsRoute } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
@@ -84,8 +84,33 @@ describe('TransactionsPage', () => {
     fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'TRANSFER' } })
     expect(screen.getByText(/1 Eintrag · Einnahmen 0,00\s€ · Ausgaben 0,00\s€/)).toBeInTheDocument()
     expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).not.toHaveTextContent('500')
+    // A day with only the transfer has the sum 0 without a sign
+    expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).toHaveTextContent(/0,00\s€$/)
+    expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).not.toHaveTextContent('−0,00')
     fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
     expect(screen.queryByRole('button', { name: /Aufs Tagesgeld/ })).not.toBeInTheDocument()
+  })
+
+  // US33: the import has its own address below Transaktionen, and a period in the address bar starts the list
+  it('links to the import and starts with the period from the address bar', async () => {
+    window.location.hash = '#/transaktionen?von=2026-10-05&bis=2026-10-20'
+    const fetchMock = vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify(
+      url.startsWith('/api/categories') ? categories : url.startsWith('/api/reserves') ? reserves : [],
+    ), { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <TransactionsRoute />
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Importieren' })).toHaveAttribute('href', '#/transaktionen/import')
+    expect(screen.getByLabelText('Von')).toHaveValue('2026-10-05')
+    expect(screen.getByLabelText('Bis')).toHaveValue('2026-10-20')
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('/api/transactions?from=2026-10-05&to=2026-10-20'),
+    )
+    window.location.hash = ''
   })
 
   // US30: with more than one account each entry names its account
