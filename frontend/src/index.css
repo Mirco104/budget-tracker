@@ -2358,6 +2358,25 @@ button.tx:hover:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ticket #84: filters and "Zuordnen" in the import */
+.import-filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-assign {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+
 .import-series p {
   margin: 0 0 8px;
 }

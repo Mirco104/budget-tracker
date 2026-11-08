@@ -7,9 +7,10 @@ import { useTransactionsBetween } from '../api/transactions'
 import type { Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { BookingList } from '../components/BookingList'
-import { Icon } from '../components/ui/Icon'
+import { TransactionFilters } from '../components/TransactionFilters'
 import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
+import { facetCounts, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
@@ -24,6 +25,23 @@ function kindOf(entry: Transaction): Transaction['kind'] | 'TRANSFER' {
   return entry.replaces ? 'RECURRING' : entry.kind
 }
 
+/** US26: whether an entry passes the filters (description, category, account, kind). */
+function matchesFilters(entry: Transaction, filters: Filters): boolean {
+  const search = filters.query.trim().toLocaleLowerCase('de-DE')
+  return (
+    (filters.category === '' || String(entry.categoryId) === filters.category) &&
+    (filters.account === '' || String(entry.accountId) === filters.account) &&
+    (filters.kind === '' || kindOf(entry) === filters.kind) &&
+    (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search))
+  )
+}
+
+const FACET_KEYS = {
+  category: (entry: Transaction) => String(entry.categoryId),
+  account: (entry: Transaction) => String(entry.accountId),
+  kind: (entry: Transaction) => kindOf(entry),
+}
+
 /**
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
  * entries. Booking is in a dialog (US27, decision 30).
@@ -33,12 +51,9 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
   // A period in the address bar (e.g. after an import, US33) starts as a custom period
   const [preset, setPreset] = useState<PeriodPreset>(initialPeriod ? 'custom' : 'month')
   const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
-  const [query, setQuery] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  // US26, US30: only with more than one account
-  const [accountFilter, setAccountFilter] = useState('')
-  // Wiederkehrend, einmalig (single transactions that are no transfer) or Umbuchung (R27)
-  const [kind, setKind] = useState<'' | Transaction['kind'] | 'TRANSFER'>('')
+  // Description, category, account (US26, US30: only with more than one) and kind: Wiederkehrend, einmalig (single
+  // transactions that are no transfer) or Umbuchung (R27)
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
 
   const period = preset === 'custom' ? custom : presetPeriod(preset, today)
   const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
@@ -57,16 +72,13 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
     setPreset(next)
   }
 
-  const search = query.trim().toLocaleLowerCase('de-DE')
-  const shown = (transactions.data ?? []).filter(
-    (entry) =>
-      (categoryId === '' || String(entry.categoryId) === categoryId) &&
-      (accountFilter === '' || String(entry.accountId) === accountFilter) &&
-      (kind === '' || kindOf(entry) === kind) &&
-      (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search)),
-  )
+  const loaded = transactions.data ?? []
+  const shown = loaded.filter((entry) => matchesFilters(entry, filters))
+  // Ticket #84: the hits of each filter option with the other filters
+  const counts = facetCounts(loaded, filters, matchesFilters, FACET_KEYS)
   const sums = totals(shown)
-  const filtered = search !== '' || categoryId !== '' || kind !== '' || accountFilter !== ''
+  const filtered =
+    filters.query.trim() !== '' || filters.category !== '' || filters.kind !== '' || filters.account !== ''
   const accounts = bankAccounts.data ?? []
 
   return (
@@ -116,46 +128,16 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
           </div>
         )}
 
-        <div className="filter-row">
-          <label className="search">
-            <Icon name="search" size={18} />
-            <input
-              type="search"
-              placeholder="Beschreibung suchen"
-              aria-label="Beschreibung suchen"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-          <select aria-label="Kategorie filtern" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">Alle Kategorien</option>
-            {(categories.data ?? []).map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.archived ? `${category.name} (archiviert)` : category.name}
-              </option>
-            ))}
-          </select>
-          {accounts.length > 1 && (
-            <select aria-label="Konto filtern" value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
-              <option value="">Alle Konten</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.archived ? `${account.name} (archiviert)` : account.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <select
-            aria-label="Art filtern"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as '' | Transaction['kind'] | 'TRANSFER')}
-          >
-            <option value="">Alle Arten</option>
-            <option value="RECURRING">Wiederkehrend</option>
-            <option value="SINGLE">Einmalig</option>
-            <option value="TRANSFER">Umbuchung</option>
-          </select>
-        </div>
+        <TransactionFilters
+          filters={filters}
+          onChange={setFilters}
+          counts={counts}
+          categories={categories.data ?? []}
+          accounts={accounts.map((account) => ({
+            value: String(account.id),
+            label: account.archived ? `${account.name} (archiviert)` : account.name,
+          }))}
+        />
 
         {transactions.data && (
           <p className="hint period-summary" aria-live="polite">

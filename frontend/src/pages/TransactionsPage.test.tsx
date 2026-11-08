@@ -365,6 +365,20 @@ describe('TransactionsPage', () => {
     expect(fetchMock.mock.calls.length).toBe(calls)
   })
 
+  it('shows the hits of each filter option with the other filters and hides the options without one', async () => {
+    renderPage()
+    await screen.findByText('Kino')
+    const names = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Freizeit (3)', 'Gehalt (1)'])
+    expect(names('Art filtern')).toEqual(['Alle Arten', 'Wiederkehrend (1)', 'Einmalig (3)'])
+
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
+
+    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Freizeit (1)'])
+    expect(names('Art filtern')).toEqual(['Alle Arten', 'Einmalig (1)'])
+  })
+
   it('filters by category and says so when nothing matches', async () => {
     renderPage()
     await screen.findByText('Kino')
