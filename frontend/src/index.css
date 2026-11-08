@@ -2359,11 +2359,12 @@ button.tx:hover:not(:disabled) {
 
 /* R27: the counterpart a hint jumped to, for a moment */
 .import-row {
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .import-row.highlight {
   background: var(--primary-soft);
+  box-shadow: inset 4px 0 0 var(--primary);
 }
 
 .link-button.import-peer {

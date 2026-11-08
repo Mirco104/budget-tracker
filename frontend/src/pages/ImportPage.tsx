@@ -399,10 +399,8 @@ function Preview({
     if (highlighted === null) {
       return
     }
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    document
-      .getElementById(`import-line-${highlighted}`)
-      ?.scrollIntoView?.({ block: 'center', behavior: reduced ? 'auto' : 'smooth' })
+    // An instant jump; the highlight shows where it went (a smooth scroll needs animation frames and is not needed)
+    document.getElementById(`import-line-${highlighted}`)?.scrollIntoView?.({ block: 'center' })
     const timer = window.setTimeout(() => setHighlighted(null), 2000)
     return () => window.clearTimeout(timer)
   }, [highlighted])
