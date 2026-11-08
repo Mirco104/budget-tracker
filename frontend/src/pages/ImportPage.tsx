@@ -21,7 +21,7 @@ import { Icon } from '../components/ui/Icon'
 import { InlineCreate } from '../components/ui/InlineCreate'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { facetCounts, NO_FILTERS, type Filters } from '../filters'
+import { facetCounts, IMPORT_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 
@@ -119,6 +119,7 @@ function PreviewRow({
   categories,
   suggested,
   highlighted,
+  outsideFilter,
   onJumpToPeer,
   onChange,
 }: {
@@ -128,6 +129,8 @@ function PreviewRow({
   suggested: RowSuggestion | null
   /** Shortly true after a jump from the hint of its counterpart. */
   highlighted: boolean
+  /** Shown although it does not pass the filters: edited in the list or jumped to (ticket #84). */
+  outsideFilter: boolean
   onJumpToPeer: (line: number) => void
   onChange: (choice: Choice) => void
 }) {
@@ -160,6 +163,7 @@ function PreviewRow({
       <span className="import-main">
         <span className="import-description">{description}</span>
         <span className="import-hints">
+          {outsideFilter && <span className="badge">passt nicht zum Filter</span>}
           {entry.bankCategory && <span className="hint">{entry.bankCategory}</span>}
           {entry.transfer && (
             <span className="badge">
@@ -244,24 +248,12 @@ function PreviewRow({
   )
 }
 
-/** The rows a card took over, out of the list and shown here on demand (08.11.2026); only to look at. */
-function CardRows({ entries }: { entries: ImportEntry[] }) {
-  if (entries.length === 0) {
-    return null
-  }
+/** A card shows its rows in the list by setting the kind filter to Wiederkehrend (ticket #84, after the test). */
+function ShowInList({ onClick }: { onClick: () => void }) {
   return (
-    <details className="import-card-rows">
-      <summary>{entries.length === 1 ? '1 Zeile zeigen' : `${entries.length} Zeilen zeigen`}</summary>
-      <ul aria-label="Zeilen der Karte">
-        {entries.map((entry) => (
-          <li key={entry.fingerprint}>
-            <span>{entry.date && formatDate(entry.date)}</span>
-            <span className="import-card-rows-description">{entry.description}</span>
-            <span className="import-card-rows-amount">{entry.amount !== null && formatSigned(entry.amount)}</span>
-          </li>
-        ))}
-      </ul>
-    </details>
+    <button type="button" className="link-button" onClick={onClick}>
+      In der Liste zeigen
+    </button>
   )
 }
 
@@ -274,7 +266,7 @@ function SeriesCard({
   series,
   categories,
   planned,
-  plannedRows,
+  onShowInList,
   onPlan,
   onUnplan,
   onIgnore,
@@ -283,8 +275,7 @@ function SeriesCard({
   categories: Category[]
   /** The category of the noted series, null while it is not noted. */
   planned: string | null
-  /** The rows of the noted series, out of the list. */
-  plannedRows: ImportEntry[]
+  onShowInList: () => void
   onPlan: (categoryId: string) => void
   onUnplan: () => void
   onIgnore: () => void
@@ -352,7 +343,7 @@ function SeriesCard({
           </button>
         </div>
       )}
-      {planned !== null && <CardRows entries={plannedRows} />}
+      {planned !== null && <ShowInList onClick={onShowInList} />}
     </section>
   )
 }
@@ -392,15 +383,17 @@ function MatchCard({
   accepted,
   onAccept,
   onUndo,
+  onShowInList,
 }: {
   match: Match
   categories: Category[]
   /** The rows of the match without the category of the series or without "ersetzt". */
   open: number
-  /** The rows the card took over, out of the list. */
-  accepted: ImportEntry[]
+  /** The card took the rows over with "Alle übernehmen", so "Zurücknehmen" is offered. */
+  accepted: boolean
   onAccept: () => void
   onUndo: () => void
+  onShowInList: () => void
 }) {
   const category = categories.find((c) => c.id === match.categoryId)
   const dates = match.entries.map((entry) => (entry.replaces as NonNullable<ImportEntry['replaces']>).date).sort()
@@ -423,13 +416,13 @@ function MatchCard({
             Alle übernehmen ({open})
           </button>
         )}
-        {accepted.length > 0 && (
+        {accepted && (
           <button type="button" onClick={onUndo}>
             Zurücknehmen
           </button>
         )}
       </div>
-      <CardRows entries={accepted} />
+      <ShowInList onClick={onShowInList} />
     </section>
   )
 }
@@ -513,7 +506,9 @@ function Preview({
   const [sourceAccounts, setSourceAccounts] = useState(() => initialAccounts(preview, accounts))
   const [view, setView] = useState<View>('all')
   // Ticket #84: the same filters as Transaktionen, by what the user chose for each row
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  // starts with Einmalig; a row edited in the list or jumped to stays shown until the filters change
+  const [filters, setFilters] = useState<Filters>(IMPORT_FILTERS)
+  const [pinned, setPinned] = useState<string[]>([])
   const [assignCategory, setAssignCategory] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -547,23 +542,13 @@ function Preview({
     const choice = choices[entry.fingerprint as string]
     return choice.category !== String(entry.replaces?.categoryId) || choice.replace === false
   }
-  // Rows a card took over leave the list (08.11.2026): the chosen rows of a noted series and the done rows of a match
-  // the user took over with its card; a row set by hand in the list stays there
-  const inCard = (entry: ImportEntry) =>
-    entry.fingerprint !== null &&
-    choices[entry.fingerprint].selected &&
-    (seriesOfEntry(entry) !== null ||
-      (entry.replaces !== null && acceptedMatches.includes(entry.replaces.recurringId) && !matchOpen(entry)))
-  const listedRows = rows.filter((entry) => !inCard(entry))
-  const inCards = rows.length - listedRows.length
 
-  // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31), Umbuchung when chosen
+  // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31); an Umbuchung is a
+  // category option (ticket #84), as a row is a transfer by its category
   function kindOfRow(entry: ImportEntry): string {
     const choice = choices[entry.fingerprint as string]
-    if (choice.category === TRANSFER) {
-      return 'TRANSFER'
-    }
-    return (entry.replaces !== null && choice.replace !== false) || seriesOfEntry(entry) !== null ? 'RECURRING' : 'SINGLE'
+    const replaces = entry.replaces !== null && choice.replace !== false && choice.category !== TRANSFER
+    return replaces || seriesOfEntry(entry) !== null ? 'RECURRING' : 'SINGLE'
   }
 
   // The value of a row for the category filter: "Ohne Kategorie" for a chosen row without one, else its category
@@ -583,9 +568,17 @@ function Preview({
   }
   const filterActive =
     filters.query.trim() !== '' || filters.category !== '' || filters.account !== '' || filters.kind !== ''
-  const listed = listedRows.filter((entry) => matchesFilter(entry, filters))
-  // Ticket #84: the hits of each filter option with the other filters, among the rows of the list
-  const counts = facetCounts(listedRows, filters, matchesFilter, {
+  const filtersChanged =
+    filters.query !== IMPORT_FILTERS.query ||
+    filters.category !== IMPORT_FILTERS.category ||
+    filters.account !== IMPORT_FILTERS.account ||
+    filters.kind !== IMPORT_FILTERS.kind
+  const outsideFilter = (entry: ImportEntry) => !matchesFilter(entry, filters)
+  const listed = rows.filter((entry) => !outsideFilter(entry) || pinned.includes(entry.fingerprint as string))
+  // The chosen rows the filters hide; they are taken over all the same
+  const hiddenSelected = selected.filter((entry) => !listed.includes(entry)).length
+  // Ticket #84: the hits of each filter option with the other filters
+  const counts = facetCounts(rows, filters, matchesFilter, {
     category: categoryKey,
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
@@ -598,12 +591,29 @@ function Preview({
       })
     : []
 
-  // R27: the hint of a transfer jumps to its counterpart in the same file; every row is shown so it is there
+  // A change of the filters lets go of the pinned rows
+  function changeFilters(next: Filters) {
+    setFilters(next)
+    setPinned([])
+  }
+
+  function pin(entry: ImportEntry) {
+    const fingerprint = entry.fingerprint as string
+    setPinned((current) => (current.includes(fingerprint) ? current : [...current, fingerprint]))
+  }
+
+  // R27: the hint of a transfer jumps to its counterpart in the same file; the filters stay, a hidden counterpart is
+  // pinned (ticket #84, after the test)
   function jumpToPeer(line: number) {
     setView('all')
-    setFilters(NO_FILTERS)
+    const peer = rows.find((entry) => entry.line === line)
+    if (peer && outsideFilter(peer)) {
+      pin(peer)
+    }
     setHighlighted(line)
   }
+
+  const showInList = () => changeFilters({ ...filters, kind: 'RECURRING' })
 
   useEffect(() => {
     if (highlighted === null) {
@@ -640,6 +650,8 @@ function Preview({
   // US33: a category chosen for a row becomes the suggestion of the open rows with the same key (R29); a transfer does not
   function change(entry: ImportEntry, next: Choice) {
     setChoices((current) => ({ ...current, [entry.fingerprint as string]: next }))
+    // The row stays in sight while it is edited, even when it no longer passes the filters
+    pin(entry)
     const chose = next.category !== '' && next.category !== choices[entry.fingerprint as string].category
     if (chose && next.category !== TRANSFER && entry.suggestionKey) {
       setChosenByKey((current) => ({ ...current, [entry.suggestionKey as string]: next.category }))
@@ -703,7 +715,7 @@ function Preview({
 
   // The rows the card took over come back open, as at the start
   function undoMatch(match: Match) {
-    const back = match.entries.filter(inCard)
+    const back = match.entries.filter((entry) => !matchOpen(entry))
     setChoices((current) => {
       const updated = { ...current }
       for (const entry of back) {
@@ -834,9 +846,10 @@ function Preview({
           match={match}
           categories={categories}
           open={match.entries.filter(matchOpen).length}
-          accepted={match.entries.filter(inCard)}
+          accepted={acceptedMatches.includes(match.recurringId) && match.entries.some((entry) => !matchOpen(entry))}
           onAccept={() => acceptMatch(match)}
           onUndo={() => undoMatch(match)}
+          onShowInList={showInList}
         />
       ))}
 
@@ -846,7 +859,7 @@ function Preview({
           series={s}
           categories={categories}
           planned={plannedSeries[s.lines.join()] ?? null}
-          plannedRows={rows.filter((entry) => s.lines.includes(entry.line) && inCard(entry))}
+          onShowInList={showInList}
           onPlan={(categoryId) => planSeries(s, categoryId)}
           onUnplan={() => unplanSeries(s)}
           onIgnore={() => setIgnoredSeries([...ignoredSeries, s.lines.join()])}
@@ -867,7 +880,7 @@ function Preview({
             value={view}
             onChange={setView}
             options={[
-              { value: 'all', label: `Neu (${listedRows.length})` },
+              { value: 'all', label: `Neu (${rows.length})` },
               { value: 'skipped', label: `Nicht importiert (${notImportable.length})` },
             ]}
           />
@@ -881,7 +894,7 @@ function Preview({
         <div className="filters import-filters">
           <TransactionFilters
             filters={filters}
-            onChange={setFilters}
+            onChange={changeFilters}
             counts={counts}
             categories={categories}
             accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
@@ -892,10 +905,12 @@ function Preview({
           />
           {filterActive && (
             <p className="hint import-filter-summary">
-              {listed.length} von {listedRows.length} Zeilen
-              <button type="button" className="link-button" onClick={() => setFilters(NO_FILTERS)}>
-                Filter zurücksetzen
-              </button>
+              {listed.length} von {rows.length} Zeilen
+              {filtersChanged && (
+                <button type="button" className="link-button" onClick={() => changeFilters(IMPORT_FILTERS)}>
+                  Filter zurücksetzen
+                </button>
+              )}
             </p>
           )}
           {assignable.length > 0 && (
@@ -926,9 +941,6 @@ function Preview({
         </div>
       )}
 
-      {view !== 'skipped' && inCards > 0 && (
-        <p className="hint">{inCards === 1 ? '1 Zeile steht' : `${inCards} Zeilen stehen`} in den Karten oben.</p>
-      )}
       {view !== 'skipped' && (
         <ul className="import-list" aria-label="Neue Zeilen">
           {listed.map((entry) => (
@@ -939,17 +951,14 @@ function Preview({
               categories={categories}
               suggested={suggestionFor(entry)}
               highlighted={highlighted === entry.line}
+              outsideFilter={outsideFilter(entry)}
               onJumpToPeer={jumpToPeer}
               onChange={(next) => change(entry, next)}
             />
           ))}
           {listed.length === 0 && (
             <li className="hint">
-              {filterActive
-                ? 'Keine Zeilen für diesen Filter.'
-                : inCards > 0
-                  ? 'Alle Zeilen stehen in den Karten oben.'
-                  : 'Keine neuen Zeilen.'}
+              {filterActive ? 'Keine Zeilen für diesen Filter.' : 'Keine neuen Zeilen.'}
             </li>
           )}
         </ul>
@@ -995,6 +1004,13 @@ function Preview({
       {open.length > 0 && (
         <p className="hint import-open">
           {open.length === 1 ? 'Einer Zeile fehlt' : `${open.length} Zeilen fehlt`} noch die Kategorie.
+        </p>
+      )}
+      {hiddenSelected > 0 && (
+        <p className="hint import-hidden">
+          {hiddenSelected === 1
+            ? 'Davon ist 1 gewählte Zeile vom Filter ausgeblendet.'
+            : `Davon sind ${hiddenSelected} gewählte Zeilen vom Filter ausgeblendet.`}
         </p>
       )}
     </>

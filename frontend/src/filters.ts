@@ -8,6 +8,12 @@ export interface Filters {
 
 export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind: '' }
 
+/**
+ * The start of the import filters (ticket #84, after the test): only one-off rows, the series rows and transfers are
+ * handled by their cards and choices and shown with Wiederkehrend, Umbuchung or Alle Arten.
+ */
+export const IMPORT_FILTERS: Filters = { ...NO_FILTERS, kind: 'SINGLE' }
+
 /** The fields of the filter bar whose options get a count. */
 export type FacetField = 'category' | 'account' | 'kind'
 

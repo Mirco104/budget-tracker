@@ -17,19 +17,22 @@ import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
 import { ImportPage } from './ImportPage'
 import { totals } from '../sums'
 
-/** For the filter Art: a booking that replaces an occurrence counts as recurring (R28), a transfer has its own kind. */
-function kindOf(entry: Transaction): Transaction['kind'] | 'TRANSFER' {
-  if (entry.transfer) {
-    return 'TRANSFER'
-  }
+/** For the filter Art: a booking that replaces an occurrence counts as recurring (R28). */
+function kindOf(entry: Transaction): Transaction['kind'] {
   return entry.replaces ? 'RECURRING' : entry.kind
+}
+
+/** The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking. */
+const TRANSFER_CATEGORY = 'transfer'
+function categoryOf(entry: Transaction): string {
+  return entry.transfer ? TRANSFER_CATEGORY : String(entry.categoryId)
 }
 
 /** US26: whether an entry passes the filters (description, category, account, kind). */
 function matchesFilters(entry: Transaction, filters: Filters): boolean {
   const search = filters.query.trim().toLocaleLowerCase('de-DE')
   return (
-    (filters.category === '' || String(entry.categoryId) === filters.category) &&
+    (filters.category === '' || categoryOf(entry) === filters.category) &&
     (filters.account === '' || String(entry.accountId) === filters.account) &&
     (filters.kind === '' || kindOf(entry) === filters.kind) &&
     (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search))
@@ -37,7 +40,7 @@ function matchesFilters(entry: Transaction, filters: Filters): boolean {
 }
 
 const FACET_KEYS = {
-  category: (entry: Transaction) => String(entry.categoryId),
+  category: categoryOf,
   account: (entry: Transaction) => String(entry.accountId),
   kind: (entry: Transaction) => kindOf(entry),
 }
@@ -133,6 +136,7 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
           onChange={setFilters}
           counts={counts}
           categories={categories.data ?? []}
+          extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
           accounts={accounts.map((account) => ({
             value: String(account.id),
             label: account.archived ? `${account.name} (archiviert)` : account.name,

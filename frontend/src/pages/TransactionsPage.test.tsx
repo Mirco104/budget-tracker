@@ -72,7 +72,7 @@ describe('TransactionsPage', () => {
   })
 
   // R27, US31: a transfer is marked, counts in no sum and has its own kind in the filter
-  it('marks transfers, leaves them out of the sums and filters them by kind', async () => {
+  it('marks transfers, leaves them out of the sums and filters them as a category', async () => {
     const transfer: Transaction = {
       kind: 'SINGLE', id: 99, recurringId: null, occurrenceDate: null, amount: -500, description: 'Aufs Tagesgeld',
       date: '2026-10-05', categoryId: null, categoryName: null, accountId: 1, accountName: 'Girokonto', transfer: true,
@@ -82,13 +82,15 @@ describe('TransactionsPage', () => {
 
     const row = await screen.findByRole('button', { name: /Aufs Tagesgeld/ })
     expect(row).toHaveTextContent('Umbuchung')
-    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'TRANSFER' } })
+    // Umbuchung is chosen like a category when booking, so it is filtered there (ticket #84)
+    expect(screen.getByRole('option', { name: 'Umbuchung (1)' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'transfer' } })
     expect(screen.getByText(/1 Eintrag · Einnahmen 0,00\s€ · Ausgaben 0,00\s€/)).toBeInTheDocument()
     expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).not.toHaveTextContent('500')
     // A day with only the transfer has the sum 0 without a sign
     expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).toHaveTextContent(/0,00\s€$/)
     expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).not.toHaveTextContent('−0,00')
-    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '6' } })
     expect(screen.queryByRole('button', { name: /Aufs Tagesgeld/ })).not.toBeInTheDocument()
   })
 

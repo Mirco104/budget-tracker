@@ -7,10 +7,10 @@ export interface FilterOption {
   label: string
 }
 
+// An Umbuchung is chosen like a category when booking, so it is a category option, not a kind (ticket #84)
 const KINDS: FilterOption[] = [
   { value: 'RECURRING', label: 'Wiederkehrend' },
   { value: 'SINGLE', label: 'Einmalig' },
-  { value: 'TRANSFER', label: 'Umbuchung' },
 ]
 
 /**
