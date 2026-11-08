@@ -142,7 +142,7 @@ describe('ImportPage', () => {
     const summary = screen.getByRole('region', { name: 'Datei' })
     expect(summary).toHaveTextContent('7 Zeilen: 5 neu, 1 schon importiert, 1 nicht importierbar')
     expect(within(summary).getByLabelText('Ausgabenkonto in der Datei')).toHaveValue('new')
-    expect(within(summary).getByRole('option', { name: 'Neues Konto anlegen: C24 Ausgabenkonto' })).toBeInTheDocument()
+    expect(within(summary).getByRole('option', { name: '+ Neues Konto anlegen: C24 Ausgabenkonto' })).toBeInTheDocument()
   })
 
   // US33: certain suggestions and transfers are preset, uncertain ones are offered, possible duplicates unticked

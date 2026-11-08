@@ -462,7 +462,7 @@ function SourceAccount({
         value={value}
         onChange={(e) => (e.target.value === NEW_NAMED_ACCOUNT ? setCreating(true) : onChange(e.target.value))}
       >
-        <option value={NEW_ACCOUNT}>Neues Konto anlegen: {source.suggestedName}</option>
+        <option value={NEW_ACCOUNT}>+ Neues Konto anlegen: {source.suggestedName}</option>
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
             {account.name}
