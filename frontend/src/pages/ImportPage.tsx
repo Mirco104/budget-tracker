@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
@@ -62,12 +62,15 @@ function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: R
   return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
 }
 
-/** R27: the counterpart of an uncertain transfer, so the user can judge it (code review, 08.11.2026). */
+/**
+ * R27: the counterpart of an uncertain transfer like a booking, so the user can judge it without line numbers (code
+ * review, 08.11.2026): „Auf Pocket“, +100,00 € vom 04.11.2026 (Pocket Urlaub, in dieser Datei).
+ */
 function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
-  if (peer.line !== null) {
-    return `Zeile ${peer.line}`
-  }
-  return `„${peer.description ?? ''}“ vom ${peer.date ? formatDate(peer.date) : '–'} (${peer.accountName ?? ''})`
+  const amount = peer.amount !== null ? `, ${formatSigned(peer.amount)}` : ''
+  const date = peer.date ? ` vom ${formatDate(peer.date)}` : ''
+  const where = peer.line !== null ? `${peer.accountName ?? ''}, in dieser Datei` : (peer.accountName ?? '')
+  return `„${peer.description ?? ''}“${amount}${date} (${where})`
 }
 
 type View = 'all' | 'open' | 'skipped'
@@ -107,6 +110,8 @@ function PreviewRow({
   categories,
   suggested,
   seriesName,
+  highlighted,
+  onJumpToPeer,
   onChange,
 }: {
   entry: ImportEntry
@@ -115,6 +120,9 @@ function PreviewRow({
   suggested: RowSuggestion | null
   /** R31: the description of the noted series the row belongs to. */
   seriesName: string | null
+  /** Shortly true after a jump from the hint of its counterpart. */
+  highlighted: boolean
+  onJumpToPeer: (line: number) => void
   onChange: (choice: Choice) => void
 }) {
   const description = entry.description ?? ''
@@ -142,7 +150,11 @@ function PreviewRow({
   }
 
   return (
-    <li className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}`} aria-label={description}>
+    <li
+      id={`import-line-${entry.line}`}
+      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}`}
+      aria-label={description}
+    >
       <input
         type="checkbox"
         className="import-check"
@@ -160,7 +172,16 @@ function PreviewRow({
               {entry.transferCertain ? 'Umbuchung auf ein eigenes Konto' : 'Umbuchung erkannt'}
             </span>
           )}
-          {entry.transfer && !entry.transferCertain && entry.transferPeer && (
+          {entry.transfer && !entry.transferCertain && entry.transferPeer && entry.transferPeer.line !== null && (
+            <button
+              type="button"
+              className="link-button import-peer"
+              onClick={() => onJumpToPeer(entry.transferPeer?.line as number)}
+            >
+              Gegenbuchung: {peerText(entry.transferPeer)}
+            </button>
+          )}
+          {entry.transfer && !entry.transferCertain && entry.transferPeer && entry.transferPeer.line === null && (
             <span className="hint">Gegenbuchung: {peerText(entry.transferPeer)}</span>
           )}
           {entry.transferPeerId !== null && choice.category === TRANSFER && (
@@ -347,6 +368,8 @@ function Preview({
   const [ignoredSeries, setIgnoredSeries] = useState<string[]>([])
   // R31: the noted series by their lines, with their category
   const [plannedSeries, setPlannedSeries] = useState<Record<string, string>>({})
+  // The row a hint jumped to, highlighted for a moment
+  const [highlighted, setHighlighted] = useState<number | null>(null)
   // The last category the user chose per key; it is a suggestion for the other rows with that key
   const [chosenByKey, setChosenByKey] = useState<Record<string, string>>({})
 
@@ -365,6 +388,24 @@ function Preview({
   const series = preview.series.filter((s) => !ignoredSeries.includes(s.lines.join()))
   const seriesOfEntry = (entry: ImportEntry) =>
     series.find((s) => plannedSeries[s.lines.join()] !== undefined && s.lines.includes(entry.line)) ?? null
+
+  // R27: the hint of a transfer jumps to its counterpart in the same file; every row is shown so it is there
+  function jumpToPeer(line: number) {
+    setView('all')
+    setHighlighted(line)
+  }
+
+  useEffect(() => {
+    if (highlighted === null) {
+      return
+    }
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    document
+      .getElementById(`import-line-${highlighted}`)
+      ?.scrollIntoView?.({ block: 'center', behavior: reduced ? 'auto' : 'smooth' })
+    const timer = window.setTimeout(() => setHighlighted(null), 2000)
+    return () => window.clearTimeout(timer)
+  }, [highlighted])
 
   // R31: noting a series gives its rows its category
   function planSeries(s: ImportSeries, categoryId: string) {
@@ -578,6 +619,8 @@ function Preview({
               categories={categories}
               suggested={suggestionFor(entry)}
               seriesName={seriesOfEntry(entry)?.description ?? null}
+              highlighted={highlighted === entry.line}
+              onJumpToPeer={jumpToPeer}
               onChange={(next) => change(entry, next)}
             />
           ))}
