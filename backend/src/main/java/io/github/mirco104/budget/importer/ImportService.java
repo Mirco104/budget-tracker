@@ -149,14 +149,16 @@ public class ImportService {
         List<Candidate> fresh = candidates.stream().filter(c -> !imported.contains(c.fingerprint())).toList();
 
         // R27 and R30 against the stored single transactions around the dates of the file
+        // A transaction that replaces an occurrence (R28) is no counterpart of a transfer, but still a possible duplicate
         Set<Long> replacing = replacementService.replacingIds();
-        List<Transaction> stored = storedAround(owner, fresh).stream()
-                .filter(t -> !replacing.contains(t.getId()))
-                .toList();
+        List<Transaction> stored = storedAround(owner, fresh);
         Map<Long, Transaction> storedById = stored.stream().collect(Collectors.toMap(Transaction::getId, Function.identity()));
         List<ImportMatcher.Existing> existing = stored.stream()
                 .map(t -> new ImportMatcher.Existing(t.getId(), t.getAccount().getId(), t.getDate(), t.getAmount(),
                         t.getImportBatch() != null))
+                .toList();
+        List<ImportMatcher.Existing> transferPeers = existing.stream()
+                .filter(e -> !replacing.contains(e.id()))
                 .toList();
         List<ImportMatcher.Row> matcherRows = fresh.stream()
                 .map(c -> new ImportMatcher.Row(c.index(), c.source(), sources.get(c.source()).accountId(),
@@ -165,7 +167,7 @@ public class ImportService {
         List<ImportMatcher.OwnAccount> ownAccounts = accounts.stream()
                 .map(a -> new ImportMatcher.OwnAccount(a.getId(), a.getIban()))
                 .toList();
-        Map<Integer, ImportMatcher.Transfer> transfers = ImportMatcher.transfers(matcherRows, existing, ownAccounts);
+        Map<Integer, ImportMatcher.Transfer> transfers = ImportMatcher.transfers(matcherRows, transferPeers, ownAccounts);
         Map<Integer, Long> duplicates = ImportMatcher.possibleDuplicates(matcherRows, existing);
         BookingSuggestionService.Suggester suggester = suggestionService.suggester();
 
