@@ -2544,3 +2544,19 @@ button.tx:hover:not(:disabled) {
     text-align: left;
   }
 }
+
+/* Settings › Nutzer (US36): role and password link side by side, the link below on its own line */
+.user-row .user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.user-row .user-reset {
+  flex: 1 1 100%;
+}
+
+/* "Passwort vergessen?" under the sign-in form */
+.auth-page .link-button {
+  margin-top: 8px;
+}

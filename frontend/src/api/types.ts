@@ -330,6 +330,12 @@ export interface Invitation {
   expiresAt: string
 }
 
+/** US36: a link that sets a new password, usable once until expiresAt. */
+export interface PasswordResetLink {
+  link: string
+  expiresAt: string
+}
+
 export interface AcceptInvitationInput {
   email: string
   displayName: string

@@ -7,6 +7,7 @@ import { currentMonth } from './format'
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
@@ -30,14 +31,33 @@ function invitationToken(): string | null {
   return new URLSearchParams(window.location.search).get('einladung')
 }
 
+// US36: a password reset link opens the app with ?passwort=<token>
+function resetToken(): string | null {
+  return new URLSearchParams(window.location.search).get('passwort')
+}
+
 /** Every page needs a signed-in user; without one the login page shows (US14). */
 function App() {
   const me = useMe()
   const [token, setToken] = useState(invitationToken)
+  const [reset, setReset] = useState(resetToken)
 
   function handleAccepted() {
     window.history.replaceState(null, '', window.location.pathname)
     setToken(null)
+  }
+
+  function handleReset() {
+    window.history.replaceState(null, '', window.location.pathname)
+    setReset(null)
+  }
+
+  if (reset) {
+    return (
+      <SignedOut>
+        <ResetPasswordPage token={reset} onDone={handleReset} />
+      </SignedOut>
+    )
   }
 
   if (token) {
