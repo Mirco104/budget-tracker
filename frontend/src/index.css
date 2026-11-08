@@ -2327,6 +2327,37 @@ button.tx:hover:not(:disabled) {
   padding: 12px 16px;
 }
 
+/* The rows a card took over, shown on demand */
+.import-card-rows summary {
+  cursor: pointer;
+  color: var(--primary);
+}
+
+.import-card-rows ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.import-card-rows li {
+  display: flex;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.import-card-rows-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-card-rows-amount {
+  font-variant-numeric: tabular-nums;
+}
+
 .import-series p {
   margin: 0 0 8px;
 }
