@@ -1,5 +1,5 @@
-import { useEffect, useState, type ChangeEvent } from 'react'
-import { useBankAccounts } from '../api/bankAccounts'
+import { useEffect, useId, useState, type ChangeEvent } from 'react'
+import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
 import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import {
@@ -12,6 +12,7 @@ import {
   type ImportPreview,
   type ImportRequest,
   type ImportSeries,
+  type ImportSource,
 } from '../api/imports'
 import type { BankAccount, Category } from '../api/types'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
@@ -24,8 +25,10 @@ import { ROUTES, transactionsPeriodHref } from '../router'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
-/** The value of the account field for a new account. */
+/** The value of the account field for a new account with the suggested name, created when the rows are taken over. */
 const NEW_ACCOUNT = 'new'
+/** The value of the account field that opens the field for a new account with an own name (08.11.2026). */
+const NEW_NAMED_ACCOUNT = 'new-named'
 /** The value of the category field that opens the field for a new category. */
 const NEW_CATEGORY = 'new-category'
 
@@ -264,7 +267,15 @@ function SeriesCard({
   onIgnore: () => void
 }) {
   const [categoryId, setCategoryId] = useState('')
+  const createCategory = useCreateCategory()
+  const [creating, setCreating] = useState(false)
   const suggested = categories.find((c) => c.id === series.categoryId)
+
+  async function handleCreate(name: string) {
+    const created = await createCategory.mutateAsync({ name })
+    setCreating(false)
+    setCategoryId(String(created.id))
+  }
   const plannedName = categories.find((c) => String(c.id) === planned)?.name
 
   const label = `Serie „${series.description}“`
@@ -283,14 +294,27 @@ function SeriesCard({
         </div>
       ) : (
         <div className="import-series-actions">
-          <select aria-label={`Kategorie für ${label}`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <select
+            aria-label={`Kategorie für ${label}`}
+            value={categoryId}
+            onChange={(e) => (e.target.value === NEW_CATEGORY ? setCreating(true) : setCategoryId(e.target.value))}
+          >
             <option value="">Kategorie wählen …</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
+            <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
           </select>
+          {creating && (
+            <InlineCreate
+              label={`Neue Kategorie für ${label}`}
+              placeholder="Name der Kategorie"
+              onCreate={handleCreate}
+              onCancel={() => setCreating(false)}
+            />
+          )}
           {suggested && categoryId === '' && (
             <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
@@ -306,6 +330,60 @@ function SeriesCard({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * The account of a source of the file: an own account, a new one with the suggested name (created when the rows are
+ * taken over) or, since 08.11.2026, a new one with an own name, which is created right away and then chosen.
+ */
+function SourceAccount({
+  source,
+  accounts,
+  value,
+  onChange,
+}: {
+  source: ImportSource
+  accounts: BankAccount[]
+  value: string
+  onChange: (value: string) => void
+}) {
+  const labelId = useId()
+  const createAccount = useCreateBankAccount()
+  const [creating, setCreating] = useState(false)
+
+  async function handleCreate(name: string) {
+    const account = await createAccount.mutateAsync({ name })
+    setCreating(false)
+    onChange(String(account.id))
+  }
+
+  return (
+    <div className="field">
+      <span id={labelId}>{source.name} in der Datei</span>
+      <select
+        aria-labelledby={labelId}
+        value={value}
+        onChange={(e) => (e.target.value === NEW_NAMED_ACCOUNT ? setCreating(true) : onChange(e.target.value))}
+      >
+        <option value={NEW_ACCOUNT}>Neues Konto anlegen: {source.suggestedName}</option>
+        {accounts.map((account) => (
+          <option key={account.id} value={account.id}>
+            {account.name}
+          </option>
+        ))}
+        <option value={NEW_NAMED_ACCOUNT}>+ Neues Konto mit eigenem Namen …</option>
+      </select>
+      {creating && (
+        <InlineCreate
+          label={`Name des neuen Kontos für ${source.name}`}
+          placeholder="Name des Kontos"
+          initial={source.suggestedName}
+          onCreate={handleCreate}
+          onCancel={() => setCreating(false)}
+        />
+      )}
+    </div>
   )
 }
 
@@ -521,20 +599,13 @@ function Preview({
           <div className="import-sources">
             <h3>Konten</h3>
             {preview.sources.map((source) => (
-              <label key={source.key} className="field">
-                {source.name} in der Datei
-                <select
-                  value={sourceAccounts[source.key]}
-                  onChange={(e) => setSourceAccounts({ ...sourceAccounts, [source.key]: e.target.value })}
-                >
-                  <option value={NEW_ACCOUNT}>Neues Konto anlegen: {source.suggestedName}</option>
-                  {activeAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SourceAccount
+                key={source.key}
+                source={source}
+                accounts={activeAccounts}
+                value={sourceAccounts[source.key]}
+                onChange={(value) => setSourceAccounts((current) => ({ ...current, [source.key]: value }))}
+              />
             ))}
           </div>
         )}
