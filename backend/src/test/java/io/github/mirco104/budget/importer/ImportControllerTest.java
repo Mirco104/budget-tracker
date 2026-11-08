@@ -401,6 +401,70 @@ class ImportControllerTest {
                 .containsExactly("2026-08-01", "2026-09-01", "2026-10-01", "2026-11-01");
     }
 
+    private static final String SALARIES = """
+            "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)"
+            2026-08-01,2026-08-01,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            2026-08-31,2026-08-31,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            2026-10-01,2026-10-01,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            2026-11-02,2026-11-02,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            """;
+
+    // Code review 08.11.2026: a suggested series is created only with the import, its rows replace its occurrences
+    @Test
+    void createsTheSeriesWithTheImportAndUndoesBoth() throws Exception {
+        long salary = category(user, "Gehalt/Lohn (netto)");
+        String preview = previewJson(mockMvc, SALARIES);
+        String body = withSeries(commitBody(preview, entry -> salary, true), "2026-08-01", salary, "N26:Hauptkonto");
+
+        String result = mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(4))
+                .andReturn().getResponse().getContentAsString();
+        long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
+
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].description").value("Firma Beispiel · Lohn"))
+                .andExpect(jsonPath("$[0].accountName").value("N26 Hauptkonto"));
+        // Every occurrence is replaced: September counts the salary of 31 August once, as recurring
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
+                .andExpect(jsonPath("$.incomeTotal").value(0.00));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-08"))
+                .andExpect(jsonPath("$.incomeTotal").value(5000.00));
+        // A later file meets the new series (R28) and suggests no other
+        String again = previewJson(mockMvc, SALARIES
+                + "2026-12-01,2026-12-01,\"Firma Beispiel\",,\"Credit Transfer\",\"Lohn\",Hauptkonto,2500.00\n");
+        assertThat(JsonPath.<List<Object>>read(again, "$.series")).isEmpty();
+        assertThat(JsonPath.<List<String>>read(again, "$.entries[?(@.status == 'NEW')].replaces.date"))
+                .containsExactly("2026-12-01");
+
+        mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-08")).andExpect(jsonPath("$.incomeTotal").value(0.00));
+    }
+
+    @Test
+    void aRowFarFromEveryOccurrenceStoresNothing() throws Exception {
+        long salary = category(user, "Gehalt/Lohn (netto)");
+        String preview = previewJson(mockMvc, SALARIES);
+        String body = withSeries(commitBody(preview, entry -> salary, true), "2026-08-15", salary, "N26:Hauptkonto");
+
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("rows[0].series"));
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/imports")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/bank-accounts")).andExpect(jsonPath("$", hasSize(1)));
+    }
+
+    // Every row of the body belongs to one new monthly series
+    private static String withSeries(String body, String startDate, long categoryId, String source) {
+        String series = """
+                "series":[{"startDate":"%s","amount":2500,"description":"Firma Beispiel · Lohn","categoryId":%d,"source":"%s"}],"""
+                .formatted(startDate, categoryId, source);
+        return body.replace("\"rows\":[", series + "\"rows\":[").replace("\"transfer\":false}", "\"transfer\":false,\"series\":0}");
+    }
+
     // --- US34 ---
 
     @Test

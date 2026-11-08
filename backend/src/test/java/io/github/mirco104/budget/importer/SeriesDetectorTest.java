@@ -33,6 +33,26 @@ class SeriesDetectorTest {
         assertThat(salary.description()).isEqualTo("Firma Beispiel GmbH · Lohn Nov");
     }
 
+    // Code review 08.11.2026: a series created with the import replaces the nearest free occurrence per row
+    @Test
+    void eachRowReplacesTheNearestFreeOccurrence() {
+        List<LocalDate> dates = SeriesDetector.occurrenceDates(LocalDate.of(2026, 8, 1), List.of(
+                LocalDate.of(2026, 11, 2), LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), LocalDate.of(2026, 10, 1)));
+
+        // In the order of the rows
+        assertThat(dates).containsExactly(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 8, 1), LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 10, 1));
+    }
+
+    @Test
+    void aRowWithoutAFreeOccurrenceWithinFiveDaysHasNone() {
+        List<LocalDate> dates = SeriesDetector.occurrenceDates(LocalDate.of(2026, 8, 15), List.of(
+                LocalDate.of(2026, 8, 15), LocalDate.of(2026, 8, 16), LocalDate.of(2026, 9, 1), LocalDate.of(2026, 8, 5)));
+
+        // The second row of August finds the occurrence taken; September 1st and August 5th are too far away
+        assertThat(dates).containsExactly(LocalDate.of(2026, 8, 15), null, null, null);
+    }
+
     @Test
     void needsThreeMonthsInARow() {
         assertThat(SeriesDetector.detect(List.of(
