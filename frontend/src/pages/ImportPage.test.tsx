@@ -41,7 +41,7 @@ const preview: ImportPreview = {
     entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Kino Nord', suggestionKey: 'kino nord', categoryId: 8, certain: true, replaces: { recurringId: 3, date: '2026-11-03', description: 'Kino-Abo', amount: 2.99, categoryId: 8 } }),
     entry({ line: 3, fingerprint: 'b'.repeat(64), description: 'Spiele Shop', categoryId: 8, certain: false, bankCategory: 'Freizeit & Unterhaltung' }),
     entry({ line: 4, fingerprint: 'c'.repeat(64), description: 'Spiele Shop', amount: -4.99, categoryId: 8, certain: false }),
-    entry({ line: 5, fingerprint: 'd'.repeat(64), description: 'Auf Pocket', amount: -100, source: 'C24:Pocket Urlaub', suggestionKey: 'auf pocket', transfer: true, transferPeerId: 77, transferPeer: { line: null, date: '2026-11-04', description: 'Von Ausgabenkonto', accountName: 'Girokonto' } }),
+    entry({ line: 5, fingerprint: 'd'.repeat(64), description: 'Auf Pocket', amount: -100, source: 'C24:Pocket Urlaub', suggestionKey: 'auf pocket', transfer: true, transferPeerId: 77, transferPeer: { line: null, date: '2026-11-04', description: 'Von Ausgabenkonto', amount: 100, accountName: 'Girokonto' } }),
     entry({ line: 6, fingerprint: 'e'.repeat(64), status: 'POSSIBLE_DUPLICATE', description: 'Bäcker', suggestionKey: 'bäcker', amount: -3.1, duplicateOf: { id: 5, date: '2026-11-03', description: 'Brötchen' } }),
     entry({ line: 7, fingerprint: '1'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Alt' }),
     { ...entry({ line: 8 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
@@ -181,7 +181,50 @@ describe('ImportPage', () => {
     renderPage()
     await upload()
 
-    expect(row('Auf Pocket')[0]).toHaveTextContent('Gegenbuchung: „Von Ausgabenkonto“ vom 04.11.2026 (Girokonto)')
+    expect(row('Auf Pocket')[0]).toHaveTextContent('Gegenbuchung: „Von Ausgabenkonto“, +100,00 € vom 04.11.2026 (Girokonto)')
+    // A stored booking cannot be jumped to
+    expect(within(row('Auf Pocket')[0]).queryByRole('button', { name: /Gegenbuchung/ })).not.toBeInTheDocument()
+  })
+
+  // A counterpart in the same file is named like a booking and can be jumped to (no line numbers on the page)
+  function previewWithPeerInFile(): ImportPreview {
+    return {
+      ...preview,
+      entries: preview.entries.map((e) =>
+        e.line === 5
+          ? { ...e, transferPeer: { line: 2, date: '2026-11-04', description: 'Kino Nord', amount: -2.99, accountName: 'Ausgabenkonto' } }
+          : e,
+      ),
+    }
+  }
+
+  it('names a counterpart in the same file and jumps to it', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    renderPage(() => json(previewWithPeerInFile()))
+    await upload()
+
+    const hint = within(row('Auf Pocket')[0]).getByRole('button', {
+      // The amount has a non-breaking space before €
+      name: /^Gegenbuchung: „Kino Nord“, −2,99\s€ vom 04\.11\.2026 \(Ausgabenkonto, in dieser Datei\)$/,
+    })
+    fireEvent.click(hint)
+
+    expect(row('Kino Nord')[0]).toHaveClass('highlight')
+    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('shows every row again to jump to a counterpart that has its category', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    renderPage(() => json(previewWithPeerInFile()))
+    await upload()
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Ohne Kategorie/ }))
+    expect(screen.queryByRole('listitem', { name: 'Kino Nord' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: /Gegenbuchung/ }))
+
+    expect(row('Kino Nord')[0]).toHaveClass('highlight')
   })
 
   // R28, US35: a row that replaces a planned occurrence says so and can be unticked
