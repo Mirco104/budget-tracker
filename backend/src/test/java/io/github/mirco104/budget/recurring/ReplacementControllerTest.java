@@ -141,6 +141,142 @@ class ReplacementControllerTest {
                 .andExpect(jsonPath("$.replaces.recurringId").value(rent));
     }
 
+    // --- Ticket #91: an existing booking is added to a series afterwards ---
+
+    @Test
+    void anEditCanLetAnExistingBookingReplaceAnOccurrence() throws Exception {
+        long id = idOf(single(-905, "Überweisung Vermieter", "2026-11-03", wohnen));
+
+        edit(id, -905, "Überweisung Vermieter", "2026-11-03", wohnen, rent, "2026-11-01")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.replaces.recurringId").value(rent))
+                .andExpect(jsonPath("$.replaces.date").value("2026-11-01"));
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-11"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].description").value("Überweisung Vermieter"));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-11"))
+                .andExpect(jsonPath("$.expenses.recurring").value(905.0));
+    }
+
+    @Test
+    void anEditMovesTheLinkToAnotherOccurrence() throws Exception {
+        long id = idOf(book(-905, "Miete", "2026-11-02", wohnen, rent, "2026-11-01"));
+
+        edit(id, -905, "Miete", "2026-11-30", wohnen, rent, "2026-12-01")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.replaces.date").value("2026-12-01"));
+
+        // November counts its occurrence again, December is replaced
+        mockMvc.perform(get("/api/transactions").param("month", "2026-11"))
+                .andExpect(jsonPath("$[?(@.kind == 'RECURRING')]", hasSize(1)));
+        mockMvc.perform(get("/api/transactions").param("month", "2026-12"))
+                .andExpect(jsonPath("$[?(@.kind == 'RECURRING')]", hasSize(0)));
+    }
+
+    @Test
+    void anEditWithTheSameOccurrenceKeepsTheLink() throws Exception {
+        long id = idOf(book(-905, "Miete", "2026-11-02", wohnen, rent, "2026-11-01"));
+
+        edit(id, -910, "Miete", "2026-11-02", wohnen, rent, "2026-11-01")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.replaces.date").value("2026-11-01"))
+                .andExpect(jsonPath("$.amount").value(-910.0));
+    }
+
+    @Test
+    void anEditCannotReplaceAnOccurrenceThatIsGoneOrBeATransfer() throws Exception {
+        idOf(book(-905, "Miete", "2026-11-02", wohnen, rent, "2026-11-01"));
+        long other = idOf(single(-905, "Miete doppelt", "2026-11-04", wohnen));
+
+        edit(other, -905, "Miete doppelt", "2026-11-04", wohnen, rent, "2026-11-01")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("replaces"));
+        mockMvc.perform(put("/api/transactions/{id}", other).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -905, "description": "Umbuchung", "date": "2026-11-04", "transfer": true,
+                         "replaces": {"recurringId": %d, "date": "2026-12-01"}}""".formatted(rent)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("replaces"));
+        // nothing changed
+        mockMvc.perform(get("/api/transactions").param("month", "2026-12"))
+                .andExpect(jsonPath("$[?(@.kind == 'RECURRING')]", hasSize(1)));
+    }
+
+    // --- Ticket #76: a booking becomes a series afterwards ---
+
+    @Test
+    void aBookingBecomesTheFirstOccurrenceOfANewSeries() throws Exception {
+        long freizeit = category("Freizeit");
+        long id = idOf(single(-12, "Fitness", "2026-09-15", freizeit));
+
+        String json = mockMvc.perform(post("/api/recurring-transactions/from-transaction/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -29.90, "description": "Fitnessstudio", "categoryId": %d, "interval": "MONTHLY",
+                         "startDate": "2026-09-14", "endDate": null}""".formatted(freizeit)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(-29.90))
+                .andExpect(jsonPath("$.startDate").value("2026-09-14"))
+                .andExpect(jsonPath("$.interval").value("MONTHLY"))
+                .andReturn().getResponse().getContentAsString();
+        long series = ((Number) JsonPath.read(json, "$.id")).longValue();
+
+        // The booking takes the values and the date, and it replaces the first occurrence
+        mockMvc.perform(get("/api/transactions").param("month", "2026-09"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].kind").value("SINGLE"))
+                .andExpect(jsonPath("$[0].id").value(id))
+                .andExpect(jsonPath("$[0].description").value("Fitnessstudio"))
+                .andExpect(jsonPath("$[0].date").value("2026-09-14"))
+                .andExpect(jsonPath("$[0].replaces.recurringId").value(series))
+                .andExpect(jsonPath("$[0].replaces.date").value("2026-09-14"));
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.recurringId == %d)]".formatted(series), hasSize(1)));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
+                .andExpect(jsonPath("$.expenses.recurring").value(29.9));
+    }
+
+    @Test
+    void aBookingThatReplacesAnOccurrenceOrIsUnknownBecomesNoSeries() throws Exception {
+        long id = idOf(book(-905, "Miete", "2026-11-02", wohnen, rent, "2026-11-01"));
+        String body = """
+                {"amount": -905, "description": "Miete", "categoryId": %d, "interval": "MONTHLY",
+                 "startDate": "2026-11-02"}""".formatted(wohnen);
+
+        mockMvc.perform(post("/api/recurring-transactions/from-transaction/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("replaces"));
+        mockMvc.perform(post("/api/recurring-transactions/from-transaction/{id}", 999_999)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound());
+
+        User other = TestUsers.create(userService, "person-m@example.test");
+        long othersCategory = categoryRepository.findAllByOwner(other).getFirst().getId();
+        TestUsers.mockMvcFor(context, other)
+                .perform(post("/api/recurring-transactions/from-transaction/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -905, "description": "Miete", "categoryId": %d, "interval": "MONTHLY",
+                         "startDate": "2026-11-02"}""".formatted(othersCategory)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-11"))
+                .andExpect(jsonPath("$", hasSize(1)));
+    }
+
+    @Test
+    void aBookingBecomesNoSeriesWithInvalidValues() throws Exception {
+        long id = idOf(single(-12, "Fitness", "2026-09-15", category("Freizeit")));
+
+        mockMvc.perform(post("/api/recurring-transactions/from-transaction/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -12, "description": "Fitness", "categoryId": 999999, "interval": "MONTHLY",
+                         "startDate": "2026-09-15"}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
+        mockMvc.perform(get("/api/transactions").param("month", "2026-09"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].replaces").value(nullValue()));
+    }
+
     @Test
     void splittingTheSeriesMovesTheLinkWhenTheNewSeriesHasTheDate() throws Exception {
         book(-905, "Miete Dezember", "2026-12-02", wohnen, rent, "2026-12-01");
@@ -255,6 +391,20 @@ class ReplacementControllerTest {
     private ResultActions book(int amount, String description, String date, long categoryId, long recurringId,
             String occurrence) throws Exception {
         return mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                {"amount": %d, "description": "%s", "date": "%s", "categoryId": %d,
+                 "replaces": {"recurringId": %d, "date": "%s"}}"""
+                .formatted(amount, description, date, categoryId, recurringId, occurrence)));
+    }
+
+    private ResultActions single(int amount, String description, String date, long categoryId) throws Exception {
+        return mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                {"amount": %d, "description": "%s", "date": "%s", "categoryId": %d}"""
+                .formatted(amount, description, date, categoryId)));
+    }
+
+    private ResultActions edit(long id, int amount, String description, String date, long categoryId,
+            long recurringId, String occurrence) throws Exception {
+        return mockMvc.perform(put("/api/transactions/{id}", id).contentType(MediaType.APPLICATION_JSON).content("""
                 {"amount": %d, "description": "%s", "date": "%s", "categoryId": %d,
                  "replaces": {"recurringId": %d, "date": "%s"}}"""
                 .formatted(amount, description, date, categoryId, recurringId, occurrence)));

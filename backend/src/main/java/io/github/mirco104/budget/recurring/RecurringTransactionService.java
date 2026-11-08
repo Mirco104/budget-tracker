@@ -6,6 +6,7 @@ import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.importer.ImportBatch;
+import io.github.mirco104.budget.transaction.Transaction;
 import io.github.mirco104.budget.transaction.TransactionRequest;
 import io.github.mirco104.budget.transaction.TransactionResponse;
 import io.github.mirco104.budget.transaction.TransactionService;
@@ -79,6 +80,25 @@ public class RecurringTransactionService {
         RecurringTransaction recurring = recurringRepository.findById(id).orElseThrow();
         recurring.markImported(batch);
         return recurring;
+    }
+
+    /**
+     * Ticket #76: a single transaction becomes the first occurrence of a new series. The transaction takes the values
+     * and the start date of the series and replaces its first occurrence (R28), so nothing counts twice.
+     */
+    @Transactional
+    public RecurringTransactionResponse createFromTransaction(long transactionId, RecurringTransactionRequest request) {
+        Transaction transaction = transactionService.findOwn(transactionId);
+        if (replacementService.replacedBy(List.of(transactionId)).containsKey(transactionId)) {
+            throw new InvalidFieldException("replaces", "Die Buchung ersetzt schon ein Vorkommen einer Serie.");
+        }
+        RecurringTransactionResponse created = create(request);
+        transactionService.update(transactionId, new TransactionRequest(
+                request.amount(), request.description(), request.startDate(), request.categoryId(),
+                request.accountId(), false, null));
+        RecurringTransaction recurring = recurringRepository.findById(created.id()).orElseThrow();
+        replacementService.replace(recurring, request.startDate(), transaction);
+        return created;
     }
 
     /** "Nur dieser Eintrag": suspends the occurrence and books the changed values as a single transaction. */

@@ -93,22 +93,36 @@ public class TransactionService {
         return TransactionResponse.from(saved);
     }
 
+    /**
+     * R28: a transfer replaces no occurrence; with replaces the transaction replaces that occurrence from now on
+     * (ticket #91), without it the link stays as it is.
+     */
     @Transactional
     public TransactionResponse update(long id, TransactionRequest request) {
         Transaction transaction = findTransaction(id);
         checkAmount(request.amount());
+        if (request.replaces() != null && Boolean.TRUE.equals(request.transfer())) {
+            throw new InvalidFieldException("replaces", "Eine Umbuchung kann kein Vorkommen ersetzen.");
+        }
         transaction.update(
                 request.amount().setScale(2, RoundingMode.HALF_UP),
                 request.description().trim(),
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
-        // R28: a transfer replaces no occurrence; otherwise the link stays as it is
         if (transaction.isTransfer()) {
             replacementService.unlink(transaction);
+        } else if (request.replaces() != null) {
+            replacementService.replaceInstead(transaction, request.replaces());
         }
         return TransactionResponse.from(transaction,
                 replacementService.replacedBy(List.of(transaction.getId())).get(transaction.getId()));
+    }
+
+    /** Ticket #76: the user's own transaction, 404 otherwise (R15). */
+    @Transactional(readOnly = true)
+    public Transaction findOwn(long id) {
+        return findTransaction(id);
     }
 
     /** R28: an occurrence the transaction replaced counts again. */

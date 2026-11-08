@@ -33,7 +33,8 @@ public record TransactionRequest(
         // R27: optional, false without it
         Boolean transfer,
 
-        // R28: optional, the occurrence of a series this transaction replaces (only when it is created)
+        // R28: optional, the occurrence of a series this transaction replaces; on an update it moves the link
+        // (ticket #91), without it the link stays
         @Valid
         OccurrenceRef replaces) {
 }

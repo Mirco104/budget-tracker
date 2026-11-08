@@ -17,6 +17,17 @@ export function createRecurringTransaction(input: RecurringTransactionInput): Pr
   return request<RecurringTransaction>('/recurring-transactions', { method: 'POST', body: JSON.stringify(input) })
 }
 
+/** Ticket #76: a single transaction becomes the first occurrence of a new series with these values. */
+export function createSeriesFromTransaction(
+  transactionId: number,
+  input: RecurringTransactionInput,
+): Promise<RecurringTransaction> {
+  return request<RecurringTransaction>(`/recurring-transactions/from-transaction/${transactionId}`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
 function occurrencePath(recurringId: number, occurrenceDate: string, scope: OccurrenceScope): string {
   return `/recurring-transactions/${recurringId}/occurrences/${occurrenceDate}?scope=${scope}`
 }
@@ -68,6 +79,15 @@ function useInvalidateAfterChange() {
 export function useCreateRecurringTransaction() {
   const onSuccess = useInvalidateAfterChange()
   return useMutation({ mutationFn: createRecurringTransaction, onSuccess })
+}
+
+export function useCreateSeriesFromTransaction() {
+  const onSuccess = useInvalidateAfterChange()
+  return useMutation({
+    mutationFn: ({ transactionId, input }: { transactionId: number; input: RecurringTransactionInput }) =>
+      createSeriesFromTransaction(transactionId, input),
+    onSuccess,
+  })
 }
 
 export function useUpdateOccurrenceThis() {

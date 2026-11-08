@@ -63,6 +63,22 @@ public class ReplacementService {
         exceptionRepository.save(new RecurringException(recurring, date, transaction));
     }
 
+    /**
+     * Ticket #91: an existing transaction replaces the occurrence from now on; an occurrence it replaced before counts
+     * again. Nothing changes when it already replaces this occurrence.
+     */
+    @Transactional
+    public void replaceInstead(Transaction transaction, OccurrenceRef occurrence) {
+        if (occurrence.equals(replacedBy(List.of(transaction.getId())).get(transaction.getId()))) {
+            return;
+        }
+        RecurringTransaction recurring = countingOccurrence(occurrence, "replaces");
+        exceptionRepository.deleteByTransaction(transaction);
+        // The transaction may point to one exception only, so the old one must be gone before the new one is written
+        exceptionRepository.flush();
+        replace(recurring, occurrence.date(), transaction);
+    }
+
     /** The occurrence the transaction replaced counts again. */
     @Transactional
     public void unlink(Transaction transaction) {

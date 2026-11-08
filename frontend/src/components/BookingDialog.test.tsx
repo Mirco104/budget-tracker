@@ -36,6 +36,7 @@ function renderDialog(
   answer: (url: string) => Promise<Response> = () => json({}),
   bankAccounts: BankAccount[] = [],
   suggestion: BookingSuggestion = { categoryId: null, certain: false },
+  period: Transaction[] = recent,
 ) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
@@ -43,6 +44,9 @@ function renderDialog(
     }
     if (init?.method) {
       return answer(url)
+    }
+    if (url.startsWith('/api/transactions?from=')) {
+      return json(period)
     }
     if (url.startsWith('/api/transactions')) {
       return json(recent)
@@ -471,7 +475,8 @@ describe('BookingDialog', () => {
     expect(screen.getByRole('dialog', { name: 'Buchung bearbeiten' })).toBeInTheDocument()
     expect(screen.getByLabelText('Betrag in Euro')).toHaveValue('12,00')
     expect(screen.getByRole('button', { name: 'Ausgabe' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+    // Ticket #76: a single booking can become a series; "nie" keeps it single
+    expect(screen.getByLabelText('Wiederholen')).toHaveValue('NONE')
     fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '14' } })
 
     save()
@@ -481,6 +486,71 @@ describe('BookingDialog', () => {
       url: '/api/transactions/7',
       body: { amount: -14, description: 'Kino', categoryId: 6, accountId: 1, date: '2026-10-20' },
     })
+  })
+
+  // Ticket #76
+  it('turns an edited single booking into the first occurrence of a new series', async () => {
+    const { fetchMock } = renderDialog(kino)
+
+    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
+    expect(screen.getByText('Diese Buchung wird zur ersten Abbuchung der neuen Serie.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Erste Abbuchung')).toHaveValue('2026-10-20')
+    save()
+
+    await waitFor(() =>
+      expect(sent(fetchMock, 'POST')).toEqual({
+        url: '/api/recurring-transactions/from-transaction/7',
+        body: {
+          amount: -12,
+          description: 'Kino',
+          categoryId: 6,
+          accountId: 1,
+          interval: 'MONTHLY',
+          startDate: '2026-10-20',
+          endDate: null,
+        },
+      }),
+    )
+    expect(sent(fetchMock, 'PUT')).toBeUndefined()
+  })
+
+  // Ticket #91
+  it('lets an edited single booking replace a nearby occurrence of a series', async () => {
+    const { fetchMock } = renderDialog(kino, undefined, [], undefined, [streaming])
+
+    const join = await screen.findByLabelText('Gehört zu einer Serie')
+    expect(join).toHaveValue('')
+    fireEvent.change(join, { target: { value: '3|2026-10-05' } })
+    // A booking that joins a series does not become a series of its own
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+    save()
+
+    await waitFor(() =>
+      expect(sent(fetchMock, 'PUT')).toEqual({
+        url: '/api/transactions/7',
+        body: {
+          amount: -12,
+          description: 'Kino',
+          categoryId: 6,
+          accountId: 1,
+          date: '2026-10-20',
+          replaces: { recurringId: 3, date: '2026-10-05' },
+        },
+      }),
+    )
+  })
+
+  it('keeps the link of a booking that already replaces an occurrence and offers no repeat', async () => {
+    const linked: Transaction = { ...kino, replaces: { recurringId: 3, date: '2026-10-05' } }
+    const { fetchMock } = renderDialog(linked, undefined, [], undefined, [])
+
+    expect(await screen.findByLabelText('Gehört zu einer Serie')).toHaveDisplayValue(
+      'wie bisher (ersetzt den Eintrag vom 05.10.2026)',
+    )
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+    save()
+
+    await waitFor(() => expect(sent(fetchMock, 'PUT')?.body).not.toHaveProperty('replaces'))
   })
 
   it('keeps an archived category of an edited entry', () => {

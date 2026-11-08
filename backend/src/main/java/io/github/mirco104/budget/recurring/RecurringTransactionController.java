@@ -51,6 +51,18 @@ public class RecurringTransactionController {
         return ResponseEntity.created(location).body(created);
     }
 
+    /** Ticket #76: a single transaction becomes the first occurrence of a new series. */
+    @PostMapping("/from-transaction/{transactionId}")
+    public ResponseEntity<RecurringTransactionResponse> createFromTransaction(
+            @PathVariable long transactionId, @Valid @RequestBody RecurringTransactionRequest request) {
+        RecurringTransactionResponse created = recurringService.createFromTransaction(transactionId, request);
+        URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/recurring-transactions/{id}")
+                .buildAndExpand(created.id())
+                .toUri();
+        return ResponseEntity.created(location).body(created);
+    }
+
     // The body depends on the scope, so each scope has its own mapping (R13)
     @PutMapping(path = OCCURRENCE_PATH, params = "scope=THIS")
     public TransactionResponse updateThis(

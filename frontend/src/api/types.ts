@@ -83,7 +83,7 @@ export interface TransactionInput {
   /** Without it the default account (R26). */
   accountId?: number
   transfer?: boolean
-  /** Only when created: the occurrence the transaction replaces (R28). */
+  /** The occurrence the transaction replaces (R28); on an update it moves the link (ticket #91), without it the link stays. */
   replaces?: OccurrenceRef
 }
 

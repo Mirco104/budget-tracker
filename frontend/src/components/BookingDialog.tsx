@@ -4,15 +4,22 @@ import { useCreateCategory } from '../api/categories'
 import { ApiError } from '../api/client'
 import {
   useCreateRecurringTransaction,
+  useCreateSeriesFromTransaction,
   useDeleteOccurrence,
   useRecurringTransactions,
   useUpdateOccurrenceFollowing,
   useUpdateOccurrenceThis,
 } from '../api/recurring'
 import { useBookingSuggestion } from '../api/suggestions'
-import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
+import {
+  useCreateTransaction,
+  useDeleteTransaction,
+  useTransactions,
+  useTransactionsBetween,
+  useUpdateTransaction,
+} from '../api/transactions'
 import type { Category, OccurrenceScope, RecurringInterval, Transaction } from '../api/types'
-import { formatDate, formatEuro, parseAmountInput } from '../format'
+import { formatDate, formatEuro, parseAmountInput, shiftMonth } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
@@ -101,6 +108,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const series = useRecurringTransactions(occurrence ? occurrence.occurrenceDate.slice(0, 7) : '', occurrence !== null)
   const createTransaction = useCreateTransaction()
   const createSeries = useCreateRecurringTransaction()
+  const createSeriesFrom = useCreateSeriesFromTransaction()
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
   const updateThis = useUpdateOccurrenceThis()
@@ -160,10 +168,28 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
 
   const transfer = categoryId === TRANSFER
   const recurring = repeat !== 'NONE' && !transfer
-  // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry or a transfer.
+  // An edited single booking can become a series (ticket #76) or replace an occurrence of a series (ticket #91)
+  const editsSingle = entry !== null && entry.id !== null && !occurrence
+  const [joined, setJoined] = useState('')
+  const canJoin = editsSingle && !transfer && !recurring
+  // The occurrences around the booking: the month before, its month and the month after (display only)
+  const entryMonth = (entry?.date ?? defaultDate).slice(0, 7)
+  const afterWindow = `${shiftMonth(entryMonth, 2)}-01`
+  const nearby = useTransactionsBetween(`${shiftMonth(entryMonth, -1)}-01`, afterWindow, editsSingle)
+  const joinable = (nearby.data ?? []).filter(
+    (t) =>
+      t.kind === 'RECURRING' &&
+      t.recurringId !== null &&
+      t.occurrenceDate !== null &&
+      t.date < afterWindow &&
+      // only entries of the same kind, an expense never stands for an income
+      t.amount < 0 === (kind === 'expense'),
+  )
+  // Repeat is offered for a new booking, for a single booking that replaces no occurrence yet (ticket #76) and for a
+  // series from an occurrence on, not for a transfer.
   const repeatOption: 'optional' | 'required' | 'none' = transfer
     ? 'none'
-    : !entry
+    : !entry || (editsSingle && entry.replaces === null && joined === '')
       ? 'optional'
       : occurrence && scope === 'FOLLOWING'
         ? 'required'
@@ -260,15 +286,20 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
         startDate: date,
         endDate: endDate === '' ? null : endDate,
       }
-      return occurrence
-        ? updateFollowing.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
+      if (occurrence) {
+        return updateFollowing.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
+      }
+      return entry?.id != null
+        ? createSeriesFrom.mutateAsync({ transactionId: entry.id, input })
         : createSeries.mutateAsync(input)
     }
     if (occurrence) {
       return updateThis.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input: single })
     }
     if (entry?.id != null) {
-      return updateTransaction.mutateAsync({ id: entry.id, input: single })
+      const [recurringId, occurrenceDate] = joined.split('|')
+      const join = canJoin && joined !== '' ? { replaces: { recurringId: Number(recurringId), date: occurrenceDate } } : {}
+      return updateTransaction.mutateAsync({ id: entry.id, input: { ...single, ...join } })
     }
     return createTransaction.mutateAsync(single)
   }
@@ -459,6 +490,29 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
             </label>
           )}
         </div>
+
+        {editsSingle && recurring && (
+          <p className="hint">Diese Buchung wird zur ersten Abbuchung der neuen Serie.</p>
+        )}
+
+        {canJoin && repeat === 'NONE' && (joinable.length > 0 || entry?.replaces) && (
+          <div className="field">
+            <span id="booking-join-label">Gehört zu einer Serie</span>
+            <select aria-labelledby="booking-join-label" value={joined} onChange={(e) => setJoined(e.target.value)}>
+              <option value="">
+                {entry?.replaces
+                  ? `wie bisher (ersetzt den Eintrag vom ${formatDate(entry.replaces.date)})`
+                  : 'nein, einmalige Buchung'}
+              </option>
+              {joinable.map((t) => (
+                <option key={`${t.recurringId}|${t.occurrenceDate}`} value={`${t.recurringId}|${t.occurrenceDate}`}>
+                  {t.description} · {formatDate(t.date)} · {formatEuro(t.amount)}
+                </option>
+              ))}
+            </select>
+            <span className="hint">Die Buchung zählt dann statt des geplanten Eintrags der Serie.</span>
+          </div>
+        )}
 
         {recurring && (
           <label className="field">
