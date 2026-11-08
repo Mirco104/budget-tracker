@@ -109,7 +109,6 @@ function PreviewRow({
   choice,
   categories,
   suggested,
-  seriesName,
   highlighted,
   onJumpToPeer,
   onChange,
@@ -118,8 +117,6 @@ function PreviewRow({
   choice: Choice
   categories: Category[]
   suggested: RowSuggestion | null
-  /** R31: the description of the noted series the row belongs to. */
-  seriesName: string | null
   /** Shortly true after a jump from the hint of its counterpart. */
   highlighted: boolean
   onJumpToPeer: (line: number) => void
@@ -198,9 +195,6 @@ function PreviewRow({
               ersetzt „{entry.replaces.description}“ vom {formatDate(entry.replaces.date)}
             </label>
           )}
-          {seriesName !== null && choice.selected && choice.category !== TRANSFER && (
-            <span className="badge">wird Teil der Serie „{seriesName}“</span>
-          )}
           {entry.duplicateOf && (
             <span className="badge warning">
               Schon von Hand gebucht? „{entry.duplicateOf.description}“ vom {formatDate(entry.duplicateOf.date)}
@@ -272,6 +266,27 @@ function PreviewRow({
   )
 }
 
+/** The rows a card took over, out of the list and shown here on demand (08.11.2026); only to look at. */
+function CardRows({ entries }: { entries: ImportEntry[] }) {
+  if (entries.length === 0) {
+    return null
+  }
+  return (
+    <details className="import-card-rows">
+      <summary>{entries.length === 1 ? '1 Zeile zeigen' : `${entries.length} Zeilen zeigen`}</summary>
+      <ul aria-label="Zeilen der Karte">
+        {entries.map((entry) => (
+          <li key={entry.fingerprint}>
+            <span>{entry.date && formatDate(entry.date)}</span>
+            <span className="import-card-rows-description">{entry.description}</span>
+            <span className="import-card-rows-amount">{entry.amount !== null && formatSigned(entry.amount)}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 /**
  * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. "Als Serie
  * anlegen" only notes the series; it is created with the import, and its rows replace its occurrences (code review,
@@ -281,6 +296,7 @@ function SeriesCard({
   series,
   categories,
   planned,
+  plannedRows,
   onPlan,
   onUnplan,
   onIgnore,
@@ -289,6 +305,8 @@ function SeriesCard({
   categories: Category[]
   /** The category of the noted series, null while it is not noted. */
   planned: string | null
+  /** The rows of the noted series, out of the list. */
+  plannedRows: ImportEntry[]
   onPlan: (categoryId: string) => void
   onUnplan: () => void
   onIgnore: () => void
@@ -335,6 +353,7 @@ function SeriesCard({
           </button>
         </div>
       )}
+      {planned !== null && <CardRows entries={plannedRows} />}
     </section>
   )
 }
@@ -371,13 +390,18 @@ function MatchCard({
   match,
   categories,
   open,
+  accepted,
   onAccept,
+  onUndo,
 }: {
   match: Match
   categories: Category[]
   /** The rows of the match without the category of the series or without "ersetzt". */
   open: number
+  /** The rows the card took over, out of the list. */
+  accepted: ImportEntry[]
   onAccept: () => void
+  onUndo: () => void
 }) {
   const category = categories.find((c) => c.id === match.categoryId)
   const dates = match.entries.map((entry) => (entry.replaces as NonNullable<ImportEntry['replaces']>).date).sort()
@@ -400,7 +424,13 @@ function MatchCard({
             Alle übernehmen ({open})
           </button>
         )}
+        {accepted.length > 0 && (
+          <button type="button" onClick={onUndo}>
+            Zurücknehmen
+          </button>
+        )}
       </div>
+      <CardRows entries={accepted} />
     </section>
   )
 }
@@ -434,6 +464,8 @@ function Preview({
   const [ignoredSeries, setIgnoredSeries] = useState<string[]>([])
   // R31: the noted series by their lines, with their category
   const [plannedSeries, setPlannedSeries] = useState<Record<string, string>>({})
+  // R28: the series whose matches the user took over with the card
+  const [acceptedMatches, setAcceptedMatches] = useState<number[]>([])
   // The row a hint jumped to, highlighted for a moment
   const [highlighted, setHighlighted] = useState<number | null>(null)
   // The last category the user chose per key; it is a suggestion for the other rows with that key
@@ -460,6 +492,16 @@ function Preview({
     const choice = choices[entry.fingerprint as string]
     return choice.category !== String(entry.replaces?.categoryId) || choice.replace === false
   }
+  // Rows a card took over leave the list (08.11.2026): the chosen rows of a noted series and the done rows of a match
+  // the user took over with its card; a row set by hand in the list stays there
+  const inCard = (entry: ImportEntry) =>
+    entry.fingerprint !== null &&
+    choices[entry.fingerprint].selected &&
+    (seriesOfEntry(entry) !== null ||
+      (entry.replaces !== null && acceptedMatches.includes(entry.replaces.recurringId) && !matchOpen(entry)))
+  const listedRows = rows.filter((entry) => !inCard(entry))
+  const listed = shown.filter((entry) => !inCard(entry))
+  const inCards = rows.length - listedRows.length
 
   // R27: the hint of a transfer jumps to its counterpart in the same file; every row is shown so it is there
   function jumpToPeer(line: number) {
@@ -532,6 +574,21 @@ function Preview({
       }
       return updated
     })
+    setAcceptedMatches((current) => [...current, match.recurringId])
+  }
+
+  // The rows the card took over come back open, as at the start
+  function undoMatch(match: Match) {
+    const back = match.entries.filter(inCard)
+    setChoices((current) => {
+      const updated = { ...current }
+      for (const entry of back) {
+        const fingerprint = entry.fingerprint as string
+        updated[fingerprint] = { ...updated[fingerprint], category: '' }
+      }
+      return updated
+    })
+    setAcceptedMatches((current) => current.filter((id) => id !== match.recurringId))
   }
 
   function request(entries: ImportEntry[]): ImportRequest {
@@ -660,7 +717,9 @@ function Preview({
           match={match}
           categories={categories}
           open={match.entries.filter(matchOpen).length}
+          accepted={match.entries.filter(inCard)}
           onAccept={() => acceptMatch(match)}
+          onUndo={() => undoMatch(match)}
         />
       ))}
 
@@ -670,6 +729,7 @@ function Preview({
           series={s}
           categories={categories}
           planned={plannedSeries[s.lines.join()] ?? null}
+          plannedRows={rows.filter((entry) => s.lines.includes(entry.line) && inCard(entry))}
           onPlan={(categoryId) => planSeries(s, categoryId)}
           onUnplan={() => unplanSeries(s)}
           onIgnore={() => setIgnoredSeries([...ignoredSeries, s.lines.join()])}
@@ -690,7 +750,7 @@ function Preview({
             value={view}
             onChange={setView}
             options={[
-              { value: 'all', label: `Neu (${rows.length})` },
+              { value: 'all', label: `Neu (${listedRows.length})` },
               { value: 'open', label: `Ohne Kategorie (${open.length})` },
               { value: 'skipped', label: `Nicht importiert (${notImportable.length})` },
             ]}
@@ -701,22 +761,32 @@ function Preview({
         </div>
       )}
 
+      {view !== 'skipped' && inCards > 0 && (
+        <p className="hint">{inCards === 1 ? '1 Zeile steht' : `${inCards} Zeilen stehen`} in den Karten oben.</p>
+      )}
       {view !== 'skipped' && (
         <ul className="import-list" aria-label="Neue Zeilen">
-          {shown.map((entry) => (
+          {listed.map((entry) => (
             <PreviewRow
               key={entry.fingerprint}
               entry={entry}
               choice={choices[entry.fingerprint as string]}
               categories={categories}
               suggested={suggestionFor(entry)}
-              seriesName={seriesOfEntry(entry)?.description ?? null}
               highlighted={highlighted === entry.line}
               onJumpToPeer={jumpToPeer}
               onChange={(next) => change(entry, next)}
             />
           ))}
-          {shown.length === 0 && <li className="hint">{view === 'open' ? 'Alle gewählten Zeilen haben eine Kategorie.' : 'Keine neuen Zeilen.'}</li>}
+          {listed.length === 0 && (
+            <li className="hint">
+              {view === 'open'
+                ? 'Alle gewählten Zeilen haben eine Kategorie.'
+                : inCards > 0
+                  ? 'Alle Zeilen stehen in den Karten oben.'
+                  : 'Keine neuen Zeilen.'}
+            </li>
+          )}
         </ul>
       )}
       {(view === 'skipped' || rows.length === 0) && notImportable.length > 0 && (
