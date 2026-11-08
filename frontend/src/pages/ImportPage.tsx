@@ -19,7 +19,7 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { NO_FILTERS, type Filters } from '../filters'
+import { facetCounts, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 
@@ -518,20 +518,30 @@ function Preview({
     return (entry.replaces !== null && choice.replace !== false) || seriesOfEntry(entry) !== null ? 'RECURRING' : 'SINGLE'
   }
 
-  const search = filters.query.trim().toLocaleLowerCase('de-DE')
-  function matchesFilter(entry: ImportEntry): boolean {
+  // The value of a row for the category filter: "Ohne Kategorie" for a chosen row without one, else its category
+  function categoryKey(entry: ImportEntry): string {
     const choice = choices[entry.fingerprint as string]
-    const category =
-      filters.category === WITHOUT_CATEGORY ? choice.selected && choice.category === '' : choice.category === filters.category
+    return choice.selected && choice.category === '' ? WITHOUT_CATEGORY : choice.category
+  }
+
+  function matchesFilter(entry: ImportEntry, current: Filters): boolean {
+    const search = current.query.trim().toLocaleLowerCase('de-DE')
     return (
-      (filters.category === '' || category) &&
-      (filters.account === '' || entry.source === filters.account) &&
-      (filters.kind === '' || kindOfRow(entry) === filters.kind) &&
+      (current.category === '' || categoryKey(entry) === current.category) &&
+      (current.account === '' || entry.source === current.account) &&
+      (current.kind === '' || kindOfRow(entry) === current.kind) &&
       (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
     )
   }
-  const filterActive = search !== '' || filters.category !== '' || filters.account !== '' || filters.kind !== ''
-  const listed = listedRows.filter(matchesFilter)
+  const filterActive =
+    filters.query.trim() !== '' || filters.category !== '' || filters.account !== '' || filters.kind !== ''
+  const listed = listedRows.filter((entry) => matchesFilter(entry, filters))
+  // Ticket #84: the hits of each filter option with the other filters, among the rows of the list
+  const counts = facetCounts(listedRows, filters, matchesFilter, {
+    category: categoryKey,
+    account: (entry) => entry.source ?? '',
+    kind: kindOfRow,
+  })
   // The shown chosen rows without category, for "Zuordnen"
   const assignable = filterActive
     ? listed.filter((entry) => {
@@ -831,10 +841,11 @@ function Preview({
           <TransactionFilters
             filters={filters}
             onChange={setFilters}
+            counts={counts}
             categories={categories}
             accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
             extraCategoryOptions={[
-              { value: WITHOUT_CATEGORY, label: `Ohne Kategorie (${open.length})` },
+              { value: WITHOUT_CATEGORY, label: 'Ohne Kategorie' },
               { value: TRANSFER, label: 'Umbuchung' },
             ]}
           />

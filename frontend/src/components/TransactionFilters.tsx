@@ -1,5 +1,5 @@
 import type { Category } from '../api/types'
-import type { Filters } from '../filters'
+import type { FacetCounts, FacetField, Filters } from '../filters'
 import { Icon } from './ui/Icon'
 
 export interface FilterOption {
@@ -7,9 +7,16 @@ export interface FilterOption {
   label: string
 }
 
+const KINDS: FilterOption[] = [
+  { value: 'RECURRING', label: 'Wiederkehrend' },
+  { value: 'SINGLE', label: 'Einmalig' },
+  { value: 'TRANSFER', label: 'Umbuchung' },
+]
+
 /**
  * The same filters for Transaktionen (US26) and the import (US33, ticket #84): description, category, account (only
- * with more than one) and kind. The page does the filtering; extraCategoryOptions come before the categories.
+ * with more than one) and kind. The page does the filtering; extraCategoryOptions come before the categories. With
+ * counts each option shows its hits and an option without one is hidden, unless it is chosen.
  */
 export function TransactionFilters({
   filters,
@@ -17,14 +24,35 @@ export function TransactionFilters({
   categories,
   accounts,
   extraCategoryOptions = [],
+  counts,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
   categories: Category[]
   accounts: FilterOption[]
   extraCategoryOptions?: FilterOption[]
+  counts?: FacetCounts
 }) {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
+
+  function options(field: FacetField, all: FilterOption[]) {
+    return all
+      .filter((option) => !counts || (counts[field].get(option.value) ?? 0) > 0 || option.value === filters[field])
+      .map((option) => (
+        <option key={option.value} value={option.value}>
+          {counts ? `${option.label} (${counts[field].get(option.value) ?? 0})` : option.label}
+        </option>
+      ))
+  }
+
+  const categoryOptions = [
+    ...extraCategoryOptions,
+    ...categories.map((category) => ({
+      value: String(category.id),
+      label: category.archived ? `${category.name} (archiviert)` : category.name,
+    })),
+  ]
+
   return (
     <div className="filter-row">
       <label className="search">
@@ -39,32 +67,17 @@ export function TransactionFilters({
       </label>
       <select aria-label="Kategorie filtern" value={filters.category} onChange={(e) => set('category', e.target.value)}>
         <option value="">Alle Kategorien</option>
-        {extraCategoryOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-        {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.archived ? `${category.name} (archiviert)` : category.name}
-          </option>
-        ))}
+        {options('category', categoryOptions)}
       </select>
       {accounts.length > 1 && (
         <select aria-label="Konto filtern" value={filters.account} onChange={(e) => set('account', e.target.value)}>
           <option value="">Alle Konten</option>
-          {accounts.map((account) => (
-            <option key={account.value} value={account.value}>
-              {account.label}
-            </option>
-          ))}
+          {options('account', accounts)}
         </select>
       )}
       <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
         <option value="">Alle Arten</option>
-        <option value="RECURRING">Wiederkehrend</option>
-        <option value="SINGLE">Einmalig</option>
-        <option value="TRANSFER">Umbuchung</option>
+        {options('kind', KINDS)}
       </select>
     </div>
   )
