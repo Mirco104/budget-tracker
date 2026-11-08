@@ -570,6 +570,15 @@ describe('ImportPage', () => {
 
     expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop'])
     expect(screen.getByText('2 von 5 Zeilen')).toBeInTheDocument()
+    // The options show their hits with the other filters; options without a hit are hidden
+    const names = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (2)'])
+    expect(names('Art filtern')).toEqual(['Alle Arten', 'Einmalig (2)'])
+    expect(names('Konto filtern')).toEqual(['Alle Konten', 'Ausgabenkonto (2)'])
+    fireEvent.change(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '8' } })
+    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (1)', 'Freizeit (1)'])
+
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'nichts' } })
     expect(screen.getByText('Keine Zeilen für diesen Filter.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))

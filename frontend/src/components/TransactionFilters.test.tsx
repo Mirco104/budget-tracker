@@ -49,6 +49,40 @@ describe('TransactionFilters', () => {
     expect(options.slice(0, 3)).toEqual(['Alle Kategorien', 'Ohne Kategorie (3)', 'Alt (archiviert)'])
   })
 
+  it('shows the count of each option and hides the options without a hit, but keeps the chosen one', () => {
+    const counts = {
+      category: new Map([
+        ['1', 3],
+        ['open', 2],
+      ]),
+      account: new Map([['2', 4]]),
+      kind: new Map([['SINGLE', 4]]),
+    }
+    render(
+      <TransactionFilters
+        filters={{ ...empty, kind: 'TRANSFER' }}
+        onChange={() => {}}
+        categories={categories}
+        accounts={[
+          { value: '1', label: 'Girokonto' },
+          { value: '2', label: 'Depot' },
+        ]}
+        extraCategoryOptions={[
+          { value: 'open', label: 'Ohne Kategorie' },
+          { value: 'transfer', label: 'Umbuchung' },
+        ]}
+        counts={counts}
+      />,
+    )
+
+    const names = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (2)', 'Wohnen (3)'])
+    expect(names('Konto filtern')).toEqual(['Alle Konten', 'Depot (4)'])
+    // Umbuchung is chosen, so it stays with (0)
+    expect(names('Art filtern')).toEqual(['Alle Arten', 'Einmalig (4)', 'Umbuchung (0)'])
+  })
+
   it('reports every change with the other filters kept', () => {
     const onChange = vi.fn()
     render(
