@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
@@ -16,6 +16,7 @@ import {
 import type { BankAccount, Category } from '../api/types'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
+import { InlineCreate } from '../components/ui/InlineCreate'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
@@ -128,25 +129,13 @@ function PreviewRow({
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
   const createCategory = useCreateCategory()
-  const [newName, setNewName] = useState<string | null>(null)
-  const [newError, setNewError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
 
   // A category that is missing is created right here and chosen for the row (after the first test, 07.11.2026)
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const name = (newName ?? '').trim()
-    if (name === '') {
-      setNewError('Der Name ist Pflicht.')
-      return
-    }
-    setNewError(null)
-    try {
-      const created = await createCategory.mutateAsync({ name })
-      setNewName(null)
-      onChange({ ...choice, category: String(created.id) })
-    } catch (e) {
-      setNewError(errorText(e, 'Anlegen fehlgeschlagen.'))
-    }
+  async function handleCreate(name: string) {
+    const created = await createCategory.mutateAsync({ name })
+    setCreating(false)
+    onChange({ ...choice, category: String(created.id) })
   }
 
   return (
@@ -219,8 +208,7 @@ function PreviewRow({
           aria-invalid={open ? true : undefined}
           onChange={(e) => {
             if (e.target.value === NEW_CATEGORY) {
-              setNewName('')
-              setNewError(null)
+              setCreating(true)
             } else {
               onChange({ ...choice, category: e.target.value })
             }
@@ -235,31 +223,13 @@ function PreviewRow({
           ))}
           <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
         </select>
-        {newName !== null && (
-          <form className="import-new-category" noValidate onSubmit={(e) => void handleCreate(e)}>
-            <input
-              aria-label={`Neue Kategorie für ${description}`}
-              placeholder="Name der Kategorie"
-              // Opened on purpose from the selection
-              autoFocus
-              maxLength={50}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && setNewName(null)}
-              aria-invalid={newError ? true : undefined}
-            />
-            <button type="submit" disabled={createCategory.isPending}>
-              Anlegen
-            </button>
-            <button type="button" onClick={() => setNewName(null)}>
-              Abbrechen
-            </button>
-            {newError && (
-              <span className="error" role="alert">
-                {newError}
-              </span>
-            )}
-          </form>
+        {creating && (
+          <InlineCreate
+            label={`Neue Kategorie für ${description}`}
+            placeholder="Name der Kategorie"
+            onCreate={handleCreate}
+            onCancel={() => setCreating(false)}
+          />
         )}
         {suggested && open && (
           <button type="button" className="chip" onClick={() => onChange({ ...choice, category: suggested.value })}>
