@@ -24,6 +24,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             """)
     List<Transaction> findCountedBetween(User owner, LocalDate from, LocalDate to);
 
+    /** R27: the transfers of the period, for the counterparts of an import. */
+    @EntityGraph(attributePaths = {"account"})
+    @Query("""
+            select t from Transaction t
+            where t.owner = :owner and t.transfer = true and t.date between :from and :to
+            order by t.date, t.id
+            """)
+    List<Transaction> findTransfersBetween(User owner, LocalDate from, LocalDate to);
+
     /** R29: every transaction of the user with a category, for the category suggestion. */
     @EntityGraph(attributePaths = "category")
     List<Transaction> findByOwnerAndTransferFalse(User owner);

@@ -45,7 +45,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -161,11 +160,12 @@ public class ImportService {
         // A transaction that replaces an occurrence (R28) is no counterpart of a transfer, but still a possible duplicate
         Set<Long> replacing = replacementService.replacingIds();
         List<Transaction> stored = storedAround(owner, fresh);
-        Map<Long, Transaction> storedById = stored.stream().collect(Collectors.toMap(Transaction::getId, Function.identity()));
-        List<ImportMatcher.Existing> existing = stored.stream()
-                .map(t -> new ImportMatcher.Existing(t.getId(), t.getAccount().getId(), t.getDate(), t.getAmount(),
-                        t.getImportBatch() != null))
-                .toList();
+        // A stored transfer without its other side is a counterpart too (a transfer booked by hand, R27)
+        List<Transaction> storedTransfers = transfersAround(owner, fresh);
+        Map<Long, Transaction> storedById = new HashMap<>();
+        stored.forEach(t -> storedById.put(t.getId(), t));
+        storedTransfers.forEach(t -> storedById.put(t.getId(), t));
+        List<ImportMatcher.Existing> existing = stored.stream().map(ImportService::existing).toList();
         List<ImportMatcher.Existing> transferPeers = existing.stream()
                 .filter(e -> !replacing.contains(e.id()))
                 .toList();
@@ -176,7 +176,8 @@ public class ImportService {
         List<ImportMatcher.OwnAccount> ownAccounts = accounts.stream()
                 .map(a -> new ImportMatcher.OwnAccount(a.getId(), a.getIban()))
                 .toList();
-        Map<Integer, ImportMatcher.Transfer> transfers = ImportMatcher.transfers(matcherRows, transferPeers, ownAccounts);
+        Map<Integer, ImportMatcher.Transfer> transfers = ImportMatcher.transfers(matcherRows, transferPeers,
+                storedTransfers.stream().map(ImportService::existing).toList(), ownAccounts);
         Map<Integer, Long> duplicates = ImportMatcher.possibleDuplicates(matcherRows, existing);
         BookingSuggestionService.Suggester suggester = suggestionService.suggester();
 
@@ -249,6 +250,22 @@ public class ImportService {
         LocalDate to = fresh.stream().map(c -> c.line().row().bookingDate()).max(Comparator.naturalOrder()).orElseThrow();
         return transactionRepository.findCountedBetween(owner, from.minusDays(ImportMatcher.TRANSFER_DAYS),
                 to.plusDays(ImportMatcher.TRANSFER_DAYS));
+    }
+
+    // R27: the stored transfers twice as far around, so one at the edge still finds its stored other side
+    private List<Transaction> transfersAround(User owner, List<Candidate> fresh) {
+        if (fresh.isEmpty()) {
+            return List.of();
+        }
+        LocalDate from = fresh.stream().map(c -> c.line().row().bookingDate()).min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate to = fresh.stream().map(c -> c.line().row().bookingDate()).max(Comparator.naturalOrder()).orElseThrow();
+        return transactionRepository.findTransfersBetween(owner, from.minusDays(2L * ImportMatcher.TRANSFER_DAYS),
+                to.plusDays(2L * ImportMatcher.TRANSFER_DAYS));
+    }
+
+    private static ImportMatcher.Existing existing(Transaction t) {
+        return new ImportMatcher.Existing(t.getId(), t.getAccount().getId(), t.getDate(), t.getAmount(),
+                t.getImportBatch() != null);
     }
 
     // R31: monthly series among the new rows that are no transfer and replace no occurrence of an existing series

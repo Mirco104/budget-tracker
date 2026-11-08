@@ -53,8 +53,20 @@ public final class ImportMatcher {
     private ImportMatcher() {
     }
 
-    /** R27: the rows that are transfers, by index. */
+    /** R27: the rows that are transfers, by index, without stored transfers as counterparts. */
     public static Map<Integer, Transfer> transfers(List<Row> rows, List<Existing> existing, List<OwnAccount> accounts) {
+        return transfers(rows, existing, List.of(), accounts);
+    }
+
+    /**
+     * R27: the rows that are transfers, by index. existing are the stored bookings that are no transfer; of
+     * storedTransfers only those without their other side among them are counterparts (a transfer booked by hand whose
+     * other side comes with the file).
+     */
+    public static Map<Integer, Transfer> transfers(List<Row> rows, List<Existing> existing, List<Existing> storedTransfers,
+            List<OwnAccount> accounts) {
+        List<Existing> candidates = new java.util.ArrayList<>(existing);
+        candidates.addAll(openTransfers(storedTransfers));
         Map<Integer, Boolean> certain = new HashMap<>();
         for (Row row : rows) {
             String iban = Iban.normalize(row.counterpartyIban());
@@ -70,7 +82,7 @@ public final class ImportMatcher {
         List<Row> sorted = byDate(rows);
         Map<BigDecimal, List<Row>> rowsByAmount = byAmount(sorted, Row::amount);
         Map<BigDecimal, List<Existing>> storedByAmount = byAmount(
-                existing.stream().sorted(Comparator.comparingLong(Existing::id)).toList(), Existing::amount);
+                candidates.stream().sorted(Comparator.comparingLong(Existing::id)).toList(), Existing::amount);
         for (Row row : sorted) {
             if (rowPeers.containsKey(row.index())) {
                 continue;
@@ -143,6 +155,36 @@ public final class ImportMatcher {
             }
         }
         return result;
+    }
+
+    // R27: the stored transfers without another stored transfer as their other side (opposite amount, another account,
+    // at most 3 days; the closest first, each once), because the app does not link the two sides
+    private static List<Existing> openTransfers(List<Existing> storedTransfers) {
+        List<Existing> sorted = storedTransfers.stream()
+                .sorted(Comparator.comparing(Existing::date).thenComparingLong(Existing::id))
+                .toList();
+        Map<BigDecimal, List<Existing>> byAmount = byAmount(sorted, Existing::amount);
+        Set<Long> paired = new HashSet<>();
+        for (Existing transfer : sorted) {
+            if (paired.contains(transfer.id())) {
+                continue;
+            }
+            Existing best = null;
+            long bestDays = Long.MAX_VALUE;
+            for (Existing other : byAmount.getOrDefault(key(transfer.amount().negate()), List.of())) {
+                long days = days(transfer.date(), other.date());
+                if (!paired.contains(other.id()) && other.accountId() != transfer.accountId()
+                        && days <= TRANSFER_DAYS && days < bestDays) {
+                    best = other;
+                    bestDays = days;
+                }
+            }
+            if (best != null) {
+                paired.add(transfer.id());
+                paired.add(best.id());
+            }
+        }
+        return sorted.stream().filter(transfer -> !paired.contains(transfer.id())).toList();
     }
 
     // Two sources the user put on the same account are no transfer between accounts
