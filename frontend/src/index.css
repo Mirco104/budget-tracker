@@ -2544,3 +2544,15 @@ button.tx:hover:not(:disabled) {
     text-align: left;
   }
 }
+
+/* Touch devices (#85): iOS zooms into any field under 16px when it gets focus and stays zoomed in.
+   So fields are at least 16px there; larger fields like the amount keep their size. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], .amount-input),
+  select,
+  textarea,
+  .field input:not([type='radio'], [type='checkbox'], .amount-input),
+  .field select {
+    font-size: max(16px, 1rem);
+  }
+}
