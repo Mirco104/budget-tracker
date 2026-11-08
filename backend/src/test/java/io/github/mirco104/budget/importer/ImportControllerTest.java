@@ -207,6 +207,12 @@ class ImportControllerTest {
         List<Integer> lines = JsonPath.read(preview, "$.entries[?(@.transfer == true)].line");
         List<Integer> peers = JsonPath.read(preview, "$.entries[?(@.transfer == true)].transferPeer.line");
         assertThat(peers).containsExactly(lines.get(1), lines.get(0));
+        // ... with date, description, amount and source, so the user recognizes it without line numbers
+        List<Map<String, Object>> peer = JsonPath.read(preview, "$.entries[?(@.transfer == true)].transferPeer");
+        assertThat(peer.get(0)).containsEntry("date", "2026-11-02").containsEntry("description", "Von Ausgabenkonto")
+                .containsEntry("amount", 100.0).containsEntry("accountName", "Ausgabenkonto");
+        assertThat(peer.get(1)).containsEntry("description", "Auf Pocket Urlaub").containsEntry("amount", -100.0)
+                .containsEntry("accountName", "Pocket Urlaub");
     }
 
     @Test
@@ -221,7 +227,7 @@ class ImportControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> peer = (Map<String, Object>) incoming.get("transferPeer");
         assertThat(peer).containsEntry("date", "2026-01-02").containsEntry("description", "Aufs Depot")
-                .containsEntry("accountName", "Girokonto").containsEntry("line", null);
+                .containsEntry("accountName", "Girokonto").containsEntry("line", null).containsEntry("amount", -500.0);
 
         commit(mockMvc, preview, entry -> category(user, "Investitionen"), true).andExpect(status().isCreated());
         mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
