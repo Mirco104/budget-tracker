@@ -203,6 +203,10 @@ class ImportControllerTest {
         assertThat(transfers).containsExactly(false, false, false, true, true);
         List<Object> categories = JsonPath.read(preview, "$.entries[?(@.transfer == true)].categoryId");
         assertThat(categories).containsOnlyNulls();
+        // R27: each side names the other line as its counterpart
+        List<Integer> lines = JsonPath.read(preview, "$.entries[?(@.transfer == true)].line");
+        List<Integer> peers = JsonPath.read(preview, "$.entries[?(@.transfer == true)].transferPeer.line");
+        assertThat(peers).containsExactly(lines.get(1), lines.get(0));
     }
 
     @Test
@@ -214,6 +218,10 @@ class ImportControllerTest {
         Map<String, Object> incoming = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
         assertThat(incoming.get("transfer")).isEqualTo(true);
         assertThat(((Number) incoming.get("transferPeerId")).longValue()).isEqualTo(stored);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> peer = (Map<String, Object>) incoming.get("transferPeer");
+        assertThat(peer).containsEntry("date", "2026-01-02").containsEntry("description", "Aufs Depot")
+                .containsEntry("accountName", "Girokonto").containsEntry("line", null);
 
         commit(mockMvc, preview, entry -> category(user, "Investitionen"), true).andExpect(status().isCreated());
         mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
