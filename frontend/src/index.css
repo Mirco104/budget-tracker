@@ -2544,3 +2544,34 @@ button.tx:hover:not(:disabled) {
     text-align: left;
   }
 }
+
+/* Local mode next to the brand (#82): orange, the warning color, so dev and sample are not taken for the real data */
+.mode-badge {
+  padding: 2px 8px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mode-short {
+  display: none;
+}
+
+/* On the phone only the short name fits next to the brand */
+@media (max-width: 480px) {
+  .brand {
+    white-space: nowrap;
+  }
+
+  .mode-long {
+    display: none;
+  }
+
+  .mode-short {
+    display: inline;
+  }
+}
