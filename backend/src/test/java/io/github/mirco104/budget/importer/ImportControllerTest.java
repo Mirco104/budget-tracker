@@ -222,6 +222,46 @@ class ImportControllerTest {
                         org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
     }
 
+    // US34, code review 08.11.2026: undoing the import gives the stored counterpart its category back
+    @Test
+    void undoingTheImportGivesTheCounterpartItsCategoryBack() throws Exception {
+        long wohnen = category(user, "Wohnen");
+        long stored = idOf(book(mockMvc, -500, "Aufs Depot", "2026-01-02", wohnen));
+        String result = commit(mockMvc, previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC),
+                entry -> category(user, "Investitionen"), true)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
+
+        mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(stored))
+                .andExpect(jsonPath("$[0].transfer").value(false))
+                .andExpect(jsonPath("$[0].categoryId").value(wohnen));
+    }
+
+    @Test
+    void aCounterpartChangedByHandStaysAsItIsOnUndo() throws Exception {
+        long wohnen = category(user, "Wohnen");
+        long freizeit = category(user, "Freizeit");
+        long stored = idOf(book(mockMvc, -500, "Aufs Depot", "2026-01-02", wohnen));
+        String result = commit(mockMvc, previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC),
+                entry -> category(user, "Investitionen"), true)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
+        mockMvc.perform(put("/api/transactions/{id}", stored).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -500, "description": "Aufs Depot", "date": "2026-01-02", "categoryId": %d}"""
+                        .formatted(freizeit)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$[0].transfer").value(false))
+                .andExpect(jsonPath("$[0].categoryId").value(freizeit));
+    }
+
     @Test
     void theIbanOfAnOwnAccountIsACertainTransfer() throws Exception {
         long giro = ((Number) JsonPath.read(mockMvc.perform(get("/api/bank-accounts")).andReturn().getResponse()
