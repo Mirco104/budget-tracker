@@ -261,6 +261,118 @@ describe('ImportPage', () => {
     expect(body.rows[0]).not.toHaveProperty('replaces')
   })
 
+  // R28, US33: rows that replace occurrences of the same series are taken over with one click (08.11.2026)
+  function rent(line: number, date: string, values: Partial<ImportEntry> = {}): ImportEntry {
+    return entry({
+      line, fingerprint: String(line).repeat(64), date, amount: -500, description: `Miete ${date}`, suggestionKey: 'miete',
+      categoryId: 1, certain: true, replaces: { recurringId: 5, date, description: 'Miete', amount: 500, categoryId: 1 },
+      ...values,
+    })
+  }
+
+  const previewWithRent: ImportPreview = {
+    ...preview,
+    entries: [
+      rent(2, '2026-01-01'),
+      rent(3, '2026-02-01'),
+      rent(4, '2026-03-01'),
+      rent(5, '2026-04-01', { status: 'POSSIBLE_DUPLICATE', duplicateOf: { id: 5, date: '2026-04-01', description: 'Miete' } }),
+      { ...preview.entries[0], line: 9 },
+    ],
+  }
+
+  function matchCard() {
+    return screen.getByRole('region', { name: 'Treffer der Serie „Miete“' })
+  }
+
+  it('takes over every row that replaces an occurrence of the same series', async () => {
+    const fetchMock = renderPage(() => json(previewWithRent))
+    await upload()
+
+    expect(matchCard()).toHaveTextContent(
+      '3 Buchungen ersetzen die geplante Serie „Miete“ (Wohnen) vom 01.01.2026 bis 01.03.2026.',
+    )
+    // A series with a single match has no card
+    expect(screen.queryByRole('region', { name: /Kino-Abo/ })).not.toBeInTheDocument()
+
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
+
+    expect(matchCard()).toHaveTextContent('Alle 3 ersetzen ihr Vorkommen (Wohnen).')
+    expect(within(matchCard()).queryByRole('button', { name: /Alle übernehmen/ })).not.toBeInTheDocument()
+    // The rows the card took over leave the list and are shown in the card on demand
+    for (const name of ['Miete 2026-01-01', 'Miete 2026-02-01', 'Miete 2026-03-01']) {
+      expect(screen.queryByRole('listitem', { name })).not.toBeInTheDocument()
+    }
+    expect(screen.getByRole('button', { name: 'Neu (2)' })).toBeInTheDocument()
+    expect(screen.getByText('3 Zeilen stehen in den Karten oben.')).toBeInTheDocument()
+    fireEvent.click(within(matchCard()).getByText('3 Zeilen zeigen'))
+    const cardRows = within(within(matchCard()).getByRole('list', { name: 'Zeilen der Karte' })).getAllByRole('listitem')
+    expect(cardRows).toHaveLength(3)
+    expect(cardRows[0]).toHaveTextContent('01.01.2026')
+    expect(cardRows[0]).toHaveTextContent('Miete 2026-01-01')
+    expect(cardRows[0]).toHaveTextContent(/−500,00\s€/)
+    // The possible duplicate stays unticked, the other series stays open
+    expect(within(row('Miete 2026-04-01')[0]).getByRole('checkbox', { name: 'Miete 2026-04-01 importieren' })).not.toBeChecked()
+    expect(within(row('Kino Nord')[0]).getByRole('combobox', { name: 'Kategorie für Kino Nord' })).toHaveValue('')
+
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+    await screen.findByRole('status')
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.rows.slice(0, 3)).toEqual([
+      expect.objectContaining({ categoryId: 1, replaces: { recurringId: 5, date: '2026-01-01' } }),
+      expect.objectContaining({ categoryId: 1, replaces: { recurringId: 5, date: '2026-02-01' } }),
+      expect.objectContaining({ categoryId: 1, replaces: { recurringId: 5, date: '2026-03-01' } }),
+    ])
+  })
+
+  it('puts the rows back into the list with Zurücknehmen', async () => {
+    renderPage(() => json(previewWithRent))
+    await upload()
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
+
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Zurücknehmen' }))
+
+    for (const name of ['Miete 2026-01-01', 'Miete 2026-02-01', 'Miete 2026-03-01']) {
+      expect(within(row(name)[0]).getByRole('combobox', { name: `Kategorie für ${name}` })).toHaveValue('')
+      expect(within(row(name)[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+    }
+    expect(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' })).toBeInTheDocument()
+    expect(screen.queryByText(/stehen in den Karten oben/)).not.toBeInTheDocument()
+  })
+
+  it('counts only the open rows and keeps a row set by hand in the list', async () => {
+    renderPage(() => json(previewWithRent))
+    await upload()
+
+    // A row the user sets in the list itself stays there; only the card takes rows out of the list
+    fireEvent.change(within(row('Miete 2026-01-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-01-01' }), {
+      target: { value: '1' },
+    })
+    fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ }))
+    expect(row('Miete 2026-01-01')).toHaveLength(1)
+
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (2)' }))
+    expect(screen.queryByRole('listitem', { name: 'Miete 2026-02-01' })).not.toBeInTheDocument()
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Zurücknehmen' }))
+    expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+  })
+
+  it('asks for a category per row when the category of the series is archived', async () => {
+    renderPage(() =>
+      json({
+        ...previewWithRent,
+        entries: previewWithRent.entries.map((e) =>
+          e.replaces?.recurringId === 5 ? { ...e, categoryId: 9, replaces: { ...e.replaces, categoryId: 9 } } : e,
+        ),
+      }),
+    )
+    await upload()
+
+    expect(matchCard()).toHaveTextContent('Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.')
+    expect(within(matchCard()).queryByRole('button')).not.toBeInTheDocument()
+  })
+
   // Decision 46: big files are taken over in parts; the rest stays in the preview
   it('takes over the finished rows and keeps the rest', async () => {
     const fetchMock = renderPage()
@@ -303,10 +415,11 @@ describe('ImportPage', () => {
 
     expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
     expect(card).toHaveTextContent('Wird beim Übernehmen als monatliche Serie angelegt (Freizeit).')
-    for (const shop of row('Spiele Shop')) {
-      expect(within(shop).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
-      expect(shop).toHaveTextContent('wird Teil der Serie „Spiele Shop“')
-    }
+    // Its rows leave the list and are shown in the card on demand
+    expect(screen.queryByRole('listitem', { name: 'Spiele Shop' })).not.toBeInTheDocument()
+    expect(screen.getByText('2 Zeilen stehen in den Karten oben.')).toBeInTheDocument()
+    fireEvent.click(within(card).getByText('2 Zeilen zeigen'))
+    expect(within(within(card).getByRole('list', { name: 'Zeilen der Karte' })).getAllByRole('listitem')).toHaveLength(2)
 
     fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
@@ -330,9 +443,12 @@ describe('ImportPage', () => {
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
     fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
 
+    expect(screen.queryByRole('listitem', { name: 'Spiele Shop' })).not.toBeInTheDocument()
     fireEvent.click(within(card).getByRole('button', { name: 'Nicht anlegen' }))
     expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeInTheDocument()
-    expect(row('Spiele Shop')[0]).not.toHaveTextContent('wird Teil der Serie')
+    // The rows come back with the category of the series
+    expect(row('Spiele Shop')).toHaveLength(2)
+    expect(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
 
     fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
