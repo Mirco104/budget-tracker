@@ -113,6 +113,60 @@ class ImportMatcherTest {
         assertThat(ImportMatcher.transfers(rows, existing, ACCOUNTS).get(0).peerTransactionId()).isEqualTo(12L);
     }
 
+    // --- R27 (b): a stored transfer without its other side (a transfer booked by hand) ---
+
+    @Test
+    void aStoredTransferWithoutOtherSideIsACounterpart() {
+        List<Row> rows = List.of(new Row(0, "C24:Giro", GIRO, date(14), "22", null));
+        List<Existing> transfers = List.of(new Existing(30, DEPOT, date(14), "-22", false));
+
+        assertThat(ImportMatcher.transfers(rows, List.of(), transfers, ACCOUNTS).get(0))
+                .isEqualTo(new Transfer(false, null, 30L));
+    }
+
+    @Test
+    void aStoredTransferWithItsOtherSideIsNoCounterpart() {
+        List<Row> rows = List.of(new Row(0, "C24:Giro", GIRO, date(14), "22", null));
+        List<Existing> transfers = List.of(
+                new Existing(30, DEPOT, date(14), "-22", false),
+                new Existing(31, 3, date(15), "22", false));
+
+        assertThat(ImportMatcher.transfers(rows, List.of(), transfers, ACCOUNTS)).isEmpty();
+    }
+
+    @Test
+    void anOpenStoredTransferCountsOnce() {
+        List<Row> rows = List.of(
+                new Row(0, "C24:Giro", GIRO, date(14), "22", null),
+                new Row(1, "C24:Giro", GIRO, date(14), "22", null));
+        List<Existing> transfers = List.of(new Existing(30, DEPOT, date(14), "-22", false));
+
+        Map<Integer, Transfer> result = ImportMatcher.transfers(rows, List.of(), transfers, ACCOUNTS);
+
+        assertThat(result).containsOnlyKeys(0);
+        assertThat(result.get(0).peerTransactionId()).isEqualTo(30L);
+    }
+
+    @Test
+    void aStoredTransferOnTheAccountOfTheRowIsNoCounterpart() {
+        List<Row> rows = List.of(new Row(0, "C24:Giro", GIRO, date(14), "22", null));
+        List<Existing> transfers = List.of(new Existing(30, GIRO, date(14), "-22", false));
+
+        assertThat(ImportMatcher.transfers(rows, List.of(), transfers, ACCOUNTS)).isEmpty();
+    }
+
+    @Test
+    void twoStoredTransfersOnTheSameAccountAreNoPair() {
+        List<Row> rows = List.of(new Row(0, "C24:Giro", GIRO, date(14), "22", null));
+        List<Existing> transfers = List.of(
+                new Existing(30, DEPOT, date(14), "-22", false),
+                new Existing(31, DEPOT, date(14), "22", false));
+
+        // 31 is no other side of 30, so 30 stays open
+        assertThat(ImportMatcher.transfers(rows, List.of(), transfers, ACCOUNTS).get(0).peerTransactionId())
+                .isEqualTo(30L);
+    }
+
     // --- R30: possible duplicates ---
 
     @Test

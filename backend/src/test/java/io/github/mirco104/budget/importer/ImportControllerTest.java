@@ -236,6 +236,45 @@ class ImportControllerTest {
                         org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
     }
 
+    // R27, 08.11.2026: a transfer booked by hand whose other side comes with the file is its counterpart and stays as it is
+    @Test
+    void aStoredTransferWithoutOtherSideIsACounterpart() throws Exception {
+        long stored = idOf(bookTransfer(mockMvc, -500, "Umbuchung", "2026-01-02", null));
+
+        String preview = previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC);
+        Map<String, Object> incoming = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(incoming.get("transfer")).isEqualTo(true);
+        assertThat(incoming.get("transferCertain")).isEqualTo(false);
+        assertThat(((Number) incoming.get("transferPeerId")).longValue()).isEqualTo(stored);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> peer = (Map<String, Object>) incoming.get("transferPeer");
+        assertThat(peer).containsEntry("date", "2026-01-02").containsEntry("description", "Umbuchung")
+                .containsEntry("accountName", "Girokonto").containsEntry("amount", -500.0);
+
+        String result = commit(mockMvc, preview, entry -> category(user, "Investitionen"), true)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        mockMvc.perform(delete("/api/imports/{id}", ((Number) JsonPath.read(result, "$.batch.id")).longValue()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(stored))
+                .andExpect(jsonPath("$[0].transfer").value(true))
+                .andExpect(jsonPath("$[0].categoryId").isEmpty());
+    }
+
+    @Test
+    void aStoredTransferWithItsOtherSideIsNoCounterpart() throws Exception {
+        long depot = idOf(mockMvc.perform(post("/api/bank-accounts").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\": \"Depot\"}")).andExpect(status().isCreated()));
+        bookTransfer(mockMvc, -500, "Umbuchung", "2026-01-02", null);
+        bookTransfer(mockMvc, 500, "Umbuchung", "2026-01-02", depot);
+
+        String preview = previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC);
+        Map<String, Object> incoming = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(incoming.get("transfer")).isEqualTo(false);
+    }
+
     // US34, code review 08.11.2026: undoing the import gives the stored counterpart its category back
     @Test
     void undoingTheImportGivesTheCounterpartItsCategoryBack() throws Exception {
@@ -576,6 +615,15 @@ class ImportControllerTest {
         return client.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
                         {"amount": %s, "description": "%s", "date": "%s", "categoryId": %d}"""
                         .formatted(amount, description, date, categoryId)))
+                .andExpect(status().isCreated());
+    }
+
+    // A transfer booked by hand (R27), on the default account when accountId is null
+    private ResultActions bookTransfer(MockMvc client, double amount, String description, String date, Long accountId)
+            throws Exception {
+        return client.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": %s, "description": "%s", "date": "%s", "transfer": true%s}"""
+                        .formatted(amount, description, date, accountId == null ? "" : ", \"accountId\": " + accountId)))
                 .andExpect(status().isCreated());
     }
 
