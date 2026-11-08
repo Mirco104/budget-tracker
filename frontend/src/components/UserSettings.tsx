@@ -3,6 +3,7 @@ import { errorText } from '../api/client'
 import type { Me, Role, UserSummary } from '../api/types'
 import { useChangeRole, useUsers } from '../api/users'
 import { formatDateTime } from '../format'
+import { Loading } from './ui/Loading'
 
 const ROLE_LABELS: Record<Role, string> = { USER: 'User', ADMIN: 'Admin', SYSTEM_ADMIN: 'Systemadmin' }
 
@@ -55,7 +56,7 @@ export function UserSettings({ me }: { me: Me }) {
       <p className="hint">
         Admins können Einladungen erzeugen und Rollen ändern. Der Systemadmin bleibt immer Systemadmin.
       </p>
-      {users.isPending && <p>Lade Nutzer …</p>}
+      {users.isPending && <Loading text="Lade Nutzer …" />}
       {users.error && <p className="error">Nutzer konnten nicht geladen werden: {users.error.message}</p>}
       {users.data?.map((user) => (
         <UserRow key={user.id} user={user} isMe={user.id === me.id} />

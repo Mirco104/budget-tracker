@@ -7,6 +7,7 @@ import { CategoryIcon } from './ui/CategoryIcon'
 import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
 import { Icon } from './ui/Icon'
 import { RowMenu } from './ui/RowMenu'
+import { Loading } from './ui/Loading'
 
 /** The icon a new category starts with, as in the backend (US28). */
 const DEFAULT_ICON = 'tag'
@@ -398,7 +399,7 @@ export function CategorySettings() {
   const categories = useCategories(currentMonth())
 
   if (categories.isPending) {
-    return <p>Lade Kategorien …</p>
+    return <Loading text="Lade Kategorien …" />
   }
   if (categories.error) {
     return <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>

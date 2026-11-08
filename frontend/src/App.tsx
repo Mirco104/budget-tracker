@@ -11,6 +11,7 @@ import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
 import { ROUTES, usePage, type Page } from './router'
+import { Loading, LoadingBar } from './components/ui/Loading'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
 const EvaluationPage = lazy(() =>
@@ -52,7 +53,7 @@ function App() {
   }
   return (
     <SignedOut>
-      {me.isPending && <p>Lade …</p>}
+      {me.isPending && <Loading text="Lade …" />}
       {me.error && <p className="error">Der Server ist nicht erreichbar: {me.error.message}</p>}
       {me.data === null && <LoginPage />}
     </SignedOut>
@@ -99,6 +100,7 @@ function SignedIn({ me }: { me: Me }) {
 
   return (
     <>
+      <LoadingBar />
       <header className="app-header">
         <div className="app-header-inner">
           <Brand />
@@ -129,7 +131,7 @@ function SignedIn({ me }: { me: Me }) {
         {page === 'transactions' && <TransactionsRoute />}
         {page === 'planning' && <PlanningPage />}
         {page === 'evaluation' && (
-          <Suspense fallback={<p>Lade Auswertung …</p>}>
+          <Suspense fallback={<Loading text="Lade Auswertung …" />}>
             <EvaluationPage />
           </Suspense>
         )}
