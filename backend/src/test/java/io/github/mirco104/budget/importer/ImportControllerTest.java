@@ -203,6 +203,16 @@ class ImportControllerTest {
         assertThat(transfers).containsExactly(false, false, false, true, true);
         List<Object> categories = JsonPath.read(preview, "$.entries[?(@.transfer == true)].categoryId");
         assertThat(categories).containsOnlyNulls();
+        // R27: each side names the other line as its counterpart
+        List<Integer> lines = JsonPath.read(preview, "$.entries[?(@.transfer == true)].line");
+        List<Integer> peers = JsonPath.read(preview, "$.entries[?(@.transfer == true)].transferPeer.line");
+        assertThat(peers).containsExactly(lines.get(1), lines.get(0));
+        // ... with date, description, amount and source, so the user recognizes it without line numbers
+        List<Map<String, Object>> peer = JsonPath.read(preview, "$.entries[?(@.transfer == true)].transferPeer");
+        assertThat(peer.get(0)).containsEntry("date", "2026-11-02").containsEntry("description", "Von Ausgabenkonto")
+                .containsEntry("amount", 100.0).containsEntry("accountName", "Ausgabenkonto");
+        assertThat(peer.get(1)).containsEntry("description", "Auf Pocket Urlaub").containsEntry("amount", -100.0)
+                .containsEntry("accountName", "Pocket Urlaub");
     }
 
     @Test
@@ -214,12 +224,95 @@ class ImportControllerTest {
         Map<String, Object> incoming = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
         assertThat(incoming.get("transfer")).isEqualTo(true);
         assertThat(((Number) incoming.get("transferPeerId")).longValue()).isEqualTo(stored);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> peer = (Map<String, Object>) incoming.get("transferPeer");
+        assertThat(peer).containsEntry("date", "2026-01-02").containsEntry("description", "Aufs Depot")
+                .containsEntry("accountName", "Girokonto").containsEntry("line", null).containsEntry("amount", -500.0);
 
         commit(mockMvc, preview, entry -> category(user, "Investitionen"), true).andExpect(status().isCreated());
         mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
                 .andExpect(jsonPath("$[?(@.description == 'Aufs Depot')].transfer").value(true))
                 .andExpect(jsonPath("$[?(@.description == 'Aufs Depot')].categoryId",
                         org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
+    }
+
+    // R27, 08.11.2026: a transfer booked by hand whose other side comes with the file is its counterpart and stays as it is
+    @Test
+    void aStoredTransferWithoutOtherSideIsACounterpart() throws Exception {
+        long stored = idOf(bookTransfer(mockMvc, -500, "Umbuchung", "2026-01-02", null));
+
+        String preview = previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC);
+        Map<String, Object> incoming = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(incoming.get("transfer")).isEqualTo(true);
+        assertThat(incoming.get("transferCertain")).isEqualTo(false);
+        assertThat(((Number) incoming.get("transferPeerId")).longValue()).isEqualTo(stored);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> peer = (Map<String, Object>) incoming.get("transferPeer");
+        assertThat(peer).containsEntry("date", "2026-01-02").containsEntry("description", "Umbuchung")
+                .containsEntry("accountName", "Girokonto").containsEntry("amount", -500.0);
+
+        String result = commit(mockMvc, preview, entry -> category(user, "Investitionen"), true)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        mockMvc.perform(delete("/api/imports/{id}", ((Number) JsonPath.read(result, "$.batch.id")).longValue()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(stored))
+                .andExpect(jsonPath("$[0].transfer").value(true))
+                .andExpect(jsonPath("$[0].categoryId").isEmpty());
+    }
+
+    @Test
+    void aStoredTransferWithItsOtherSideIsNoCounterpart() throws Exception {
+        long depot = idOf(mockMvc.perform(post("/api/bank-accounts").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\": \"Depot\"}")).andExpect(status().isCreated()));
+        bookTransfer(mockMvc, -500, "Umbuchung", "2026-01-02", null);
+        bookTransfer(mockMvc, 500, "Umbuchung", "2026-01-02", depot);
+
+        String preview = previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC);
+        Map<String, Object> incoming = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(incoming.get("transfer")).isEqualTo(false);
+    }
+
+    // US34, code review 08.11.2026: undoing the import gives the stored counterpart its category back
+    @Test
+    void undoingTheImportGivesTheCounterpartItsCategoryBack() throws Exception {
+        long wohnen = category(user, "Wohnen");
+        long stored = idOf(book(mockMvc, -500, "Aufs Depot", "2026-01-02", wohnen));
+        String result = commit(mockMvc, previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC),
+                entry -> category(user, "Investitionen"), true)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
+
+        mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(stored))
+                .andExpect(jsonPath("$[0].transfer").value(false))
+                .andExpect(jsonPath("$[0].categoryId").value(wohnen));
+    }
+
+    @Test
+    void aCounterpartChangedByHandStaysAsItIsOnUndo() throws Exception {
+        long wohnen = category(user, "Wohnen");
+        long freizeit = category(user, "Freizeit");
+        long stored = idOf(book(mockMvc, -500, "Aufs Depot", "2026-01-02", wohnen));
+        String result = commit(mockMvc, previewJson(mockMvc, BankCsvTest.TRADE_REPUBLIC),
+                entry -> category(user, "Investitionen"), true)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
+        mockMvc.perform(put("/api/transactions/{id}", stored).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -500, "description": "Aufs Depot", "date": "2026-01-02", "categoryId": %d}"""
+                        .formatted(freizeit)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$[0].transfer").value(false))
+                .andExpect(jsonPath("$[0].categoryId").value(freizeit));
     }
 
     @Test
@@ -299,6 +392,30 @@ class ImportControllerTest {
         assertThat(duplicateOf.get("description")).isEqualTo("Kino");
     }
 
+    // Code review 08.11.2026: a booking by hand that replaces an occurrence (R28) still warns of a duplicate
+    @Test
+    void aBookingByHandThatReplacesAnOccurrenceIsAPossibleDuplicate() throws Exception {
+        long freizeit = category(user, "Freizeit");
+        String series = mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -24, "description": "Kino-Abo", "categoryId": %d, "interval": "MONTHLY",
+                         "startDate": "2025-12-15"}""".formatted(freizeit)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long recurringId = ((Number) JsonPath.read(series, "$.id")).longValue();
+        long id = idOf(mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -24, "description": "Kino", "date": "2026-01-15", "categoryId": %d,
+                         "replaces": {"recurringId": %d, "date": "2026-01-15"}}""".formatted(freizeit, recurringId)))
+                .andExpect(status().isCreated()));
+
+        String preview = previewJson(mockMvc, BankCsvTest.N26);
+
+        Map<String, Object> cinema = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(cinema.get("status")).isEqualTo("POSSIBLE_DUPLICATE");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> duplicateOf = (Map<String, Object>) cinema.get("duplicateOf");
+        assertThat(((Number) duplicateOf.get("id")).longValue()).isEqualTo(id);
+        assertThat(cinema.get("transfer")).isEqualTo(false);
+    }
+
     // --- R31 monthly series ---
 
     @Test
@@ -327,6 +444,70 @@ class ImportControllerTest {
         assertThat(JsonPath.<List<Object>>read(again, "$.series")).isEmpty();
         assertThat(JsonPath.<List<String>>read(again, "$.entries[?(@.line < 6)].replaces.date"))
                 .containsExactly("2026-08-01", "2026-09-01", "2026-10-01", "2026-11-01");
+    }
+
+    private static final String SALARIES = """
+            "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)"
+            2026-08-01,2026-08-01,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            2026-08-31,2026-08-31,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            2026-10-01,2026-10-01,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            2026-11-02,2026-11-02,"Firma Beispiel",,"Credit Transfer","Lohn",Hauptkonto,2500.00
+            """;
+
+    // Code review 08.11.2026: a suggested series is created only with the import, its rows replace its occurrences
+    @Test
+    void createsTheSeriesWithTheImportAndUndoesBoth() throws Exception {
+        long salary = category(user, "Gehalt/Lohn (netto)");
+        String preview = previewJson(mockMvc, SALARIES);
+        String body = withSeries(commitBody(preview, entry -> salary, true), "2026-08-01", salary, "N26:Hauptkonto");
+
+        String result = mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(4))
+                .andReturn().getResponse().getContentAsString();
+        long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
+
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].description").value("Firma Beispiel · Lohn"))
+                .andExpect(jsonPath("$[0].accountName").value("N26 Hauptkonto"));
+        // Every occurrence is replaced: September counts the salary of 31 August once, as recurring
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
+                .andExpect(jsonPath("$.incomeTotal").value(0.00));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-08"))
+                .andExpect(jsonPath("$.incomeTotal").value(5000.00));
+        // A later file meets the new series (R28) and suggests no other
+        String again = previewJson(mockMvc, SALARIES
+                + "2026-12-01,2026-12-01,\"Firma Beispiel\",,\"Credit Transfer\",\"Lohn\",Hauptkonto,2500.00\n");
+        assertThat(JsonPath.<List<Object>>read(again, "$.series")).isEmpty();
+        assertThat(JsonPath.<List<String>>read(again, "$.entries[?(@.status == 'NEW')].replaces.date"))
+                .containsExactly("2026-12-01");
+
+        mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-08")).andExpect(jsonPath("$.incomeTotal").value(0.00));
+    }
+
+    @Test
+    void aRowFarFromEveryOccurrenceStoresNothing() throws Exception {
+        long salary = category(user, "Gehalt/Lohn (netto)");
+        String preview = previewJson(mockMvc, SALARIES);
+        String body = withSeries(commitBody(preview, entry -> salary, true), "2026-08-15", salary, "N26:Hauptkonto");
+
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("rows[0].series"));
+        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/imports")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/bank-accounts")).andExpect(jsonPath("$", hasSize(1)));
+    }
+
+    // Every row of the body belongs to one new monthly series
+    private static String withSeries(String body, String startDate, long categoryId, String source) {
+        String series = """
+                "series":[{"startDate":"%s","amount":2500,"description":"Firma Beispiel · Lohn","categoryId":%d,"source":"%s"}],"""
+                .formatted(startDate, categoryId, source);
+        return body.replace("\"rows\":[", series + "\"rows\":[").replace("\"transfer\":false}", "\"transfer\":false,\"series\":0}");
     }
 
     // --- US34 ---
@@ -434,6 +615,15 @@ class ImportControllerTest {
         return client.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
                         {"amount": %s, "description": "%s", "date": "%s", "categoryId": %d}"""
                         .formatted(amount, description, date, categoryId)))
+                .andExpect(status().isCreated());
+    }
+
+    // A transfer booked by hand (R27), on the default account when accountId is null
+    private ResultActions bookTransfer(MockMvc client, double amount, String description, String date, Long accountId)
+            throws Exception {
+        return client.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": %s, "description": "%s", "date": "%s", "transfer": true%s}"""
+                        .formatted(amount, description, date, accountId == null ? "" : ", \"accountId\": " + accountId)))
                 .andExpect(status().isCreated());
     }
 

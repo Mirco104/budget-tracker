@@ -24,6 +24,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             """)
     List<Transaction> findCountedBetween(User owner, LocalDate from, LocalDate to);
 
+    /** R27: the transfers of the period, for the counterparts of an import. */
+    @EntityGraph(attributePaths = {"account"})
+    @Query("""
+            select t from Transaction t
+            where t.owner = :owner and t.transfer = true and t.date between :from and :to
+            order by t.date, t.id
+            """)
+    List<Transaction> findTransfersBetween(User owner, LocalDate from, LocalDate to);
+
     /** R29: every transaction of the user with a category, for the category suggestion. */
     @EntityGraph(attributePaths = "category")
     List<Transaction> findByOwnerAndTransferFalse(User owner);
@@ -33,6 +42,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** R30: which of the fingerprints the user has imported already. */
     @Query("select t.fingerprint from Transaction t where t.owner = :owner and t.fingerprint in :fingerprints")
     List<String> findImportedFingerprints(User owner, java.util.Collection<String> fingerprints);
+
+    /** US34: the stored transactions the import made counterparts of a transfer (R27). */
+    List<Transaction> findByTransferBatch(io.github.mirco104.budget.importer.ImportBatch batch);
+
+    boolean existsByCategoryBeforeTransferId(Long categoryId);
 
     /** US34: undoing an import. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

@@ -22,7 +22,36 @@ public record ImportRequest(
 
         @NotNull(message = "Die Zeilen sind Pflicht.")
         @Size(max = 5000, message = "Höchstens 5000 Zeilen.")
-        List<@Valid Row> rows) {
+        List<@Valid Row> rows,
+
+        // R31: monthly series created with the import; optional
+        @Size(max = 500)
+        List<@Valid NewSeries> series) {
+
+    /** The series of the request, empty without one. */
+    public List<NewSeries> seriesOrEmpty() {
+        return series == null ? List.of() : series;
+    }
+
+    /** R31: a monthly series that the import creates; its rows replace its occurrences (source: its account). */
+    public record NewSeries(
+            @NotNull(message = "Das Startdatum ist Pflicht.")
+            LocalDate startDate,
+
+            @NotNull(message = "Der Betrag ist Pflicht.")
+            @Digits(integer = 10, fraction = 2, message = "Der Betrag darf höchstens 2 Nachkommastellen haben.")
+            BigDecimal amount,
+
+            @NotBlank(message = "Die Beschreibung ist Pflicht.")
+            @Size(max = 100, message = "Die Beschreibung darf höchstens 100 Zeichen lang sein.")
+            String description,
+
+            @NotNull(message = "Die Kategorie ist Pflicht.")
+            Long categoryId,
+
+            @NotBlank(message = "Die Quelle ist Pflicht.")
+            String source) {
+    }
 
     /** A source of the file goes to an own account (accountId) or to a new one (newAccountName). */
     public record SourceMapping(
@@ -70,6 +99,9 @@ public record ImportRequest(
 
             // R28: the occurrence the row replaces
             @Valid
-            io.github.mirco104.budget.transaction.OccurrenceRef replaces) {
+            io.github.mirco104.budget.transaction.OccurrenceRef replaces,
+
+            // R31: the index of the new series in "series" whose occurrence the row replaces
+            Integer series) {
     }
 }

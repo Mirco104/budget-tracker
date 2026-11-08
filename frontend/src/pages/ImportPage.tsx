@@ -1,7 +1,6 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories, useCreateCategory } from '../api/categories'
-import { useCreateRecurringTransaction } from '../api/recurring'
 import { errorText } from '../api/client'
 import {
   useCommitImport,
@@ -63,6 +62,17 @@ function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: R
   return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
 }
 
+/**
+ * R27: the counterpart of an uncertain transfer like a booking, so the user can judge it without line numbers (code
+ * review, 08.11.2026): „Auf Pocket“, +100,00 € vom 04.11.2026 (Pocket Urlaub, in dieser Datei).
+ */
+function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
+  const amount = peer.amount !== null ? `, ${formatSigned(peer.amount)}` : ''
+  const date = peer.date ? ` vom ${formatDate(peer.date)}` : ''
+  const where = peer.line !== null ? `${peer.accountName ?? ''}, in dieser Datei` : (peer.accountName ?? '')
+  return `„${peer.description ?? ''}“${amount}${date} (${where})`
+}
+
 type View = 'all' | 'open' | 'skipped'
 
 function importable(entry: ImportEntry): boolean {
@@ -99,12 +109,20 @@ function PreviewRow({
   choice,
   categories,
   suggested,
+  seriesName,
+  highlighted,
+  onJumpToPeer,
   onChange,
 }: {
   entry: ImportEntry
   choice: Choice
   categories: Category[]
   suggested: RowSuggestion | null
+  /** R31: the description of the noted series the row belongs to. */
+  seriesName: string | null
+  /** Shortly true after a jump from the hint of its counterpart. */
+  highlighted: boolean
+  onJumpToPeer: (line: number) => void
   onChange: (choice: Choice) => void
 }) {
   const description = entry.description ?? ''
@@ -132,7 +150,11 @@ function PreviewRow({
   }
 
   return (
-    <li className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}`} aria-label={description}>
+    <li
+      id={`import-line-${entry.line}`}
+      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}`}
+      aria-label={description}
+    >
       <input
         type="checkbox"
         className="import-check"
@@ -150,6 +172,18 @@ function PreviewRow({
               {entry.transferCertain ? 'Umbuchung auf ein eigenes Konto' : 'Umbuchung erkannt'}
             </span>
           )}
+          {entry.transfer && !entry.transferCertain && entry.transferPeer && entry.transferPeer.line !== null && (
+            <button
+              type="button"
+              className="link-button import-peer"
+              onClick={() => onJumpToPeer(entry.transferPeer?.line as number)}
+            >
+              Gegenbuchung: {peerText(entry.transferPeer)}
+            </button>
+          )}
+          {entry.transfer && !entry.transferCertain && entry.transferPeer && entry.transferPeer.line === null && (
+            <span className="hint">Gegenbuchung: {peerText(entry.transferPeer)}</span>
+          )}
           {entry.transferPeerId !== null && choice.category === TRANSFER && (
             <span className="badge">Gegenbuchung wird ebenfalls zur Umbuchung</span>
           )}
@@ -163,6 +197,9 @@ function PreviewRow({
               />
               ersetzt „{entry.replaces.description}“ vom {formatDate(entry.replaces.date)}
             </label>
+          )}
+          {seriesName !== null && choice.selected && choice.category !== TRANSFER && (
+            <span className="badge">wird Teil der Serie „{seriesName}“</span>
           )}
           {entry.duplicateOf && (
             <span className="badge warning">
@@ -236,44 +273,29 @@ function PreviewRow({
 }
 
 /**
- * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion; once the
- * series exists, the page loads the preview again and the rows replace its occurrences (R28).
+ * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. "Als Serie
+ * anlegen" only notes the series; it is created with the import, and its rows replace its occurrences (code review,
+ * 08.11.2026), so "Abbrechen" leaves nothing behind.
  */
 function SeriesCard({
   series,
   categories,
-  accountId,
-  onCreated,
+  planned,
+  onPlan,
+  onUnplan,
   onIgnore,
 }: {
   series: ImportSeries
   categories: Category[]
-  accountId: number | null
-  onCreated: () => void
+  /** The category of the noted series, null while it is not noted. */
+  planned: string | null
+  onPlan: (categoryId: string) => void
+  onUnplan: () => void
   onIgnore: () => void
 }) {
-  const create = useCreateRecurringTransaction()
   const [categoryId, setCategoryId] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const suggested = categories.find((c) => c.id === series.categoryId)
-
-  async function handleCreate() {
-    setError(null)
-    try {
-      await create.mutateAsync({
-        amount: series.amount,
-        description: series.description,
-        categoryId: Number(categoryId),
-        interval: 'MONTHLY',
-        startDate: series.startDate,
-        endDate: null,
-        ...(accountId === null ? {} : { accountId }),
-      })
-      onCreated()
-    } catch (e) {
-      setError(errorText(e, 'Anlegen fehlgeschlagen.'))
-    }
-  }
+  const plannedName = categories.find((c) => String(c.id) === planned)?.name
 
   const label = `Serie „${series.description}“`
   return (
@@ -282,32 +304,36 @@ function SeriesCard({
         Sieht nach einer monatlichen Serie aus: „{series.description}“, {formatSigned(series.amount)} ab{' '}
         {formatDate(series.startDate)} ({series.lines.length} Buchungen in der Datei).
       </p>
-      <div className="import-series-actions">
-        <select aria-label={`Kategorie für ${label}`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-          <option value="">Kategorie wählen …</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        {suggested && categoryId === '' && (
-          <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
-            <CategoryIcon icon={suggested.icon} size={14} />
-            Vorschlag: {suggested.name}
+      {planned !== null ? (
+        <div className="import-series-actions">
+          <span className="hint">Wird beim Übernehmen als monatliche Serie angelegt ({plannedName}).</span>
+          <button type="button" onClick={onUnplan}>
+            Nicht anlegen
           </button>
-        )}
-        <button type="button" className="primary" disabled={categoryId === '' || create.isPending} onClick={() => void handleCreate()}>
-          Als Serie anlegen
-        </button>
-        <button type="button" onClick={onIgnore}>
-          Ignorieren
-        </button>
-      </div>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+        </div>
+      ) : (
+        <div className="import-series-actions">
+          <select aria-label={`Kategorie für ${label}`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">Kategorie wählen …</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          {suggested && categoryId === '' && (
+            <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
+              <CategoryIcon icon={suggested.icon} size={14} />
+              Vorschlag: {suggested.name}
+            </button>
+          )}
+          <button type="button" className="primary" disabled={categoryId === ''} onClick={() => onPlan(categoryId)}>
+            Als Serie anlegen
+          </button>
+          <button type="button" onClick={onIgnore}>
+            Ignorieren
+          </button>
+        </div>
       )}
     </section>
   )
@@ -320,7 +346,7 @@ function Preview({
   categories,
   onDone,
   onPartlyDone,
-  onSeriesCreated,
+  onReload,
   onCancel,
 }: {
   preview: ImportPreview
@@ -329,7 +355,8 @@ function Preview({
   onDone: (message: string, batch: ImportBatch | null) => void
   /** "Fertige übernehmen": the rows with these fingerprints are stored, the rest stays in the preview. */
   onPartlyDone: (fingerprints: string[]) => void
-  onSeriesCreated: () => void
+  /** A part was taken over with a new series: the file is read again, so the rest meets the series (R28). */
+  onReload: () => void
   onCancel: () => void
 }) {
   const commit = useCommitImport()
@@ -339,6 +366,10 @@ function Preview({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [ignoredSeries, setIgnoredSeries] = useState<string[]>([])
+  // R31: the noted series by their lines, with their category
+  const [plannedSeries, setPlannedSeries] = useState<Record<string, string>>({})
+  // The row a hint jumped to, highlighted for a moment
+  const [highlighted, setHighlighted] = useState<number | null>(null)
   // The last category the user chose per key; it is a suggestion for the other rows with that key
   const [chosenByKey, setChosenByKey] = useState<Record<string, string>>({})
 
@@ -348,10 +379,53 @@ function Preview({
   const open = selected.filter((entry) => choices[entry.fingerprint as string].category === '')
   const finished = selected.filter((entry) => choices[entry.fingerprint as string].category !== '')
   const suggestionFor = (entry: ImportEntry) => suggestionOf(entry, categories, chosenByKey)
-  const withSuggestion = open.filter((entry) => suggestionFor(entry) !== null)
+  // An uncertain transfer (R27) is only set by its own button, never by the bulk button (code review, 08.11.2026)
+  const withSuggestion = open.filter(
+    (entry) => suggestionFor(entry) !== null && !(entry.transfer && !entry.transferCertain),
+  )
   const activeAccounts = accounts.filter((account) => !account.archived)
   const shown = view === 'open' ? open : rows
   const series = preview.series.filter((s) => !ignoredSeries.includes(s.lines.join()))
+  const seriesOfEntry = (entry: ImportEntry) =>
+    series.find((s) => plannedSeries[s.lines.join()] !== undefined && s.lines.includes(entry.line)) ?? null
+
+  // R27: the hint of a transfer jumps to its counterpart in the same file; every row is shown so it is there
+  function jumpToPeer(line: number) {
+    setView('all')
+    setHighlighted(line)
+  }
+
+  useEffect(() => {
+    if (highlighted === null) {
+      return
+    }
+    // An instant jump; the highlight shows where it went (a smooth scroll needs animation frames and is not needed)
+    document.getElementById(`import-line-${highlighted}`)?.scrollIntoView?.({ block: 'center' })
+    const timer = window.setTimeout(() => setHighlighted(null), 2000)
+    return () => window.clearTimeout(timer)
+  }, [highlighted])
+
+  // R31: noting a series gives its rows its category
+  function planSeries(s: ImportSeries, categoryId: string) {
+    setPlannedSeries((current) => ({ ...current, [s.lines.join()]: categoryId }))
+    setChoices((current) => {
+      const updated = { ...current }
+      for (const entry of rows) {
+        if (s.lines.includes(entry.line) && entry.fingerprint !== null) {
+          updated[entry.fingerprint] = { ...updated[entry.fingerprint], category: categoryId }
+        }
+      }
+      return updated
+    })
+  }
+
+  function unplanSeries(s: ImportSeries) {
+    setPlannedSeries((current) => {
+      const updated = { ...current }
+      delete updated[s.lines.join()]
+      return updated
+    })
+  }
 
   // US33: a category chosen for a row becomes the suggestion of the open rows with the same key (R29); a transfer does not
   function change(entry: ImportEntry, next: Choice) {
@@ -377,7 +451,24 @@ function Preview({
   }
 
   function request(entries: ImportEntry[]): ImportRequest {
+    // R31: a noted series goes along when at least one of its rows does (no transfer)
+    const inSeries = (entry: ImportEntry, s: ImportSeries) =>
+      s.lines.includes(entry.line) && choices[entry.fingerprint as string].category !== TRANSFER
+    const used = series.filter(
+      (s) => plannedSeries[s.lines.join()] !== undefined && entries.some((entry) => inSeries(entry, s)),
+    )
     return {
+      ...(used.length > 0
+        ? {
+            series: used.map((s) => ({
+              startDate: s.startDate,
+              amount: s.amount,
+              description: s.description,
+              categoryId: Number(plannedSeries[s.lines.join()]),
+              source: s.source,
+            })),
+          }
+        : {}),
       profile: preview.profile,
       sources: preview.sources.map((source) => {
         const chosen = sourceAccounts[source.key]
@@ -389,6 +480,7 @@ function Preview({
         const choice = choices[entry.fingerprint as string]
         const category = choice.category
         const transfer = category === TRANSFER
+        const seriesIndex = used.findIndex((s) => inSeries(entry, s))
         return {
           fingerprint: entry.fingerprint as string,
           source: entry.source as string,
@@ -403,6 +495,7 @@ function Preview({
           ...(!transfer && (choice.replace ?? true) && entry.replaces
             ? { replaces: { recurringId: entry.replaces.recurringId, date: entry.replaces.date } }
             : {}),
+          ...(seriesIndex >= 0 ? { series: seriesIndex } : {}),
         }
       }),
     }
@@ -432,17 +525,17 @@ function Preview({
     setError(null)
     setNotice(null)
     try {
-      const result = await commit.mutateAsync(request(finished))
-      onPartlyDone(finished.map((entry) => entry.fingerprint as string))
+      const body = request(finished)
+      const result = await commit.mutateAsync(body)
+      if (body.series) {
+        onReload()
+      } else {
+        onPartlyDone(finished.map((entry) => entry.fingerprint as string))
+      }
       setNotice(`${bookings(result.created)} übernommen; die übrigen Zeilen bleiben hier.`)
     } catch (e) {
       setError(errorText(e, 'Übernehmen fehlgeschlagen.'))
     }
-  }
-
-  function accountOf(source: string): number | null {
-    const chosen = sourceAccounts[source]
-    return chosen === undefined || chosen === NEW_ACCOUNT ? null : Number(chosen)
   }
 
   return (
@@ -482,8 +575,9 @@ function Preview({
           key={s.lines.join()}
           series={s}
           categories={categories}
-          accountId={accountOf(s.source)}
-          onCreated={onSeriesCreated}
+          planned={plannedSeries[s.lines.join()] ?? null}
+          onPlan={(categoryId) => planSeries(s, categoryId)}
+          onUnplan={() => unplanSeries(s)}
           onIgnore={() => setIgnoredSeries([...ignoredSeries, s.lines.join()])}
         />
       ))}
@@ -522,6 +616,9 @@ function Preview({
               choice={choices[entry.fingerprint as string]}
               categories={categories}
               suggested={suggestionFor(entry)}
+              seriesName={seriesOfEntry(entry)?.description ?? null}
+              highlighted={highlighted === entry.line}
+              onJumpToPeer={jumpToPeer}
               onChange={(next) => change(entry, next)}
             />
           ))}
@@ -639,7 +736,7 @@ export function ImportPage() {
   const imports = useImports()
   const upload = usePreviewImport()
   const [preview, setPreview] = useState<ImportPreview | null>(null)
-  // The uploaded file, to read it again once a series was created (R31)
+  // The uploaded file, to read it again once a part was taken over with a new series (R31)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ message: string; batch: ImportBatch | null } | null>(null)
@@ -749,7 +846,7 @@ export function ImportPage() {
             setDone({ message, batch })
           }}
           onPartlyDone={markImported}
-          onSeriesCreated={() => void reload()}
+          onReload={() => void reload()}
           onCancel={() => setPreview(null)}
         />
       )}

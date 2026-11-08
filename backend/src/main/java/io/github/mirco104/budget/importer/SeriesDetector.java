@@ -72,6 +72,37 @@ public final class SeriesDetector {
         return result;
     }
 
+    /**
+     * R31: the occurrence of a new monthly series from startDate (occurrence k is startDate plus k months, R12) that each
+     * row replaces, in the order of the rows: the nearest free one at most 5 days away, on a tie the earlier one; null
+     * for a row without one. Rows are taken by date, so an earlier row gets its occurrence first.
+     */
+    public static List<LocalDate> occurrenceDates(LocalDate startDate, List<LocalDate> rowDates) {
+        List<LocalDate> result = new ArrayList<>(java.util.Collections.nCopies(rowDates.size(), (LocalDate) null));
+        java.util.Set<LocalDate> used = new java.util.HashSet<>();
+        List<Integer> order = new ArrayList<>(java.util.stream.IntStream.range(0, rowDates.size()).boxed().toList());
+        order.sort(Comparator.comparing(rowDates::get));
+        for (int i : order) {
+            LocalDate date = rowDates.get(i);
+            long months = ChronoUnit.MONTHS.between(YearMonth.from(startDate), YearMonth.from(date));
+            LocalDate best = null;
+            long bestDays = Long.MAX_VALUE;
+            for (long k = Math.max(0, months - 1); k <= months + 1; k++) {
+                LocalDate occurrence = startDate.plusMonths(k);
+                long days = Math.abs(ChronoUnit.DAYS.between(date, occurrence));
+                if (!used.contains(occurrence) && days <= MAX_DAYS && days < bestDays) {
+                    best = occurrence;
+                    bestDays = days;
+                }
+            }
+            if (best != null) {
+                used.add(best);
+                result.set(i, best);
+            }
+        }
+        return result;
+    }
+
     private record Run(Suggestion suggestion, long exact) {
     }
 

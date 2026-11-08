@@ -37,6 +37,14 @@ public interface RecurringExceptionRepository extends JpaRepository<RecurringExc
             """)
     void deleteByImportBatch(ImportBatch batch);
 
+    /** US34: undoing an import; the exceptions of the series it created (R31), before those series. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            delete from RecurringException e
+            where e.recurring in (select r from RecurringTransaction r where r.importBatch = :batch)
+            """)
+    void deleteOfSeriesCreatedBy(ImportBatch batch);
+
     /** US16: deleting an account. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

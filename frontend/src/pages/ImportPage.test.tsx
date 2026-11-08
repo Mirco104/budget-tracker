@@ -21,7 +21,7 @@ function entry(values: Partial<ImportEntry>): ImportEntry {
   return {
     line: 2, status: 'NEW', reason: null, fingerprint: 'f'.repeat(64), source: 'C24:Ausgabenkonto', date: '2026-11-04',
     amount: -2.99, description: 'Spiele Shop', counterparty: 'Spiele Shop', bankCategory: null, suggestionKey: 'spiele shop',
-    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, replaces: null, duplicateOf: null,
+    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null,
     ...values,
   }
 }
@@ -41,7 +41,7 @@ const preview: ImportPreview = {
     entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Kino Nord', suggestionKey: 'kino nord', categoryId: 8, certain: true, replaces: { recurringId: 3, date: '2026-11-03', description: 'Kino-Abo', amount: 2.99, categoryId: 8 } }),
     entry({ line: 3, fingerprint: 'b'.repeat(64), description: 'Spiele Shop', categoryId: 8, certain: false, bankCategory: 'Freizeit & Unterhaltung' }),
     entry({ line: 4, fingerprint: 'c'.repeat(64), description: 'Spiele Shop', amount: -4.99, categoryId: 8, certain: false }),
-    entry({ line: 5, fingerprint: 'd'.repeat(64), description: 'Auf Pocket', amount: -100, source: 'C24:Pocket Urlaub', suggestionKey: 'auf pocket', transfer: true, transferPeerId: 77 }),
+    entry({ line: 5, fingerprint: 'd'.repeat(64), description: 'Auf Pocket', amount: -100, source: 'C24:Pocket Urlaub', suggestionKey: 'auf pocket', transfer: true, transferPeerId: 77, transferPeer: { line: null, date: '2026-11-04', description: 'Von Ausgabenkonto', amount: 100, accountName: 'Girokonto' } }),
     entry({ line: 6, fingerprint: 'e'.repeat(64), status: 'POSSIBLE_DUPLICATE', description: 'Bäcker', suggestionKey: 'bäcker', amount: -3.1, duplicateOf: { id: 5, date: '2026-11-03', description: 'Brötchen' } }),
     entry({ line: 7, fingerprint: '1'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Alt' }),
     { ...entry({ line: 8 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
@@ -162,15 +162,69 @@ describe('ImportPage', () => {
     renderPage()
     await upload()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Alle Vorschläge übernehmen (4)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Alle Vorschläge übernehmen (3)' }))
 
     expect(within(row('Kino Nord')[0]).getByLabelText('Kategorie für Kino Nord')).toHaveValue('8')
-    expect(within(row('Auf Pocket')[0]).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('transfer')
     for (const shop of row('Spiele Shop')) {
       expect(within(shop).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
     }
     expect(screen.getByRole('button', { name: 'Alle Vorschläge übernehmen (0)' })).toBeDisabled()
+    // Code review 08.11.2026: an uncertain transfer is only set by its own button
+    const pocket = row('Auf Pocket')[0]
+    expect(within(pocket).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeDisabled()
+    fireEvent.click(within(pocket).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
+  })
+
+  it('names the counterpart of an uncertain transfer', async () => {
+    renderPage()
+    await upload()
+
+    expect(row('Auf Pocket')[0]).toHaveTextContent('Gegenbuchung: „Von Ausgabenkonto“, +100,00 € vom 04.11.2026 (Girokonto)')
+    // A stored booking cannot be jumped to
+    expect(within(row('Auf Pocket')[0]).queryByRole('button', { name: /Gegenbuchung/ })).not.toBeInTheDocument()
+  })
+
+  // A counterpart in the same file is named like a booking and can be jumped to (no line numbers on the page)
+  function previewWithPeerInFile(): ImportPreview {
+    return {
+      ...preview,
+      entries: preview.entries.map((e) =>
+        e.line === 5
+          ? { ...e, transferPeer: { line: 2, date: '2026-11-04', description: 'Kino Nord', amount: -2.99, accountName: 'Ausgabenkonto' } }
+          : e,
+      ),
+    }
+  }
+
+  it('names a counterpart in the same file and jumps to it', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    renderPage(() => json(previewWithPeerInFile()))
+    await upload()
+
+    const hint = within(row('Auf Pocket')[0]).getByRole('button', {
+      // The amount has a non-breaking space before €
+      name: /^Gegenbuchung: „Kino Nord“, −2,99\s€ vom 04\.11\.2026 \(Ausgabenkonto, in dieser Datei\)$/,
+    })
+    fireEvent.click(hint)
+
+    expect(row('Kino Nord')[0]).toHaveClass('highlight')
+    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('shows every row again to jump to a counterpart that has its category', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    renderPage(() => json(previewWithPeerInFile()))
+    await upload()
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Ohne Kategorie/ }))
+    expect(screen.queryByRole('listitem', { name: 'Kino Nord' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: /Gegenbuchung/ }))
+
+    expect(row('Kino Nord')[0]).toHaveClass('highlight')
   })
 
   // R28, US35: a row that replaces a planned occurrence says so and can be unticked
@@ -180,6 +234,7 @@ describe('ImportPage', () => {
     const replace = within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“ vom 03.11.2026/ })
     expect(replace).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
     await screen.findByRole('status')
     let body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
@@ -189,6 +244,7 @@ describe('ImportPage', () => {
     await upload()
     fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“/ }))
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
     await screen.findByRole('status')
     body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
@@ -220,8 +276,62 @@ describe('ImportPage', () => {
     expect(screen.getByLabelText('CSV-Datei wählen')).toBeInTheDocument()
   })
 
-  // R31: a monthly series among the rows can be created from the preview, which is then read again
-  it('creates a suggested series and reads the file again', async () => {
+  // R31, code review 08.11.2026: a series is only noted in the preview and created with the import
+  it('notes a suggested series and sends it with the import', async () => {
+    const withSeries: ImportPreview = {
+      ...preview,
+      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
+    }
+    const fetchMock = renderPage(() => json(withSeries))
+    await upload()
+
+    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    expect(card).toHaveTextContent('Sieht nach einer monatlichen Serie aus: „Spiele Shop“, −4,99')
+    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeDisabled()
+    fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+
+    expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
+    expect(card).toHaveTextContent('Wird beim Übernehmen als monatliche Serie angelegt (Freizeit).')
+    for (const shop of row('Spiele Shop')) {
+      expect(within(shop).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+      expect(shop).toHaveTextContent('wird Teil der Serie „Spiele Shop“')
+    }
+
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+    await screen.findByRole('status')
+
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.series).toEqual([
+      { startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', categoryId: 8, source: 'C24:Ausgabenkonto' },
+    ])
+    expect(body.rows.map((r: { series?: number }) => r.series)).toEqual([undefined, 0, 0, undefined])
+    expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
+  })
+
+  it('drops a noted series again and creates nothing on Abbrechen', async () => {
+    const fetchMock = renderPage(() =>
+      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
+    )
+    await upload()
+    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Nicht anlegen' }))
+    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeInTheDocument()
+    expect(row('Spiele Shop')[0]).not.toHaveTextContent('wird Teil der Serie')
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    expect(sent(fetchMock, '/api/imports')).toBeUndefined()
+    expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
+    expect(screen.getByLabelText('CSV-Datei wählen')).toBeInTheDocument()
+  })
+
+  it('reads the file again after taking over the finished rows of a noted series', async () => {
     const withSeries: ImportPreview = {
       ...preview,
       series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
@@ -232,18 +342,16 @@ describe('ImportPage', () => {
       return json(calls === 1 ? withSeries : preview)
     })
     await upload()
-
     const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
-    expect(card).toHaveTextContent('Sieht nach einer monatlichen Serie aus: „Spiele Shop“, −4,99')
-    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeDisabled()
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
     fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
 
+    fireEvent.click(screen.getByRole('button', { name: 'Fertige übernehmen (2)' }))
+
     await waitFor(() => expect(calls).toBe(2))
-    const series = JSON.parse(String(sent(fetchMock, '/api/recurring-transactions')?.body))
-    expect(series).toEqual({
-      amount: -4.99, description: 'Spiele Shop', categoryId: 8, interval: 'MONTHLY', startDate: '2026-08-01', endDate: null,
-    })
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.series).toHaveLength(1)
+    expect(body.rows.map((r: { series?: number }) => r.series)).toEqual([0, 0])
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Serie „Spiele Shop“' })).not.toBeInTheDocument())
   })
 
@@ -346,6 +454,7 @@ describe('ImportPage', () => {
     const fetchMock = renderPage()
     await upload()
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     fireEvent.change(screen.getByLabelText('Ausgabenkonto in der Datei'), { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
 

@@ -2357,6 +2357,30 @@ button.tx:hover:not(:disabled) {
   color: var(--muted);
 }
 
+/* R27: the counterpart a hint jumped to, for a moment */
+.import-row {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.import-row.highlight {
+  background: var(--primary-soft);
+  box-shadow: inset 4px 0 0 var(--primary);
+}
+
+.link-button.import-peer {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 400;
+  text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-row {
+    transition: none;
+  }
+}
+
 /* An open row still needs its category (US33) */
 .import-row.open .import-category select {
   border-color: var(--warn);

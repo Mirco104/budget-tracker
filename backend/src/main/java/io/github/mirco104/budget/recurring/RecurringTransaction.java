@@ -2,6 +2,7 @@ package io.github.mirco104.budget.recurring;
 
 import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.importer.ImportBatch;
 import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -62,6 +63,11 @@ public class RecurringTransaction {
 
     private LocalDate endDate;
 
+    // R31: the import that created the series, null for one created by hand
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "import_batch_id")
+    private ImportBatch importBatch;
+
     protected RecurringTransaction() {
     }
 
@@ -87,6 +93,11 @@ public class RecurringTransaction {
 
     public void endOn(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    /** R31: the series was created with an import; undoing the import deletes it (US34). */
+    public void markImported(ImportBatch batch) {
+        this.importBatch = batch;
     }
 
     public RecurrenceSchedule schedule(Set<LocalDate> exceptions) {

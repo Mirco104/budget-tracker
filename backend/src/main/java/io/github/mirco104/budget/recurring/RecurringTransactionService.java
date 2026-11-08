@@ -5,6 +5,7 @@ import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
+import io.github.mirco104.budget.importer.ImportBatch;
 import io.github.mirco104.budget.transaction.TransactionRequest;
 import io.github.mirco104.budget.transaction.TransactionResponse;
 import io.github.mirco104.budget.transaction.TransactionService;
@@ -69,6 +70,15 @@ public class RecurringTransactionService {
                 request.startDate(),
                 request.endDate());
         return RecurringTransactionResponse.from(recurringRepository.save(recurring));
+    }
+
+    /** R31: a monthly series that an import creates; undoing the import deletes it again (US34). */
+    @Transactional
+    public RecurringTransaction createForImport(RecurringTransactionRequest request, ImportBatch batch) {
+        long id = create(request).id();
+        RecurringTransaction recurring = recurringRepository.findById(id).orElseThrow();
+        recurring.markImported(batch);
+        return recurring;
     }
 
     /** "Nur dieser Eintrag": suspends the occurrence and books the changed values as a single transaction. */
