@@ -233,8 +233,62 @@ describe('ImportPage', () => {
     expect(screen.getByLabelText('CSV-Datei wählen')).toBeInTheDocument()
   })
 
-  // R31: a monthly series among the rows can be created from the preview, which is then read again
-  it('creates a suggested series and reads the file again', async () => {
+  // R31, code review 08.11.2026: a series is only noted in the preview and created with the import
+  it('notes a suggested series and sends it with the import', async () => {
+    const withSeries: ImportPreview = {
+      ...preview,
+      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
+    }
+    const fetchMock = renderPage(() => json(withSeries))
+    await upload()
+
+    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    expect(card).toHaveTextContent('Sieht nach einer monatlichen Serie aus: „Spiele Shop“, −4,99')
+    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeDisabled()
+    fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+
+    expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
+    expect(card).toHaveTextContent('Wird beim Übernehmen als monatliche Serie angelegt (Freizeit).')
+    for (const shop of row('Spiele Shop')) {
+      expect(within(shop).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+      expect(shop).toHaveTextContent('wird Teil der Serie „Spiele Shop“')
+    }
+
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+    await screen.findByRole('status')
+
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.series).toEqual([
+      { startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', categoryId: 8, source: 'C24:Ausgabenkonto' },
+    ])
+    expect(body.rows.map((r: { series?: number }) => r.series)).toEqual([undefined, 0, 0, undefined])
+    expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
+  })
+
+  it('drops a noted series again and creates nothing on Abbrechen', async () => {
+    const fetchMock = renderPage(() =>
+      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
+    )
+    await upload()
+    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Nicht anlegen' }))
+    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeInTheDocument()
+    expect(row('Spiele Shop')[0]).not.toHaveTextContent('wird Teil der Serie')
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    expect(sent(fetchMock, '/api/imports')).toBeUndefined()
+    expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
+    expect(screen.getByLabelText('CSV-Datei wählen')).toBeInTheDocument()
+  })
+
+  it('reads the file again after taking over the finished rows of a noted series', async () => {
     const withSeries: ImportPreview = {
       ...preview,
       series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
@@ -245,18 +299,16 @@ describe('ImportPage', () => {
       return json(calls === 1 ? withSeries : preview)
     })
     await upload()
-
     const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
-    expect(card).toHaveTextContent('Sieht nach einer monatlichen Serie aus: „Spiele Shop“, −4,99')
-    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeDisabled()
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
     fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
 
+    fireEvent.click(screen.getByRole('button', { name: 'Fertige übernehmen (2)' }))
+
     await waitFor(() => expect(calls).toBe(2))
-    const series = JSON.parse(String(sent(fetchMock, '/api/recurring-transactions')?.body))
-    expect(series).toEqual({
-      amount: -4.99, description: 'Spiele Shop', categoryId: 8, interval: 'MONTHLY', startDate: '2026-08-01', endDate: null,
-    })
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.series).toHaveLength(1)
+    expect(body.rows.map((r: { series?: number }) => r.series)).toEqual([0, 0])
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Serie „Spiele Shop“' })).not.toBeInTheDocument())
   })
 
