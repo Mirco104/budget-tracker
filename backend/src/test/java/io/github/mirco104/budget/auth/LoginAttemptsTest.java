@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 class LoginAttemptsTest {
 
     private static final String EMAIL = "person-a@example.test";
+    private static final String IP = "198.51.100.7";
 
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-01T10:00:00Z"));
     private final LoginAttempts attempts = new LoginAttempts(clock);
@@ -58,6 +59,66 @@ class LoginAttemptsTest {
         attempts.recordFailure(EMAIL);
 
         assertThat(attempts.isLocked(EMAIL)).isFalse();
+    }
+
+    // Pentest F6: a single IP is locked after 20 failures, independent of the per-e-mail lock
+    @Test
+    void locksTheIpAfterTwentyFailures() {
+        failIpTimes(19);
+        assertThat(attempts.isLockedByIp(IP)).isFalse();
+
+        attempts.recordIpFailure(IP);
+
+        assertThat(attempts.isLockedByIp(IP)).isTrue();
+        assertThat(attempts.isLockedByIp("203.0.113.9")).isFalse();
+    }
+
+    @Test
+    void ipLockIsIndependentOfTheEmailLock() {
+        failTimes(4);
+        attempts.recordFailure(EMAIL);
+
+        assertThat(attempts.isLocked(EMAIL)).isTrue();
+        assertThat(attempts.isLockedByIp(IP)).isFalse();
+    }
+
+    @Test
+    void ipUnlocksAfterFifteenMinutes() {
+        failIpTimes(19);
+        attempts.recordIpFailure(IP);
+
+        clock.advance(Duration.ofMinutes(15).minusSeconds(1));
+        assertThat(attempts.isLockedByIp(IP)).isTrue();
+
+        clock.advance(Duration.ofSeconds(1));
+        assertThat(attempts.isLockedByIp(IP)).isFalse();
+    }
+
+    @Test
+    void forgetsIpFailuresOlderThanTheWindow() {
+        failIpTimes(19);
+        clock.advance(Duration.ofMinutes(15));
+
+        attempts.recordIpFailure(IP);
+
+        assertThat(attempts.isLockedByIp(IP)).isFalse();
+    }
+
+    @Test
+    void resetIpClearsTheIpFailures() {
+        failIpTimes(19);
+        attempts.resetIp(IP);
+
+        attempts.recordIpFailure(IP);
+
+        assertThat(attempts.isLockedByIp(IP)).isFalse();
+    }
+
+    private void failIpTimes(int times) {
+        for (int i = 0; i < times; i++) {
+            attempts.recordIpFailure(IP);
+            clock.advance(Duration.ofSeconds(10));
+        }
     }
 
     private void failTimes(int times) {
