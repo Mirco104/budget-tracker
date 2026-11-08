@@ -219,7 +219,7 @@ describe('ImportPage', () => {
     renderPage(() => json(previewWithPeerInFile()))
     await upload()
     fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Ohne Kategorie/ }))
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'open' } })
     expect(screen.queryByRole('listitem', { name: 'Kino Nord' })).not.toBeInTheDocument()
 
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: /Gegenbuchung/ }))
@@ -554,11 +554,85 @@ describe('ImportPage', () => {
     expect(within(second).getByRole('button', { name: /Vorschlag: Freizeit/ })).toBeInTheDocument()
   })
 
-  it('shows only the rows without category in the view Ohne Kategorie', async () => {
+  // Ticket #84: the same filters as Transaktionen, and the shown rows without category get one category at once
+  function listed() {
+    return within(screen.getByRole('list', { name: 'Neue Zeilen' }))
+      .queryAllByRole('listitem')
+      .map((item) => item.getAttribute('aria-label'))
+  }
+
+  it('filters the rows by description and resets the filter', async () => {
+    renderPage()
+    await upload()
+    expect(screen.queryByRole('region', { name: 'Zuordnen' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'spiele' } })
+
+    expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop'])
+    expect(screen.getByText('2 von 5 Zeilen')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'nichts' } })
+    expect(screen.getByText('Keine Zeilen für diesen Filter.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
+    expect(listed()).toHaveLength(5)
+    expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('')
+  })
+
+  it('filters the rows by the chosen kind, category and source', async () => {
+    renderPage()
+    await upload()
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
+
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'TRANSFER' } })
+    expect(listed()).toEqual(['Auf Pocket'])
+    // Kino Nord replaces an occurrence (R28)
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'RECURRING' } })
+    expect(listed()).toEqual(['Kino Nord'])
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
+    expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop', 'Bäcker'])
+
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'transfer' } })
+    expect(listed()).toEqual(['Auf Pocket'])
+
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Konto filtern'), { target: { value: 'C24:Pocket Urlaub' } })
+    expect(listed()).toEqual(['Auf Pocket'])
+  })
+
+  it('gives the shown rows without category one category', async () => {
+    const fetchMock = renderPage()
+    await upload()
+    const [first, second] = row('Spiele Shop')
+    fireEvent.change(within(second).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '1' } })
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord importieren' }))
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'o' } })
+
+    const assign = screen.getByRole('region', { name: 'Zuordnen' })
+    // Spiele Shop (first) and Auf Pocket have no category; Kino Nord is not chosen, the second Spiele Shop has one
+    expect(assign).toHaveTextContent('Den 2 angezeigten Zeilen ohne Kategorie zuordnen:')
+    fireEvent.change(within(assign).getByLabelText('Kategorie für die angezeigten Zeilen'), { target: { value: '8' } })
+    fireEvent.click(within(assign).getByRole('button', { name: 'Zuordnen' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('2 Zeilen „Freizeit“ zugeordnet.')
+    expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+    expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('1')
+    expect(within(row('Auf Pocket')[0]).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('8')
+    expect(within(row('Kino Nord')[0]).getByLabelText('Kategorie für Kino Nord')).toHaveValue('')
+    expect(screen.queryByRole('region', { name: 'Zuordnen' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: '3 Buchungen übernehmen' }))
+    await waitFor(() => expect(sent(fetchMock, '/api/imports')).toBeDefined())
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.rows.map((r: { categoryId: number | null }) => r.categoryId)).toEqual([8, 1, 8])
+  })
+
+  it('shows only the rows without category with the filter Ohne Kategorie', async () => {
     renderPage()
     await upload()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ohne Kategorie (4)' }))
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'open' } })
+    expect(screen.getByRole('option', { name: 'Ohne Kategorie (4)' })).toBeInTheDocument()
     expect(within(screen.getByRole('list', { name: 'Neue Zeilen' })).getAllByRole('listitem')).toHaveLength(4)
     fireEvent.click(screen.getByRole('button', { name: 'Nicht importiert (2)' }))
     const skipped = screen.getByRole('list', { name: 'Nicht importierte Zeilen' })
