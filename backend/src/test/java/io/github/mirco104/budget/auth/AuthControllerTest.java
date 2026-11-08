@@ -48,6 +48,7 @@ class AuthControllerTest {
         TestUsers.create(userService, EMAIL);
         loginAttempts.reset(EMAIL);
         loginAttempts.reset("unknown@example.test");
+        loginAttempts.resetIp("127.0.0.1");
     }
 
     // The lock lives in memory and outlasts this class; other classes sign in as the same person
@@ -55,6 +56,7 @@ class AuthControllerTest {
     void releaseTheLock() {
         loginAttempts.reset(EMAIL);
         loginAttempts.reset("unknown@example.test");
+        loginAttempts.resetIp("127.0.0.1");
     }
 
     @Test

@@ -86,8 +86,9 @@ class AccountControllerTest {
     @BeforeEach
     void createUsersWithData() throws Exception {
         // The login lock lives in memory and is shared with other test classes in the same context;
-        // the sign-ins with the old password below count as failures
+        // the sign-ins with the old password below count as failures (by e-mail and by the 127.0.0.1 test IP)
         loginAttempts.reset(EMAIL);
+        loginAttempts.resetIp("127.0.0.1");
         // B is an admin, so the delete also covers the invitations B created
         b = TestUsers.create(userService, EMAIL, Role.ADMIN);
         c = TestUsers.create(userService, "person-c@example.test");

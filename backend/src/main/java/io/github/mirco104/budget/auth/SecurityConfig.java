@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -26,9 +27,11 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 @Configuration
 public class SecurityConfig {
 
-    // Local development only; the postgres profile turns the console off
+    // Local development only. Not registered in production (postgres profile), so the permit-all / CSRF-off
+    // chain for the H2 console does not exist there even if the console were ever switched on (pentest F2).
     @Bean
     @Order(1)
+    @Profile("!postgres")
     public SecurityFilterChain h2ConsoleFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher("/h2-console/**")
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())

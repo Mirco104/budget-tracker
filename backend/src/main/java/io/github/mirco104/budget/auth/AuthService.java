@@ -46,7 +46,9 @@ public class AuthService {
     @Transactional
     public void login(LoginRequest login, HttpServletRequest request, HttpServletResponse response) {
         String email = login.email().trim().toLowerCase(Locale.ROOT);
-        if (loginAttempts.isLocked(email)) {
+        // Client IP from the reverse proxy in production (forward-headers-strategy=native), the direct peer in dev
+        String ip = request.getRemoteAddr();
+        if (loginAttempts.isLocked(email) || loginAttempts.isLockedByIp(ip)) {
             throw new LoginLockedException();
         }
         Authentication authentication;
@@ -55,9 +57,11 @@ public class AuthService {
                     UsernamePasswordAuthenticationToken.unauthenticated(email, login.password()));
         } catch (AuthenticationException e) {
             loginAttempts.recordFailure(email);
+            loginAttempts.recordIpFailure(ip);
             throw new InvalidCredentialsException();
         }
         loginAttempts.reset(email);
+        loginAttempts.resetIp(ip);
         recordLogin(((AppUserDetails) authentication.getPrincipal()).id());
         signIn(authentication, request, response);
     }
