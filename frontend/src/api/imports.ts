@@ -35,6 +35,8 @@ export interface ImportEntry {
   transfer: boolean
   transferCertain: boolean
   transferPeerId: number | null
+  /** R27: the counterpart for the hint, a line of the file or a stored booking. */
+  transferPeer: { line: number | null; date: string | null; description: string | null; accountName: string | null } | null
   /** R28: the planned occurrence the row replaces; categoryId is then the category of its series. */
   replaces: { recurringId: number; date: string; description: string; amount: number; categoryId: number } | null
   duplicateOf: { id: number; date: string; description: string } | null

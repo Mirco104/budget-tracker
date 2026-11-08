@@ -63,6 +63,14 @@ function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: R
   return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
 }
 
+/** R27: the counterpart of an uncertain transfer, so the user can judge it (code review, 08.11.2026). */
+function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
+  if (peer.line !== null) {
+    return `Zeile ${peer.line}`
+  }
+  return `„${peer.description ?? ''}“ vom ${peer.date ? formatDate(peer.date) : '–'} (${peer.accountName ?? ''})`
+}
+
 type View = 'all' | 'open' | 'skipped'
 
 function importable(entry: ImportEntry): boolean {
@@ -149,6 +157,9 @@ function PreviewRow({
             <span className="badge">
               {entry.transferCertain ? 'Umbuchung auf ein eigenes Konto' : 'Umbuchung erkannt'}
             </span>
+          )}
+          {entry.transfer && !entry.transferCertain && entry.transferPeer && (
+            <span className="hint">Gegenbuchung: {peerText(entry.transferPeer)}</span>
           )}
           {entry.transferPeerId !== null && choice.category === TRANSFER && (
             <span className="badge">Gegenbuchung wird ebenfalls zur Umbuchung</span>
@@ -348,7 +359,10 @@ function Preview({
   const open = selected.filter((entry) => choices[entry.fingerprint as string].category === '')
   const finished = selected.filter((entry) => choices[entry.fingerprint as string].category !== '')
   const suggestionFor = (entry: ImportEntry) => suggestionOf(entry, categories, chosenByKey)
-  const withSuggestion = open.filter((entry) => suggestionFor(entry) !== null)
+  // An uncertain transfer (R27) is only set by its own button, never by the bulk button (code review, 08.11.2026)
+  const withSuggestion = open.filter(
+    (entry) => suggestionFor(entry) !== null && !(entry.transfer && !entry.transferCertain),
+  )
   const activeAccounts = accounts.filter((account) => !account.archived)
   const shown = view === 'open' ? open : rows
   const series = preview.series.filter((s) => !ignoredSeries.includes(s.lines.join()))

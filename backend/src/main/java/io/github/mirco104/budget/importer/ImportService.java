@@ -183,7 +183,7 @@ public class ImportService {
         Map<Integer, Entry> entries = new HashMap<>();
         for (Candidate c : candidates) {
             if (imported.contains(c.fingerprint())) {
-                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null));
+                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null));
                 continue;
             }
             ImportMatcher.Transfer transfer = transfers.get(c.index());
@@ -193,7 +193,8 @@ public class ImportService {
             // R28: a match goes before the suggestion, with the category of its series
             Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
-            entries.put(c.line().number(), entry(c, status, null, suggestion, transfer, match, duplicateOf));
+            entries.put(c.line().number(), entry(c, status, null, suggestion, transfer,
+                    transferPeer(transfer, candidates, storedById), match, duplicateOf));
         }
         List<Entry> ordered = file.lines().stream()
                 .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason())
@@ -285,14 +286,30 @@ public class ImportService {
         return OccurrenceMatcher.match(bookings, planned);
     }
 
+    // R27: the counterpart of a transfer for the hint of the preview
+    private static ImportPreviewResponse.TransferPeer transferPeer(ImportMatcher.Transfer transfer,
+            List<Candidate> candidates, Map<Long, Transaction> storedById) {
+        if (transfer == null) {
+            return null;
+        }
+        if (transfer.peerIndex() != null) {
+            return new ImportPreviewResponse.TransferPeer(candidates.get(transfer.peerIndex()).line().number(), null, null, null);
+        }
+        Transaction stored = transfer.peerTransactionId() == null ? null : storedById.get(transfer.peerTransactionId());
+        return stored == null ? null
+                : new ImportPreviewResponse.TransferPeer(null, stored.getDate(), stored.getDescription(),
+                        stored.getAccount().getName());
+    }
+
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,
-            ImportMatcher.Transfer transfer, Planned match, DuplicateOf duplicateOf) {
+            ImportMatcher.Transfer transfer, ImportPreviewResponse.TransferPeer transferPeer, Planned match,
+            DuplicateOf duplicateOf) {
         BankTransaction row = c.line().row();
         return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.bookingDate(), row.amount(),
                 c.description(), c.counterparty(), c.bankCategory(), CategorySuggester.key(c.text()),
                 suggestion == null ? null : suggestion.categoryId(), suggestion != null && suggestion.certain(),
                 transfer != null, transfer != null && transfer.certain(),
-                transfer == null ? null : transfer.peerTransactionId(),
+                transfer == null ? null : transfer.peerTransactionId(), transferPeer,
                 match == null ? null
                         : new Replaces(match.recurringId(), match.date(), match.description(), match.amount().abs(),
                                 match.categoryId()),
