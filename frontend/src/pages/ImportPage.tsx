@@ -339,6 +339,72 @@ function SeriesCard({
   )
 }
 
+/** R28: the chosen rows that replace occurrences of one existing series. */
+interface Match {
+  recurringId: number
+  description: string
+  categoryId: number
+  entries: ImportEntry[]
+}
+
+/** R28: the chosen rows grouped by the series whose occurrence they replace; only series with at least 2 rows. */
+function matchesOf(entries: ImportEntry[]): Match[] {
+  const byId = new Map<number, Match>()
+  for (const entry of entries) {
+    if (!entry.replaces) {
+      continue
+    }
+    const { recurringId, description, categoryId } = entry.replaces
+    const match = byId.get(recurringId) ?? { recurringId, description, categoryId, entries: [] }
+    match.entries.push(entry)
+    byId.set(recurringId, match)
+  }
+  return [...byId.values()].filter((match) => match.entries.length >= 2)
+}
+
+/**
+ * R28, US33: a card for an existing series with at least 2 matching rows; one click gives them the category of the
+ * series and lets them replace their occurrence (08.11.2026). Nothing is preset (decision 46), the user still decides
+ * once per series.
+ */
+function MatchCard({
+  match,
+  categories,
+  open,
+  onAccept,
+}: {
+  match: Match
+  categories: Category[]
+  /** The rows of the match without the category of the series or without "ersetzt". */
+  open: number
+  onAccept: () => void
+}) {
+  const category = categories.find((c) => c.id === match.categoryId)
+  const dates = match.entries.map((entry) => (entry.replaces as NonNullable<ImportEntry['replaces']>).date).sort()
+  const count = match.entries.length
+  return (
+    <section className="card import-series" aria-label={`Treffer der Serie „${match.description}“`}>
+      <p>
+        {count} Buchungen ersetzen die geplante Serie „{match.description}“{category && ` (${category.name})`} vom{' '}
+        {formatDate(dates[0])} bis {formatDate(dates[dates.length - 1])}.
+      </p>
+      <div className="import-series-actions">
+        {!category ? (
+          <span className="hint">Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.</span>
+        ) : open === 0 ? (
+          <span className="hint">
+            Alle {count} ersetzen ihr Vorkommen ({category.name}).
+          </span>
+        ) : (
+          <button type="button" className="primary" onClick={onAccept}>
+            Alle übernehmen ({open})
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
+
 /** The preview of a file: the accounts of its sources and its rows, until the user takes them over (US33). */
 function Preview({
   preview,
@@ -388,6 +454,12 @@ function Preview({
   const series = preview.series.filter((s) => !ignoredSeries.includes(s.lines.join()))
   const seriesOfEntry = (entry: ImportEntry) =>
     series.find((s) => plannedSeries[s.lines.join()] !== undefined && s.lines.includes(entry.line)) ?? null
+  const matches = matchesOf(selected)
+  // A row of a match is done with the category of its series and "ersetzt" ticked
+  const matchOpen = (entry: ImportEntry) => {
+    const choice = choices[entry.fingerprint as string]
+    return choice.category !== String(entry.replaces?.categoryId) || choice.replace === false
+  }
 
   // R27: the hint of a transfer jumps to its counterpart in the same file; every row is shown so it is there
   function jumpToPeer(line: number) {
@@ -445,6 +517,18 @@ function Preview({
         if (suggestion) {
           updated[entry.fingerprint as string] = { ...updated[entry.fingerprint as string], category: suggestion.value }
         }
+      }
+      return updated
+    })
+  }
+
+  // R28: one click gives every chosen row of a match the category of its series and lets it replace its occurrence
+  function acceptMatch(match: Match) {
+    setChoices((current) => {
+      const updated = { ...current }
+      for (const entry of match.entries) {
+        const fingerprint = entry.fingerprint as string
+        updated[fingerprint] = { ...updated[fingerprint], category: String(match.categoryId), replace: true }
       }
       return updated
     })
@@ -569,6 +653,16 @@ function Preview({
           </div>
         )}
       </section>
+
+      {matches.map((match) => (
+        <MatchCard
+          key={match.recurringId}
+          match={match}
+          categories={categories}
+          open={match.entries.filter(matchOpen).length}
+          onAccept={() => acceptMatch(match)}
+        />
+      ))}
 
       {series.map((s) => (
         <SeriesCard
