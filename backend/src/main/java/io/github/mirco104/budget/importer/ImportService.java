@@ -17,7 +17,11 @@ import io.github.mirco104.budget.importer.ImportPreviewResponse.Replaces;
 import io.github.mirco104.budget.recurring.OccurrenceMatcher;
 import io.github.mirco104.budget.recurring.OccurrenceMatcher.Planned;
 import io.github.mirco104.budget.recurring.RecurringExceptionRepository;
+import io.github.mirco104.budget.recurring.RecurringInterval;
 import io.github.mirco104.budget.recurring.RecurringTransaction;
+import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
+import io.github.mirco104.budget.recurring.RecurringTransactionRequest;
+import io.github.mirco104.budget.recurring.RecurringTransactionService;
 import io.github.mirco104.budget.recurring.ReplacementService;
 import io.github.mirco104.budget.transaction.OccurrenceRef;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Source;
@@ -62,6 +66,8 @@ public class ImportService {
     private final BookingSuggestionService suggestionService;
     private final ReplacementService replacementService;
     private final RecurringExceptionRepository exceptionRepository;
+    private final RecurringTransactionService recurringService;
+    private final RecurringTransactionRepository recurringRepository;
     private final CurrentUser currentUser;
     private final Clock clock;
 
@@ -70,7 +76,10 @@ public class ImportService {
             BankAccountService bankAccountService, BankAccountSourceRepository sourceRepository,
             CategoryService categoryService, BookingSuggestionService suggestionService,
             ReplacementService replacementService, RecurringExceptionRepository exceptionRepository,
+            RecurringTransactionService recurringService, RecurringTransactionRepository recurringRepository,
             CurrentUser currentUser, Clock clock) {
+        this.recurringService = recurringService;
+        this.recurringRepository = recurringRepository;
         this.replacementService = replacementService;
         this.exceptionRepository = exceptionRepository;
         this.transactionRepository = transactionRepository;
@@ -330,8 +339,12 @@ public class ImportService {
 
     // --- store ---
 
-    /** A checked row: its category (null for a transfer) and the stored counterpart that becomes a transfer. */
-    private record Checked(ImportRequest.Row row, Category category, Transaction peer, RecurringTransaction replaced) {
+    /**
+     * A checked row (index in the request): its category (null for a transfer), the stored counterpart that becomes a
+     * transfer, the occurrence of an existing series it replaces (R28) or the new series it belongs to (R31).
+     */
+    private record Checked(int index, ImportRequest.Row row, Category category, Transaction peer,
+            RecurringTransaction replaced, Integer series) {
     }
 
     /**
@@ -367,6 +380,24 @@ public class ImportService {
             }
         }
 
+        // R31: the series the import creates
+        List<ImportRequest.NewSeries> newSeries = request.seriesOrEmpty();
+        for (int i = 0; i < newSeries.size(); i++) {
+            ImportRequest.NewSeries series = newSeries.get(i);
+            String field = "series[" + i + "]";
+            if (!existingAccounts.containsKey(series.source()) && !newAccounts.containsKey(series.source())) {
+                throw new InvalidFieldException(field + ".source", "Für diese Quelle fehlt die Zuordnung zu einem Konto.");
+            }
+            if (series.amount().signum() == 0) {
+                throw new InvalidFieldException(field + ".amount", "Der Betrag darf nicht 0 sein.");
+            }
+            try {
+                categoryService.findBookable(series.categoryId());
+            } catch (InvalidFieldException e) {
+                throw new InvalidFieldException(field + ".categoryId", e.getMessage());
+            }
+        }
+
         Set<String> imported = new HashSet<>(transactionRepository.findImportedFingerprints(owner,
                 request.rows().stream().map(ImportRequest.Row::fingerprint).toList()));
         List<Checked> checked = new ArrayList<>();
@@ -393,12 +424,25 @@ public class ImportService {
                     throw new InvalidFieldException(field + ".replaces", "Dieses Vorkommen ersetzt schon eine andere Zeile.");
                 }
             }
+            if (row.series() != null) {
+                if (row.series() < 0 || row.series() >= newSeries.size()) {
+                    throw new InvalidFieldException(field + ".series", "Diese Serie gibt es nicht.");
+                }
+                if (Boolean.TRUE.equals(row.transfer())) {
+                    throw new InvalidFieldException(field + ".series", "Eine Umbuchung kann zu keiner Serie gehören.");
+                }
+                if (row.replaces() != null) {
+                    throw new InvalidFieldException(field + ".series",
+                            "Die Zeile ersetzt schon ein geplantes Vorkommen einer anderen Serie.");
+                }
+            }
             if (!imported.add(row.fingerprint())) {
                 skipped++;
                 continue;
             }
-            checked.add(new Checked(row, category, peer, replaced));
+            checked.add(new Checked(i, row, category, peer, replaced, row.series()));
         }
+        Map<Integer, LocalDate> seriesOccurrences = seriesOccurrences(newSeries, checked);
 
         Map<String, BankAccount> accounts = new HashMap<>(existingAccounts);
         Map<String, BankAccount> createdByName = new HashMap<>();
@@ -429,13 +473,43 @@ public class ImportService {
             }
         }
         transactionRepository.saveAll(created);
+        Map<Integer, RecurringTransaction> createdSeries = new HashMap<>();
         for (int i = 0; i < checked.size(); i++) {
             Checked c = checked.get(i);
             if (c.replaced() != null) {
                 replacementService.replace(c.replaced(), c.row().replaces().date(), created.get(i));
             }
+            if (c.series() != null) {
+                RecurringTransaction recurring = createdSeries.computeIfAbsent(c.series(), index -> {
+                    ImportRequest.NewSeries series = newSeries.get(index);
+                    return recurringService.createForImport(new RecurringTransactionRequest(series.amount(),
+                            series.description(), series.categoryId(), RecurringInterval.MONTHLY, series.startDate(),
+                            null, accounts.get(series.source()).getId()), batch);
+                });
+                replacementService.replace(recurring, seriesOccurrences.get(c.index()), created.get(i));
+            }
         }
         return new ImportResultResponse(ImportBatchResponse.from(batch), created.size(), skipped);
+    }
+
+    // R31: per row index the occurrence of its new series it replaces; 400 for a row without one at most 5 days away.
+    // A series without a row in the import is not created.
+    private static Map<Integer, LocalDate> seriesOccurrences(List<ImportRequest.NewSeries> newSeries, List<Checked> checked) {
+        Map<Integer, LocalDate> result = new HashMap<>();
+        for (int s = 0; s < newSeries.size(); s++) {
+            int index = s;
+            List<Checked> rows = checked.stream().filter(c -> Integer.valueOf(index).equals(c.series())).toList();
+            List<LocalDate> dates = SeriesDetector.occurrenceDates(newSeries.get(s).startDate(),
+                    rows.stream().map(c -> c.row().date()).toList());
+            for (int i = 0; i < rows.size(); i++) {
+                result.put(rows.get(i).index(), dates.get(i));
+            }
+        }
+        checked.stream().filter(c -> c.series() != null && result.get(c.index()) == null).findFirst().ifPresent(c -> {
+            throw new InvalidFieldException("rows[" + c.index() + "].series",
+                    "Kein Vorkommen der Serie liegt höchstens " + SeriesDetector.MAX_DAYS + " Tage von dieser Zeile entfernt.");
+        });
+        return result;
     }
 
     // R27: a transfer has no category; every other row needs one
@@ -488,6 +562,9 @@ public class ImportService {
         transactionRepository.findByTransferBatch(batch).forEach(Transaction::undoTransfer);
         // R28: replaced occurrences count again
         exceptionRepository.deleteByImportBatch(batch);
+        // R31: the series the import created go
+        exceptionRepository.deleteOfSeriesCreatedBy(batch);
+        recurringRepository.deleteByImportBatch(batch);
         transactionRepository.deleteByImportBatch(batch);
         batchRepository.deleteById(id);
     }

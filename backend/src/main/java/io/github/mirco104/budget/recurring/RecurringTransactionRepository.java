@@ -27,6 +27,11 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
     @Query("select min(r.startDate) from RecurringTransaction r where r.owner = :owner")
     LocalDate findMinStartDate(User owner);
 
+    /** US34: undoing an import deletes the series it created (R31). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from RecurringTransaction r where r.importBatch = :batch")
+    void deleteByImportBatch(io.github.mirco104.budget.importer.ImportBatch batch);
+
     boolean existsByCategoryId(Long categoryId);
 
     boolean existsByAccountId(Long accountId);
