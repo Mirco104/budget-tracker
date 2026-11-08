@@ -108,10 +108,15 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
   return fetchMock
 }
 
-async function upload() {
+// The import starts with the kind filter Einmalig (ticket #84); most tests look at every row, so they choose Alle Arten
+async function upload({ allKinds = true }: { allKinds?: boolean } = {}) {
   const file = new File(['Transaktionstyp,Buchungsdatum'], 'export.csv', { type: 'text/csv' })
   fireEvent.change(screen.getByLabelText('CSV-Datei wählen'), { target: { files: [file] } })
   await screen.findByRole('region', { name: 'Datei' })
+  const kind = screen.queryByLabelText('Art filtern')
+  if (allKinds && kind) {
+    fireEvent.change(kind, { target: { value: '' } })
+  }
 }
 
 function row(name: string) {
@@ -224,7 +229,7 @@ describe('ImportPage', () => {
     expect(scrollIntoView).toHaveBeenCalled()
   })
 
-  it('shows every row again to jump to a counterpart that has its category', async () => {
+  it('shows a counterpart that has its category with the filter Ohne Kategorie kept', async () => {
     Element.prototype.scrollIntoView = vi.fn()
     renderPage(() => json(previewWithPeerInFile()))
     await upload()
@@ -234,6 +239,7 @@ describe('ImportPage', () => {
 
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: /Gegenbuchung/ }))
 
+    expect(screen.getByLabelText('Kategorie filtern')).toHaveValue('open')
     expect(row('Kino Nord')[0]).toHaveClass('highlight')
   })
 
@@ -287,30 +293,25 @@ describe('ImportPage', () => {
 
   it('takes over every row that replaces an occurrence of the same series', async () => {
     const fetchMock = renderPage(() => json(previewWithRent))
-    await upload()
+    await upload({ allKinds: false })
 
     expect(matchCard()).toHaveTextContent(
       '3 Buchungen ersetzen die geplante Serie „Miete“ (Wohnen) vom 01.01.2026 bis 01.03.2026.',
     )
     // A series with a single match has no card
     expect(screen.queryByRole('region', { name: /Kino-Abo/ })).not.toBeInTheDocument()
+    // Rows that replace an occurrence are Wiederkehrend, so the start filter Einmalig does not show them
+    expect(screen.queryByRole('listitem', { name: 'Miete 2026-01-01' })).not.toBeInTheDocument()
 
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
 
     expect(matchCard()).toHaveTextContent('Alle 3 ersetzen ihr Vorkommen (Wohnen).')
     expect(within(matchCard()).queryByRole('button', { name: /Alle übernehmen/ })).not.toBeInTheDocument()
-    // The rows the card took over leave the list and are shown in the card on demand
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'In der Liste zeigen' }))
+    expect(screen.getByLabelText('Art filtern')).toHaveValue('RECURRING')
     for (const name of ['Miete 2026-01-01', 'Miete 2026-02-01', 'Miete 2026-03-01']) {
-      expect(screen.queryByRole('listitem', { name })).not.toBeInTheDocument()
+      expect(within(row(name)[0]).getByRole('combobox', { name: `Kategorie für ${name}` })).toHaveValue('1')
     }
-    expect(screen.getByRole('button', { name: 'Neu (2)' })).toBeInTheDocument()
-    expect(screen.getByText('3 Zeilen stehen in den Karten oben.')).toBeInTheDocument()
-    fireEvent.click(within(matchCard()).getByText('3 Zeilen zeigen'))
-    const cardRows = within(within(matchCard()).getByRole('list', { name: 'Zeilen der Karte' })).getAllByRole('listitem')
-    expect(cardRows).toHaveLength(3)
-    expect(cardRows[0]).toHaveTextContent('01.01.2026')
-    expect(cardRows[0]).toHaveTextContent('Miete 2026-01-01')
-    expect(cardRows[0]).toHaveTextContent(/−500,00\s€/)
     // The possible duplicate stays unticked, the other series stays open
     expect(within(row('Miete 2026-04-01')[0]).getByRole('checkbox', { name: 'Miete 2026-04-01 importieren' })).not.toBeChecked()
     expect(within(row('Kino Nord')[0]).getByRole('combobox', { name: 'Kategorie für Kino Nord' })).toHaveValue('')
@@ -326,7 +327,7 @@ describe('ImportPage', () => {
     ])
   })
 
-  it('puts the rows back into the list with Zurücknehmen', async () => {
+  it('opens the rows of a match again with Zurücknehmen', async () => {
     renderPage(() => json(previewWithRent))
     await upload()
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
@@ -338,24 +339,21 @@ describe('ImportPage', () => {
       expect(within(row(name)[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
     }
     expect(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' })).toBeInTheDocument()
-    expect(screen.queryByText(/stehen in den Karten oben/)).not.toBeInTheDocument()
+    expect(within(matchCard()).queryByRole('button', { name: 'Zurücknehmen' })).not.toBeInTheDocument()
   })
 
-  it('counts only the open rows and keeps a row set by hand in the list', async () => {
+  it('counts only the open rows of a match', async () => {
     renderPage(() => json(previewWithRent))
     await upload()
 
-    // A row the user sets in the list itself stays there; only the card takes rows out of the list
     fireEvent.change(within(row('Miete 2026-01-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-01-01' }), {
       target: { value: '1' },
     })
     fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ }))
-    expect(row('Miete 2026-01-01')).toHaveLength(1)
 
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (2)' }))
-    expect(screen.queryByRole('listitem', { name: 'Miete 2026-02-01' })).not.toBeInTheDocument()
-    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Zurücknehmen' }))
     expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+    expect(within(row('Miete 2026-03-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-03-01' })).toHaveValue('1')
   })
 
   it('asks for a category per row when the category of the series is archived', async () => {
@@ -370,7 +368,7 @@ describe('ImportPage', () => {
     await upload()
 
     expect(matchCard()).toHaveTextContent('Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.')
-    expect(within(matchCard()).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(matchCard()).queryByRole('button', { name: /Alle übernehmen/ })).not.toBeInTheDocument()
   })
 
   // Decision 46: big files are taken over in parts; the rest stays in the preview
@@ -405,7 +403,7 @@ describe('ImportPage', () => {
       series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
     }
     const fetchMock = renderPage(() => json(withSeries))
-    await upload()
+    await upload({ allKinds: false })
 
     const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
     expect(card).toHaveTextContent('Sieht nach einer monatlichen Serie aus: „Spiele Shop“, −4,99')
@@ -415,13 +413,15 @@ describe('ImportPage', () => {
 
     expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
     expect(card).toHaveTextContent('Wird beim Übernehmen als monatliche Serie angelegt (Freizeit).')
-    // Its rows leave the list and are shown in the card on demand
+    // Its rows are Wiederkehrend now, so the start filter Einmalig no longer shows them; the card shows them in the list
     expect(screen.queryByRole('listitem', { name: 'Spiele Shop' })).not.toBeInTheDocument()
-    expect(screen.getByText('2 Zeilen stehen in den Karten oben.')).toBeInTheDocument()
-    fireEvent.click(within(card).getByText('2 Zeilen zeigen'))
-    expect(within(within(card).getByRole('list', { name: 'Zeilen der Karte' })).getAllByRole('listitem')).toHaveLength(2)
+    // The two series rows and Kino Nord (replaces an occurrence)
+    expect(screen.getByText('Davon sind 3 gewählte Zeilen vom Filter ausgeblendet.')).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: 'In der Liste zeigen' }))
+    expect(row('Spiele Shop')).toHaveLength(2)
 
     fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: '' } })
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
     await screen.findByRole('status')
@@ -438,7 +438,7 @@ describe('ImportPage', () => {
     const fetchMock = renderPage(() =>
       json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
     )
-    await upload()
+    await upload({ allKinds: false })
     const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
     fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
@@ -591,9 +591,55 @@ describe('ImportPage', () => {
 
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'nichts' } })
     expect(screen.getByText('Keine Zeilen für diesen Filter.')).toBeInTheDocument()
+    // Back to the start filters: the search is empty and the kind is Einmalig again (Kino Nord replaces an occurrence)
     fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
-    expect(listed()).toHaveLength(5)
     expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('')
+    expect(screen.getByLabelText('Art filtern')).toHaveValue('SINGLE')
+    expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop', 'Auf Pocket', 'Bäcker'])
+  })
+
+  // After the test of ticket #84: the import starts with Einmalig instead of hiding the rows of the cards
+  it('starts with the kind Einmalig and offers no reset for the start filters', async () => {
+    renderPage()
+    await upload({ allKinds: false })
+
+    expect(screen.getByLabelText('Art filtern')).toHaveValue('SINGLE')
+    expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop', 'Auf Pocket', 'Bäcker'])
+    expect(screen.getByText('4 von 5 Zeilen')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Filter zurücksetzen' })).not.toBeInTheDocument()
+    // Kino Nord is chosen but hidden; it is taken over all the same
+    expect(screen.getByText('Davon ist 1 gewählte Zeile vom Filter ausgeblendet.')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: '' } })
+    expect(listed()).toHaveLength(5)
+    expect(screen.queryByText(/vom Filter ausgeblendet/)).not.toBeInTheDocument()
+  })
+
+  it('keeps an edited row in sight until the filters change', async () => {
+    renderPage()
+    await upload({ allKinds: false })
+
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
+
+    // An Umbuchung is no longer Einmalig, but the row stays while it is edited
+    expect(row('Auf Pocket')[0]).toHaveTextContent('passt nicht zum Filter')
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'a' } })
+    expect(screen.queryByRole('listitem', { name: 'Auf Pocket' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the filters when jumping to a counterpart and shows a hidden one', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    renderPage(() => json(previewWithPeerInFile()))
+    await upload({ allKinds: false })
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'pocket' } })
+    expect(listed()).toEqual(['Auf Pocket'])
+
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: /Gegenbuchung/ }))
+
+    expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('pocket')
+    expect(listed()).toEqual(['Kino Nord', 'Auf Pocket'])
+    expect(row('Kino Nord')[0]).toHaveClass('highlight')
+    expect(row('Kino Nord')[0]).toHaveTextContent('passt nicht zum Filter')
   })
 
   it('filters the rows by the chosen kind, category and source', async () => {
