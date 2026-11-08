@@ -299,6 +299,30 @@ class ImportControllerTest {
         assertThat(duplicateOf.get("description")).isEqualTo("Kino");
     }
 
+    // Code review 08.11.2026: a booking by hand that replaces an occurrence (R28) still warns of a duplicate
+    @Test
+    void aBookingByHandThatReplacesAnOccurrenceIsAPossibleDuplicate() throws Exception {
+        long freizeit = category(user, "Freizeit");
+        String series = mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -24, "description": "Kino-Abo", "categoryId": %d, "interval": "MONTHLY",
+                         "startDate": "2025-12-15"}""".formatted(freizeit)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long recurringId = ((Number) JsonPath.read(series, "$.id")).longValue();
+        long id = idOf(mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -24, "description": "Kino", "date": "2026-01-15", "categoryId": %d,
+                         "replaces": {"recurringId": %d, "date": "2026-01-15"}}""".formatted(freizeit, recurringId)))
+                .andExpect(status().isCreated()));
+
+        String preview = previewJson(mockMvc, BankCsvTest.N26);
+
+        Map<String, Object> cinema = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(cinema.get("status")).isEqualTo("POSSIBLE_DUPLICATE");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> duplicateOf = (Map<String, Object>) cinema.get("duplicateOf");
+        assertThat(((Number) duplicateOf.get("id")).longValue()).isEqualTo(id);
+        assertThat(cinema.get("transfer")).isEqualTo(false);
+    }
+
     // --- R31 monthly series ---
 
     @Test
