@@ -141,7 +141,7 @@ describe('ImportPage', () => {
     expect(new Headers(init?.headers).has('Content-Type')).toBe(false)
     const summary = screen.getByRole('region', { name: 'Datei' })
     expect(summary).toHaveTextContent('7 Zeilen: 5 neu, 1 schon importiert, 1 nicht importierbar')
-    expect(within(summary).getByLabelText('Ausgabenkonto in der Datei')).toHaveValue('new')
+    expect(within(summary).getByLabelText('„Ausgabenkonto“ in der Datei')).toHaveValue('new')
     expect(within(summary).getByRole('option', { name: '+ Neues Konto anlegen: C24 Ausgabenkonto' })).toBeInTheDocument()
   })
 
@@ -600,7 +600,7 @@ describe('ImportPage', () => {
   it('creates an account with an own name for a source and sends it with the import', async () => {
     const fetchMock = renderPage()
     await upload()
-    const source = screen.getByLabelText('Pocket Urlaub in der Datei')
+    const source = screen.getByLabelText('„Pocket Urlaub“ in der Datei')
 
     fireEvent.change(source, { target: { value: 'new-named' } })
     const name = screen.getByLabelText('Name des neuen Kontos für Pocket Urlaub')
@@ -608,7 +608,7 @@ describe('ImportPage', () => {
     fireEvent.change(name, { target: { value: 'Urlaubskasse' } })
     fireEvent.click(within(screen.getByRole('region', { name: 'Datei' })).getByRole('button', { name: 'Anlegen' }))
 
-    await waitFor(() => expect(screen.getByLabelText('Pocket Urlaub in der Datei')).toHaveValue('7'))
+    await waitFor(() => expect(screen.getByLabelText('„Pocket Urlaub“ in der Datei')).toHaveValue('7'))
     expect(JSON.parse(String(sent(fetchMock, '/api/bank-accounts')?.body))).toEqual({ name: 'Urlaubskasse' })
 
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
@@ -626,12 +626,12 @@ describe('ImportPage', () => {
     renderPage()
     await upload()
 
-    fireEvent.change(screen.getByLabelText('Pocket Urlaub in der Datei'), { target: { value: 'new-named' } })
+    fireEvent.change(screen.getByLabelText('„Pocket Urlaub“ in der Datei'), { target: { value: 'new-named' } })
     fireEvent.change(screen.getByLabelText('Name des neuen Kontos für Pocket Urlaub'), { target: { value: 'Girokonto' } })
     fireEvent.click(within(screen.getByRole('region', { name: 'Datei' })).getByRole('button', { name: 'Anlegen' }))
 
     expect(await screen.findByText(/Ein Konto mit dem Namen "Girokonto" gibt es schon./)).toBeInTheDocument()
-    expect(screen.getByLabelText('Pocket Urlaub in der Datei')).toHaveValue('new')
+    expect(screen.getByLabelText('„Pocket Urlaub“ in der Datei')).toHaveValue('new')
   })
 
   it('sends the chosen rows with their accounts and shows the result', async () => {
@@ -639,7 +639,7 @@ describe('ImportPage', () => {
     await upload()
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
-    fireEvent.change(screen.getByLabelText('Ausgabenkonto in der Datei'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('„Ausgabenkonto“ in der Datei'), { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('4 Buchungen übernommen.')
