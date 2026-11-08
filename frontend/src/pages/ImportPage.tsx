@@ -14,10 +14,12 @@ import {
   type ImportSeries,
 } from '../api/imports'
 import type { BankAccount, Category } from '../api/types'
+import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
+import { NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 
@@ -73,7 +75,10 @@ function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
   return `„${peer.description ?? ''}“${amount}${date} (${where})`
 }
 
-type View = 'all' | 'open' | 'skipped'
+type View = 'all' | 'skipped'
+
+/** The value of the category filter for the chosen rows without a category (ticket #84). */
+const WITHOUT_CATEGORY = 'open'
 
 function importable(entry: ImportEntry): boolean {
   return entry.status === 'NEW' || entry.status === 'POSSIBLE_DUPLICATE'
@@ -459,6 +464,9 @@ function Preview({
   const [choices, setChoices] = useState(() => initialChoices(preview))
   const [sourceAccounts, setSourceAccounts] = useState(() => initialAccounts(preview, accounts))
   const [view, setView] = useState<View>('all')
+  // Ticket #84: the same filters as Transaktionen, by what the user chose for each row
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  const [assignCategory, setAssignCategory] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [ignoredSeries, setIgnoredSeries] = useState<string[]>([])
@@ -482,7 +490,6 @@ function Preview({
     (entry) => suggestionFor(entry) !== null && !(entry.transfer && !entry.transferCertain),
   )
   const activeAccounts = accounts.filter((account) => !account.archived)
-  const shown = view === 'open' ? open : rows
   const series = preview.series.filter((s) => !ignoredSeries.includes(s.lines.join()))
   const seriesOfEntry = (entry: ImportEntry) =>
     series.find((s) => plannedSeries[s.lines.join()] !== undefined && s.lines.includes(entry.line)) ?? null
@@ -500,12 +507,43 @@ function Preview({
     (seriesOfEntry(entry) !== null ||
       (entry.replaces !== null && acceptedMatches.includes(entry.replaces.recurringId) && !matchOpen(entry)))
   const listedRows = rows.filter((entry) => !inCard(entry))
-  const listed = shown.filter((entry) => !inCard(entry))
   const inCards = rows.length - listedRows.length
+
+  // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31), Umbuchung when chosen
+  function kindOfRow(entry: ImportEntry): string {
+    const choice = choices[entry.fingerprint as string]
+    if (choice.category === TRANSFER) {
+      return 'TRANSFER'
+    }
+    return (entry.replaces !== null && choice.replace !== false) || seriesOfEntry(entry) !== null ? 'RECURRING' : 'SINGLE'
+  }
+
+  const search = filters.query.trim().toLocaleLowerCase('de-DE')
+  function matchesFilter(entry: ImportEntry): boolean {
+    const choice = choices[entry.fingerprint as string]
+    const category =
+      filters.category === WITHOUT_CATEGORY ? choice.selected && choice.category === '' : choice.category === filters.category
+    return (
+      (filters.category === '' || category) &&
+      (filters.account === '' || entry.source === filters.account) &&
+      (filters.kind === '' || kindOfRow(entry) === filters.kind) &&
+      (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
+    )
+  }
+  const filterActive = search !== '' || filters.category !== '' || filters.account !== '' || filters.kind !== ''
+  const listed = listedRows.filter(matchesFilter)
+  // The shown chosen rows without category, for "Zuordnen"
+  const assignable = filterActive
+    ? listed.filter((entry) => {
+        const choice = choices[entry.fingerprint as string]
+        return choice.selected && choice.category === ''
+      })
+    : []
 
   // R27: the hint of a transfer jumps to its counterpart in the same file; every row is shown so it is there
   function jumpToPeer(line: number) {
     setView('all')
+    setFilters(NO_FILTERS)
     setHighlighted(line)
   }
 
@@ -548,6 +586,34 @@ function Preview({
     if (chose && next.category !== TRANSFER && entry.suggestionKey) {
       setChosenByKey((current) => ({ ...current, [entry.suggestionKey as string]: next.category }))
     }
+  }
+
+  // Ticket #84: the shown chosen rows without category get one category at once; a category (not a transfer) becomes
+  // the suggestion of the rows with the same key (R29), as a choice in a row does
+  function assignShown() {
+    const targets = assignable
+    setChoices((current) => {
+      const updated = { ...current }
+      for (const entry of targets) {
+        updated[entry.fingerprint as string] = { ...updated[entry.fingerprint as string], category: assignCategory }
+      }
+      return updated
+    })
+    if (assignCategory !== TRANSFER) {
+      setChosenByKey((current) => {
+        const updated = { ...current }
+        for (const entry of targets) {
+          if (entry.suggestionKey) {
+            updated[entry.suggestionKey] = assignCategory
+          }
+        }
+        return updated
+      })
+    }
+    const name =
+      assignCategory === TRANSFER ? 'Umbuchung' : (categories.find((c) => String(c.id) === assignCategory)?.name ?? '')
+    setNotice(`${targets.length === 1 ? '1 Zeile' : `${targets.length} Zeilen`} „${name}“ zugeordnet.`)
+    setAssignCategory('')
   }
 
   // Decision 46: one click takes over the shown suggestion of every open row
@@ -751,13 +817,60 @@ function Preview({
             onChange={setView}
             options={[
               { value: 'all', label: `Neu (${listedRows.length})` },
-              { value: 'open', label: `Ohne Kategorie (${open.length})` },
               { value: 'skipped', label: `Nicht importiert (${notImportable.length})` },
             ]}
           />
           <button type="button" disabled={withSuggestion.length === 0} onClick={acceptSuggestions}>
             Alle Vorschläge übernehmen ({withSuggestion.length})
           </button>
+        </div>
+      )}
+
+      {rows.length > 0 && view !== 'skipped' && (
+        <div className="filters import-filters">
+          <TransactionFilters
+            filters={filters}
+            onChange={setFilters}
+            categories={categories}
+            accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
+            extraCategoryOptions={[
+              { value: WITHOUT_CATEGORY, label: `Ohne Kategorie (${open.length})` },
+              { value: TRANSFER, label: 'Umbuchung' },
+            ]}
+          />
+          {filterActive && (
+            <p className="hint import-filter-summary">
+              {listed.length} von {listedRows.length} Zeilen
+              <button type="button" className="link-button" onClick={() => setFilters(NO_FILTERS)}>
+                Filter zurücksetzen
+              </button>
+            </p>
+          )}
+          {assignable.length > 0 && (
+            <section className="import-assign" aria-label="Zuordnen">
+              <span>
+                {assignable.length === 1
+                  ? 'Der angezeigten Zeile ohne Kategorie zuordnen:'
+                  : `Den ${assignable.length} angezeigten Zeilen ohne Kategorie zuordnen:`}
+              </span>
+              <select
+                aria-label="Kategorie für die angezeigten Zeilen"
+                value={assignCategory}
+                onChange={(e) => setAssignCategory(e.target.value)}
+              >
+                <option value="">Kategorie wählen …</option>
+                <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="primary" disabled={assignCategory === ''} onClick={assignShown}>
+                Zuordnen
+              </button>
+            </section>
+          )}
         </div>
       )}
 
@@ -780,8 +893,8 @@ function Preview({
           ))}
           {listed.length === 0 && (
             <li className="hint">
-              {view === 'open'
-                ? 'Alle gewählten Zeilen haben eine Kategorie.'
+              {filterActive
+                ? 'Keine Zeilen für diesen Filter.'
                 : inCards > 0
                   ? 'Alle Zeilen stehen in den Karten oben.'
                   : 'Keine neuen Zeilen.'}

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Category } from '../api/types'
-import { TransactionFilters, type Filters } from './TransactionFilters'
+import type { Filters } from '../filters'
+import { TransactionFilters } from './TransactionFilters'
 
 // Fictional values
 const categories: Category[] = [
