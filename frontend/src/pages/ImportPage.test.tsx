@@ -59,6 +59,7 @@ function json(body: unknown, status = 200) {
 
 function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)) {
   let currentCategories = categories
+  let currentAccounts = accounts
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
@@ -72,8 +73,17 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
     if (url.startsWith('/api/imports')) {
       return json(batches)
     }
+    if (url === '/api/bank-accounts' && init?.method === 'POST') {
+      const { name } = JSON.parse(String(init.body)) as { name: string }
+      if (currentAccounts.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
+        return json({ status: 409, detail: `Ein Konto mit dem Namen "${name}" gibt es schon.` }, 409)
+      }
+      const created: BankAccount = { id: 7, name, iban: null, defaultAccount: false, archived: false, used: false }
+      currentAccounts = [...currentAccounts, created]
+      return json(created, 201)
+    }
     if (url.startsWith('/api/bank-accounts')) {
-      return json(accounts)
+      return json(currentAccounts)
     }
     if (url === '/api/recurring-transactions' && init?.method === 'POST') {
       return json({ id: 9 }, 201)
@@ -131,8 +141,8 @@ describe('ImportPage', () => {
     expect(new Headers(init?.headers).has('Content-Type')).toBe(false)
     const summary = screen.getByRole('region', { name: 'Datei' })
     expect(summary).toHaveTextContent('7 Zeilen: 5 neu, 1 schon importiert, 1 nicht importierbar')
-    expect(within(summary).getByLabelText('Ausgabenkonto in der Datei')).toHaveValue('new')
-    expect(within(summary).getByRole('option', { name: 'Neues Konto anlegen: C24 Ausgabenkonto' })).toBeInTheDocument()
+    expect(within(summary).getByLabelText('„Ausgabenkonto“ in der Datei')).toHaveValue('new')
+    expect(within(summary).getByRole('option', { name: '+ Neues Konto anlegen: C24 Ausgabenkonto' })).toBeInTheDocument()
   })
 
   // US33: certain suggestions and transfers are preset, uncertain ones are offered, possible duplicates unticked
@@ -566,12 +576,70 @@ describe('ImportPage', () => {
     expect(skipped).toHaveTextContent('vorgemerkt (noch nicht gebucht)')
   })
 
+  // 08.11.2026: a category for a series can be created in its card
+  it('creates a new category in the card of a series', async () => {
+    const withSeries: ImportPreview = {
+      ...preview,
+      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: null }],
+    }
+    renderPage(() => json(withSeries))
+    await upload()
+    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    const select = within(card).getByLabelText('Kategorie für Serie „Spiele Shop“')
+    expect(within(select).getAllByRole('option').at(-1)).toHaveTextContent('+ Neue Kategorie …')
+
+    fireEvent.change(select, { target: { value: 'new-category' } })
+    fireEvent.change(within(card).getByLabelText('Neue Kategorie für Serie „Spiele Shop“'), { target: { value: 'Spiele' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Anlegen' }))
+
+    await waitFor(() => expect(within(card).getByLabelText('Kategorie für Serie „Spiele Shop“')).toHaveValue('50'))
+    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeEnabled()
+  })
+
+  // 08.11.2026: a new account for a source can get an own name; it is created right away and chosen
+  it('creates an account with an own name for a source and sends it with the import', async () => {
+    const fetchMock = renderPage()
+    await upload()
+    const source = screen.getByLabelText('„Pocket Urlaub“ in der Datei')
+
+    fireEvent.change(source, { target: { value: 'new-named' } })
+    const name = screen.getByLabelText('Name des neuen Kontos für Pocket Urlaub')
+    expect(name).toHaveValue('C24 Pocket Urlaub')
+    fireEvent.change(name, { target: { value: 'Urlaubskasse' } })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Datei' })).getByRole('button', { name: 'Anlegen' }))
+
+    await waitFor(() => expect(screen.getByLabelText('„Pocket Urlaub“ in der Datei')).toHaveValue('7'))
+    expect(JSON.parse(String(sent(fetchMock, '/api/bank-accounts')?.body))).toEqual({ name: 'Urlaubskasse' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+
+    await screen.findByRole('status')
+    expect(JSON.parse(String(sent(fetchMock, '/api/imports')?.body)).sources).toEqual([
+      { key: 'C24:Ausgabenkonto', newAccountName: 'C24 Ausgabenkonto' },
+      { key: 'C24:Pocket Urlaub', accountId: 7 },
+    ])
+  })
+
+  it('shows why an account with an own name cannot be created', async () => {
+    renderPage()
+    await upload()
+
+    fireEvent.change(screen.getByLabelText('„Pocket Urlaub“ in der Datei'), { target: { value: 'new-named' } })
+    fireEvent.change(screen.getByLabelText('Name des neuen Kontos für Pocket Urlaub'), { target: { value: 'Girokonto' } })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Datei' })).getByRole('button', { name: 'Anlegen' }))
+
+    expect(await screen.findByText(/Ein Konto mit dem Namen "Girokonto" gibt es schon./)).toBeInTheDocument()
+    expect(screen.getByLabelText('„Pocket Urlaub“ in der Datei')).toHaveValue('new')
+  })
+
   it('sends the chosen rows with their accounts and shows the result', async () => {
     const fetchMock = renderPage()
     await upload()
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
-    fireEvent.change(screen.getByLabelText('Ausgabenkonto in der Datei'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('„Ausgabenkonto“ in der Datei'), { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('4 Buchungen übernommen.')

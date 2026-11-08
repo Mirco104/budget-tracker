@@ -2485,18 +2485,18 @@ button.tx:hover:not(:disabled) {
   gap: 4px;
 }
 
-.import-new-category {
+.inline-create {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.import-new-category input {
+.inline-create input {
   flex: 1 1 8rem;
   min-width: 0;
 }
 
-.import-new-category .error {
+.inline-create .error {
   flex-basis: 100%;
 }
 
