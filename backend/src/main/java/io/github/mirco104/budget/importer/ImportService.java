@@ -408,7 +408,7 @@ public class ImportService {
                     blankToNull(row.bankCategory()));
             created.add(transaction);
             if (c.peer() != null && !c.peer().isTransfer()) {
-                c.peer().makeTransfer();
+                c.peer().makeTransfer(batch);
             }
         }
         transactionRepository.saveAll(created);
@@ -467,6 +467,8 @@ public class ImportService {
     public void delete(long id) {
         ImportBatch batch = batchRepository.findByIdAndOwner(id, currentUser.get())
                 .orElseThrow(() -> new NotFoundException("Import " + id + " wurde nicht gefunden."));
+        // R27: stored counterparts the import made transfers get their category back
+        transactionRepository.findByTransferBatch(batch).forEach(Transaction::undoTransfer);
         // R28: replaced occurrences count again
         exceptionRepository.deleteByImportBatch(batch);
         transactionRepository.deleteByImportBatch(batch);

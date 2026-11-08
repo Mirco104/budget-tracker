@@ -125,6 +125,7 @@ public class CategoryService {
     public void delete(long id) {
         Category category = find(id);
         if (transactionRepository.existsByCategoryId(id)
+                || transactionRepository.existsByCategoryBeforeTransferId(id)
                 || recurringTransactionRepository.existsByCategoryId(id)
                 || categoryTargetRepository.existsByCategoryId(id)) {
             throw new ConflictException(

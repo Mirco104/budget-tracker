@@ -58,6 +58,15 @@ public class Transaction {
     @Column(name = "bank_category", length = 100)
     private String bankCategory;
 
+    // US34: the import that made this stored transaction the counterpart of a transfer (R27), and its category before
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_batch_id")
+    private ImportBatch transferBatch;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_before_transfer_id")
+    private Category categoryBeforeTransfer;
+
     // R26: every transaction is booked on one bank account of its owner
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "account_id", nullable = false)
@@ -114,10 +123,25 @@ public class Transaction {
         this.bankCategory = bankCategory;
     }
 
-    /** R27: the counterpart of an imported transfer becomes a transfer as well; its category goes. */
-    public void makeTransfer() {
+    /**
+     * R27: the counterpart of an imported transfer becomes a transfer as well; its category goes, the import remembers
+     * it for the undo (US34).
+     */
+    public void makeTransfer(ImportBatch batch) {
+        this.transferBatch = batch;
+        this.categoryBeforeTransfer = this.category;
         this.category = null;
         this.transfer = true;
+    }
+
+    /** US34: the import that made it a transfer is undone; it gets its category back unless it was changed since. */
+    public void undoTransfer() {
+        if (transfer && categoryBeforeTransfer != null) {
+            this.category = categoryBeforeTransfer;
+            this.transfer = false;
+        }
+        this.transferBatch = null;
+        this.categoryBeforeTransfer = null;
     }
 
     public ImportBatch getImportBatch() {
