@@ -2327,56 +2327,6 @@ button.tx:hover:not(:disabled) {
   padding: 12px 16px;
 }
 
-/* The rows a card took over, shown on demand */
-.import-card-rows summary {
-  cursor: pointer;
-  color: var(--primary);
-}
-
-.import-card-rows ul {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--muted);
-}
-
-.import-card-rows li {
-  display: flex;
-  gap: 12px;
-  padding: 2px 0;
-}
-
-.import-card-rows-description {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.import-card-rows-amount {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Ticket #84: filters and "Zuordnen" in the import */
-.import-filter-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.import-assign {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--primary-soft);
-}
-
 .import-series p {
   margin: 0 0 8px;
 }
