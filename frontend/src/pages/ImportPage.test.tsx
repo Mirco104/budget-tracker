@@ -251,6 +251,92 @@ describe('ImportPage', () => {
     expect(body.rows[0]).not.toHaveProperty('replaces')
   })
 
+  // R28, US33: rows that replace occurrences of the same series are taken over with one click (08.11.2026)
+  function rent(line: number, date: string, values: Partial<ImportEntry> = {}): ImportEntry {
+    return entry({
+      line, fingerprint: String(line).repeat(64), date, amount: -500, description: `Miete ${date}`, suggestionKey: 'miete',
+      categoryId: 1, certain: true, replaces: { recurringId: 5, date, description: 'Miete', amount: 500, categoryId: 1 },
+      ...values,
+    })
+  }
+
+  const previewWithRent: ImportPreview = {
+    ...preview,
+    entries: [
+      rent(2, '2026-01-01'),
+      rent(3, '2026-02-01'),
+      rent(4, '2026-03-01'),
+      rent(5, '2026-04-01', { status: 'POSSIBLE_DUPLICATE', duplicateOf: { id: 5, date: '2026-04-01', description: 'Miete' } }),
+      { ...preview.entries[0], line: 9 },
+    ],
+  }
+
+  function matchCard() {
+    return screen.getByRole('region', { name: 'Treffer der Serie „Miete“' })
+  }
+
+  it('takes over every row that replaces an occurrence of the same series', async () => {
+    const fetchMock = renderPage(() => json(previewWithRent))
+    await upload()
+
+    expect(matchCard()).toHaveTextContent(
+      '3 Buchungen ersetzen die geplante Serie „Miete“ (Wohnen) vom 01.01.2026 bis 01.03.2026.',
+    )
+    // A series with a single match has no card
+    expect(screen.queryByRole('region', { name: /Kino-Abo/ })).not.toBeInTheDocument()
+
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
+
+    expect(matchCard()).toHaveTextContent('Alle 3 ersetzen ihr Vorkommen (Wohnen).')
+    expect(within(matchCard()).queryByRole('button')).not.toBeInTheDocument()
+    for (const name of ['Miete 2026-01-01', 'Miete 2026-02-01', 'Miete 2026-03-01']) {
+      expect(within(row(name)[0]).getByRole('combobox', { name: `Kategorie für ${name}` })).toHaveValue('1')
+    }
+    // The possible duplicate stays unticked, the other series stays open
+    expect(within(row('Miete 2026-04-01')[0]).getByRole('checkbox', { name: 'Miete 2026-04-01 importieren' })).not.toBeChecked()
+    expect(within(row('Kino Nord')[0]).getByRole('combobox', { name: 'Kategorie für Kino Nord' })).toHaveValue('')
+
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('button', { name: /Vorschlag: Freizeit/ }))
+    fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
+    await screen.findByRole('status')
+    const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+    expect(body.rows.slice(0, 3)).toEqual([
+      expect.objectContaining({ categoryId: 1, replaces: { recurringId: 5, date: '2026-01-01' } }),
+      expect.objectContaining({ categoryId: 1, replaces: { recurringId: 5, date: '2026-02-01' } }),
+      expect.objectContaining({ categoryId: 1, replaces: { recurringId: 5, date: '2026-03-01' } }),
+    ])
+  })
+
+  it('offers the card again when a row of the series is changed', async () => {
+    renderPage(() => json(previewWithRent))
+    await upload()
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
+
+    fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ }))
+    fireEvent.change(within(row('Miete 2026-03-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-03-01' }), {
+      target: { value: '8' },
+    })
+
+    fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (2)' }))
+    expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+    expect(within(row('Miete 2026-03-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-03-01' })).toHaveValue('1')
+  })
+
+  it('asks for a category per row when the category of the series is archived', async () => {
+    renderPage(() =>
+      json({
+        ...previewWithRent,
+        entries: previewWithRent.entries.map((e) =>
+          e.replaces?.recurringId === 5 ? { ...e, categoryId: 9, replaces: { ...e.replaces, categoryId: 9 } } : e,
+        ),
+      }),
+    )
+    await upload()
+
+    expect(matchCard()).toHaveTextContent('Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.')
+    expect(within(matchCard()).queryByRole('button')).not.toBeInTheDocument()
+  })
+
   // Decision 46: big files are taken over in parts; the rest stays in the preview
   it('takes over the finished rows and keeps the rest', async () => {
     const fetchMock = renderPage()
