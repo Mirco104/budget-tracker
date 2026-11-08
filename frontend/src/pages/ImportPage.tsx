@@ -543,13 +543,12 @@ function Preview({
     return choice.category !== String(entry.replaces?.categoryId) || choice.replace === false
   }
 
-  // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31), Umbuchung when chosen
+  // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31); an Umbuchung is a
+  // category option (ticket #84), as a row is a transfer by its category
   function kindOfRow(entry: ImportEntry): string {
     const choice = choices[entry.fingerprint as string]
-    if (choice.category === TRANSFER) {
-      return 'TRANSFER'
-    }
-    return (entry.replaces !== null && choice.replace !== false) || seriesOfEntry(entry) !== null ? 'RECURRING' : 'SINGLE'
+    const replaces = entry.replaces !== null && choice.replace !== false && choice.category !== TRANSFER
+    return replaces || seriesOfEntry(entry) !== null ? 'RECURRING' : 'SINGLE'
   }
 
   // The value of a row for the category filter: "Ohne Kategorie" for a chosen row without one, else its category

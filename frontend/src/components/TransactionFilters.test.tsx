@@ -60,7 +60,7 @@ describe('TransactionFilters', () => {
     }
     render(
       <TransactionFilters
-        filters={{ ...empty, kind: 'TRANSFER' }}
+        filters={{ ...empty, kind: 'RECURRING' }}
         onChange={() => {}}
         categories={categories}
         accounts={[
@@ -79,8 +79,8 @@ describe('TransactionFilters', () => {
       Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
     expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (2)', 'Wohnen (3)'])
     expect(names('Konto filtern')).toEqual(['Alle Konten', 'Depot (4)'])
-    // Umbuchung is chosen, so it stays with (0)
-    expect(names('Art filtern')).toEqual(['Alle Arten', 'Einmalig (4)', 'Umbuchung (0)'])
+    // Wiederkehrend is chosen, so it stays with (0); Umbuchung is no kind but a category option
+    expect(names('Art filtern')).toEqual(['Alle Arten', 'Wiederkehrend (0)', 'Einmalig (4)'])
   })
 
   it('reports every change with the other filters kept', () => {

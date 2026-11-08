@@ -618,10 +618,11 @@ describe('ImportPage', () => {
   it('keeps an edited row in sight until the filters change', async () => {
     renderPage()
     await upload({ allKinds: false })
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'open' } })
 
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
 
-    // An Umbuchung is no longer Einmalig, but the row stays while it is edited
+    // The row has a category now, but it stays while it is edited
     expect(row('Auf Pocket')[0]).toHaveTextContent('passt nicht zum Filter')
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'a' } })
     expect(screen.queryByRole('listitem', { name: 'Auf Pocket' })).not.toBeInTheDocument()
@@ -647,13 +648,16 @@ describe('ImportPage', () => {
     await upload()
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
 
-    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'TRANSFER' } })
-    expect(listed()).toEqual(['Auf Pocket'])
-    // Kino Nord replaces an occurrence (R28)
+    // Umbuchung is no kind but a category option (ticket #84); Kino Nord replaces an occurrence (R28)
+    expect(Array.from((screen.getByLabelText('Art filtern') as HTMLSelectElement).options).map((o) => o.value)).toEqual([
+      '',
+      'RECURRING',
+      'SINGLE',
+    ])
     fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'RECURRING' } })
     expect(listed()).toEqual(['Kino Nord'])
     fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
-    expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop', 'Bäcker'])
+    expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop', 'Auf Pocket', 'Bäcker'])
 
     fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'transfer' } })
