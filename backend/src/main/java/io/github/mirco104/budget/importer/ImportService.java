@@ -203,7 +203,7 @@ public class ImportService {
             Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
             entries.put(c.line().number(), entry(c, status, null, suggestion, transfer,
-                    transferPeer(transfer, candidates, storedById), match, duplicateOf));
+                    transferPeer(transfer, candidates, storedById, sources), match, duplicateOf));
         }
         List<Entry> ordered = file.lines().stream()
                 .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason())
@@ -295,19 +295,21 @@ public class ImportService {
         return OccurrenceMatcher.match(bookings, planned);
     }
 
-    // R27: the counterpart of a transfer for the hint of the preview
+    // R27: the counterpart of a transfer for the hint of the preview; a row of the file with the name of its source
     private static ImportPreviewResponse.TransferPeer transferPeer(ImportMatcher.Transfer transfer,
-            List<Candidate> candidates, Map<Long, Transaction> storedById) {
+            List<Candidate> candidates, Map<Long, Transaction> storedById, Map<String, Source> sources) {
         if (transfer == null) {
             return null;
         }
         if (transfer.peerIndex() != null) {
-            return new ImportPreviewResponse.TransferPeer(candidates.get(transfer.peerIndex()).line().number(), null, null, null);
+            Candidate peer = candidates.get(transfer.peerIndex());
+            return new ImportPreviewResponse.TransferPeer(peer.line().number(), peer.line().row().bookingDate(),
+                    peer.description(), peer.line().row().amount(), sources.get(peer.source()).name());
         }
         Transaction stored = transfer.peerTransactionId() == null ? null : storedById.get(transfer.peerTransactionId());
         return stored == null ? null
                 : new ImportPreviewResponse.TransferPeer(null, stored.getDate(), stored.getDescription(),
-                        stored.getAccount().getName());
+                        stored.getAmount(), stored.getAccount().getName());
     }
 
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,

@@ -33,10 +33,10 @@ public record ImportPreviewResponse(
     }
 
     /**
-     * R27: the counterpart of a suggested transfer: line for a row of the file, else date, description and account of
-     * the stored booking.
+     * R27: the counterpart of a suggested transfer with its date, description, amount and account (the source for a row
+     * of the file); line is set only for a row of the file, so the page can jump to it.
      */
-    public record TransferPeer(Integer line, LocalDate date, String description, String accountName) {
+    public record TransferPeer(Integer line, LocalDate date, String description, BigDecimal amount, String accountName) {
     }
 
     /** A booking by hand that may be the same as the row (R30). */
