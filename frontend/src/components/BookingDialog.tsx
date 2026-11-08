@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useBankAccounts } from '../api/bankAccounts'
+import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
+import { useCreateCategory } from '../api/categories'
 import { ApiError } from '../api/client'
 import {
   useCreateRecurringTransaction,
@@ -15,6 +16,7 @@ import { formatDate, formatEuro, parseAmountInput } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
+import { InlineCreate } from './ui/InlineCreate'
 import { Segmented } from './ui/Segmented'
 
 type Kind = 'expense' | 'income'
@@ -46,6 +48,8 @@ const QUICK_PICKS = 4
 
 /** The value of the category field for a transfer (R27). */
 const TRANSFER = 'transfer'
+/** The value of a field that opens the name field for a new category or account (08.11.2026). */
+const NEW = 'new'
 
 function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
@@ -89,7 +93,7 @@ function lastUsed(recent: Transaction[], categories: Category[], kind: Kind): Ca
  * repeat and end date. Editing an occurrence asks whether the change is for this entry only or this and all
  * following ones (R13). Delete is in the dialog and asks once more.
  */
-export function BookingDialog({ categories, entry, defaultDate, onClose, onDone }: Props) {
+export function BookingDialog({ categories: loaded, entry, defaultDate, onClose, onDone }: Props) {
   const occurrence = isOccurrence(entry) ? entry : null
   // Already loaded on the transactions page; the overview loads it when the dialog opens
   const recent = useTransactions(defaultDate.slice(0, 7)).data ?? []
@@ -103,6 +107,13 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
   const updateFollowing = useUpdateOccurrenceFollowing()
   const deleteOccurrence = useDeleteOccurrence()
   const bankAccounts = useBankAccounts().data ?? []
+  const createCategory = useCreateCategory()
+  const createAccount = useCreateBankAccount()
+  // A category created here, until the categories of the page contain it
+  const [created, setCreated] = useState<Category[]>([])
+  const categories = [...loaded, ...created.filter((c) => !loaded.some((l) => l.id === c.id))]
+  const [creatingCategory, setCreatingCategory] = useState(false)
+  const [creatingAccount, setCreatingAccount] = useState(false)
 
   // The amount is entered positive; the switch sets the sign (R11).
   const [kind, setKind] = useState<Kind>(entry && entry.amount > 0 ? 'income' : 'expense')
@@ -159,11 +170,31 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
         : 'none'
 
   function chooseCategory(value: string) {
+    if (value === NEW) {
+      setCreatingCategory(true)
+      return
+    }
+    setCreatingCategory(false)
     setCategoryId(value)
   }
 
+  // 08.11.2026: a missing category or account is created right in the dialog and chosen
+  async function handleCreateCategory(name: string) {
+    const category = await createCategory.mutateAsync({ name })
+    setCreated((current) => [...current, category])
+    setCreatingCategory(false)
+    setCategoryId(String(category.id))
+  }
+
+  async function handleCreateAccount(name: string) {
+    const account = await createAccount.mutateAsync({ name })
+    setCreatingAccount(false)
+    setAccountId(String(account.id))
+  }
+
   const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
-  // An archived account only when it is already chosen; one account needs no field (US30)
+  // An archived account only when it is already chosen; the field shows once the accounts are loaded, so a second
+  // account can be created here (08.11.2026)
   const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
   const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
 
@@ -358,7 +389,16 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
                 {c.name}
               </option>
             ))}
+            <option value={NEW}>+ Neue Kategorie …</option>
           </select>
+          {creatingCategory && (
+            <InlineCreate
+              label="Neue Kategorie"
+              placeholder="Name der Kategorie"
+              onCreate={handleCreateCategory}
+              onCancel={() => setCreatingCategory(false)}
+            />
+          )}
           {suggested && (
             <button type="button" className="chip suggestion-chip" onClick={() => chooseCategory(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
@@ -444,12 +484,13 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
           </label>
         )}
 
-        {accountOptions.length > 1 && (
-          <label className="field">
-            Konto
+        {accountOptions.length > 0 && (
+          <div className="field">
+            <span id="booking-account-label">Konto</span>
             <select
+              aria-labelledby="booking-account-label"
               value={accountId === '' ? String(defaultAccount?.id ?? '') : accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              onChange={(e) => (e.target.value === NEW ? setCreatingAccount(true) : setAccountId(e.target.value))}
               aria-invalid={errors.accountId ? true : undefined}
             >
               {accountOptions.map((a) => (
@@ -457,9 +498,18 @@ export function BookingDialog({ categories, entry, defaultDate, onClose, onDone 
                   {a.name}
                 </option>
               ))}
+              <option value={NEW}>+ Neues Konto …</option>
             </select>
+            {creatingAccount && (
+              <InlineCreate
+                label="Neues Konto"
+                placeholder="Name des Kontos"
+                onCreate={handleCreateAccount}
+                onCancel={() => setCreatingAccount(false)}
+              />
+            )}
             {errors.accountId && <span className="error">{errors.accountId}</span>}
-          </label>
+          </div>
         )}
 
         {generalError && (

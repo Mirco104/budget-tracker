@@ -33,7 +33,7 @@ function json(body: unknown, status = 200) {
 
 function renderDialog(
   entry: Transaction | null = null,
-  answer: () => Promise<Response> = () => json({}),
+  answer: (url: string) => Promise<Response> = () => json({}),
   bankAccounts: BankAccount[] = [],
   suggestion: BookingSuggestion = { categoryId: null, certain: false },
 ) {
@@ -42,7 +42,7 @@ function renderDialog(
       return Promise.resolve(new Response(null, { status: 204 }))
     }
     if (init?.method) {
-      return answer()
+      return answer(url)
     }
     if (url.startsWith('/api/transactions')) {
       return json(recent)
@@ -184,8 +184,8 @@ describe('BookingDialog', () => {
     expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 7, amount: -23.4 })
   })
 
-  // US30: the account field appears with more than one account, preset to the default account
-  it('books on the chosen account and hides the field with only one account', async () => {
+  // US30: the account field is preset to the default account
+  it('books on the chosen account', async () => {
     const { fetchMock, onDone } = renderDialog(null, () => json({}), twoAccounts)
     const account = await screen.findByLabelText('Konto')
     expect(account).toHaveValue('1')
@@ -197,11 +197,79 @@ describe('BookingDialog', () => {
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
     expect(sent(fetchMock, 'POST')?.body).toMatchObject({ accountId: 2 })
-    cleanup()
+  })
 
-    renderDialog(null, () => json({}), [twoAccounts[0]])
-    await waitFor(() => expect(screen.getByLabelText('Beschreibung')).toBeInTheDocument())
-    expect(screen.queryByLabelText('Konto')).not.toBeInTheDocument()
+  // 08.11.2026: a missing category is created in the dialog and chosen
+  it('creates a new category and books on it', async () => {
+    const { fetchMock, onDone } = renderDialog(null, (url) =>
+      url.startsWith('/api/categories') ? json({ ...categories[0], id: 40, name: 'Spiele', icon: 'tag' }, 201) : json({}),
+    )
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Brettspiel' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
+
+    const name = screen.getByRole('textbox', { name: 'Neue Kategorie' })
+    fireEvent.change(name, { target: { value: 'Spiele' } })
+    // Enter creates the category and does not save the booking
+    fireEvent.keyDown(name, { key: 'Enter' })
+
+    await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('40'))
+    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(sent(fetchMock, 'POST')).toEqual({ url: '/api/categories', body: { name: 'Spiele' } })
+    expect(onDone).not.toHaveBeenCalled()
+
+    save()
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    const posts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+    expect(posts.map(([url]) => url)).toEqual(['/api/categories', '/api/transactions'])
+    expect(JSON.parse(String((posts[1][1] as RequestInit).body))).toMatchObject({ categoryId: 40 })
+  })
+
+  it('keeps the dialog open when the name field is cancelled with Escape', async () => {
+    const { onClose } = renderDialog()
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { key: 'Escape' })
+
+    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // 08.11.2026: the account field shows with one account too, so a second one can be created
+  it('creates a new account from the account field and books on it', async () => {
+    const { fetchMock, onDone } = renderDialog(
+      null,
+      (url) =>
+        url.startsWith('/api/bank-accounts')
+          ? json({ id: 5, name: 'Tagesgeld', iban: null, defaultAccount: false, archived: false, used: false }, 201)
+          : json({}),
+      [twoAccounts[0]],
+    )
+    const account = await screen.findByLabelText('Konto')
+    expect(account).toHaveValue('1')
+    fillValid()
+
+    fireEvent.change(account, { target: { value: 'new' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Neues Konto' }), { target: { value: 'Tagesgeld' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Neues Konto' })).not.toBeInTheDocument())
+    save()
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    const posts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+    expect(posts.map(([url]) => url)).toEqual(['/api/bank-accounts', '/api/transactions'])
+    expect(JSON.parse(String((posts[1][1] as RequestInit).body))).toMatchObject({ accountId: 5 })
+  })
+
+  it('shows the error of a category name that exists', async () => {
+    renderDialog(null, () => json({ status: 409, detail: 'Eine Kategorie „Wohnen“ gibt es schon.' }, 409))
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { target: { value: 'Wohnen' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
+    expect(screen.getByLabelText('Kategorie')).toHaveValue('')
   })
 
   it('sends no account for a new booking on the default account', async () => {
@@ -307,6 +375,7 @@ describe('BookingDialog', () => {
       'Freizeit',
       'Lebensmittel',
       'Gehalt',
+      '+ Neue Kategorie …',
     ])
   })
 
