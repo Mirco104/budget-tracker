@@ -79,7 +79,11 @@ export interface ImportRequest {
     transfer: boolean
     transferPeerId?: number
     replaces?: { recurringId: number; date: string }
+    /** R31: the index of the new series in series whose occurrence the row replaces. */
+    series?: number
   }[]
+  /** R31: monthly series the import creates (code review, 08.11.2026). */
+  series?: { startDate: string; amount: number; description: string; categoryId: number; source: string }[]
 }
 
 export interface ImportBatch {
