@@ -117,8 +117,17 @@ export interface RecurringTransactionInput {
   accountId?: number
 }
 
-/** "Nur dieser Eintrag" (THIS) or "Dieser und alle folgenden" (FOLLOWING). */
-export type OccurrenceScope = 'THIS' | 'FOLLOWING'
+/** "Alle Einträge" (ticket #80): the values that change for every part of a series; the dates stay. */
+export interface RecurringValuesInput {
+  amount: number
+  description: string
+  categoryId: number
+  /** Without it the default account (R26). */
+  accountId?: number
+}
+
+/** "Nur dieser Eintrag" (THIS), "Dieser und alle folgenden" (FOLLOWING) or "Alle Einträge" (ALL, ticket #80). */
+export type OccurrenceScope = 'THIS' | 'FOLLOWING' | 'ALL'
 
 /**
  * difference is the deviation from the target (target - actual).

@@ -4,6 +4,7 @@ import type {
   OccurrenceScope,
   RecurringTransaction,
   RecurringTransactionInput,
+  RecurringValuesInput,
   Transaction,
   TransactionInput,
 } from './types'
@@ -51,6 +52,18 @@ export function updateOccurrenceFollowing(
   input: RecurringTransactionInput,
 ): Promise<RecurringTransaction> {
   return request<RecurringTransaction>(occurrencePath(recurringId, occurrenceDate, 'FOLLOWING'), {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+}
+
+/** "Alle Einträge" (ticket #80): changes amount, description, category and account of the whole series. */
+export function updateOccurrenceAll(
+  recurringId: number,
+  occurrenceDate: string,
+  input: RecurringValuesInput,
+): Promise<RecurringTransaction> {
+  return request<RecurringTransaction>(occurrencePath(recurringId, occurrenceDate, 'ALL'), {
     method: 'PUT',
     body: JSON.stringify(input),
   })
@@ -111,6 +124,15 @@ export function useUpdateOccurrenceFollowing() {
       date: string
       input: RecurringTransactionInput
     }) => updateOccurrenceFollowing(recurringId, date, input),
+    onSuccess,
+  })
+}
+
+export function useUpdateOccurrenceAll() {
+  const onSuccess = useInvalidateAfterChange()
+  return useMutation({
+    mutationFn: ({ recurringId, date, input }: { recurringId: number; date: string; input: RecurringValuesInput }) =>
+      updateOccurrenceAll(recurringId, date, input),
     onSuccess,
   })
 }

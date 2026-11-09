@@ -7,6 +7,7 @@ import {
   useCreateSeriesFromTransaction,
   useDeleteOccurrence,
   useRecurringTransactions,
+  useUpdateOccurrenceAll,
   useUpdateOccurrenceFollowing,
   useUpdateOccurrenceThis,
 } from '../api/recurring'
@@ -113,6 +114,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const deleteTransaction = useDeleteTransaction()
   const updateThis = useUpdateOccurrenceThis()
   const updateFollowing = useUpdateOccurrenceFollowing()
+  const updateAll = useUpdateOccurrenceAll()
   const deleteOccurrence = useDeleteOccurrence()
   const bankAccounts = useBankAccounts().data ?? []
   const createCategory = useCreateCategory()
@@ -227,7 +229,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   function chooseScope(next: OccurrenceScope) {
     setScope(next)
     setConfirmingDelete(false)
-    if (next === 'THIS') {
+    if (next !== 'FOLLOWING') {
       setRepeat('NONE')
       setEndDate('')
       return
@@ -292,6 +294,10 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
       return entry?.id != null
         ? createSeriesFrom.mutateAsync({ transactionId: entry.id, input })
         : createSeries.mutateAsync(input)
+    }
+    if (occurrence && scope === 'ALL') {
+      const input = { ...common, categoryId: Number(categoryId) }
+      return updateAll.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
     }
     if (occurrence) {
       return updateThis.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input: single })
@@ -457,39 +463,48 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
               />
               Dieser und alle folgenden
             </label>
+            <label>
+              <input type="radio" name="scope" checked={scope === 'ALL'} onChange={() => chooseScope('ALL')} />
+              Alle Einträge
+            </label>
             <p className="hint">
-              Eintrag vom {formatDate(occurrence.occurrenceDate)}; frühere Einträge bleiben unverändert.
+              {scope === 'ALL'
+                ? 'Betrag, Beschreibung, Kategorie und Konto gelten für die ganze Serie, auch frühere Einträge; Datum und Rhythmus bleiben. Einzeln geänderte Einträge bleiben, wie sie sind.'
+                : `Eintrag vom ${formatDate(occurrence.occurrenceDate)}; frühere Einträge bleiben unverändert.`}
             </p>
           </fieldset>
         )}
 
-        <div className="field-row">
-          <label className="field">
-            {recurring ? 'Erste Abbuchung' : 'Datum'}
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              aria-invalid={errors.date ? true : undefined}
-            />
-            {errors.date && <span className="error">{errors.date}</span>}
-          </label>
-
-          {repeatOption !== 'none' && (
+        {/* "Alle Einträge" keeps the dates of the series (ticket #80) */}
+        {!(occurrence && scope === 'ALL') && (
+          <div className="field-row">
             <label className="field">
-              Wiederholen
-              <select value={repeat} onChange={(e) => setRepeat(e.target.value as Repeat)}>
-                {repeatOption === 'optional' && <option value="NONE">nie</option>}
-                {intervals.map((value) => (
-                  <option key={value} value={value}>
-                    {INTERVAL_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-              {errors.repeat && <span className="error">{errors.repeat}</span>}
+              {recurring ? 'Erste Abbuchung' : 'Datum'}
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                aria-invalid={errors.date ? true : undefined}
+              />
+              {errors.date && <span className="error">{errors.date}</span>}
             </label>
-          )}
-        </div>
+
+            {repeatOption !== 'none' && (
+              <label className="field">
+                Wiederholen
+                <select value={repeat} onChange={(e) => setRepeat(e.target.value as Repeat)}>
+                  {repeatOption === 'optional' && <option value="NONE">nie</option>}
+                  {intervals.map((value) => (
+                    <option key={value} value={value}>
+                      {INTERVAL_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+                {errors.repeat && <span className="error">{errors.repeat}</span>}
+              </label>
+            )}
+          </div>
+        )}
 
         {editsSingle && recurring && (
           <p className="hint">Diese Buchung wird zur ersten Abbuchung der neuen Serie.</p>
@@ -578,7 +593,9 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
               {occurrence
                 ? scope === 'THIS'
                   ? 'Nur diesen Eintrag löschen?'
-                  : 'Diesen und alle folgenden Einträge löschen?'
+                  : scope === 'ALL'
+                    ? 'Alle Einträge dieser Serie löschen? Einzeln geänderte Einträge bleiben als einmalige Buchungen.'
+                    : 'Diesen und alle folgenden Einträge löschen?'
                 : 'Buchung wirklich löschen?'}
             </span>
             <div className="dialog-buttons">

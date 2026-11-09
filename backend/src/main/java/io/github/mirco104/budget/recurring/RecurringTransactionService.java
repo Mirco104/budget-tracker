@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.recurring;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
@@ -166,11 +167,45 @@ public class RecurringTransactionService {
         return RecurringTransactionResponse.from(saved);
     }
 
-    /** THIS suspends the occurrence; FOLLOWING ends the series before it, or deletes it from its first one. */
+    /**
+     * "Alle Einträge" (ticket #80): amount, description, category and account change for every part of the series,
+     * also in the past. Interval and dates stay, and so do all exceptions: an entry changed on its own and a booking
+     * that replaces an occurrence (R28) keep their values.
+     */
+    @Transactional
+    public RecurringTransactionResponse updateAll(long id, LocalDate occurrence, RecurringValuesRequest request) {
+        RecurringTransaction recurring = findOccurrence(id, occurrence);
+        if (request.amount().signum() == 0) {
+            throw new InvalidFieldException("amount", "Der Betrag darf nicht 0 sein.");
+        }
+        Category category = categoryService.findBookable(request.categoryId());
+        BankAccount account = bankAccountService.findBookable(request.accountId());
+        for (RecurringTransaction part : partsOf(recurring)) {
+            part.update(
+                    request.amount().setScale(2, RoundingMode.HALF_UP),
+                    request.description().trim(),
+                    category,
+                    account,
+                    part.getInterval(),
+                    part.getStartDate(),
+                    part.getEndDate());
+        }
+        return RecurringTransactionResponse.from(recurring);
+    }
+
+    /**
+     * THIS suspends the occurrence; FOLLOWING ends the series before it, or deletes it from its first one; ALL deletes
+     * every part of the series with its exceptions, a replacing booking stays as a single one (R28).
+     */
     @Transactional
     public void delete(long id, LocalDate occurrence, OccurrenceScope scope) {
         RecurringTransaction recurring = findOccurrence(id, occurrence);
-        if (scope == OccurrenceScope.THIS) {
+        if (scope == OccurrenceScope.ALL) {
+            for (RecurringTransaction part : partsOf(recurring)) {
+                exceptionRepository.deleteByRecurring(part);
+                recurringRepository.delete(part);
+            }
+        } else if (scope == OccurrenceScope.THIS) {
             exceptionRepository.save(new RecurringException(recurring, occurrence));
         } else if (occurrence.equals(recurring.getStartDate())) {
             exceptionRepository.deleteByRecurringAndOccurrenceDateGreaterThanEqual(recurring, occurrence);
@@ -178,6 +213,10 @@ public class RecurringTransactionService {
         } else {
             endBefore(recurring, occurrence);
         }
+    }
+
+    private List<RecurringTransaction> partsOf(RecurringTransaction recurring) {
+        return recurringRepository.findBySeriesIdAndOwner(recurring.getSeriesId(), currentUser.get());
     }
 
     private void endBefore(RecurringTransaction recurring, LocalDate occurrence) {

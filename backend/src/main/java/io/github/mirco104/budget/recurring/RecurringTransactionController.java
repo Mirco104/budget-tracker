@@ -78,6 +78,13 @@ public class RecurringTransactionController {
         return recurringService.updateFollowing(id, date, request);
     }
 
+    @PutMapping(path = OCCURRENCE_PATH, params = "scope=ALL")
+    public RecurringTransactionResponse updateAll(
+            @PathVariable long id, @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Valid @RequestBody RecurringValuesRequest request) {
+        return recurringService.updateAll(id, date, request);
+    }
+
     @DeleteMapping(OCCURRENCE_PATH)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(
