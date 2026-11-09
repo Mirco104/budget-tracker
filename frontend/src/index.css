@@ -2556,35 +2556,3 @@ button.tx:hover:not(:disabled) {
     font-size: max(16px, 1rem);
   }
 }
-
-/* No sideways scrolling on the phone (#85, iPhone): the page and the dialog never scroll sideways. Bars that scroll
-   on purpose, like the sub tabs, keep their own overflow. clip creates no scroll container, so sticky parts stay. */
-body {
-  overflow-x: clip;
-}
-
-.dialog {
-  overflow-x: hidden;
-}
-
-/* A field in a row or a form may shrink below the width of its content instead of pushing the dialog wider */
-.field,
-.field-row > * {
-  min-width: 0;
-}
-
-/* iOS gives date fields a fixed minimum width that ignores width: 100%; without its own look the field fits.
-   Only on iOS, so the calendar button of desktop browsers stays. */
-@supports (-webkit-touch-callout: none) {
-  input[type='date'] {
-    -webkit-appearance: none;
-    appearance: none;
-    min-width: 0;
-    max-width: 100%;
-    text-align: left;
-  }
-
-  input[type='date']::-webkit-date-and-time-value {
-    text-align: left;
-  }
-}
