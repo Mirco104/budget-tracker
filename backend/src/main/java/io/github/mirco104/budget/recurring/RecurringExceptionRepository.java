@@ -17,6 +17,9 @@ public interface RecurringExceptionRepository extends JpaRepository<RecurringExc
     // Derived delete: removes through the EntityManager, so loaded exceptions do not go stale
     void deleteByRecurringAndOccurrenceDateGreaterThanEqual(RecurringTransaction recurring, LocalDate from);
 
+    /** "Alle Einträge" deletes a part of the series with all its exceptions (R13); a replacing booking stays (R28). */
+    void deleteByRecurring(RecurringTransaction recurring);
+
     /** R28: the exception that points to the transaction, removed so the occurrence counts again. */
     void deleteByTransaction(Transaction transaction);
 

@@ -518,7 +518,7 @@ describe('BookingDialog', () => {
 
     expect(screen.getByRole('dialog', { name: 'Wiederkehrende Buchung bearbeiten' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Nur dieser Eintrag' })).toBeChecked()
-    expect(screen.queryByRole('radio', { name: /Alle/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Alle Einträge' })).not.toBeChecked()
     expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Datum'), { target: { value: '2026-10-07' } })
 
@@ -571,6 +571,43 @@ describe('BookingDialog', () => {
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/recurring-transactions/3/occurrences/2026-10-05?scope=FOLLOWING',
+        expect.objectContaining({ method: 'DELETE' }),
+      ),
+    )
+  })
+
+  // Ticket #80
+  it('edits all entries of the series without date and repeat', async () => {
+    const { fetchMock } = renderDialog(streaming)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Alle Einträge' }))
+
+    expect(screen.queryByLabelText('Datum')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
+    expect(screen.getByText(/auch frühere Einträge; Datum und Rhythmus bleiben/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '17' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Streaming Plus' } })
+    save()
+
+    await waitFor(() =>
+      expect(sent(fetchMock, 'PUT')).toEqual({
+        url: '/api/recurring-transactions/3/occurrences/2026-10-05?scope=ALL',
+        body: { amount: -17, description: 'Streaming Plus', categoryId: 6, accountId: 1 },
+      }),
+    )
+  })
+
+  it('deletes all entries of the series after asking once more', async () => {
+    const { fetchMock } = renderDialog(streaming)
+    fireEvent.click(screen.getByRole('radio', { name: 'Alle Einträge' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+    expect(screen.getByText(/Alle Einträge dieser Serie löschen\?/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/recurring-transactions/3/occurrences/2026-10-05?scope=ALL',
         expect.objectContaining({ method: 'DELETE' }),
       ),
     )
