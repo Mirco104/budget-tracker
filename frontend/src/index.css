@@ -2591,3 +2591,20 @@ button.tx:hover:not(:disabled) {
     font-size: max(16px, 1rem);
   }
 }
+
+/* iPhone (#85): iOS gives date fields a minimum width of their own that ignores width: 100%, so in a narrow dialog the
+   field gets wider than the dialog and the dialog scrolls sideways. Without the system look the field fits. Only on
+   iOS (the feature query matches Safari on iOS only), so the calendar button of desktop browsers stays. */
+@supports (-webkit-touch-callout: none) {
+  input[type='date'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  input[type='date']::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
