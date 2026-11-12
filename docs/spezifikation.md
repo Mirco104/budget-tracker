@@ -141,6 +141,9 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 - **US34 Import rückgängig:** Als Nutzer sehe ich auf der Import-Seite meine bisherigen Importe (Datum, Bank, Anzahl, Zeitraum) und mache einen ganz rückgängig. *AK:* Alle Transaktionen des Imports werden gelöscht, ersetzte Vorkommen zählen wieder (R28), Serien, die der Import angelegt hat, werden gelöscht (R31), gespeicherte Gegenbuchungen, die beim Import zur Umbuchung wurden, bekommen ihre Kategorie zurück, sofern sie noch Umbuchungen sind (R27); eine Umbuchung aus einem anderen Import, deren Gegenbuchung so gelöscht wird, bleibt Umbuchung; Rückfrage vor dem Löschen; ein fremder Import ergibt 404.
 - **US35 Ist ersetzt Plan:** Als Nutzer sehe ich in der Import-Vorschau und im Buchungsdialog, wenn eine Buchung ein geplantes Vorkommen einer Serie ersetzt ("ersetzt „Miete“ vom 01.11.", abwählbar), damit nichts doppelt zählt. *AK:* R28; ein ersetztes Vorkommen erscheint nicht mehr in Liste und Übersicht, die Buchung zählt als wiederkehrend; Löschen der Buchung bringt das Vorkommen zurück; ein fremdes oder nicht zählendes Vorkommen ergibt 400.
 
+### Tickets ab 09.11.2026
+- **US36 Passwort vergessen (Ticket #81):** Als Admin erzeuge ich unter *Einstellungen › Nutzer* für ein Konto, dessen Passwort vergessen ist, einen Link für ein neues Passwort und schicke ihn selbst weiter (kein Mailversand, Entscheidung 19). Wer den Link öffnet, legt ein neues Passwort fest (zweimal eingegeben) und ist danach angemeldet. *AK:* Link einmal nutzbar und 24 Stunden gültig (sonst 410, unbekannt 404); ein neuer Link für dasselbe Konto macht ältere unbenutzbar; gespeichert wird nur der SHA-256-Hash des Tokens; Passwort mindestens 12 Zeichen (400); eine Anmeldesperre (US14) für die E-Mail wird aufgehoben. Ein Link gibt nie mehr Rechte als sein Ersteller: Ein Admin erzeugt ihn nur für User, der Systemadmin auch für Admins; für sich selbst (dafür *Einstellungen › Konto*) und für den Systemadmin gibt es keinen (409); nur Admins (403). Die Anmeldeseite hat "Passwort vergessen?" mit dem Hinweis, den Admin um einen Link zu bitten. Andere offene Sitzungen des Kontos bleiben bestehen (keine Sitzungsliste). Löschen eines Kontos (US16) entfernt seine Links und die Links, die es erzeugt hat.
+
 ### Nice
 - **US9 Diagramm** (Soll gegen Ist je Kategorie) mit Recharts. *Ersetzt durch das Diagramm in US13 (Erweiterung).*
 - **US23 Depot mit Positionen (vorgemerkt, eigene Spec-Runde):** R22.
@@ -208,6 +211,14 @@ Invitation                             (US15)
   createdBy     → User
   expiresAt     Instant                (7 Tage nach Erzeugung)
   usedAt        Instant, nullable
+
+PasswordReset                          (US36, Migration V12)
+  id            Long, PK
+  tokenHash     String, eindeutig      (SHA-256 des zufälligen Tokens mit 256 Bit, hex; das Token selbst nie)
+  user          → User                 (das Konto, dessen Passwort neu gesetzt wird)
+  createdBy     → User                 (der Admin)
+  expiresAt     Instant                (24 Stunden nach Erzeugung)
+  usedAt        Instant, nullable      (auch gesetzt, wenn ein neuerer Link ihn ablöst)
 
 Person                                 (US17)
   id            Long, PK
@@ -346,6 +357,8 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | PUT | `/account/display-name` | Anzeigenamen ändern, Body `{displayName}` (US16) | 200, 400 |
 | GET | `/users` | Alle Konten ohne Finanzdaten, nur Admins (US25) | 200, 403 |
 | PUT | `/users/{id}/role` | Rolle ändern, Body `{role: USER\|ADMIN}`, nur Admins (US25) | 200, 400, 403, 404, 409 |
+| POST | `/users/{id}/password-reset` | Link für ein neues Passwort erzeugen (US36), Antwort `{link, expiresAt}`, Link `/?passwort=<token>` | 201, 403, 404, 409 (eigenes Konto, Systemadmin, Admin durch Admin) |
+| POST | `/password-resets/{token}` | Neues Passwort setzen ohne Anmeldung, Body `{password}`, meldet an (US36) | 200 + `MeResponse`, 404, 410 (abgelaufen/benutzt), 400 |
 | POST | `/categories` | Kategorie anlegen, Body `{name, icon?}` (US10, US28) | 201 + Location, 400, 409 |
 | PUT | `/categories/{id}` | Ändern, Body `{name, archived, icon?}`; seit Entscheidung 38 ohne `sortOrder` (ein mitgeschicktes Feld wird ignoriert), alle Listen sind alphabetisch | 200, 404, 400, 409 |
 | DELETE | `/categories/{id}` | Löschen (nur unbenutzt, US10) | 204, 404, 409 |

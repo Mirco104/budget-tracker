@@ -17,6 +17,7 @@ import io.github.mirco104.budget.category.TargetResolver.TargetEntry;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.invitation.InvitationRepository;
+import io.github.mirco104.budget.passwordreset.PasswordResetRepository;
 import io.github.mirco104.budget.recurring.RecurringException;
 import io.github.mirco104.budget.recurring.RecurringExceptionRepository;
 import io.github.mirco104.budget.recurring.RecurringTransaction;
@@ -51,6 +52,7 @@ public class AccountService {
     private final RecurringTransactionRepository recurringRepository;
     private final RecurringExceptionRepository exceptionRepository;
     private final InvitationRepository invitationRepository;
+    private final PasswordResetRepository passwordResetRepository;
     private final BankAccountRepository bankAccountRepository;
     private final BankAccountSourceRepository sourceRepository;
     private final ImportBatchRepository importBatchRepository;
@@ -62,7 +64,9 @@ public class AccountService {
             TransactionRepository transactionRepository, RecurringTransactionRepository recurringRepository,
             RecurringExceptionRepository exceptionRepository, InvitationRepository invitationRepository,
             BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
-            ImportBatchRepository importBatchRepository, Clock clock) {
+            ImportBatchRepository importBatchRepository, PasswordResetRepository passwordResetRepository,
+            Clock clock) {
+        this.passwordResetRepository = passwordResetRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.sourceRepository = sourceRepository;
         this.importBatchRepository = importBatchRepository;
@@ -175,6 +179,7 @@ public class AccountService {
         sourceRepository.deleteByOwner(user);
         bankAccountRepository.deleteByOwner(user);
         invitationRepository.deleteByCreatedBy(user);
+        passwordResetRepository.deleteByUserOrCreatedBy(user);
         // The bulk deletes cleared the persistence context, so the user is removed by id
         userRepository.deleteById(user.getId());
     }

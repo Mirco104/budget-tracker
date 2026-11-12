@@ -1,18 +1,33 @@
 import { useState } from 'react'
 import { errorText } from '../api/client'
-import type { Me, Role, UserSummary } from '../api/types'
+import { useCreatePasswordReset } from '../api/passwordResets'
+import type { Me, PasswordResetLink, Role, UserSummary } from '../api/types'
 import { useChangeRole, useUsers } from '../api/users'
 import { formatDateTime } from '../format'
+import { CopyLink } from './ui/CopyLink'
 import { Loading } from './ui/Loading'
 
 const ROLE_LABELS: Record<Role, string> = { USER: 'User', ADMIN: 'Admin', SYSTEM_ADMIN: 'Systemadmin' }
 
-function UserRow({ user, isMe }: { user: UserSummary; isMe: boolean }) {
+function UserRow({ user, isMe, meRole }: { user: UserSummary; isMe: boolean; meRole: Role }) {
   const change = useChangeRole()
+  const createReset = useCreatePasswordReset()
   const [error, setError] = useState<string | null>(null)
+  const [resetLink, setResetLink] = useState<PasswordResetLink | null>(null)
   // The system admin stays, and nobody changes their own role (the backend answers 409)
   const canChange = !isMe && user.role !== 'SYSTEM_ADMIN'
   const nextRole = user.role === 'USER' ? 'ADMIN' : 'USER'
+  // US36: a link never gives more rights than its creator: an admin resets users, the system admin also admins
+  const canReset = canChange && (user.role === 'USER' || meRole === 'SYSTEM_ADMIN')
+
+  async function handleReset() {
+    setError(null)
+    try {
+      setResetLink(await createReset.mutateAsync(user.id))
+    } catch (e) {
+      setError(errorText(e, 'Der Link konnte nicht erzeugt werden.'))
+    }
+  }
 
   async function handleChange() {
     setError(null)
@@ -36,10 +51,26 @@ function UserRow({ user, isMe }: { user: UserSummary; isMe: boolean }) {
           {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'noch nie'}
         </span>
       </div>
-      {canChange && (
-        <button type="button" disabled={change.isPending} onClick={() => void handleChange()}>
-          {nextRole === 'ADMIN' ? 'Zum Admin machen' : 'Zum User machen'}
-        </button>
+      <div className="user-actions">
+        {canChange && (
+          <button type="button" disabled={change.isPending} onClick={() => void handleChange()}>
+            {nextRole === 'ADMIN' ? 'Zum Admin machen' : 'Zum User machen'}
+          </button>
+        )}
+        {canReset && (
+          <button type="button" disabled={createReset.isPending} onClick={() => void handleReset()}>
+            Link für neues Passwort
+          </button>
+        )}
+      </div>
+      {resetLink && (
+        <div className="user-reset">
+          <CopyLink key={resetLink.link} link={resetLink.link} label={`Link für neues Passwort von ${user.displayName}`}>
+            <span className="hint">
+              Einmal nutzbar, gültig bis {formatDateTime(resetLink.expiresAt)}. Schicke ihn {user.displayName} selbst.
+            </span>
+          </CopyLink>
+        </div>
       )}
       {error && <p className="error">{error}</p>}
     </div>
@@ -54,12 +85,13 @@ export function UserSettings({ me }: { me: Me }) {
     <section>
       <h3>Nutzer</h3>
       <p className="hint">
-        Admins können Einladungen erzeugen und Rollen ändern. Der Systemadmin bleibt immer Systemadmin.
+        Admins können Einladungen erzeugen, Rollen ändern und bei vergessenem Passwort einen Link für ein neues
+        Passwort erzeugen. Der Systemadmin bleibt immer Systemadmin.
       </p>
       {users.isPending && <Loading text="Lade Nutzer …" />}
       {users.error && <p className="error">Nutzer konnten nicht geladen werden: {users.error.message}</p>}
       {users.data?.map((user) => (
-        <UserRow key={user.id} user={user} isMe={user.id === me.id} />
+        <UserRow key={user.id} user={user} isMe={user.id === me.id} meRole={me.role} />
       ))}
     </section>
   )
