@@ -4,6 +4,7 @@ import io.github.mirco104.budget.user.User;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -22,6 +23,9 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
     List<RecurringTransaction> findActiveBetween(User owner, LocalDate from, LocalDate to);
 
     Optional<RecurringTransaction> findByIdAndOwner(Long id, User owner);
+
+    /** All parts of a series after "Dieser und alle folgenden" (R13), for "Alle Einträge". */
+    List<RecurringTransaction> findBySeriesIdAndOwner(UUID seriesId, User owner);
 
     /** Start date of the earliest series, null without series. */
     @Query("select min(r.startDate) from RecurringTransaction r where r.owner = :owner")
