@@ -11,6 +11,7 @@ import { formatIban } from '../format'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Icon } from './ui/Icon'
 import { RowMenu } from './ui/RowMenu'
+import { Loading } from './ui/Loading'
 
 /** Name and optional IBAN, for a new account and for editing one (R26). */
 function AccountForm({
@@ -291,7 +292,7 @@ export function BankAccountSettings() {
   const accounts = useBankAccounts()
 
   if (accounts.isPending) {
-    return <p>Lade Konten …</p>
+    return <Loading text="Lade Konten …" />
   }
   if (accounts.error) {
     return <p className="error">Konten konnten nicht geladen werden: {accounts.error.message}</p>

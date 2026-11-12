@@ -2608,3 +2608,83 @@ button.tx:hover:not(:disabled) {
     text-align: left;
   }
 }
+
+/* Loading (#78): a spinner with text and a thin bar under the header; both appear only after a short moment */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  margin: 0;
+  color: var(--muted);
+  animation: loading-appear 0.2s ease-out 0.3s both;
+}
+
+.loading.inline {
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 8px 0;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 3px;
+  overflow: hidden;
+  background: var(--primary-soft);
+  animation: loading-appear 0.2s ease-out 0.4s both;
+}
+
+.loading-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: var(--primary);
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .loading-bar::after {
+    animation-duration: 3s;
+  }
+}
