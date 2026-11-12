@@ -1620,14 +1620,29 @@ button.budget-toggle {
 }
 
 .dialog {
+  --dialog-pad-top: 20px;
+  --dialog-pad-x: 24px;
+  --dialog-pad-bottom: 24px;
   width: min(520px, 100%);
   max-height: calc(100vh - 48px);
+  /* dvh follows the visible area when Safari shows or hides its bars; vh stays for older browsers */
+  max-height: calc(100dvh - 48px);
   overflow-y: auto;
-  padding: 20px 24px 24px;
+  padding: var(--dialog-pad-top) var(--dialog-pad-x) var(--dialog-pad-bottom);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-menu);
   box-sizing: border-box;
+}
+
+/* Title and close button stay at the top of the scrolling dialog; the background covers the content below */
+.dialog-top {
+  position: sticky;
+  top: calc(-1 * var(--dialog-pad-top));
+  z-index: 1;
+  margin: calc(-1 * var(--dialog-pad-top)) calc(-1 * var(--dialog-pad-x)) 0;
+  padding: var(--dialog-pad-top) var(--dialog-pad-x) 8px;
+  background: var(--surface);
 }
 
 .dialog-head {
@@ -1783,6 +1798,23 @@ button.budget-toggle {
   padding: 12px;
   border-radius: var(--radius);
   background: var(--danger-soft);
+}
+
+/* In a dialog the buttons stay at the bottom while the content scrolls */
+.dialog .dialog-actions:not(.confirm) {
+  position: sticky;
+  bottom: calc(-1 * var(--dialog-pad-bottom));
+  z-index: 1;
+  margin: 4px calc(-1 * var(--dialog-pad-x)) calc(-1 * var(--dialog-pad-bottom));
+  padding: 12px var(--dialog-pad-x) var(--dialog-pad-bottom);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.dialog .dialog-actions.confirm {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
 }
 
 .dialog-buttons {
@@ -1961,9 +1993,12 @@ button.tx:hover:not(:disabled) {
   }
 
   .dialog {
+    --dialog-pad-top: 8px;
+    --dialog-pad-x: 16px;
+    --dialog-pad-bottom: calc(20px + env(safe-area-inset-bottom));
     width: 100%;
     max-height: 92vh;
-    padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 92dvh;
     border-radius: 20px 20px 0 0;
   }
 
@@ -2541,6 +2576,35 @@ button.tx:hover:not(:disabled) {
   }
 
   .import-open {
+    text-align: left;
+  }
+}
+
+/* Touch devices (#85): iOS zooms into any field under 16px when it gets focus and stays zoomed in.
+   So fields are at least 16px there; larger fields like the amount keep their size. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], .amount-input),
+  select,
+  textarea,
+  .field input:not([type='radio'], [type='checkbox'], .amount-input),
+  .field select {
+    font-size: max(16px, 1rem);
+  }
+}
+
+/* iPhone (#85): iOS gives date fields a minimum width of their own that ignores width: 100%, so in a narrow dialog the
+   field gets wider than the dialog and the dialog scrolls sideways. Without the system look the field fits. Only on
+   iOS (the feature query matches Safari on iOS only), so the calendar button of desktop browsers stays. */
+@supports (-webkit-touch-callout: none) {
+  input[type='date'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  input[type='date']::-webkit-date-and-time-value {
     text-align: left;
   }
 }

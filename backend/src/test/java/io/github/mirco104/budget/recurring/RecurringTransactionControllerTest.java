@@ -297,6 +297,91 @@ class RecurringTransactionControllerTest {
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
     }
 
+    // --- PUT .../occurrences/{date}?scope=ALL (R13, ticket #80) ---
+
+    @Test
+    void updateAllChangesTheValuesOfEveryPartAndKeepsDatesAndSingleEntries() throws Exception {
+        long wohnen = categoryId("Wohnen");
+        long nebenkosten = categoryId("Nebenkosten");
+        long id = create(series("-900", "Miete", wohnen, "MONTHLY", "2026-01-01", null));
+        putOccurrence(id, "2026-03-01", "THIS", transaction("-905", "Miete März", "2026-03-02", wohnen))
+                .andExpect(status().isOk());
+        putOccurrence(id, "2026-10-01", "FOLLOWING", series("-950", "Miete neu", wohnen, "MONTHLY", "2026-10-01", null))
+                .andExpect(status().isOk());
+
+        putOccurrence(id, "2026-02-01", "ALL", values("-1000", "Wohnung", nebenkosten))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.amount").value(-1000.00))
+                .andExpect(jsonPath("$.description").value("Wohnung"))
+                .andExpect(jsonPath("$.categoryId").value(nebenkosten))
+                .andExpect(jsonPath("$.startDate").value("2026-01-01"))
+                .andExpect(jsonPath("$.endDate").value("2026-09-30"));
+
+        assertDescriptions("2026-01", "Wohnung");
+        // the entry changed on its own stays as it is
+        assertDescriptions("2026-03", "Miete März");
+        // the later part of the split series changes too, its dates stay
+        assertDescriptions("2026-11", "Wohnung");
+        mockMvc.perform(get(BASE).param("month", "2026-11"))
+                .andExpect(jsonPath("$[0].amount").value(-1000.00))
+                .andExpect(jsonPath("$[0].startDate").value("2026-10-01"))
+                .andExpect(jsonPath("$[0].categoryId").value(nebenkosten));
+    }
+
+    @Test
+    void updateAllKeepsABookingThatReplacesAnOccurrence() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        long id = create(series("-15", "Streaming", categoryId, "MONTHLY", "2026-01-05", null));
+        mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -16, "description": "Streaming Abbuchung", "date": "2026-10-06", "categoryId": %d,
+                         "replaces": {"recurringId": %d, "date": "2026-10-05"}}
+                        """.formatted(categoryId, id)))
+                .andExpect(status().isCreated());
+
+        putOccurrence(id, "2026-09-05", "ALL", values("-17", "Streaming Plus", categoryId))
+                .andExpect(status().isOk());
+
+        assertDescriptions("2026-09", "Streaming Plus");
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].description").value("Streaming Abbuchung"))
+                .andExpect(jsonPath("$[0].amount").value(-16.00))
+                .andExpect(jsonPath("$[0].replaces.recurringId").value(id));
+    }
+
+    @Test
+    void updateAllRejectsInvalidValues() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        long id = create(series("-15", "Streaming", categoryId, "MONTHLY", "2026-01-05", null));
+
+        putOccurrence(id, "2026-02-05", "ALL", values("0", "Streaming", categoryId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("amount"));
+        putOccurrence(id, "2026-02-05", "ALL", values("-15", "Streaming", 999_999))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
+        putOccurrence(id, "2026-02-05", "ALL", "{\"amount\": -15, \"categoryId\": %d}".formatted(categoryId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("description"));
+        putOccurrence(id, "2026-02-06", "ALL", values("-15", "Streaming", categoryId))
+                .andExpect(status().isNotFound());
+        assertDescriptions("2026-02", "Streaming");
+    }
+
+    @Test
+    void updateAllOfAnotherUsersSeriesIsNotFound() throws Exception {
+        long id = create(series("-15", "Streaming", categoryId("Freizeit"), "MONTHLY", "2026-01-05", null));
+        User other = TestUsers.create(userService, "person-c@example.test");
+        MockMvc otherMvc = TestUsers.mockMvcFor(context, other);
+        long otherCategory = categoryRepository.findAllByOwner(other).getFirst().getId();
+
+        otherMvc.perform(put(OCCURRENCE, id, "2026-02-05").param("scope", "ALL")
+                        .contentType(MediaType.APPLICATION_JSON).content(values("-1", "X", otherCategory)))
+                .andExpect(status().isNotFound());
+        assertDescriptions("2026-02", "Streaming");
+    }
+
     // --- PUT: unknown occurrence, scope ---
 
     @Test
@@ -328,12 +413,12 @@ class RecurringTransactionControllerTest {
         mockMvc.perform(put(OCCURRENCE, id, "2026-10-05").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Ungültige Anfrage"));
-        putOccurrence(id, "2026-10-05", "ALL", body)
+        putOccurrence(id, "2026-10-05", "EVERY", body)
                 .andExpect(status().isBadRequest());
         mockMvc.perform(delete(OCCURRENCE, id, "2026-10-05"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Der Parameter 'scope' fehlt."));
-        deleteOccurrence(id, "2026-10-05", "ALL")
+        deleteOccurrence(id, "2026-10-05", "EVERY")
                 .andExpect(status().isBadRequest());
     }
 
@@ -382,6 +467,30 @@ class RecurringTransactionControllerTest {
         deleteOccurrence(id, "2026-02-05", "THIS").andExpect(status().isNotFound());
     }
 
+    @Test
+    void deleteAllDeletesEveryPartAndKeepsAReplacingBookingAsSingle() throws Exception {
+        long categoryId = categoryId("Freizeit");
+        long id = create(series("-15", "Streaming", categoryId, "MONTHLY", "2026-01-05", null));
+        deleteOccurrence(id, "2026-03-05", "THIS").andExpect(status().isNoContent());
+        putOccurrence(id, "2026-08-05", "FOLLOWING", series("-18", "Streaming neu", categoryId, "MONTHLY", "2026-08-05", null))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -15, "description": "Streaming Abbuchung", "date": "2026-02-05", "categoryId": %d,
+                         "replaces": {"recurringId": %d, "date": "2026-02-05"}}
+                        """.formatted(categoryId, id)))
+                .andExpect(status().isCreated());
+
+        deleteOccurrence(id, "2026-01-05", "ALL").andExpect(status().isNoContent());
+
+        assertDescriptions("2026-01");
+        assertDescriptions("2026-10");
+        mockMvc.perform(get(BASE).param("month", "2026-10")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/transactions").param("month", "2026-02"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].kind").value("SINGLE"))
+                .andExpect(jsonPath("$[0].replaces").doesNotExist());
+    }
+
     // --- helpers ---
 
     private static String series(
@@ -392,6 +501,12 @@ class RecurringTransactionControllerTest {
                  "endDate": %s}
                 """.formatted(amount, description, categoryId, interval, startDate,
                 endDate == null ? "null" : "\"" + endDate + "\"");
+    }
+
+    private static String values(String amount, String description, long categoryId) {
+        return """
+                {"amount": %s, "description": "%s", "categoryId": %d}
+                """.formatted(amount, description, categoryId);
     }
 
     private static String transaction(String amount, String description, String date, long categoryId) {
