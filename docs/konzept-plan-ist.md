@@ -32,7 +32,7 @@ Ein Eintrag im normalen Monat.
 | Wie oft | monatlich, vierteljährlich, halbjährlich, jährlich, ohne festen Termin |
 | Betrag | der **echte Betrag pro Zahlung** (Kfz-Versicherung: 1.200 €). Bei „ohne festen Termin": Betrag im Monat |
 | Am Tag / Fällig im | Tag im Monat (monatlich) bzw. Monat der Fälligkeit (seltener) |
-| Kategorie | jede Kategorie, z. B. Mobilität |
+| Kategorie | frei wählbar, jede Kategorie, auch bei seltenen Posten |
 | Konto | Konto der Buchung, Vorgabe Standardkonto |
 | Eintragen | automatisch am Termin · beim Abhaken · selbst anlegen |
 | Nur an Werktagen | fällt der Termin auf einen Wochenend- oder Feiertag, gilt der **nächste Werktag** |
@@ -60,7 +60,7 @@ Wie heute (R26), dazu:
 - **Kontostand** mit Stichtag, von Hand eingetragen (später aus CAMT.053). Der App-Saldo ist dieser Stand plus alle Buchungen danach. Ein neuer Stand zeigt die Differenz zum App-Saldo („fehlt eine Buchung?").
 
 ### 3.5 Rücklagentopf
-Zu jedem seltenen Posten (vierteljährlich, halbjährlich, jährlich) gehört automatisch ein Topf.
+Zu jedem seltenen Posten (vierteljährlich, halbjährlich, jährlich) gehört automatisch ein Topf. Der Topf hängt am **Posten**, nicht an einer Kategorie: Ein seltener Posten hat wie jeder andere eine frei wählbare Kategorie (Kfz-Versicherung in Mobilität oder Versicherungen, Rundfunkbeitrag in Nebenkosten, Jahresabo in Freizeit …), und seine Kosten zählen in dieser Kategorie.
 - **Jeden Monat** gilt der Monatsanteil als zurückgelegt.
 - **Ohne Konto** rechnet die App den Stand nur aus („gerechnet").
 - **Mit verknüpftem Sparkonto** ist der Stand der des Kontos, und Zahlungen von diesem Konto gelten automatisch als aus der Rücklage bezahlt.
@@ -83,7 +83,7 @@ Navigation: **Übersicht · Transaktionen · Planung · Auswertung (unverändert
    - **Sparen:** geplante Sparsumme des Monats und die Sparquote. Ein Tipp öffnet die Sparposten und, falls der Monat günstiger läuft, „+ X € könntest du im November zusätzlich sparen".
    - **Erwartet:** „8 Zahlungen im November". Ein Tipp springt zum Abschnitt „Erwartet" der Transaktionen.
 2. **Entfernt wird** die dritte Kachel oben, **Noch frei / Überschritten**.
-3. **Seltene Zahlungen mit Rücklage** (z. B. Kfz-Versicherung in Mobilität): In der Budgetzeile zählt nur der Monatsanteil, darunter steht eine grüne Zeile:
+3. **Seltene Zahlungen mit Rücklage**, in der Kategorie, die der Nutzer dem Posten gegeben hat (Beispiel: Kfz-Versicherung in Mobilität): In der Budgetzeile zählt nur der Monatsanteil, darunter steht eine grüne Zeile:
    - jeden Monat: „100 € zurückgelegt für die Kfz-Versicherung · Rücklage 1.000 € von 1.200 €"
    - im Fälligkeitsmonat, Rücklage reicht: gleiche Zahlen, kein Sprung, „Kfz-Versicherung 1.200 € aus der Rücklage bezahlt"
    - Rücklage zu klein: der fehlende Teil zählt ins Monatsbudget, die Zeile wird orange, „1.000 € aus der Rücklage, 200 € fehlten darin"
