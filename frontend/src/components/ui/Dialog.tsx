@@ -74,12 +74,15 @@ export function Dialog({ title, onClose, children }: Props) {
         aria-labelledby={titleId}
         onKeyDown={handleKeyDown}
       >
-        <div className="grabber" aria-hidden="true" />
-        <div className="dialog-head">
-          <h2 id={titleId}>{title}</h2>
-          <button type="button" className="icon-button" aria-label="Schließen" onClick={() => close.current()}>
-            <Icon name="close" />
-          </button>
+        {/* Stays at the top while the content scrolls, so the title and the close button are always in reach */}
+        <div className="dialog-top">
+          <div className="grabber" aria-hidden="true" />
+          <div className="dialog-head">
+            <h2 id={titleId}>{title}</h2>
+            <button type="button" className="icon-button" aria-label="Schließen" onClick={() => close.current()}>
+              <Icon name="close" />
+            </button>
+          </div>
         </div>
         {children}
       </div>

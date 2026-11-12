@@ -4,6 +4,10 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { ApiError } from './api/client'
 import './index.css'
+import { preventFocusZoomOnIos } from './viewport'
+
+// Ticket #85: no zoom into fields on iPhone and iPad
+preventFocusZoomOnIos()
 
 // A 401 means the session expired (30 days without use); asking for the user again shows the login page
 function onError(error: Error) {
