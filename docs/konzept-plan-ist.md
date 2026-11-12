@@ -2,7 +2,7 @@
 
 Stand 13.11.2026 · abgestimmt mit dem klickbaren Mockup (https://claude.ai/artifact/CL9gJTWpxBTpRdL5AUQEHT, Version 21) · danach wandert das Beschlossene in `docs/spezifikation.md` (neue Entscheidungen in Abschnitt 11, geänderte Regeln, neuer Abschnitt 19 mit Arbeitspaketen).
 
-Punkte, die noch offen oder ohne ausdrückliche Rückfrage festgelegt sind, sind mit **[prüfen]** markiert.
+Die offenen Punkte sind am 13.11.2026 mit dem Nutzer geklärt (Abschnitt 10).
 
 ---
 
@@ -36,14 +36,17 @@ Ein Eintrag im normalen Monat.
 | Konto | Konto der Buchung, Vorgabe Standardkonto |
 | Eintragen | automatisch am Termin · beim Abhaken · selbst anlegen |
 | Nur an Werktagen | fällt der Termin auf einen Wochenend- oder Feiertag, gilt der **nächste Werktag** |
+| Gilt ab | Monat, ab dem der Posten (oder seine Änderung) gilt; Vorgabe der aktuelle Monat |
 
 - Der **Monatsanteil** wird nie eingetippt, die App rechnet ihn (1.200 € jährlich = 100 € im Monat) und zeigt ihn im Bearbeiten-Fenster an.
 - **Gruppen** ergeben sich aus den Feldern: Einkommen (positiver Betrag) · **Fixkosten** (Ausgabe mit Termin) · **Budgets (variable Kosten)** (Ausgabe ohne festen Termin) · **Sparen** (Sparrate, Sparziel, Rücklage von Hand).
 - **Budget einer Kategorie** = Summe aller ihrer Posten (fest und variabel, seltene mit Monatsanteil). Ein eigenes Kategorie-Soll gibt es nicht mehr.
 - **Vorgaben der Eintragungsart:** Einkommen und Fixkosten automatisch, Sparen beim Abhaken, Budgets selbst anlegen.
+- **Änderungen gelten ab einem Monat:** Ändert der Nutzer einen Posten, fragt die App „ab welchem Monat?" (Vorgabe: aktueller Monat). Vergangene Monate behalten ihren Plan. Ein beendeter Posten gilt bis zum Vormonat.
+- **Nur in Euro:** Beträge werden in Euro eingegeben. Die Eingabe in Prozent der Einnahmen entfällt; die Anteile zeigt der Balken der Planung.
 
 ### 3.2 Termin
-Jedes Vorkommen eines Postens mit Datum hat einen Status: **erwartet**, **erfüllt** (eine echte Buchung passt), **ausgeblieben** **[prüfen: nach 5 Tagen]** oder **entfällt** (vom Nutzer für diesen Monat ausgesetzt).
+Jedes Vorkommen eines Postens mit Datum hat einen Status: **erwartet**, **erfüllt** (eine echte Buchung passt), **ausgeblieben** (5 Tage nach dem Termin ohne passende Buchung) oder **entfällt** (vom Nutzer für diesen Monat ausgesetzt).
 
 ### 3.3 Buchung
 Wie heute, mit Konto (R26) und Kategorie. Neu:
@@ -61,7 +64,7 @@ Zu jedem seltenen Posten (vierteljährlich, halbjährlich, jährlich) gehört au
 - **Jeden Monat** gilt der Monatsanteil als zurückgelegt.
 - **Ohne Konto** rechnet die App den Stand nur aus („gerechnet").
 - **Mit verknüpftem Sparkonto** ist der Stand der des Kontos, und Zahlungen von diesem Konto gelten automatisch als aus der Rücklage bezahlt.
-- **Erkennung „aus der Rücklage bezahlt", ohne dass der Nutzer etwas einstellt:** Entweder geht die Zahlung vom verknüpften Konto ab, oder sie erfüllt den Termin des seltenen Postens. Für Ungeplantes (z. B. Reparatur aus dem Notgroschen) **[prüfen: Schalter „aus Rücklage bezahlen" im Buchungsdialog, nur wenn es Töpfe gibt]**.
+- **Erkennung „aus der Rücklage bezahlt", ohne dass der Nutzer etwas einstellt:** Entweder geht die Zahlung vom verknüpften Konto ab, oder sie erfüllt den Termin des seltenen Postens. Für Ungeplantes (z. B. Reparatur aus dem Notgroschen) hat der Buchungsdialog einen Schalter **„aus Rücklage / Ersparnissen bezahlen"** mit Auswahl des Topfs oder Sparziels. Er erscheint nur, wenn es Rücklagen oder Sparziele gibt. Die Ausgabe belastet dann nicht das Monatsbudget, sondern verringert den Topf.
 - **Reicht der Topf nicht,** zählt der fehlende Teil ins Monatsbudget der Kategorie.
 
 ### 3.6 Sparziel
@@ -105,7 +108,7 @@ Wie heute (Zeitraum, Suche, Filter, Liste nach Tagen, Import). Neu:
 - **Einkommen:** Gerechnet wird immer mit dem **geplanten Einkommen**, eine Auswahl der Basis gibt es nicht mehr. Zur Orientierung stehen die Ø- und die Mindesteinnahmen der letzten 12 Monate darunter.
 - **Posten bearbeiten:** Felder wie in 3.1. Seltene Posten mit echtem Betrag und Rhythmus, der Monatsanteil wird angezeigt.
 - **Vorschläge:** Unter Fixkosten „Gefunden in deinen Buchungen" (z. B. ein Abo) mit „Übernehmen".
-- **Gilt ab** bleibt wie heute **[prüfen: im Mockup nicht gezeigt]**.
+- **Gilt ab** je Posten (3.1): Beim Speichern einer Änderung fragt die App, ab welchem Monat sie gilt. Die Planung zeigt den aktuellen Monat; frühere Monate lassen sich ansehen. Im Mockup nicht gezeigt.
 
 ### 4.4 Konten (neu, ersetzt Einstellungen › Bankkonten)
 - Konten nach Rolle Alltag, Sparen, Depot, jeweils mit Summe.
@@ -122,7 +125,6 @@ Meldungen stehen nicht auf den Seiten, sondern hinter der Glocke mit Zähler. Je
 - „X € nicht verplant" mit Link zur Planung.
 - Konto droht ins Minus zu rutschen.
 - Preisänderung eines Postens („Streaming kostet mehr") mit Link zur Planung.
-- Kündigungsfrist eines Vertrags **[prüfen: setzt Vertragsdaten am Posten voraus, spätere Stufe]**.
 
 ## 5. Rechenregeln
 
@@ -145,7 +147,7 @@ Meldungen stehen nicht auf den Seiten, sondern hinter der Glocke mit Zähler. Je
 | Bestehend | Änderung |
 |---|---|
 | R1, R12 (Vorkommen zählen im Ist) | Vorkommen zählen nie im Ist (P1); R12 beschreibt die Termine der Posten |
-| R2–R4, R23, R24 (Soll je Kategorie, Basis Ø/Minimum, %) | Soll = Summe der Posten (P3); Basis immer geplantes Einkommen; Ø und Minimum nur zur Orientierung; Eingabe in % entfällt **[prüfen]** |
+| R2–R4, R23, R24 (Soll je Kategorie ab Monat, Basis Ø/Minimum, %) | Soll = Summe der Posten (P3), „gilt ab" je Posten; Basis immer geplantes Einkommen; Ø und Minimum nur zur Orientierung; Eingabe in % entfällt |
 | R7 „Noch frei" | Kachel entfällt |
 | R10 wiederkehrend/einmalig | fix/variabel über Erfüllung (P5) |
 | R13 Bearbeiten von Vorkommen | „Nur dieser Eintrag" wird zu „Anderer Betrag oder anderes Datum" / „fällt weg"; „Alle Einträge" = Posten in der Planung bearbeiten |
@@ -164,7 +166,7 @@ Meldungen stehen nicht auf den Seiten, sondern hinter der Glocke mit Zähler. Je
 
 ## 7. Übernahme der bestehenden Daten
 1. **Serien → geplante Posten** mit Rhythmus, Tag, Konto und Kategorie. Eintragungsart **automatisch**, damit sich für bestehende Nutzer zunächst nichts ändert.
-2. **Kategorie-Soll → Budget-Posten:** Das Soll einer Kategorie abzüglich ihrer festen Posten wird ein Posten „ohne festen Termin" mit dem Namen der Kategorie **[prüfen]**.
+2. **Kategorie-Soll wird nicht übernommen.** Die Planung startet nur mit den bisherigen Serien; Budgets (variable Kosten) legt der Nutzer neu an. Folge: Vergangene Monate haben danach keinen Plan für variable Kosten mehr, ihre Budgetzeilen zeigen nur noch das Ist und den Plan der festen Posten. Die Planung weist beim ersten Öffnen darauf hin („Lege deine Budgets für variable Kosten an").
 3. **Vergangene Vorkommen ohne Buchung → echte Buchungen**, einmalig beim Umstieg, gekennzeichnet „automatisch". So bleiben alle bisherigen Monatszahlen gleich.
 4. **Ersetzte Vorkommen (R28)** → erfüllte Termine.
 5. **Konten:** alle zunächst „Alltag". Der Nutzer stellt Tagesgeld und Depot um.
@@ -189,7 +191,18 @@ Rechenklassen ohne Spring, Tests zuerst: `PlanCalculator` (P2–P4), `Fulfillmen
 ## 9. Später (bewusst nicht in dieser Runde)
 - Hochrechnung im laufenden Monat; erst nach den übrigen Funktionen neu bewerten.
 - „Verfügbar"-Zahl und Prognose je Konto über mehrere Monate.
-- Kostenhebel in der Auswertung, Verträge mit Kündigungsfristen.
+- Kostenhebel in der Auswertung, Verträge mit Kündigungsfristen (Vertragsende, Frist am Posten; Erinnerung in der Glocke).
 - Regeln zur Auto-Kategorisierung, CAMT.053 mit Kontostand.
 - Wöchentlicher Rhythmus (#79), Verschlüsselung (#89).
 - Teilen (AP 20) und Investment (AP 21–25).
+
+## 10. Geklärte Punkte (13.11.2026)
+
+| Frage | Entscheidung |
+|---|---|
+| Wann gilt ein Termin als ausgeblieben? | 5 Tage nach dem Termin ohne passende Buchung |
+| Ungeplantes aus einer Rücklage bezahlen? | Schalter „aus Rücklage / Ersparnissen bezahlen" im Buchungsdialog, nur wenn es Töpfe oder Sparziele gibt |
+| Eingabe in Prozent der Einnahmen? | entfällt |
+| „Gilt ab"? | je Posten: Änderungen gelten ab einem Monat (Vorgabe aktueller Monat), vergangene Monate behalten ihren Plan |
+| Kategorie-Soll beim Umstieg? | wird nicht übernommen; nur die Serien werden zu Posten |
+| Verträge mit Kündigungsfristen? | spätere Stufe |
