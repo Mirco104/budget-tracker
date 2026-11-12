@@ -791,6 +791,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 - `docker-compose.yml` mit App und PostgreSQL; die Datenbank liegt in einem benannten Volume. Optional (Profil `https`) Caddy als Reverse Proxy mit automatischen Zertifikaten; die App lauscht dann nur lokal.
 - Konfiguration und Secrets (Datenbank-Passwort, erster Admin) nur über Umgebungsvariablen; im Repo nur `.env.example` mit Platzhaltern.
 - Health-Check über Spring Boot Actuator (`/actuator/health`, nur Status nach außen).
+- Lokaler Modus (Ticket #82): `GET /api/health` liefert neben `status` das Feld `mode` mit dem lokalen Profil (`dev` oder `sample`, Entscheidung 35), ohne Anmeldung; im Betrieb (`postgres`) und in den Tests ist es `null`. Die Oberfläche zeigt einen lokalen Modus neben dem Namen der App als orangefarbenes Abzeichen ("Entwicklung (dev)", "Beispieldaten (sample)", am Handy nur `dev` bzw. `sample`) und vor dem Titel des Browser-Tabs (`[sample] Budget-Tracker`), auch auf der Anmeldeseite.
 
 **Betrieb (jede Plattform muss das erfüllen):**
 - Nur HTTPS (z. B. über einen Reverse Proxy mit automatischen Zertifikaten); HTTP leitet um.
