@@ -3209,3 +3209,34 @@ button.booking-row {
 .split-input input {
   width: 6.5em;
 }
+
+/* --- Overview after the third test (AP 27f4) --- */
+.summary-body .budget-list {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+.summary-body > .hint {
+  margin: 0;
+  padding: 0 20px 16px;
+}
+a.summary-link {
+  display: block;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+a.summary-link:hover {
+  background: var(--primary-soft);
+}
+.booking-amount.transfer {
+  color: var(--muted);
+}
+.summary-chevron-inline {
+  color: var(--muted);
+  font-weight: 400;
+}

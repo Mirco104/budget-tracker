@@ -63,6 +63,8 @@ export function DashboardPage({ month, onMonthChange }: Props) {
 function DashboardContent({ month, onEditBooking }: { month: string; onEditBooking: (entry: Transaction) => void }) {
   const { data, isPending, error } = useDashboard(month)
   const [incomeOpen, setIncomeOpen] = useState(false)
+  // 27f4: the expenses open on the budget table by default
+  const [expensesOpen, setExpensesOpen] = useState(true)
   const plan = usePlan(month)
   const [editItem, setEditItem] = useState<PlannedItem | null>(null)
   const openItem = (itemId: number) => {
@@ -125,9 +127,14 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
             </div>
           )}
         </section>
-        <section className="summary-row" aria-label="Ausgaben">
-          {/* 27f3: the details are the transactions of the month */}
-          <a className="summary-head" href={transactionsPeriodHref(`${month}-01`, lastDayOf(month))}>
+        <section className={expensesOpen ? 'summary-row open' : 'summary-row'} aria-label="Ausgaben">
+          {/* 27f4: the card opens on the budget table; the head shows the real expenses (P1) */}
+          <button
+            type="button"
+            className="summary-head"
+            aria-expanded={expensesOpen}
+            onClick={() => setExpensesOpen((v) => !v)}
+          >
             <span className="summary-label">Ausgaben</span>
             <span className="summary-value">{formatEuro(data.expenses.actual)}</span>
             {data.averageExpenses !== null && (
@@ -136,9 +143,9 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
               </span>
             )}
             <span className="summary-chevron" aria-hidden="true">
-              ›
+              {expensesOpen ? '▴' : '▾'}
             </span>
-          </a>
+          </button>
           {/* P5: an expense that fits a planned item is fix, every other one variable */}
           <p className="breakdown">
             <span>
@@ -149,35 +156,49 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
               Alles andere ist variabel.
             </InfoTip>
           </p>
+          {data.fromReserves != null && (
+            <p className="breakdown">
+              <span>davon aus Rücklagen bezahlt {formatEuro(data.fromReserves)}</span>{' '}
+              <InfoTip label="Warum zählt das Budget weniger?">
+                Die Budgets zählen für eine Zahlung aus der Rücklage nur die Monatsrate, die Ausgaben oben die ganze
+                Zahlung.
+              </InfoTip>
+            </p>
+          )}
+          {expensesOpen && (
+            <div className="summary-body">
+              {data.categories.length === 0 ? (
+                <p className="hint">In diesem Monat gibt es weder Soll-Werte noch Ausgaben.</p>
+              ) : (
+                <ul className="budget-list">
+                  {data.categories.map((line) => (
+                    <BudgetItem
+                      key={line.id}
+                      line={line}
+                      icon={iconOf(line.id)}
+                      month={month}
+                      pots={(data.reserves ?? []).filter((pot) => pot.categoryId === line.id)}
+                      onEditBooking={onEditBooking}
+                      onOpenItem={openItem}
+                    />
+                  ))}
+                  <li className="budget-item budget-total">
+                    <div className="budget-head">
+                      <span className="budget-name">Gesamt</span>
+                      <BudgetNumbers line={data.budget ?? data.expenses} />
+                    </div>
+                  </li>
+                </ul>
+              )}
+              <a className="summary-link" href={transactionsPeriodHref(`${month}-01`, lastDayOf(month))}>
+                Alle Buchungen im {formatMonthName(month)} ›
+              </a>
+            </div>
+          )}
         </section>
       </div>
 
       {showOnboarding && <Onboarding />}
-
-      <h3>Budget</h3>
-      {data.categories.length === 0 ? (
-        <p className="hint">In diesem Monat gibt es weder Soll-Werte noch Ausgaben.</p>
-      ) : (
-        <ul className="budget-list">
-          {data.categories.map((line) => (
-            <BudgetItem
-              key={line.id}
-              line={line}
-              icon={iconOf(line.id)}
-              month={month}
-              pots={(data.reserves ?? []).filter((pot) => pot.categoryId === line.id)}
-              onEditBooking={onEditBooking}
-              onOpenItem={openItem}
-            />
-          ))}
-          <li className="budget-item budget-total">
-            <div className="budget-head">
-              <span className="budget-name">Gesamt</span>
-              <BudgetNumbers line={data.budget ?? data.expenses} />
-            </div>
-          </li>
-        </ul>
-      )}
 
       {data.saving && (
         <>
@@ -229,23 +250,7 @@ function SavingSection({
   const actual = saving.actual ?? 0
   return (
     <ul className="budget-list">
-      <li className="budget-item">
-        <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          <span className="budget-name">Gesamt</span>
-          <span className="budget-amount">
-            <span className="saving">
-              {formatEuro(actual)} von {formatEuro(saving.planned)}
-            </span>
-            {saving.rate !== null && (
-              <span className="budget-left">Sparquote {saving.rate.toLocaleString('de-DE')} %</span>
-            )}
-          </span>
-        </button>
-        <div className="saving-progress">
-          <ProgressBar value={saving.planned > 0 ? actual / saving.planned : 0} />
-        </div>
-      </li>
-      {open && saving.items.length === 0 && <li className="hint">Noch keine Sparposten in der Planung.</li>}
+      {open && saving.items.length === 0 && <li className="budget-item hint">Noch keine Sparposten in der Planung.</li>}
       {open &&
         saving.items.map((item) => (
           <li key={item.itemId} className="budget-item">
@@ -262,6 +267,25 @@ function SavingSection({
             </div>
           </li>
         ))}
+      {/* 27f4: the total row looks like the total of the budget; it opens the saving items above it */}
+      <li className="budget-item budget-total">
+        <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <span className="budget-name">
+            Gesamt <span className="summary-chevron-inline" aria-hidden="true">{open ? '▴' : '▾'}</span>
+          </span>
+          <span className="budget-amount">
+            <span className="saving">
+              {formatEuro(actual)} von {formatEuro(saving.planned)}
+            </span>
+            {saving.rate !== null && (
+              <span className="budget-left">Sparquote {saving.rate.toLocaleString('de-DE')} %</span>
+            )}
+          </span>
+        </button>
+        <div className="saving-progress">
+          <ProgressBar value={saving.planned > 0 ? actual / saving.planned : 0} />
+        </div>
+      </li>
     </ul>
   )
 }
@@ -404,7 +428,8 @@ function ReserveRow({ pot, onOpen }: { pot: ReservePot; onOpen: () => void }) {
             · keine Buchung
           </span>
         </span>
-        <span className="booking-amount saving">{formatEuro(paid ? pot.fromPot : pot.monthly)}</span>
+        {/* 27f4: grey like a transfer; green would read as income */}
+        <span className="booking-amount transfer">{formatEuro(paid ? pot.fromPot : pot.monthly)}</span>
       </button>
       <InfoTip label="Wie rechnet die Rücklage?">
         Monatsrate = Betrag ÷ Monate des Rhythmus (1.200 € jährlich ÷ 12 = 100 €). Jeden Monat wird eine Rate

@@ -293,6 +293,8 @@ export interface DashboardData {
   budget?: Totals | null
   /** P8: the reserve pots of the rare items valid in the month. */
   reserves?: ReservePot[]
+  /** 27f4: the part of the expenses paid from reserve pots or saving goals; null when nothing. */
+  fromReserves?: number | null
 }
 
 /** A bank account (R26); used means that entries are booked on it, so it can only be archived. */

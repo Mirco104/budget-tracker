@@ -244,6 +244,46 @@ describe('DashboardPage', () => {
     expect(row).toHaveTextContent('100,00 €')
   })
 
+  // 27f4: the reserve row is grey like a transfer, not green
+  it('shows the reserve row in the colour of a transfer', async () => {
+    const pot = {
+      itemId: 5, name: 'Kfz-Versicherung', categoryId: 1, amount: 1200, monthly: 100, balance: 1000, due: false,
+      nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0, months: 12,
+    }
+    renderPage({ ...dashboard, reserves: [pot] })
+    await screen.findByRole('button', { name: /^Einnahmen/ })
+    fireEvent.click(within(item('Wohnen')).getByRole('button'))
+    const row = (await screen.findByText(/Rücklage Kfz-Versicherung/)).closest('li') as HTMLElement
+    expect(within(row).getByText('100,00 €')).toHaveClass('transfer')
+    expect(within(row).getByText('100,00 €')).not.toHaveClass('saving')
+  })
+
+  // 27f4: Ausgaben opens on the budget table; the head keeps the real expenses
+  it('folds the budget table into the Ausgaben card', async () => {
+    renderPage({ ...dashboard, fromReserves: 1100 })
+    const head = await screen.findByRole('button', { name: /^Ausgaben/ })
+    expect(head).toHaveAttribute('aria-expanded', 'true')
+    expect(within(tile('Ausgaben')).getByText('Wohnen')).toBeInTheDocument()
+    expect(tile('Ausgaben')).toHaveTextContent('davon aus Rücklagen bezahlt 1.100,00 €')
+    expect(within(tile('Ausgaben')).getByRole('link', { name: /Alle Buchungen im Oktober/ })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument()
+
+    fireEvent.click(head)
+    expect(head).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Wohnen')).not.toBeInTheDocument()
+    expect(tile('Ausgaben')).toHaveTextContent('895,00 €')
+  })
+
+  // 27f4: the total of Sparen looks like the total of the budget and opens the saving items above it
+  it('shows the saving total like the budget total', async () => {
+    renderPage()
+    const total = await screen.findByRole('button', { name: /^Gesamt/ })
+    expect(total.closest('li')).toHaveClass('budget-total')
+    expect(screen.queryByText('Notgroschen')).not.toBeInTheDocument()
+    fireEvent.click(total)
+    expect(screen.getByText('Notgroschen')).toBeInTheDocument()
+  })
+
   it('shows in orange what was missing in the pot', async () => {
     const pot = {
       itemId: 5, name: 'Kfz-Versicherung', categoryId: 1, amount: 1200, monthly: 100, balance: 1000, due: true,
