@@ -106,6 +106,8 @@ export interface ReservePot {
   paid: number
   fromPot: number
   shortfall: number
+  /** Spacing of the item in months (P8). */
+  months: number
 }
 
 /** Rhythm of a planned item (section 19.3): unit and count; no unit means "ohne festen Termin". */
@@ -276,7 +278,7 @@ export interface DashboardData {
   saving: {
     planned: number
     rate: number | null
-    items: { name: string; monthly: number }[]
+    items: { itemId: number; name: string; monthly: number; actual?: number }[]
     /** P1: what was saved in the month (bookings of the kind Sparen). */
     actual?: number
   } | null

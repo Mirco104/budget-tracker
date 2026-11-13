@@ -3102,3 +3102,99 @@ a.expected-card {
   color: var(--saving);
   font-weight: 700;
 }
+
+/* --- Overview after the second test (AP 27f3) --- */
+.summary-rows {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+}
+.summary-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.summary-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  width: 100%;
+  padding: 16px 20px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.summary-head:hover {
+  background: var(--primary-soft);
+}
+.summary-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.summary-value {
+  grid-column: 1;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.summary-value.income {
+  color: var(--income);
+}
+.summary-note {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.summary-chevron {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  color: var(--muted);
+  font-size: 1.2rem;
+}
+.summary-row .tile-list,
+.summary-row .breakdown {
+  margin: 0;
+  padding: 0 20px 16px;
+}
+a.link-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+a.link-card:hover {
+  background: var(--primary-soft);
+}
+a.link-card .budget-amount {
+  margin-left: auto;
+}
+.budget-amount .saving {
+  color: var(--saving);
+}
+button.booking-row {
+  display: contents;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bookings li:has(> button.booking-row) {
+  cursor: pointer;
+}
+.reserve-row {
+  align-items: center;
+}

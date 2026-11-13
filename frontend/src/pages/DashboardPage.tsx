@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { InfoTip } from '../components/ui/InfoTip'
-import { EXPECTED_ROUTE } from '../router'
+import { EXPECTED_ROUTE, transactionsPeriodHref } from '../router'
 import { useCategories } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
+import { usePlan } from '../api/plan'
+import { PlannedItemDialog } from '../components/PlannedItemDialog'
 import { useTransactions } from '../api/transactions'
-import type { CategoryLine, DashboardData, ReservePot } from '../api/types'
+import type { CategoryLine, DashboardData, PlannedItem, ReservePot, Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { useBookingDialog } from '../components/useBookingDialog'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
@@ -13,11 +15,17 @@ import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { bookingDateFor, formatDate, formatEuro, formatMonthName, formatSigned } from '../format'
-import { averagePeriod } from '../labels'
+import { averagePeriod, rhythmLabel } from '../labels'
 import { ROUTES } from '../router'
 import { Loading } from '../components/ui/Loading'
 
 type Line = Pick<CategoryLine, 'target' | 'actual' | 'difference'>
+
+/** "2026-11" -> "2026-11-30" */
+function lastDayOf(month: string): string {
+  const [year, m] = month.split('-').map(Number)
+  return `${month}-${String(new Date(year, m, 0).getDate()).padStart(2, '0')}`
+}
 
 const MONTH_NOTES: Record<DashboardData['monthState'], string> = {
   PAST: 'Abgeschlossener Monat.',
@@ -45,16 +53,24 @@ export function DashboardPage({ month, onMonthChange }: Props) {
         {onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}
         <AddBookingButton onClick={booking.openNew} />
       </PageHeader>
-      <DashboardContent month={month} />
+      <DashboardContent month={month} onEditBooking={booking.openEdit} />
       <AddBookingFab onClick={booking.openNew} />
       {booking.element}
     </section>
   )
 }
 
-function DashboardContent({ month }: { month: string }) {
+function DashboardContent({ month, onEditBooking }: { month: string; onEditBooking: (entry: Transaction) => void }) {
   const { data, isPending, error } = useDashboard(month)
   const [incomeOpen, setIncomeOpen] = useState(false)
+  const plan = usePlan(month)
+  const [editItem, setEditItem] = useState<PlannedItem | null>(null)
+  const openItem = (itemId: number) => {
+    const found = plan.data?.items.find((item) => item.id === itemId)
+    if (found) {
+      setEditItem(found)
+    }
+  }
   // The dashboard lines carry no icon; the categories do (US28)
   const categories = useCategories(month)
 
@@ -76,22 +92,23 @@ function DashboardContent({ month }: { month: string }) {
     <>
       <p className="hint">{MONTH_NOTES[data.monthState]}</p>
 
-      <dl className="summary">
-        <div>
-          <dt>
-            <button
-              type="button"
-              className="tile-toggle"
-              aria-expanded={incomeOpen}
-              onClick={() => setIncomeOpen((value) => !value)}
-            >
-              Einnahmen <span aria-hidden="true">{incomeOpen ? '▴' : '▾'}</span>
-            </button>
-          </dt>
-          <dd>{formatEuro(data.incomeTotal)}</dd>
-          {/* 27f2: the income per category of the month, only when the tile is open */}
+      <div className="summary-rows">
+        <section className={incomeOpen ? 'summary-row open' : 'summary-row'} aria-label="Einnahmen">
+          <button type="button" className="summary-head" aria-expanded={incomeOpen} onClick={() => setIncomeOpen((v) => !v)}>
+            <span className="summary-label">Einnahmen</span>
+            <span className="summary-value income">{formatEuro(data.incomeTotal)}</span>
+            {data.averageIncome !== null && (
+              <span className="summary-note">
+                Ø {formatEuro(data.averageIncome)} · {averagePeriod(data)}
+              </span>
+            )}
+            <span className="summary-chevron" aria-hidden="true">
+              {incomeOpen ? '▴' : '▾'}
+            </span>
+          </button>
+          {/* 27f2/27f3: the income per category of the month, only when the card is open */}
           {incomeOpen && (
-            <dd className="tile-list">
+            <div className="tile-list">
               {data.income.length === 0 ? (
                 <span className="hint">Keine Einnahmen in diesem Monat.</span>
               ) : (
@@ -105,35 +122,35 @@ function DashboardContent({ month }: { month: string }) {
                   ))}
                 </ul>
               )}
-            </dd>
+            </div>
           )}
-          {/* R23: the Ø of the months before is the basis of the percent targets */}
-          {data.averageIncome !== null && (
-            <dd className="tile-note">
-              Ø {formatEuro(data.averageIncome)} · {averagePeriod(data)}
-            </dd>
-          )}
-        </div>
-        <div>
-          <dt>Ausgaben</dt>
-          <dd>{formatEuro(data.expenses.actual)}</dd>
+        </section>
+        <section className="summary-row" aria-label="Ausgaben">
+          {/* 27f3: the details are the transactions of the month */}
+          <a className="summary-head" href={transactionsPeriodHref(`${month}-01`, lastDayOf(month))}>
+            <span className="summary-label">Ausgaben</span>
+            <span className="summary-value">{formatEuro(data.expenses.actual)}</span>
+            {data.averageExpenses !== null && (
+              <span className="summary-note">
+                Ø {formatEuro(data.averageExpenses)} · {averagePeriod(data)}
+              </span>
+            )}
+            <span className="summary-chevron" aria-hidden="true">
+              ›
+            </span>
+          </a>
           {/* P5: an expense that fits a planned item is fix, every other one variable */}
-          <dd className="breakdown">
+          <p className="breakdown">
             <span>
               fix {formatEuro(data.expenses.recurring)} · variabel {formatEuro(data.expenses.oneOff)}
             </span>{' '}
             <InfoTip label="Was ist fix?">
-              Fix sind regelmäßige Zahlungen, die du in der Planung eingetragen hast, z. B. Miete, Versicherungen, Abos. Alles andere ist variabel.
+              Fix sind regelmäßige Zahlungen, die du in der Planung eingetragen hast, z. B. Miete, Versicherungen, Abos.
+              Alles andere ist variabel.
             </InfoTip>
-          </dd>
-          {/* R23, decision 34: Ā over the same months as the Ø income */}
-          {data.averageExpenses !== null && (
-            <dd className="tile-note">
-              Ø {formatEuro(data.averageExpenses)} · {averagePeriod(data)}
-            </dd>
-          )}
-        </div>
-      </dl>
+          </p>
+        </section>
+      </div>
 
       {showOnboarding && <Onboarding />}
 
@@ -149,6 +166,8 @@ function DashboardContent({ month }: { month: string }) {
               icon={iconOf(line.id)}
               month={month}
               pots={(data.reserves ?? []).filter((pot) => pot.categoryId === line.id)}
+              onEditBooking={onEditBooking}
+              onOpenItem={openItem}
             />
           ))}
           <li className="budget-item budget-total">
@@ -160,10 +179,15 @@ function DashboardContent({ month }: { month: string }) {
         </ul>
       )}
 
-      {data.saving && <SavingCard saving={data.saving} />}
+      {data.saving && (
+        <>
+          <h3>Sparen</h3>
+          <SavingSection saving={data.saving} onOpenItem={openItem} />
+        </>
+      )}
 
       {data.expected && (
-        <a className="budget-item expected-card" href={EXPECTED_ROUTE}>
+        <a className="link-card" href={EXPECTED_ROUTE}>
           <span className="budget-name">Erwartet</span>
           <span className="budget-amount">
             <span>
@@ -171,40 +195,74 @@ function DashboardContent({ month }: { month: string }) {
             </span>
             {data.expected.count > 0 && <span className="budget-left">zusammen {formatSigned(data.expected.total)}</span>}
           </span>
+          <span className="summary-chevron" aria-hidden="true">
+            ›
+          </span>
         </a>
+      )}
+
+      {editItem && categories.data && (
+        <PlannedItemDialog
+          categories={categories.data}
+          item={editItem}
+          month={month}
+          onClose={() => setEditItem(null)}
+          onDone={() => setEditItem(null)}
+        />
       )}
     </>
   )
 }
 
-/** P9, 27f2: planned and saved this month; open it shows the saving items with their monthly share. */
-function SavingCard({ saving }: { saving: NonNullable<DashboardData['saving']> }) {
+/**
+ * P9, 27f3: a section like the budget: collapsed one row with saved of planned; open one row per saving item with
+ * what its bookings brought this month and a bar. A row opens the saving item.
+ */
+function SavingSection({
+  saving,
+  onOpenItem,
+}: {
+  saving: NonNullable<DashboardData['saving']>
+  onOpenItem: (itemId: number) => void
+}) {
   const [open, setOpen] = useState(false)
+  const actual = saving.actual ?? 0
   return (
-    <div className="budget-item saving-card">
-      <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        <span className="budget-name">Sparen</span>
-        <span className="budget-amount">
-          <span>
-            {formatEuro(saving.actual ?? 0)} von {formatEuro(saving.planned)}
+    <ul className="budget-list">
+      <li className="budget-item">
+        <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <span className="budget-name">Gesamt</span>
+          <span className="budget-amount">
+            <span className="saving">
+              {formatEuro(actual)} von {formatEuro(saving.planned)}
+            </span>
+            {saving.rate !== null && (
+              <span className="budget-left">Sparquote {saving.rate.toLocaleString('de-DE')} %</span>
+            )}
           </span>
-          {saving.rate !== null && (
-            <span className="budget-left">Sparquote {saving.rate.toLocaleString('de-DE')} %</span>
-          )}
-        </span>
-      </button>
-      {open && (
-        <ul className="bookings">
-          {saving.items.length === 0 && <li className="hint">Noch keine Sparposten in der Planung.</li>}
-          {saving.items.map((item) => (
-            <li key={item.name}>
-              <span className="booking-description">{item.name}</span>
-              <span className="booking-amount saving">{formatEuro(item.monthly)} im Monat</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+        </button>
+        <div className="saving-progress">
+          <ProgressBar value={saving.planned > 0 ? actual / saving.planned : 0} />
+        </div>
+      </li>
+      {open && saving.items.length === 0 && <li className="hint">Noch keine Sparposten in der Planung.</li>}
+      {open &&
+        saving.items.map((item) => (
+          <li key={item.itemId} className="budget-item">
+            <button type="button" className="budget-head budget-toggle" onClick={() => onOpenItem(item.itemId)}>
+              <span className="budget-name">{item.name}</span>
+              <span className="budget-amount">
+                <span className="saving">
+                  {formatEuro(item.actual ?? 0)} von {formatEuro(item.monthly)}
+                </span>
+              </span>
+            </button>
+            <div className="saving-progress">
+              <ProgressBar value={item.monthly > 0 ? (item.actual ?? 0) / item.monthly : 0} />
+            </div>
+          </li>
+        ))}
+    </ul>
   )
 }
 
@@ -233,11 +291,15 @@ function BudgetItem({
   icon,
   month,
   pots,
+  onEditBooking,
+  onOpenItem,
 }: {
   line: CategoryLine
   icon: string
   month: string
   pots: ReservePot[]
+  onEditBooking: (entry: Transaction) => void
+  onOpenItem: (itemId: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const over = line.difference !== null && line.difference < 0
@@ -257,13 +319,33 @@ function BudgetItem({
         <BudgetNumbers line={line} />
       </button>
       {line.target !== null && <ProgressBar value={used} over={over} />}
-      {open && <CategoryBookings month={month} categoryId={line.id} pots={pots} />}
+      {open && (
+        <CategoryBookings
+          month={month}
+          categoryId={line.id}
+          pots={pots}
+          onEditBooking={onEditBooking}
+          onOpenItem={onOpenItem}
+        />
+      )}
     </li>
   )
 }
 
 /** US12: single transactions and occurrences of recurring ones that count in the category in the month. */
-function CategoryBookings({ month, categoryId, pots }: { month: string; categoryId: number; pots: ReservePot[] }) {
+function CategoryBookings({
+  month,
+  categoryId,
+  pots,
+  onEditBooking,
+  onOpenItem,
+}: {
+  month: string
+  categoryId: number
+  pots: ReservePot[]
+  onEditBooking: (entry: Transaction) => void
+  onOpenItem: (itemId: number) => void
+}) {
   const { data, isPending, error } = useTransactions(month)
 
   if (isPending) {
@@ -279,16 +361,18 @@ function CategoryBookings({ month, categoryId, pots }: { month: string; category
   return (
     <ul className="bookings">
       {pots.map((pot) => (
-        <ReserveRow key={pot.itemId} pot={pot} />
+        <ReserveRow key={pot.itemId} pot={pot} onOpen={() => onOpenItem(pot.itemId)} />
       ))}
       {entries.map((entry) => (
         <li key={entry.id}>
+          <button type="button" className="booking-row" onClick={() => onEditBooking(entry)}>
           <span className="booking-date">{formatDate(entry.date)}</span>
           <span className="booking-description">
             {entry.description}
             {entry.fix && <span className="badge">fix</span>}
           </span>
           <span className={`booking-amount${entry.amount < 0 ? '' : ' positive'}`}>{formatEuro(entry.amount)}</span>
+          </button>
         </li>
       ))}
     </ul>
@@ -299,26 +383,34 @@ function CategoryBookings({ month, categoryId, pots }: { month: string; category
  * P8, 27f2: the reserve of a rare item in the open budget row, shown like a transfer: put aside this month, or in
  * the due month paid from the pot (orange when the pot was too small). It is no booking.
  */
-function ReserveRow({ pot }: { pot: ReservePot }) {
+function ReserveRow({ pot, onOpen }: { pot: ReservePot; onOpen: () => void }) {
   const short = pot.shortfall > 0
   const paid = pot.paid > 0
+  const due = pot.nextDue ? ` · fällig im ${formatMonthName(pot.nextDue.slice(0, 7))}` : ''
   return (
     <li className={short ? 'reserve-row short' : 'reserve-row'}>
-      <span className="booking-date" aria-hidden="true">
-        <Icon name="transfer" size={14} />
-      </span>
-      <span className="booking-description">
-        Rücklage {pot.name}
-        <span className="tx-meta">
-          {paid
-            ? short
-              ? `${formatEuro(pot.shortfall)} fehlten in der Rücklage`
-              : 'aus der Rücklage bezahlt'
-            : `zurückgelegt · Stand ${formatEuro(pot.balance)} von ${formatEuro(pot.amount)}`}{' '}
-          · keine Buchung
+      <button type="button" className="booking-row" onClick={onOpen}>
+        <span className="booking-date" aria-hidden="true">
+          <Icon name="transfer" size={14} />
         </span>
-      </span>
-      <span className="booking-amount saving">{formatEuro(paid ? pot.fromPot : pot.monthly)}</span>
+        <span className="booking-description">
+          Rücklage {pot.name}
+          <span className="tx-meta">
+            {paid
+              ? short
+                ? `${formatEuro(pot.shortfall)} fehlten in der Rücklage`
+                : 'aus der Rücklage bezahlt'
+              : `zurückgelegt · für ${formatEuro(pot.amount)} ${rhythmLabel('MONTH', pot.months)}${due}`}{' '}
+            · keine Buchung
+          </span>
+        </span>
+        <span className="booking-amount saving">{formatEuro(paid ? pot.fromPot : pot.monthly)}</span>
+      </button>
+      <InfoTip label="Wie rechnet die Rücklage?">
+        Monatsrate = Betrag ÷ Monate des Rhythmus (1.200 € jährlich ÷ 12 = 100 €). Jeden Monat wird eine Rate
+        zurückgelegt. Im Fälligkeitsmonat zahlt die Rücklage den Betrag; fehlt darin etwas, zählt der Rest als Ausgabe
+        des Monats.
+      </InfoTip>
     </li>
   )
 }
