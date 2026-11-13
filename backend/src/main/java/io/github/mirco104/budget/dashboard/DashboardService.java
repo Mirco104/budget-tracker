@@ -125,10 +125,25 @@ public class DashboardService {
     // P9: the saving items valid in the month with their monthly share
     private DashboardResponse.SavingCard savingCard(YearMonth month) {
         PlanCalculator.Result plan = planService.calculate(month);
+        // 27f3: per saving item the bookings that fulfil its terms in the month
+        Map<java.util.UUID, BigDecimal> saved = new HashMap<>();
+        Map<Long, io.github.mirco104.budget.transaction.Transaction> booked = new HashMap<>();
+        List<TermService.Evaluated> terms = termService.terms(month.atDay(1), month.atEndOfMonth()).stream()
+                .filter(e -> e.item().isSaving() && e.transactionId() != null)
+                .toList();
+        transactionRepository.findAllById(terms.stream().map(TermService.Evaluated::transactionId).toList())
+                .forEach(t -> booked.put(t.getId(), t));
+        terms.forEach(e -> {
+            io.github.mirco104.budget.transaction.Transaction t = booked.get(e.transactionId());
+            if (t != null) {
+                saved.merge(e.item().getItemKey(), t.getAmount().abs(), BigDecimal::add);
+            }
+        });
         List<DashboardResponse.SavingLine> items = planService.findAll().stream()
                 .filter(item -> item.isSaving() && PlanCalculator.validIn(item.data(), month))
-                .map(item -> new DashboardResponse.SavingLine(item.getName(),
-                        PlanCalculator.monthlyShare(item.getAmount(), item.getRhythmUnit(), item.getRhythmCount())))
+                .map(item -> new DashboardResponse.SavingLine(item.getId(), item.getName(),
+                        PlanCalculator.monthlyShare(item.getAmount(), item.getRhythmUnit(), item.getRhythmCount()),
+                        saved.getOrDefault(item.getItemKey(), BigDecimal.ZERO).setScale(2, java.math.RoundingMode.HALF_UP)))
                 .toList();
         // P1: what was saved in the month, the bookings of the kind Sparen from everyday accounts
         BigDecimal actual = transactionRepository.findSavingBetween(currentUser.get(), month.atDay(1), month.atEndOfMonth())

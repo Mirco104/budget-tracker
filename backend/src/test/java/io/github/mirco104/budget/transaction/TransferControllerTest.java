@@ -198,4 +198,37 @@ class TransferControllerTest {
     private static long idOf(ResultActions result) throws Exception {
         return ((Number) JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id")).longValue();
     }
+
+    // 27f3: a transfer with source and target account makes both bookings; amount and deletion go together
+    @Test
+    void aTransferWithTargetAccountMakesBothSides() throws Exception {
+        String created = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/bank-accounts").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Tagesgeld\", \"role\": \"SAVINGS\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("SAVINGS"))
+                .andReturn().getResponse().getContentAsString();
+        long tagesgeld = ((Number) JsonPath.read(created, "$.id")).longValue();
+
+        String json = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": 200, "description": "Auf Tagesgeld", "date": "2026-10-05", "saving": true,
+                         "targetAccountId": %d}""".formatted(tagesgeld)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(-200.00))
+                .andExpect(jsonPath("$.transferPeerAccountName").value("Tagesgeld"))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(json, "$.id")).longValue();
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.amount == 200.0)].accountName").value("Tagesgeld"));
+
+        mockMvc.perform(put("/api/transactions/{id}", id).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -250, "description": "Auf Tagesgeld", "date": "2026-10-05", "saving": true}"""))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.accountName == 'Tagesgeld')].amount").value(250.00));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/transactions/{id}", id))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10")).andExpect(jsonPath("$", empty()));
+    }
 }

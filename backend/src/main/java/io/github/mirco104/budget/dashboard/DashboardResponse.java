@@ -61,7 +61,8 @@ public record DashboardResponse(
     public record SavingCard(BigDecimal planned, BigDecimal rate, List<SavingLine> items, BigDecimal actual) {
     }
 
-    public record SavingLine(String name, BigDecimal monthly) {
+    /** A saving item: its monthly share and what its bookings brought in the month (27f3). */
+    public record SavingLine(long itemId, String name, BigDecimal monthly, BigDecimal actual) {
     }
 
     /** P5: terms of the month without a booking yet (expected or missed) and their sum with sign. */

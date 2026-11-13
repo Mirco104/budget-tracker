@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,6 +43,11 @@ public class Transaction {
 
     @Column(nullable = false)
     private boolean transfer;
+
+    // 27f3: the other side of a transfer booked with source and target account
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_peer_id")
+    private Transaction transferPeer;
 
     // P1: a transfer to a savings or depot account, the kind Sparen
     @Column(nullable = false)
@@ -210,5 +216,14 @@ public class Transaction {
 
     public void markSaving(boolean saving) {
         this.saving = saving && transfer;
+    }
+
+    /** 27f3: the other side of a transfer pair, null for a single booking. */
+    public Transaction getTransferPeer() {
+        return transferPeer;
+    }
+
+    public void setTransferPeer(Transaction transferPeer) {
+        this.transferPeer = transferPeer;
     }
 }

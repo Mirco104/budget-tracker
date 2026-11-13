@@ -22,7 +22,9 @@ public record TransactionResponse(
         boolean fix,
         java.util.UUID reserveItemKey,
         Long savingGoalId,
-        boolean saving) {
+        boolean saving,
+        Long transferPeerId,
+        String transferPeerAccountName) {
 
     public static TransactionResponse from(Transaction transaction, boolean fix) {
         Category category = transaction.getCategory();
@@ -40,6 +42,8 @@ public record TransactionResponse(
                 fix,
                 transaction.getReserveItemKey(),
                 transaction.getSavingGoal() == null ? null : transaction.getSavingGoal().getId(),
-                transaction.isSaving());
+                transaction.isSaving(),
+                transaction.getTransferPeer() == null ? null : transaction.getTransferPeer().getId(),
+                transaction.getTransferPeer() == null ? null : transaction.getTransferPeer().getAccount().getName());
     }
 }

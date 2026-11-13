@@ -50,7 +50,11 @@ public class BankAccountService {
 
     @Transactional
     public BankAccountResponse create(CreateBankAccountRequest request) {
-        return BankAccountResponse.from(create(request.name(), request.iban()), false);
+        BankAccount account = create(request.name(), request.iban());
+        if (request.role() != null) {
+            account.setRole(request.role());
+        }
+        return BankAccountResponse.from(account, false);
     }
 
     /** A new account that is not the default one; 409 for a name or IBAN the user already has (R26). */

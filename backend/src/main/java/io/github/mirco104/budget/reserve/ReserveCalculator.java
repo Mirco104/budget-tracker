@@ -67,7 +67,7 @@ public class ReserveCalculator {
      */
     public record Pot(
             long itemId, String name, Long categoryId, BigDecimal amount, BigDecimal monthly, BigDecimal balance,
-            boolean due, LocalDate nextDue, BigDecimal paid, BigDecimal fromPot, BigDecimal shortfall) {
+            boolean due, LocalDate nextDue, BigDecimal paid, BigDecimal fromPot, BigDecimal shortfall, int months) {
     }
 
     /**
@@ -91,7 +91,7 @@ public class ReserveCalculator {
         boolean due = nextDue != null && YearMonth.from(nextDue).equals(month);
         BigDecimal fromPot = paid.min(balance).max(BigDecimal.ZERO);
         return new Pot(item.itemId(), item.name(), item.categoryId(), money(item.amount()), money(monthly),
-                money(balance), due, nextDue, money(paid), money(fromPot), money(paid.subtract(fromPot)));
+                money(balance), due, nextDue, money(paid), money(fromPot), money(paid.subtract(fromPot)), item.months());
     }
 
     /** A single transaction; amount is signed (R11). */

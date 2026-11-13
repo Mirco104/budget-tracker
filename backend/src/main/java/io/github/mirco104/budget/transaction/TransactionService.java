@@ -80,6 +80,9 @@ public class TransactionService {
         transaction.markSaving(Boolean.TRUE.equals(request.saving()));
         payFrom(transaction, request);
         Transaction saved = transactionRepository.save(transaction);
+        if (request.targetAccountId() != null) {
+            pair(saved, request);
+        }
         if (request.replaces() != null) {
             termService.link(request.replaces().itemId(), request.replaces().date(), saved, "replaces");
         }
@@ -98,6 +101,12 @@ public class TransactionService {
                 bankAccountService.findBookable(request.accountId()));
         transaction.markSaving(Boolean.TRUE.equals(request.saving()));
         payFrom(transaction, request);
+        // 27f3: amount and description apply to the other side too, with the opposite sign; the date stays per side
+        Transaction peer = transaction.getTransferPeer();
+        if (peer != null) {
+            peer.update(transaction.getAmount().negate(), transaction.getDescription(), peer.getDate(), null,
+                    peer.getAccount());
+        }
         // R27: a transfer fulfils no term
         if (transaction.isTransfer()) {
             termRepository.findByTransaction(transaction).ifPresent(termRepository::delete);
@@ -113,6 +122,14 @@ public class TransactionService {
     public void delete(long id) {
         Transaction transaction = findTransaction(id);
         termRepository.findByTransaction(transaction).ifPresent(term -> term.link(null));
+        // 27f3: both sides of a transfer pair go together
+        Transaction peer = transaction.getTransferPeer();
+        if (peer != null) {
+            transaction.setTransferPeer(null);
+            peer.setTransferPeer(null);
+            transactionRepository.flush();
+            transactionRepository.delete(peer);
+        }
         transactionRepository.delete(transaction);
     }
 
@@ -139,6 +156,26 @@ public class TransactionService {
         transaction.payFrom(request.reserveItemKey(), request.savingGoalId() == null ? null
                 : goalRepository.findByIdAndOwner(request.savingGoalId(), currentUser.get())
                         .orElseThrow(() -> new InvalidFieldException("savingGoalId", "Das Sparziel gibt es nicht.")));
+    }
+
+/**
+     * 27f3: the other side of a transfer: the amount leaves the account of the booking and arrives on the target
+     * account. The booking itself becomes the outflow.
+     */
+    private void pair(Transaction saved, TransactionRequest request) {
+        if (!saved.isTransfer()) {
+            throw new InvalidFieldException("targetAccountId", "Nur eine Umbuchung hat ein Zielkonto.");
+        }
+        io.github.mirco104.budget.bankaccount.BankAccount target = bankAccountService.findBookable(request.targetAccountId());
+        if (target.getId().equals(saved.getAccount().getId())) {
+            throw new InvalidFieldException("targetAccountId", "Quell- und Zielkonto müssen verschieden sein.");
+        }
+        BigDecimal outflow = saved.getAmount().abs().negate();
+        saved.update(outflow, saved.getDescription(), saved.getDate(), null, saved.getAccount());
+        Transaction inflow = transactionRepository.save(new Transaction(
+                currentUser.get(), outflow.negate(), saved.getDescription(), saved.getDate(), null, target));
+        saved.setTransferPeer(inflow);
+        inflow.setTransferPeer(saved);
     }
 
     // R27: a transfer has no category (400 if one is sent), every other booking needs one

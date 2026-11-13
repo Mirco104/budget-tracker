@@ -10,5 +10,8 @@ public record CreateBankAccountRequest(
         String name,
 
         @Size(max = 50, message = "Die IBAN ist zu lang.")
-        String iban) {
+        String iban,
+
+        // 27f3: optional, Alltag without it
+        AccountRole role) {
 }

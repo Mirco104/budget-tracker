@@ -47,5 +47,9 @@ public record TransactionRequest(
         Long savingGoalId,
 
         // P1: optional, the kind Sparen: a transfer to a savings or depot account, without category
-        Boolean saving) {
+        Boolean saving,
+
+        // 27f3: optional for a transfer or Sparen: the target account; then both bookings are made (amount leaves
+        // accountId and arrives on targetAccountId)
+        Long targetAccountId) {
 }
