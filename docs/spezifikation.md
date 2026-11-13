@@ -39,6 +39,8 @@ Stand: 04.11.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" · 
 
 ## 2. Fachliche Regeln (aus den Formeln des Sheets abgeleitet)
 
+> **Ab AP 27 (Abschnitt 19):** Die Regeln P1 bis P11 ersetzen R1 bis R4, R7, R10, R12 bis R14, R23 bis R25 und R28; R26, R27 und R31 sind ergänzt (Tabelle 19.2).
+
 Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 
 | # | Regel | Quelle im Sheet |
@@ -655,6 +657,18 @@ Geklärt am 06.11.2026 (Prüfung von AP 19f, nach einem überarbeiteten klickbar
 46. **Normalisierte Bankbuchung nach ISO 20022, Serien im Import, nichts vorbelegen** (07.11.2026, nach dem zweiten Test): Jedes Profil übersetzt eine Zeile in einen einheitlichen Datensatz mit den Feldern, die CAMT.053 und die PSD2-Schnittstellen (Berlin Group) für eine Buchung verwenden: Konto (Name, IBAN), Buchungstag, Wertstellung, Betrag mit Vorzeichen, Währung, Status gebucht oder vorgemerkt, Gegenseite (Name, IBAN, BIC), Verwendungszweck, End-to-End-, Mandats- und Gläubiger-ID, Art (Geschäftsvorfall) und ID der Bank; Bankeigenes wie die C24-Kategorie steht in einem Zusatzfeld. Danach weiß keine Regel mehr, woher eine Zeile kommt; ein späterer Import von CAMT.053 oder eine Bank-API wird nur ein weiterer Adapter. Verworfen: die Zeilen erst in CAMT.053-XML umzuwandeln (Umweg ohne Gewinn, CSV-Exporte haben keine Salden) und sie vor dem Übernehmen zu speichern (ungebuchte Bankdaten auf dem Server, siehe Entscheidung 45). Weil eine Regel zur Art nur zu einer Bank passt, liefert das Profil die Art-Hinweise (R29), und der Fingerabdruck nutzt bei jeder Bank die ID, sonst die Prüfsumme (R30). Monatliche Serien erkennt der Import selbst (R31), weil man beim Import am ehesten merkt, dass etwas regelmäßig kommt; ein Gehalt, das je nach Wochenende einige Tage früher oder später kommt, bleibt dieselbe Serie, und die Abweichungen werden über "Ist ersetzt Plan" (R28) zu Ausnahmen. Ein Vorschlag wird nie vorbelegt, auch kein sicherer, weil das verständlicher ist (Wunsch des Nutzers); "Alle Vorschläge übernehmen" spart trotzdem Klicks. Für große Importe genügt "Fertige übernehmen": Der Fingerabdruck sorgt dafür, dass eine erneut hochgeladene Datei nur noch die offenen Zeilen zeigt.
 47. **Sparkasse: ein Profil für vier Exporte** (07.11.2026): Das Online-Banking der Sparkasse bietet CSV-CAMT V2, CSV-CAMT V8, CSV-MT940 und CSV - mit Kategorien. Alle haben dieselbe Form (Semikolon, jedes Feld in Anführungszeichen, `dd.MM.yy`, deutsches Zahlenformat, eine Gutschrift ohne Vorzeichen); V2 und V8 sind gleich, "mit Kategorien" hat die Spalte Kategorie mehr, und CSV-MT940 trägt Mandat, Gläubiger-ID und End-to-End als SEPA-Kennungen im Verwendungszweck. Ein Profil, das sich nach den vorhandenen Spalten richtet, liest alle vier. Verworfen: je ein Profil pro Export (dieselbe Bank, mehr Code, und Quellkonto und Fingerabdruck müssten trotzdem für alle gleich sein) und eine Klassenhierarchie der Profile (Umbau aller Profile ohne Gewinn). Der Fingerabdruck lässt bei der Sparkasse den Zweck weg, weil CSV-MT940 ihn verändert; sonst käme eine Buchung doppelt, sobald man den Export wechselt. Vorgemerkte Umsätze lagen in keiner Beispieldatei vor: Die App nimmt "vorgemerkt" in `Info` oder einen leeren Buchungstag an und liest eine Zeile mit einem anderen unbekannten Wert in `Info` nicht, damit nichts Unfertiges gebucht wird (Abschnitt 16). Die Kategorien der Sparkasse sind nur Bankkategorie (R29); Art-Hinweise gibt es keine, weil sie nicht zu den Kategorien der App passen.
 
+Geklärt am 13.11.2026 (Plan und Ist, nach dem klickbaren Entwurf, Konzept `docs/konzept-plan-ist.md`):
+
+48. **Ist sind nur echte Buchungen:** Vorkommen von Serien zählten im Ist mit und erzeugten falsche Zahlen (eine erwartete Miete sah bezahlt aus). Ist sind jetzt nur Buchungen, von Hand, automatisch aus der Planung oder importiert (P1). Ersetzt Entscheidung 6.
+49. **Planung = ein normaler Monat aus Posten:** Statt eines Solls je Kategorie trägt der Nutzer einzelne Posten ein (Miete, Benzin, Gehalt); das Budget einer Kategorie ist ihre Summe (P3). Basis ist immer das geplante Einkommen, Ø und Minimum stehen nur zur Orientierung; die Eingabe in Prozent entfällt. Ersetzt die Entscheidungen 17, 26 und 36.
+50. **Flexibler Rhythmus:** Einheit (Woche oder Monat), Anzahl und Anker; wöchentlich und alle 2 Wochen von Anfang an (Ticket #79, P2, P5).
+51. **Eintragungsart je Posten:** automatisch (Vorgabe für Einkommen und Fixkosten), beim Abhaken (Sparen), selbst anlegen (Budgets); „nur an Werktagen" verschiebt auf den nächsten Werktag (P6, P7).
+52. **Fix und variabel über Erfüllung:** Eine Ausgabe ist fix, wenn sie einen Termin erfüllt (P5); ersetzt wiederkehrend/einmalig (R10, Ticket #86) und Entscheidung 43.
+53. **Rücklagentopf je seltenem Posten:** Die Kategorie eines seltenen Postens ist frei; in der Budgetzeile zählt nur der Monatsanteil, die Zahlung kommt aus dem Topf (P8). Ein Topf kann mit einem Sparkonto verknüpft sein.
+54. **Konten mit Rolle und Kontostand:** Alltag, Sparen, Depot; Alltag → Sparen/Depot ist Sparen (P1, P11). Ersetzt die Entscheidungen 41 (soweit Sparen betroffen) und 44.
+55. **Übersicht wie bisher, plus Sparen und Erwartet, ohne „Noch frei":** Ersetzt Entscheidung 27. Meldungen (Monatsabschluss, nicht verplant, Konto im Minus, Preisänderung) stehen hinter einer Glocke.
+56. **Übernahme ohne Kategorie-Soll:** Serien werden Posten mit Eintragungsart automatisch, vergangene Vorkommen echte Buchungen; das Kategorie-Soll wird nicht übernommen, Budgets legt der Nutzer neu an (19.3).
+
 ## 12. Testfixtures F1, F2 und Sonderfall Einnahmen = 0
 
 Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test für `DashboardCalculator` und `ReserveCalculator` (ergänzend zu den Fällen aus Abschnitt 7).
@@ -925,3 +939,91 @@ Umsetzung der Entscheidungen 39 bis 45, nach AP 19j und vor AP 13 und AP 20. Zie
 - *Serien-Treffer gesammelt übernehmen:* Eine Datei mit 6 Mietzahlungen traf die Serie „Miete“, aber jede Zeile brauchte noch einen Klick auf ihren Vorschlag (Rückmeldung des Nutzers). Gewählt: eine Karte je vorhandener Serie mit mindestens 2 Treffern, die alle mit einem Klick übernimmt. Verworfen: die Treffer vorzubelegen (gegen Entscheidung 46, ein falscher Treffer sähe fertig aus) und ein zweiter Sammelknopf (unübersichtlich bei mehreren Serien). Bei einem Treffer reicht der Klick in der Zeile. Gruppiert wird im Frontend nach `replaces.recurringId`; welche Zeile welches Vorkommen ersetzt, bestimmt weiter das Backend. Abgewählte Zeilen (etwa mögliche Doppelungen) zählen nicht mit. Danach wünschte der Nutzer, dass die Zeilen, die eine Karte erledigt hat, aus der Liste verschwinden (neue und vorhandene Serie); sie standen aufklappbar in der Karte. Abgelöst mit Ticket #84: Statt die Zeilen auszublenden, steht der Art-Filter zu Beginn auf "Einmalig" (Abschnitt 18, "Import filtern"). Der Hinweis "wird Teil der Serie" an der Zeile entfällt damit.
 - *Import filtern (Ticket #84):* Der Nutzer wünschte, die Import-Zeilen wie die Transaktionen zu filtern und alle angezeigten Zeilen auf einmal einer Kategorie zuzuordnen (etwa Suche "Miete" → Wohnen). Vom Nutzer entschieden: dieselbe Filterleiste auf beiden Seiten (Komponente `TransactionFilters`), die Ansicht "Ohne Kategorie" geht im Kategorie-Filter auf; "Zuordnen" ändert nur gewählte angezeigte Zeilen ohne Kategorie, damit schon getroffene Entscheidungen (auch Umbuchungen) nicht überschrieben werden. Beim Umsetzen entschieden: gefiltert wird nach der Wahl des Nutzers, nicht nach dem Vorschlag; der Bereich "Zuordnen" erscheint nur bei aktivem Filter; ein Sprung zur Gegenbuchung setzte zunächst die Filter zurück; "Alle Vorschläge übernehmen" wirkt weiter auf alle offenen Zeilen. Beim Test wünschte der Nutzer, dass Optionen ohne Treffer fehlen und alle Optionen ihre Zahl zeigen wie "Ohne Kategorie (N)"; entschieden: auf beiden Seiten, gezählt mit den übrigen Filtern (ohne den eigenen, damit eine andere Option desselben Feldes wählbar bleibt), die gewählte Option bleibt auch mit 0 (`facetCounts` in `filters.ts`). Zweite Rückmeldung beim Test: Der Sprung zur Gegenbuchung warf den Filter raus, und der Art-Filter ergab wenig Sinn, weil die Zeilen der Karten ohnehin ausgeblendet waren. Auf Vorschlag des Nutzers blendet der Import diese Zeilen nicht mehr aus; der Art-Filter steht zu Beginn auf "Einmalig" (`IMPORT_FILTERS`), "Filter zurücksetzen" führt dorthin zurück. Dritte Rückmeldung: "Umbuchung" gehört in den Filter Kategorie, weil man sie beim Anlegen dort wählt; der Filter Art hat auf beiden Seiten nur noch "Wiederkehrend" und "Einmalig", eine Umbuchung ist "Einmalig" (eine Umbuchung ersetzt kein Vorkommen, R28) und bleibt damit auch bei der Vorgabe des Imports in der Liste. Damit Zeilen nicht unter der Hand verschwinden, bleiben eine in der Liste bearbeitete Zeile und eine angesprungene Gegenzeile mit dem Hinweis "passt nicht zum Filter" stehen, bis sich der Filter ändert; mit "Zuordnen" gesetzte Zeilen nicht. Ausgeblendete gewählte Zeilen nennt ein Hinweis unter den Knöpfen. Das Aufklappen in den Karten entfällt zugunsten von "In der Liste zeigen".
 - Noch offen (Abschnitt 16): die Umbuchungen nach geänderter Kontozuordnung neu berechnen; überschneidende gleiche Zeilen ohne ID der Bank.
+
+## 19. Plan und Ist ab 13.11.2026
+
+Umsetzung des Konzepts `docs/konzept-plan-ist.md` (PR #105, abgestimmt mit dem klickbaren Entwurf Version 21) und der Entscheidungen 48 bis 56. Ziel: Der Nutzer plant einen **normalen Monat** aus einzelnen Posten; als Ist zählen **nur echte Buchungen**. Jedes Arbeitspaket ist ein eigener Branch und PR, gestapelt auf dem vorigen (27a auf PR #105). Rechenklassen ohne Spring, Tests zuerst.
+
+### 19.1 Regeln P1 bis P11
+
+Sie ersetzen die in 19.2 genannten R-Regeln. `M` ist der gewählte Monat.
+
+| # | Regel |
+|---|---|
+| P1 | **Ist** in M = Summe der echten Buchungen in M je Art: **Einnahme** (positiv), **Ausgabe** (negativ), **Sparen** (Art Sparen). Umbuchungen zählen nirgends (R27). Geplante Posten und ihre Termine zählen nie im Ist. Ab AP 27f zählen nur Buchungen auf Konten mit der Rolle **Alltag**; Buchungen auf Spar- und Depotkonten verändern nur deren Saldo (P11). |
+| P2 | **Monatsanteil** eines Postens: Einheit Woche: Betrag × 52 / 12 ÷ Anzahl; Einheit Monat: Betrag ÷ Anzahl; ohne festen Termin: Betrag (er ist schon ein Monatsbetrag). Gerechnet in voller Genauigkeit (`MathContext.DECIMAL64`), gerundet erst am Ende (Skala 2, HALF_UP). 10 € wöchentlich = 43,33 €, alle 2 Wochen = 21,67 €, 1.200 € jährlich = 100,00 €. |
+| P3 | **Plan einer Kategorie** `Plan(k)` = Summe der Monatsanteile ihrer Ausgabe-Posten, die in M gelten (ohne Vorzeichen). **Gesamtplan** = Summe aller `Plan(k)`. Ein Posten gilt in M, wenn `validFrom ≤ M` und (`validTo` leer oder `validTo ≥ M`). |
+| P4 | **Gruppen und Nicht verplant:** Einkommen = Posten mit positivem Betrag; Fixkosten = Ausgabe-Posten mit Termin; Budgets (variable Kosten) = Ausgabe-Posten ohne festen Termin; Sparen = Posten der Art Sparen. Jede Summe ist die Summe der Monatsanteile, gerundet am Ende. **Nicht verplant** = Einkommen − Fixkosten − Budgets − Sparen; negativ heißt überplant. |
+| P5 | **Termine und Erfüllung:** Termine eines Postens mit Rhythmus liegen am Anker + k × Abstand (bei Monaten mit der Regel für den Monatsletzten aus R12), nur in Monaten, in denen der Posten gilt. Mit „nur an Werktagen" rückt ein Termin auf Samstag, Sonntag oder einem bundesweiten Feiertag auf den nächsten Werktag. Eine Buchung **erfüllt** einen Termin, wenn sie mit ihm verknüpft ist oder nach der Treffer-Regel aus R28 passt (gleiches Vorzeichen, Betrag höchstens 20 % abweichend, gemeinsames Wort ab 3 Zeichen oder gleiche Kategorie, gemeinsames Wort geht vor) und ihr Datum höchstens `t` Tage vom Termin abweicht, `t` = min(5, ⌊halber Abstand in Tagen⌋), also 3 bei wöchentlich, 5 sonst. Jede Buchung erfüllt höchstens einen Termin, jeder Termin wird von höchstens einer Buchung erfüllt; verknüpfte zuerst, dann nach Datum. Ein Termin ist **erwartet** (noch kein Treffer, Termin + 5 Tage ≥ heute), **erfüllt**, **ausgeblieben** (Termin + 5 Tage < heute ohne Treffer) oder **entfällt** (vom Nutzer ausgesetzt). Eine Ausgabe, die einen Termin erfüllt, ist **fix**, jede andere Ausgabe **variabel** (ersetzt R10). |
+| P6 | **Automatischer Eintrag:** Für jeden Termin eines Postens mit Eintragungsart „automatisch", dessen (Werktags-)Datum ≤ heute ist, der nicht erfüllt und noch nicht behandelt ist, legt die App eine Buchung mit dem geplanten Betrag, Namen, Kategorie und Konto an, gekennzeichnet „automatisch" und mit dem Termin verknüpft. Wird ein automatischer Eintrag gelöscht, gilt der Termin als ausgesetzt und wird nicht neu angelegt. Bringt ein Import eine Buchung, die den Termin erfüllt (P5), **ersetzt** sie den automatischen Eintrag: der Eintrag wird gelöscht, die importierte Buchung mit dem Termin verknüpft. Liegt ein automatischer Eintrag eines Kontos im Zeitraum (erstes bis letztes Buchungsdatum) eines Imports auf dieses Konto und wurde nicht ersetzt, meldet das Ergebnis des Imports ihn. |
+| P7 | **Abhaken:** „Ist bezahlt" legt eine Buchung mit dem geplanten Betrag (oder dem eingegebenen Betrag und Datum) an und verknüpft sie mit dem Termin; „Rückgängig" löscht die Buchung und die Verknüpfung, der Termin ist wieder erwartet. „Diesen Monat fällt es weg" setzt den Termin aus, „Rückgängig" nimmt das zurück. |
+| P8 | **Rücklagentopf** je Posten mit einem Abstand über einem Monat (Einheit Monat, Anzahl ≥ 2). Stand vor dem Termin in M = Monatsanteil × Anzahl der Monate seit dem letzten Termin vor M, M mitgezählt, höchstens seit `validFrom` des Postens (heutige Logik aus R14, gerundet). Mit verknüpftem Sparkonto ist der Stand dessen App-Saldo (P11). **Aus der Rücklage bezahlt** ist eine Ausgabe, die den Termin des Postens erfüllt, die vom verknüpften Konto abgeht oder bei der der Nutzer den Topf ausdrücklich gewählt hat. In der **Budgetzeile** der Kategorie des Postens zählt jeden Monat, in dem der Posten gilt, der Monatsanteil als Ist („zurückgelegt"); eine aus dem Topf bezahlte Ausgabe zählt dort nicht, nur der Teil, den der Topf nicht deckt. In den Kacheln (P1) zählt die Ausgabe mit ihrem vollen Betrag. |
+| P9 | **Sparquote** = geplantes Sparen ÷ geplantes Einkommen (P4), in Prozent mit einer Nachkommastelle; ohne geplantes Einkommen leer. |
+| P10 | **Monatsabschluss:** Übrig in M = Einnahmen − Ausgaben − Sparen in M (Ist, P1). Ist es nach Ablauf von M positiv und M noch nicht abgeschlossen, fragt die Glocke, welchem Sparziel der Betrag zugeordnet wird; „Nicht zuordnen" schließt M ohne Ziel ab. Rückgängig ist möglich. Ein zugeordneter Betrag zählt zum Stand des Sparziels, ist aber keine Buchung. |
+| P11 | **App-Saldo** eines Kontos = letzter eingetragener Kontostand + Summe aller Buchungen des Kontos nach dessen Stichtag (Umbuchungen eingeschlossen). Ohne Kontostand: Summe aller Buchungen. Ein neuer Kontostand zeigt die **Differenz** = Kontostand − App-Saldo am Stichtag; sie wird nicht gebucht. |
+
+### 19.2 Abgelöste Regeln und Entscheidungen
+
+| Bestehend | Neu |
+|---|---|
+| R1, R2 (Netto je Kategorie, Vorkommen im Ist) | P1: nur Buchungen; Einnahme oder Ausgabe nach dem Vorzeichen der einzelnen Buchung |
+| R3, R4, R23, R24 (Soll je Kategorie ab Monat, Basis Ø/Minimum, Prozent) | P3, P4: Plan = Summe der Posten, „gilt ab" je Posten, Basis immer das geplante Einkommen; Ø und Minimum (R23) nur zur Orientierung in der Planung |
+| R5, R6 | bleiben, mit `Plan(k)` statt Soll |
+| R7 („Noch frei") | entfällt mit der Kachel |
+| R10 (wiederkehrend / einmalig) | fix / variabel nach P5 |
+| R12 (Vorkommen) | Termine der Posten (P5), Rhythmus mit Einheit und Anzahl |
+| R13 (Ausnahmen, Bearbeiten von Vorkommen) | Termin aussetzen, abhaken, anderer Betrag (P7); „Alle Einträge" ist das Bearbeiten des Postens in der Planung |
+| R14 (Rücklagen) | Töpfe je seltenem Posten (P8) |
+| R25 (Fixkosten je Kategorie) | Gruppe Fixkosten (P4) |
+| R26, R27 | dazu Kontorolle und Kontostand (P11); Umbuchung Alltag → Sparen/Depot ist Sparen |
+| R28 (Ist ersetzt Plan) | Erfüllung (P5) und Import ersetzt automatischen Eintrag (P6) |
+| R31 (Serien im Import) | schlägt geplante Posten vor (AP 27i) |
+| Entscheidungen 6, 17, 26, 27, 36, 41, 43, 44 | abgelöst durch 48 bis 56 |
+
+### 19.3 Datenmodell (Migrationen ab V13)
+
+- `planned_items` ersetzt `recurring_transactions` und `category_target`: `id`, `owner_id`, `item_key` (UUID, gemeinsam für alle Fassungen eines Postens), `name`, `amount` (Vorzeichen nach R11; Sparen negativ), `saving` (Art Sparen), `category_id` (Pflicht außer bei Sparen), `account_id`, `rhythm_unit` (`WEEK`, `MONTH` oder leer = ohne festen Termin), `rhythm_count`, `anchor_date`, `entry_mode` (`AUTO`, `TICK`, `MANUAL`), `workdays_only`, `valid_from` (Monatserster), `valid_to` (Monatsletzter, leer = offen), ab AP 27e `reserve_account_id`, `saving_goal_id`.
+- `item_terms` ersetzt `recurring_exceptions`: `id`, `owner_id`, `item_key`, `term_date` (geplantes Datum ohne Werktagsverschiebung), `transaction_id` (verknüpfte Buchung, eindeutig, beim Löschen der Buchung leer), `skipped`. Eine Zeile heißt „behandelt": verknüpft, ausgesetzt oder (ohne Buchung) gelöschter automatischer Eintrag.
+- `transactions` bekommt `auto` (automatischer Eintrag) und ab AP 27f `saving` (Art Sparen, ohne Kategorie; Prüfregel: keine Kategorie genau dann, wenn Umbuchung oder Sparen), ab AP 27e `reserve_item_key` bzw. `saving_goal_id` (ausdrücklich aus Topf oder Sparziel bezahlt).
+- `bank_accounts` bekommt `role` (`EVERYDAY`, `SAVINGS`, `DEPOT`; Vorgabe `EVERYDAY`); neu `account_balances` (`account_id`, `balance_date`, `amount`).
+- Neu `saving_goals` (`name`, `target_amount`, `target_date`, `account_id`), `month_closings` (`month`, `amount`, `saving_goal_id` leer = nicht zugeordnet) und `dismissed_notifications` (`notification_key`).
+- Übernahme (V13, Abschnitt 7 des Konzepts): jede Serie wird ein Posten mit Eintragungsart `AUTO`, Einheit Monat und der Anzahl ihres Intervalls, Anker = Startdatum, `valid_from` = Monat des Starts, `valid_to` = Monat des Endes; Teile einer geteilten Serie (gemeinsame `series_id`) werden Fassungen mit gemeinsamem `item_key`. Vergangene Vorkommen (bis zum Tag der Migration) ohne Ausnahme werden Buchungen mit `auto = true` und einer verknüpften Termin-Zeile; ausgesetzte Vorkommen werden ausgesetzte Termine, ersetzte Vorkommen (R28) verknüpfte Termine. `category_target`, `recurring_exceptions` und `recurring_transactions` werden gelöscht.
+
+### 19.4 API (Skizze)
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/api/plan?month=` | Planung eines Monats: Gruppen, Posten mit Monatsanteil je Kategorie, Summen, Nicht verplant, Ø und Minimum der Einnahmen (P2–P4, P9) |
+| POST | `/api/planned-items` | Posten anlegen |
+| PUT | `/api/planned-items/{id}` | Posten ändern, `validFrom` im Body: gleicher Monat wie die Fassung → ändern, späterer → alte Fassung endet im Vormonat, neue Fassung |
+| DELETE | `/api/planned-items/{id}?from=` | Posten ab einem Monat beenden; ohne `from` ganz löschen |
+| GET | `/api/terms?from=&to=` | Termine mit Status, Werktagsdatum und verknüpfter Buchung |
+| POST / DELETE | `/api/terms/paid` | abhaken (P7) bzw. rückgängig |
+| POST / DELETE | `/api/terms/skip` | Termin aussetzen bzw. zurücknehmen |
+| GET | `/api/dashboard?month=` | wie bisher; Ausgaben fix / variabel, Plan je Kategorie, Rücklagenzeile, Karten Sparen und Erwartet; ohne „Noch frei" |
+| CRUD | `/api/saving-goals` | Sparziele |
+| GET / POST | `/api/bank-accounts/{id}/balances` | Kontostände (P11) |
+| GET | `/api/accounts` | Konten nach Rolle mit App-Saldo, Rücklagen |
+| GET | `/api/notifications` | Meldungen der Glocke; `POST /api/notifications/{key}/done` |
+| POST / DELETE | `/api/month-closings/{month}` | Monatsabschluss zuordnen bzw. rückgängig |
+| GET | `/api/plan/suggestions` | Vorschläge aus den Buchungen (AP 27i) |
+
+`/api/recurring-transactions` und das Soll in `/api/categories` entfallen; `/api/reserves` liefert die Töpfe nach P8.
+
+### 19.5 Arbeitspakete
+
+| AP | Inhalt | Ergebnis |
+|---|---|---|
+| 27a | Spezifikation (dieser Abschnitt) und `CLAUDE.md` | Spec-PR auf PR #105 |
+| 27b | Geplante Posten: Migration V13, `PlanCalculator` (P2–P4, P9, Tests zuerst), `/plan`, `/planned-items`, Seite *Planung* (Kopf mit Balken und Nicht verplant, Gruppen, Kategorien, Bearbeiten mit Rhythmus und „gilt ab"), Beispieldaten | Unit-, Integrations-, Frontend-Tests grün |
+| 27c | Ist nur aus Buchungen: `Fulfillment` (P5, Tests zuerst), automatische Einträge (P6), `/terms` mit Abhaken (P7), Abschnitt *Erwartet* (`#/transaktionen/erwartet`), Kennzeichen fix und automatisch, Übersicht mit fix · variabel und Plan je Kategorie, Buchungsdialog ohne Serien | Tests grün |
+| 27d | Übersicht: Karten Sparen (P9) und Erwartet, Kachel Noch frei entfernen | Tests grün |
+| 27e | Rücklagentöpfe (P8): `ReserveCalculator` angepasst, grüne Zeile unter der Budgetzeile, Sparziele, Schalter „aus Rücklage / Ersparnissen bezahlen" | Tests grün |
+| 27f | Konten: Reiter *Konten* (`#/konten`, ersetzt *Einstellungen › Bankkonten*), Rollen, Art Sparen, Kontostand und Abgleich (`AccountBalance`, P11), Rücklage mit Konto | Tests grün |
+| 27g | Import: ersetzt automatische Einträge, meldet fehlende (P6), Ergebnisdialog mit „Eintrag löschen" / „Behalten" | Tests grün |
+| 27h | Glocke: `MonthClosing` (P10), Nicht verplant, Konto im Minus, Preisänderung, „Erledigt" | Tests grün |
+| 27i | Vorschläge aus den Buchungen in der Planung („Gefunden in deinen Buchungen", „Übernehmen") | Tests grün |
+
+### 19.6 Entscheidungen beim Umsetzen (Nachtlauf 13./14.11.2026, ohne Rückfrage getroffen, zur Prüfung im PR)
+
+- *27a Spezifikation:* Das Datenmodell und die API oben sind im Nachtlauf festgelegt. Eine Änderung „ab Monat" legt eine neue Fassung mit demselben `item_key` an (wie die Teile einer Serie, Entscheidung 8); Termine hängen am `item_key`, damit eine neue Fassung verknüpfte Termine nicht verliert. Feiertage für „nur an Werktagen" sind die bundesweiten (Neujahr, Karfreitag, Ostermontag, 1. Mai, Christi Himmelfahrt, Pfingstmontag, 3. Oktober, 25. und 26. Dezember); Landesfeiertage später. Der Buchungsdialog legt keine Serien mehr an („Wiederholen" entfällt); regelmäßige Zahlungen entstehen in der *Planung* oder aus einem Vorschlag (AP 27i). Ein gelöschter automatischer Eintrag gilt als ausgesetzt, damit er nicht am nächsten Tag wieder erscheint.
