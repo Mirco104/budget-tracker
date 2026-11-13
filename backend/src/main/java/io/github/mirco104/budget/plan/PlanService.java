@@ -96,6 +96,9 @@ public class PlanService {
                 money(average.average()),
                 money(average.minimum()),
                 average.months(),
+                average.from() == null ? null : average.from().toString(),
+                average.to() == null ? null : average.to().toString(),
+                average.minimum() != null && result.income().compareTo(average.minimum()) > 0,
                 categories,
                 valid);
     }

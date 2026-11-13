@@ -223,6 +223,11 @@ export interface Plan {
   averageIncome: number | null
   minimumIncome: number | null
   averageMonths: number
+  /** 27f4: the months of the average, null without one */
+  averageFrom?: string | null
+  averageTo?: string | null
+  /** 27f4: the planned income is higher than the weakest month */
+  incomeAboveMinimum?: boolean
   categories: PlanCategoryTotal[]
   items: PlannedItem[]
 }

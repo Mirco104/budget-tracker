@@ -80,6 +80,26 @@ class PlanControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.name == 'Mobilität')].target").value(143.33));
     }
 
+    // 27f4: the planning page shows Ē(M) and Emin(M) with their months and whether the plan lies above Emin(M)
+    @Test
+    void thePlanNamesTheMonthsOfTheAverageIncomeAndWhetherItPlansMoreThanTheWeakestMonth() throws Exception {
+        create("""
+                {"name": "Gehalt", "amount": 2500, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                 "anchorDate": "2026-01-01", "entryMode": "MANUAL", "validFrom": "2026-01"}"""
+                .formatted(category("Gehalt/Lohn (netto)")));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/transactions")
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": 2000, "description": "Gehalt", "date": "2026-10-15", "categoryId": %d}"""
+                        .formatted(category("Gehalt/Lohn (netto)"))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/plan").param("month", "2026-11"))
+                .andExpect(jsonPath("$.minimumIncome").value(2000.00))
+                .andExpect(jsonPath("$.averageFrom").value("2026-10"))
+                .andExpect(jsonPath("$.averageTo").value("2026-10"))
+                .andExpect(jsonPath("$.incomeAboveMinimum").value(true));
+    }
+
     @Test
     void aChangeFromALaterMonthIsANewVersion() throws Exception {
         long id = create(item("Miete", "-900", "Wohnen", "\"MONTH\"", 1, "\"2026-01-01\"", "2026-01"));

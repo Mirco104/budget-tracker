@@ -27,8 +27,7 @@ const GROUPS: { group: PlanGroup; title: string; hint: string }[] = [
   {
     group: 'SAVING',
     title: 'Sparen',
-    // 27f4: how the booking comes about depends on the Eintragungsart of each item (decision 51)
-    hint: 'Was du regelmäßig zurücklegst, z. B. Notgroschen oder ETF-Sparplan. Ob die Buchung automatisch entsteht, beim Abhaken oder wenn du sie selbst anlegst, stellst du je Posten bei „Eintragen“ ein.',
+    hint: 'Was du regelmäßig zurücklegst, z. B. Notgroschen oder ETF-Sparplan.',
   },
 ]
 
@@ -245,11 +244,31 @@ function GroupSection({
         </h2>
         <span className="plan-group-total">{formatEuro(total)}</span>
       </div>
+      {/* 27f4: average and weakest month of the past months as two tiles, for orientation (R23) */}
       {group === 'INCOME' && plan.averageIncome !== null && plan.minimumIncome !== null && (
-        <p className="hint">
-          Ø {formatEuro(plan.averageIncome)}, mindestens {formatEuro(plan.minimumIncome)} in den letzten{' '}
-          {plan.averageMonths === 1 ? 'Monat' : `${plan.averageMonths} Monaten`}.
-        </p>
+        <div className="income-stats">
+          <div className="income-stat">
+            <span className="income-stat-label">Durchschnitt</span>
+            <span className="income-stat-value">{formatEuro(plan.averageIncome)}</span>
+            <span className="income-stat-note">pro Monat</span>
+          </div>
+          <div className="income-stat">
+            <span className="income-stat-label">Mindestens</span>
+            <span className="income-stat-value">{formatEuro(plan.minimumIncome)}</span>
+            <span className="income-stat-note">im schwächsten Monat</span>
+          </div>
+          <p className="hint income-stats-period">
+            {plan.averageFrom && plan.averageTo && plan.averageFrom !== plan.averageTo
+              ? `${formatMonth(plan.averageFrom)} – ${formatMonth(plan.averageTo)} · `
+              : plan.averageFrom
+                ? `${formatMonth(plan.averageFrom)} · `
+                : ''}
+            {plan.averageMonths === 1 ? '1 Monat' : `${plan.averageMonths} Monate`}
+          </p>
+          {plan.incomeAboveMinimum && (
+            <p className="hint income-stats-warn">Geplant ist mehr als dein schwächster Monat.</p>
+          )}
+        </div>
       )}
       {items.length === 0 && <p className="hint">Noch keine Posten.</p>}
       {byCategory ? (

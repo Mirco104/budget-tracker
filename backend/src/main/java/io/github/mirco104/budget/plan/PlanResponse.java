@@ -21,6 +21,11 @@ public record PlanResponse(
         BigDecimal averageIncome,
         BigDecimal minimumIncome,
         int averageMonths,
+        // 27f4: the months of Ē(M) and Emin(M), null without one
+        String averageFrom,
+        String averageTo,
+        // 27f4: the planned income is higher than Emin(M); false without Emin(M)
+        boolean incomeAboveMinimum,
         List<CategoryTotal> categories,
         List<PlannedItemResponse> items) {
 

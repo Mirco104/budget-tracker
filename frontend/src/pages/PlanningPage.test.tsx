@@ -49,6 +49,9 @@ const plan: Plan = {
   averageIncome: 2450,
   minimumIncome: 2300,
   averageMonths: 12,
+  averageFrom: '2025-11',
+  averageTo: '2026-10',
+  incomeAboveMinimum: true,
   categories: [
     { group: 'INCOME', categoryId: 4, categoryName: 'Gehalt/Lohn (netto)', total: 2500 },
     { group: 'FIXED', categoryId: 2, categoryName: 'Mobilität', total: 100 },
@@ -113,7 +116,12 @@ describe('PlanningPage', () => {
     expect(within(fixed).getByRole('button', { name: /Miete/ })).toHaveTextContent('automatisch')
     expect(screen.getByRole('region', { name: 'Budgets (variable Kosten)' })).toHaveTextContent('Lebensmittel')
     expect(screen.getByRole('region', { name: 'Sparen' })).toHaveTextContent('Notgroschen')
-    expect(screen.getByRole('region', { name: 'Einkommen' })).toHaveTextContent('Ø 2.450,00 €')
+    // 27f4: average and weakest month as two tiles with their months
+    const income = screen.getByRole('region', { name: 'Einkommen' })
+    expect(income).toHaveTextContent('Durchschnitt2.450,00 €pro Monat')
+    expect(income).toHaveTextContent('Mindestens2.300,00 €im schwächsten Monat')
+    expect(income).toHaveTextContent('November 2025 – Oktober 2026 · 12 Monate')
+    expect(income).toHaveTextContent('Geplant ist mehr als dein schwächster Monat.')
     expect(screen.getByRole('region', { name: 'Einkommen' })).not.toHaveTextContent('Zur Orientierung')
   })
 
