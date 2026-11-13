@@ -63,7 +63,7 @@ describe('AccountsPage', () => {
   it('shows the accounts by role with their sums and the last bank balance', async () => {
     renderPage()
 
-    const card = await screen.findByRole('region', { name: 'Konten' })
+    const card = await screen.findByRole('region', { name: 'Bankkonten' })
     const everyday = within(card).getByRole('group', { name: 'Alltag' })
     expect(everyday).toHaveTextContent('1.250,00 €')
     expect(everyday).toHaveTextContent('Standard')
@@ -71,6 +71,8 @@ describe('AccountsPage', () => {
     expect(saving).toHaveTextContent('Tagesgeld')
     expect(saving).toHaveTextContent('Bank am 01.11.2026: 690,00 €')
     expect(within(card).queryByRole('group', { name: 'Depot' })).not.toBeInTheDocument()
+    // 27f4: the total of all accounts
+    expect(card).toHaveTextContent('Gesamt1.950,00 €')
     expect(screen.queryByRole('combobox', { name: /Kontoart/ })).not.toBeInTheDocument()
   })
 
@@ -116,7 +118,7 @@ describe('AccountsPage', () => {
   // 27f4
   it('marks a balance below the comfort amount and changes the comfort amount', async () => {
     const fetchMock = renderPage()
-    const card = await screen.findByRole('region', { name: 'Konten' })
+    const card = await screen.findByRole('region', { name: 'Bankkonten' })
     const saving = within(card).getByRole('group', { name: 'Sparen' })
     expect(saving).toHaveTextContent('unter Wohlfühlbetrag 1.000,00 €')
     expect(within(saving).getByText('700,00 €', { selector: '.item-amount' })).toHaveClass('below-comfort')
@@ -136,7 +138,7 @@ describe('AccountsPage', () => {
 
   it('creates a new account with its Kontoart', async () => {
     const fetchMock = renderPage()
-    const card = await screen.findByRole('region', { name: 'Konten' })
+    const card = await screen.findByRole('region', { name: 'Bankkonten' })
     fireEvent.click(within(card).getByRole('button', { name: '+ Neues Konto' }))
     const dialog = screen.getByRole('dialog', { name: 'Neues Konto' })
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Depot B' } })

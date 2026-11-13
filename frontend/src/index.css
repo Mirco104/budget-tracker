@@ -3274,23 +3274,35 @@ a.summary-link:hover {
 
 /* --- Konten after the fourth test (AP 27f4, decision 60) --- */
 .account-role {
-  margin-top: 12px;
+  margin-top: 20px;
 }
+/* 27f4: the Kontoart is a heading of its own, not a row like an account */
 .account-role-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 4px;
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: 6px;
 }
 .account-role-head h3 {
   margin: 0;
-  font-size: 0.95rem;
-  color: var(--muted);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .account-role-head span {
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  font-weight: 700;
+}
+.account-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-variant-numeric: tabular-nums;
 }
 button.account-open {
   width: 100%;
@@ -3369,4 +3381,21 @@ button.account-open:hover {
     color: var(--muted);
     font-size: 0.85rem;
   }
+}
+
+/* --- Transaktionen: filters behind a button (AP 27f4) --- */
+.filter-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-toggle.active {
+  border-color: var(--primary);
+  color: var(--primary);
 }

@@ -44,9 +44,9 @@ export function AccountsPage() {
     <section>
       <PageHeader title="Konten" />
       {/* 27f4 (decision 60): one card with the accounts by Kontoart; a row opens the window of the account */}
-      <section className="card account-group" aria-label="Konten">
+      <section className="card account-group" aria-label="Bankkonten">
         <div className="plan-group-head">
-          <h2>Konten</h2>
+          <h2>Bankkonten</h2>
           <button type="button" className="link-button" onClick={() => setEditAccount('new')}>
             + Neues Konto
           </button>
@@ -67,6 +67,11 @@ export function AccountsPage() {
               </ul>
             </div>
           ))}
+        {/* 27f4: the total of all accounts, like the total row of the budget */}
+        <div className="account-total budget-total">
+          <span>Gesamt</span>
+          <span>{formatEuro(totalOf(accounts.data))}</span>
+        </div>
         {archived.length > 0 && (
           <div className="account-role">
             <button
@@ -244,6 +249,11 @@ function ReserveGroupRow({
       )}
     </li>
   )
+}
+
+/** The balance of all accounts, added in whole cents (display only). */
+function totalOf(groups: { total: number }[]): number {
+  return groups.reduce((sum, group) => sum + Math.round(group.total * 100), 0) / 100
 }
 
 /** 27f4 (decision 60): name, hint and the app balance (P11); the whole row opens the window of the account. */

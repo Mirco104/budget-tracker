@@ -80,6 +80,7 @@ describe('TransactionsPage', () => {
     const row = await screen.findByRole('button', { name: /Aufs Tagesgeld/ })
     expect(row).toHaveTextContent('Umbuchung')
     // Umbuchung is chosen like a category when booking, so it is filtered there (ticket #84)
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     expect(screen.getByRole('option', { name: 'Umbuchung (1)' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'transfer' } })
     expect(screen.getByText(/1 Eintrag · Einnahmen 0,00\s€ · Ausgaben 0,00\s€/)).toBeInTheDocument()
@@ -133,6 +134,7 @@ describe('TransactionsPage', () => {
     ])
     await screen.findByRole('button', { name: /Tankstelle/ })
 
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     fireEvent.change(await screen.findByLabelText('Konto filtern'), { target: { value: '2' } })
 
     expect(screen.getByRole('button', { name: /Tankstelle/ })).toBeInTheDocument()
@@ -302,6 +304,7 @@ describe('TransactionsPage', () => {
     await screen.findByText('Kino')
     const calls = fetchMock.mock.calls.length
 
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'KIN' } })
 
     expect(screen.getByText('Kino')).toBeInTheDocument()
@@ -315,6 +318,7 @@ describe('TransactionsPage', () => {
     renderPage()
     await screen.findByText('Kino')
 
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '20' } })
 
     expect(screen.getByText('Lohn')).toBeInTheDocument()
@@ -322,6 +326,19 @@ describe('TransactionsPage', () => {
 
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
     expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
+  })
+
+  // 27f4: the filters hide behind a button that counts the active ones; "Filter zurücksetzen" clears them
+  it('hides the filters behind a button and resets them', async () => {
+    renderPage()
+    const toggle = await screen.findByRole('button', { name: 'Filter' })
+    expect(screen.queryByLabelText('Kategorie filtern')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
+    expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
+    expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Filter zurücksetzen' })).not.toBeInTheDocument()
   })
 
   it('separates the months with a heading and the sums of each month, newest month first', async () => {
