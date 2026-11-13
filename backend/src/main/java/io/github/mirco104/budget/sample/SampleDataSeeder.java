@@ -64,13 +64,16 @@ public class SampleDataSeeder implements ApplicationRunner {
     private final TermService termService;
     private final TransactionRepository transactionRepository;
     private final BankAccountService bankAccountService;
+    private final io.github.mirco104.budget.goal.SavingGoalService goalService;
     private final String password;
 
     public SampleDataSeeder(
             UserRepository userRepository, UserService userService, CategoryService categoryService,
             TransactionService transactionService, PlanService planService, PlannedItemRepository itemRepository,
             TermService termService, TransactionRepository transactionRepository, BankAccountService bankAccountService,
+            io.github.mirco104.budget.goal.SavingGoalService goalService,
             @Value("${app.sample.password}") String password) {
+        this.goalService = goalService;
         this.userRepository = userRepository;
         this.userService = userService;
         this.categoryService = categoryService;
@@ -222,14 +225,15 @@ public class SampleDataSeeder implements ApplicationRunner {
 
         void book(long cents, String description, LocalDate date, String category) {
             transactionService.create(
-                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null, null));
+                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null, null,
+                            null, null));
         }
 
         /** An automatic item with a month rhythm (decision 51); its terms up to October 2026 become bookings. */
         void fixed(String amount, String name, String category, int months, String anchor, String end) {
             LocalDate anchorDate = LocalDate.parse(anchor);
             PlannedItem item = create(new PlannedItemRequest(name, new BigDecimal(amount), false, id(category), null,
-                    RhythmUnit.MONTH, months, anchorDate, EntryMode.AUTO, false, YearMonth.from(anchorDate)));
+                    RhythmUnit.MONTH, months, anchorDate, EntryMode.AUTO, false, YearMonth.from(anchorDate), null));
             if (end != null) {
                 planService.delete(item.getId(), YearMonth.from(LocalDate.parse(end)).plusMonths(1));
                 item = itemRepository.findById(item.getId()).orElseThrow();
@@ -241,7 +245,7 @@ public class SampleDataSeeder implements ApplicationRunner {
         void weekly(String amount, String name, String category, String anchor) {
             LocalDate anchorDate = LocalDate.parse(anchor);
             enterPastTerms(create(new PlannedItemRequest(name, new BigDecimal(amount), false, id(category), null,
-                    RhythmUnit.WEEK, 1, anchorDate, EntryMode.AUTO, false, YearMonth.from(anchorDate))));
+                    RhythmUnit.WEEK, 1, anchorDate, EntryMode.AUTO, false, YearMonth.from(anchorDate), null)));
         }
 
         /** A budget for variable costs, without a fixed date (P4). A later month starts a new version. */
@@ -253,16 +257,21 @@ public class SampleDataSeeder implements ApplicationRunner {
                     .ifPresentOrElse(
                             existing -> planService.update(existing.getId(), new PlannedItemRequest(name,
                                     new BigDecimal(amount).negate(), false, id(category), null, null, null, null,
-                                    EntryMode.MANUAL, false, from)),
+                                    EntryMode.MANUAL, false, from, null)),
                             () -> planService.create(new PlannedItemRequest(name, new BigDecimal(amount).negate(),
-                                    false, id(category), null, null, null, null, EntryMode.MANUAL, false, from)));
+                                    false, id(category), null, null, null, null, EntryMode.MANUAL, false, from, null)));
         }
 
-        /** A saving item ticked off by the user (decision 51); no bookings, they are ticked off in the app. */
+        /**
+         * A saving item for a saving goal of the same name, ticked off by the user (decision 51, concept 3.6); no
+         * bookings, they are ticked off in the app.
+         */
         void saving(String amount, String name, String anchor) {
             LocalDate anchorDate = LocalDate.parse(anchor);
+            long goal = goalService.create(new io.github.mirco104.budget.goal.SavingGoalService.GoalRequest(
+                    name, new BigDecimal("3000"), null)).id();
             planService.create(new PlannedItemRequest(name, new BigDecimal(amount), true, null, null,
-                    RhythmUnit.MONTH, 1, anchorDate, EntryMode.TICK, false, YearMonth.from(anchorDate)));
+                    RhythmUnit.MONTH, 1, anchorDate, EntryMode.TICK, false, YearMonth.from(anchorDate), goal));
         }
 
         private PlannedItem create(PlannedItemRequest request) {

@@ -24,12 +24,17 @@ public class TransactionService {
     private final BankAccountService bankAccountService;
     private final ItemTermRepository termRepository;
     private final TermService termService;
+    private final io.github.mirco104.budget.plan.PlannedItemRepository itemRepository;
+    private final io.github.mirco104.budget.goal.SavingGoalRepository goalRepository;
     private final CurrentUser currentUser;
 
     public TransactionService(
             TransactionRepository transactionRepository, CategoryService categoryService,
             BankAccountService bankAccountService, ItemTermRepository termRepository, TermService termService,
-            CurrentUser currentUser) {
+            CurrentUser currentUser, io.github.mirco104.budget.plan.PlannedItemRepository itemRepository,
+            io.github.mirco104.budget.goal.SavingGoalRepository goalRepository) {
+        this.itemRepository = itemRepository;
+        this.goalRepository = goalRepository;
         this.transactionRepository = transactionRepository;
         this.categoryService = categoryService;
         this.bankAccountService = bankAccountService;
@@ -72,6 +77,7 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
+        payFrom(transaction, request);
         Transaction saved = transactionRepository.save(transaction);
         if (request.replaces() != null) {
             termService.link(request.replaces().itemId(), request.replaces().date(), saved, "replaces");
@@ -89,6 +95,7 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
+        payFrom(transaction, request);
         // R27: a transfer fulfils no term
         if (transaction.isTransfer()) {
             termRepository.findByTransaction(transaction).ifPresent(termRepository::delete);
@@ -105,6 +112,31 @@ public class TransactionService {
         Transaction transaction = findTransaction(id);
         termRepository.findByTransaction(transaction).ifPresent(term -> term.link(null));
         transactionRepository.delete(transaction);
+    }
+
+    // P8: an expense may be paid from the reserve pot of a rare item or from a saving goal, not from both
+    private void payFrom(Transaction transaction, TransactionRequest request) {
+        if (request.reserveItemKey() == null && request.savingGoalId() == null) {
+            transaction.payFrom(null, null);
+            return;
+        }
+        if (transaction.isTransfer() || transaction.getAmount().signum() > 0) {
+            throw new InvalidFieldException("reserveItemKey", "Nur eine Ausgabe kann aus einer Rücklage bezahlt werden.");
+        }
+        if (request.reserveItemKey() != null && request.savingGoalId() != null) {
+            throw new InvalidFieldException("reserveItemKey", "Bitte nur eine Rücklage oder ein Sparziel wählen.");
+        }
+        if (request.reserveItemKey() != null) {
+            boolean rare = itemRepository.findByItemKeyAndOwner(request.reserveItemKey(), currentUser.get()).stream()
+                    .anyMatch(item -> item.getRhythmUnit() == io.github.mirco104.budget.plan.RhythmUnit.MONTH
+                            && item.getRhythmCount() > 1 && !item.isSaving());
+            if (!rare) {
+                throw new InvalidFieldException("reserveItemKey", "Diese Rücklage gibt es nicht.");
+            }
+        }
+        transaction.payFrom(request.reserveItemKey(), request.savingGoalId() == null ? null
+                : goalRepository.findByIdAndOwner(request.savingGoalId(), currentUser.get())
+                        .orElseThrow(() -> new InvalidFieldException("savingGoalId", "Das Sparziel gibt es nicht.")));
     }
 
     // R27: a transfer has no category (400 if one is sent), every other booking needs one

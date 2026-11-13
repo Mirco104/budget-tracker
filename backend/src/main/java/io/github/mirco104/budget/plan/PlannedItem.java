@@ -84,6 +84,11 @@ public class PlannedItem {
     @Column(nullable = false)
     private LocalDate autoFrom;
 
+    // Concept 3.6: the saving goal of a saving item
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "saving_goal_id")
+    private io.github.mirco104.budget.goal.SavingGoal savingGoal;
+
     // R31: the import that created the item, null for one created by hand
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "import_batch_id")
@@ -139,6 +144,14 @@ public class PlannedItem {
 
     public Long getId() {
         return id;
+    }
+
+    public io.github.mirco104.budget.goal.SavingGoal getSavingGoal() {
+        return savingGoal;
+    }
+
+    public void setSavingGoal(io.github.mirco104.budget.goal.SavingGoal savingGoal) {
+        this.savingGoal = savingGoal;
     }
 
     public LocalDate getAutoFrom() {

@@ -46,6 +46,7 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final PlannedItemRepository itemRepository;
     private final ItemTermRepository termRepository;
+    private final io.github.mirco104.budget.goal.SavingGoalRepository goalRepository;
     private final InvitationRepository invitationRepository;
     private final PasswordResetRepository passwordResetRepository;
     private final BankAccountRepository bankAccountRepository;
@@ -57,7 +58,8 @@ public class AccountService {
             CurrentUser currentUser, UserRepository userRepository, PasswordEncoder passwordEncoder,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository, PlannedItemRepository itemRepository,
-            ItemTermRepository termRepository, InvitationRepository invitationRepository,
+            ItemTermRepository termRepository, io.github.mirco104.budget.goal.SavingGoalRepository goalRepository,
+            InvitationRepository invitationRepository,
             BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
             ImportBatchRepository importBatchRepository, PasswordResetRepository passwordResetRepository,
             Clock clock) {
@@ -72,6 +74,7 @@ public class AccountService {
         this.transactionRepository = transactionRepository;
         this.itemRepository = itemRepository;
         this.termRepository = termRepository;
+        this.goalRepository = goalRepository;
         this.invitationRepository = invitationRepository;
         this.clock = clock;
     }
@@ -160,6 +163,8 @@ public class AccountService {
         }
         termRepository.deleteByOwner(user);
         itemRepository.deleteByOwner(user);
+        transactionRepository.deleteByOwner(user);
+        goalRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);
         importBatchRepository.deleteByOwner(user);
         categoryRepository.deleteByOwner(user);

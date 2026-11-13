@@ -38,5 +38,11 @@ public record TransactionRequest(
 
         // P5: optional, the term of a planned item this booking fulfils (only when it is created)
         @Valid
-        TermRef replaces) {
+        TermRef replaces,
+
+        // P8: optional, "aus Rücklage bezahlen": the item key of a rare planned item whose reserve pot pays
+        java.util.UUID reserveItemKey,
+
+        // P8: optional, "aus Ersparnissen bezahlen": the saving goal that pays
+        Long savingGoalId) {
 }

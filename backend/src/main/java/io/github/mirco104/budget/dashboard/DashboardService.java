@@ -3,6 +3,8 @@ package io.github.mirco104.budget.dashboard;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
 import io.github.mirco104.budget.plan.TermService;
+import io.github.mirco104.budget.reserve.ReserveCalculator;
+import java.util.ArrayList;
 import io.github.mirco104.budget.plan.Fulfillment;
 import io.github.mirco104.budget.plan.PlanCalculator;
 import io.github.mirco104.budget.plan.PlanService;
@@ -46,8 +48,78 @@ public class DashboardService {
     public DashboardResponse calculate(YearMonth month) {
         YearMonth currentMonth = YearMonth.now(clock);
         Averages averages = averages(month, currentMonth);
-        return calculate(month, averages.income(), averages.expenses(), currentMonth)
-                .withCards(savingCard(month), expectedCard(month));
+        DashboardResponse real = calculate(month, averages.income(), averages.expenses(), currentMonth);
+        return withReserves(month, real, averages, currentMonth).withCards(savingCard(month), expectedCard(month));
+    }
+
+    /**
+     * P8: the budget lines count the monthly share of every rare item of the category instead of the payments its pot
+     * pays: a payment fulfilling a term of the item or chosen explicitly ("aus Rücklage bezahlen"); what the pot lacks
+     * counts into the budget. A payment from a saving goal does not count in the budget at all.
+     */
+    private DashboardResponse withReserves(
+            YearMonth month, DashboardResponse real, Averages averages, YearMonth currentMonth) {
+        List<io.github.mirco104.budget.transaction.Transaction> bookings = transactionRepository
+                .findCountedBetween(currentUser.get(), month.atDay(1), month.atEndOfMonth());
+        List<io.github.mirco104.budget.plan.PlannedItem> items = planService.findAll();
+        Map<java.util.UUID, YearMonth> firstMonth = new HashMap<>();
+        items.forEach(item -> firstMonth.merge(item.getItemKey(), item.getValidFrom(),
+                (a, b) -> a.isBefore(b) ? a : b));
+        List<io.github.mirco104.budget.plan.PlannedItem> rare = items.stream()
+                .filter(item -> item.getRhythmUnit() == io.github.mirco104.budget.plan.RhythmUnit.MONTH
+                        && item.getRhythmCount() > 1 && !item.isSaving() && item.getAmount().signum() < 0
+                        && PlanCalculator.validIn(item.data(), month))
+                .toList();
+        java.util.Set<java.util.UUID> rareKeys = new java.util.HashSet<>();
+        rare.forEach(item -> rareKeys.add(item.getItemKey()));
+
+        // Which booking each pot pays: the fulfilling one of a term of the item, or one chosen explicitly
+        Map<Long, java.util.UUID> potOf = new HashMap<>();
+        termService.terms(month.atDay(1), month.atEndOfMonth()).stream()
+                .filter(e -> e.transactionId() != null && rareKeys.contains(e.item().getItemKey()))
+                .forEach(e -> potOf.put(e.transactionId(), e.item().getItemKey()));
+        bookings.stream()
+                .filter(t -> t.getReserveItemKey() != null && rareKeys.contains(t.getReserveItemKey()))
+                .forEach(t -> potOf.put(t.getId(), t.getReserveItemKey()));
+        Map<java.util.UUID, BigDecimal> paid = new HashMap<>();
+        java.util.Set<Long> excluded = new java.util.HashSet<>();
+        for (io.github.mirco104.budget.transaction.Transaction t : bookings) {
+            java.util.UUID key = potOf.get(t.getId());
+            if (key != null && t.getAmount().signum() < 0) {
+                paid.merge(key, t.getAmount().negate(), BigDecimal::add);
+                excluded.add(t.getId());
+            } else if (t.getSavingGoal() != null) {
+                excluded.add(t.getId());
+            }
+        }
+
+        List<ReserveCalculator.Pot> pots = new ArrayList<>();
+        Set<Long> fix = bookings.isEmpty() ? Set.of() : termService.fixIds(month.atDay(1), month.atEndOfMonth());
+        List<TransactionData> entries = new ArrayList<>();
+        for (io.github.mirco104.budget.transaction.Transaction t : bookings) {
+            if (!excluded.contains(t.getId())) {
+                entries.add(new TransactionData(t.getCategory().getId(), t.getAmount(), t.getDate(),
+                        fix.contains(t.getId())));
+            }
+        }
+        for (io.github.mirco104.budget.plan.PlannedItem item : rare) {
+            ReserveCalculator.Pot pot = ReserveCalculator.pot(
+                    new ReserveCalculator.PotItem(item.getId(), item.getName(), item.getCategory().getId(),
+                            item.getAmount().abs(), item.getRhythmCount(), item.schedule(),
+                            firstMonth.get(item.getItemKey())),
+                    month, paid.getOrDefault(item.getItemKey(), BigDecimal.ZERO), null);
+            pots.add(pot);
+            entries.add(new TransactionData(pot.categoryId(), pot.monthly().negate(), month.atDay(1), true));
+            if (pot.shortfall().signum() > 0) {
+                entries.add(new TransactionData(pot.categoryId(), pot.shortfall().negate(), month.atDay(1), true));
+            }
+        }
+        if (pots.isEmpty() && excluded.isEmpty()) {
+            return real;
+        }
+        DashboardResponse budget = calculator.calculate(
+                categoriesOf(month), entries, month, averages.income(), averages.expenses(), currentMonth);
+        return real.withBudget(budget.categories(), budget.expenses(), pots);
     }
 
     // P9: the saving items valid in the month with their monthly share
@@ -95,11 +167,15 @@ public class DashboardService {
     // P3: the plan of a category is the target of the dashboard line (R5, R6)
     private DashboardResponse calculate(
             YearMonth month, IncomeAverage.Result average, BigDecimal averageExpenses, YearMonth currentMonth) {
+        return calculator.calculate(
+                categoriesOf(month), entries(month, month), month, average, averageExpenses, currentMonth);
+    }
+
+    private List<CategoryData> categoriesOf(YearMonth month) {
         Map<Long, BigDecimal> plan = planService.calculate(month).planByCategory();
-        List<CategoryData> categories = categoryService.findAllOrdered().stream()
+        return categoryService.findAllOrdered().stream()
                 .map(category -> new CategoryData(category.getId(), category.getName(), plan.get(category.getId())))
                 .toList();
-        return calculator.calculate(categories, entries(month, month), month, average, averageExpenses, currentMonth);
     }
 
     private record Averages(IncomeAverage.Result income, BigDecimal expenses) {

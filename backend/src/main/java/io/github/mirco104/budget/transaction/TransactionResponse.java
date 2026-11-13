@@ -19,7 +19,9 @@ public record TransactionResponse(
         String accountName,
         boolean transfer,
         boolean auto,
-        boolean fix) {
+        boolean fix,
+        java.util.UUID reserveItemKey,
+        Long savingGoalId) {
 
     public static TransactionResponse from(Transaction transaction, boolean fix) {
         Category category = transaction.getCategory();
@@ -34,6 +36,8 @@ public record TransactionResponse(
                 transaction.getAccount().getName(),
                 transaction.isTransfer(),
                 transaction.isAuto(),
-                fix);
+                fix,
+                transaction.getReserveItemKey(),
+                transaction.getSavingGoal() == null ? null : transaction.getSavingGoal().getId());
     }
 }

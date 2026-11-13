@@ -7,6 +7,7 @@ import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.dashboard.IncomeAverage;
+import io.github.mirco104.budget.goal.SavingGoalRepository;
 import io.github.mirco104.budget.importer.ImportBatch;
 import io.github.mirco104.budget.plan.PlanCalculator.Group;
 import io.github.mirco104.budget.plan.PlanCalculator.ItemData;
@@ -34,11 +35,14 @@ public class PlanService {
     private final BankAccountService bankAccountService;
     private final CurrentUser currentUser;
     private final Clock clock;
+    private final SavingGoalRepository goalRepository;
 
     public PlanService(
             PlannedItemRepository itemRepository, ItemTermRepository termRepository, CategoryService categoryService,
-            BankAccountService bankAccountService, CurrentUser currentUser, Clock clock) {
+            BankAccountService bankAccountService, CurrentUser currentUser, Clock clock,
+            SavingGoalRepository goalRepository) {
         this.clock = clock;
+        this.goalRepository = goalRepository;
         this.itemRepository = itemRepository;
         this.termRepository = termRepository;
         this.categoryService = categoryService;
@@ -203,6 +207,12 @@ public class PlanService {
         item.update(request.name().trim(), amount, saving, category,
                 bankAccountService.findBookable(request.accountId()), unit, request.rhythmCount(),
                 request.anchorDate(), mode, Boolean.TRUE.equals(request.workdaysOnly()), validFrom);
+        if (request.savingGoalId() != null && !saving) {
+            throw new InvalidFieldException("savingGoalId", "Nur ein Sparposten gehört zu einem Sparziel.");
+        }
+        item.setSavingGoal(request.savingGoalId() == null ? null
+                : goalRepository.findByIdAndOwner(request.savingGoalId(), currentUser.get())
+                        .orElseThrow(() -> new InvalidFieldException("savingGoalId", "Das Sparziel gibt es nicht.")));
     }
 
     // Decision 51: income and fixed costs automatically, saving when ticked off, budgets by the user

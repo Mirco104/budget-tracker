@@ -34,5 +34,7 @@ public record PlannedItemRequest(
         EntryMode entryMode,
         Boolean workdaysOnly,
         @NotNull(message = "„Gilt ab“ ist Pflicht.")
-        YearMonth validFrom) {
+        YearMonth validFrom,
+        // Concept 3.6: the saving goal of a saving item, optional
+        Long savingGoalId) {
 }

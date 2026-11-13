@@ -108,7 +108,9 @@ public class DashboardCalculator {
                 categoryLines,
                 incomeLines,
                 null,
-                null);
+                null,
+                null,
+                List.of());
     }
 
     // R1: sum of the signed amounts of the month, per category

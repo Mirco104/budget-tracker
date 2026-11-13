@@ -47,6 +47,13 @@ public class Transaction {
     @Column(nullable = false)
     private boolean auto;
 
+    // P8: paid explicitly from the reserve pot of the rare item with this key, or from a saving goal
+    private java.util.UUID reserveItemKey;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "saving_goal_id")
+    private io.github.mirco104.budget.goal.SavingGoal savingGoal;
+
     // R30: set for a transaction from an import; the fingerprint keeps a row from being imported twice
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "import_batch_id")
@@ -176,5 +183,19 @@ public class Transaction {
 
     public void markAuto() {
         this.auto = true;
+    }
+
+    /** P8: "aus Rücklage / Ersparnissen bezahlen"; both null for a booking from the monthly budget. */
+    public void payFrom(java.util.UUID reserveItemKey, io.github.mirco104.budget.goal.SavingGoal savingGoal) {
+        this.reserveItemKey = reserveItemKey;
+        this.savingGoal = savingGoal;
+    }
+
+    public java.util.UUID getReserveItemKey() {
+        return reserveItemKey;
+    }
+
+    public io.github.mirco104.budget.goal.SavingGoal getSavingGoal() {
+        return savingGoal;
     }
 }

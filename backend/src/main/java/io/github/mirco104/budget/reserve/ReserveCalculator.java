@@ -50,6 +50,50 @@ public class ReserveCalculator {
         }
     }
 
+    /**
+     * P8: a rare planned item (spacing over one month) for its reserve pot: amount is the payment without sign, months
+     * the spacing, validFrom the first month the item is planned (the pot does not start before it).
+     */
+    public record PotItem(
+            long itemId, String name, Long categoryId, BigDecimal amount, int months, TermSchedule schedule,
+            YearMonth validFrom) {
+    }
+
+    /**
+     * P8: the pot of an item in a month. balance is what is in it before the payment of the month, monthly the share
+     * put aside each month; fromPot is the part of the payments of the month the pot pays, shortfall the rest, which
+     * counts into the budget of the category. due tells whether a term lies in the month, nextDue is the next term
+     * from the month on.
+     */
+    public record Pot(
+            long itemId, String name, Long categoryId, BigDecimal amount, BigDecimal monthly, BigDecimal balance,
+            boolean due, LocalDate nextDue, BigDecimal paid, BigDecimal fromPot, BigDecimal shortfall) {
+    }
+
+    /**
+     * P8: the pot of the item in the month. paid is the sum of the payments of the month from the pot (without sign);
+     * linkedBalance is the balance of a linked savings account (P11), null for a calculated pot: then the balance is
+     * the monthly share times the months since the last term before the month, the month counted, at most since the
+     * item is planned.
+     */
+    public static Pot pot(PotItem item, YearMonth month, BigDecimal paid, BigDecimal linkedBalance) {
+        BigDecimal monthly = item.amount().divide(BigDecimal.valueOf(item.months()), MathContext.DECIMAL64);
+        LocalDate previous = item.schedule().previousTerm(month.atDay(1));
+        YearMonth start = previous == null ? item.validFrom() : YearMonth.from(previous).plusMonths(1);
+        if (start.isBefore(item.validFrom())) {
+            start = item.validFrom();
+        }
+        long months = Math.max(0, ChronoUnit.MONTHS.between(start, month) + 1);
+        BigDecimal balance = linkedBalance != null ? linkedBalance.max(BigDecimal.ZERO)
+                : monthly.multiply(BigDecimal.valueOf(Math.min(months, item.months())));
+        LocalDate nextDue = item.schedule().termsBetween(month.atDay(1), month.plusMonths(item.months()).atEndOfMonth())
+                .stream().findFirst().orElse(null);
+        boolean due = nextDue != null && YearMonth.from(nextDue).equals(month);
+        BigDecimal fromPot = paid.min(balance).max(BigDecimal.ZERO);
+        return new Pot(item.itemId(), item.name(), item.categoryId(), money(item.amount()), money(monthly),
+                money(balance), due, nextDue, money(paid), money(fromPot), money(paid.subtract(fromPot)));
+    }
+
     /** A single transaction; amount is signed (R11). */
     public record SingleData(long id, String description, LocalDate date, BigDecimal amount) {
     }

@@ -61,6 +61,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     boolean existsByAccountId(Long accountId);
 
+    boolean existsBySavingGoalId(Long savingGoalId);
+
+    /** P8: what was paid from a saving goal ("aus Ersparnissen bezahlen"), with sign. */
+    @Query("select coalesce(sum(t.amount), 0) from Transaction t where t.savingGoal.id = :goalId")
+    java.math.BigDecimal sumPaidFromGoal(Long goalId);
+
     /** R24: the smallest amount per category, as rows [category id, min(amount)]. */
     @Query("""
             select t.category.id, min(t.amount) from Transaction t
