@@ -29,7 +29,7 @@ Ein Eintrag im normalen Monat.
 | Feld | Bedeutung |
 |---|---|
 | Name | z. B. „Benzin", „Kfz-Versicherung" |
-| Wie oft | monatlich, vierteljährlich, halbjährlich, jährlich, ohne festen Termin |
+| Wie oft | wöchentlich, alle 2 Wochen, monatlich, alle 2 Monate, vierteljährlich, halbjährlich, jährlich, ohne festen Termin |
 | Betrag | der **echte Betrag pro Zahlung** (Kfz-Versicherung: 1.200 €). Bei „ohne festen Termin": Betrag im Monat |
 | Am Tag / Fällig im | Tag im Monat (monatlich) bzw. Monat der Fälligkeit (seltener) |
 | Kategorie | frei wählbar, jede Kategorie, auch bei seltenen Posten |
@@ -38,6 +38,7 @@ Ein Eintrag im normalen Monat.
 | Nur an Werktagen | fällt der Termin auf einen Wochenend- oder Feiertag, gilt der **nächste Werktag** |
 | Gilt ab | Monat, ab dem der Posten (oder seine Änderung) gilt; Vorgabe der aktuelle Monat |
 
+- **Rhythmus technisch flexibel:** Gespeichert wird **Einheit** (Woche oder Monat), **Anzahl** und das **erste Datum** als Anker. Die Auswahl „Wie oft" bietet die Vorgaben aus der Tabelle (wöchentlich = 1 Woche, alle 2 Wochen = 2 Wochen, monatlich = 1 Monat, alle 2 Monate = 2 Monate, vierteljährlich = 3, halbjährlich = 6, jährlich = 12 Monate). „Alle X Wochen / Monate" frei einzugeben ist später ohne Umbau möglich. Komplexe Regeln („jeden letzten Freitag") sind bewusst nicht vorgesehen. Termine liegen am Anker + k × Abstand; bei Monaten gilt wie heute die Regel für den Monatsletzten (der 31. wird im Februar zum 28. bzw. 29.). Übernommen aus PR #98 (Ticket #79).
 - Der **Monatsanteil** wird nie eingetippt, die App rechnet ihn (1.200 € jährlich = 100 € im Monat) und zeigt ihn im Bearbeiten-Fenster an.
 - **Gruppen** ergeben sich aus den Feldern: Einkommen (positiver Betrag) · **Fixkosten** (Ausgabe mit Termin) · **Budgets (variable Kosten)** (Ausgabe ohne festen Termin) · **Sparen** (Sparrate, Sparziel, Rücklage von Hand).
 - **Budget einer Kategorie** = Summe aller ihrer Posten (fest und variabel, seltene mit Monatsanteil). Ein eigenes Kategorie-Soll gibt es nicht mehr.
@@ -60,7 +61,7 @@ Wie heute (R26), dazu:
 - **Kontostand** mit Stichtag, von Hand eingetragen (später aus CAMT.053). Der App-Saldo ist dieser Stand plus alle Buchungen danach. Ein neuer Stand zeigt die Differenz zum App-Saldo („fehlt eine Buchung?").
 
 ### 3.5 Rücklagentopf
-Zu jedem seltenen Posten (vierteljährlich, halbjährlich, jährlich) gehört automatisch ein Topf. Der Topf hängt am **Posten**, nicht an einer Kategorie: Ein seltener Posten hat wie jeder andere eine frei wählbare Kategorie (Kfz-Versicherung in Mobilität oder Versicherungen, Rundfunkbeitrag in Nebenkosten, Jahresabo in Freizeit …), und seine Kosten zählen in dieser Kategorie.
+Zu jedem seltenen Posten, also mit einem Abstand über einem Monat (alle 2 Monate, vierteljährlich, halbjährlich, jährlich), gehört automatisch ein Topf. Wöchentliche und monatliche Posten haben keinen. Der Topf hängt am **Posten**, nicht an einer Kategorie: Ein seltener Posten hat wie jeder andere eine frei wählbare Kategorie (Kfz-Versicherung in Mobilität oder Versicherungen, Rundfunkbeitrag in Nebenkosten, Jahresabo in Freizeit …), und seine Kosten zählen in dieser Kategorie.
 - **Jeden Monat** gilt der Monatsanteil als zurückgelegt.
 - **Ohne Konto** rechnet die App den Stand nur aus („gerechnet").
 - **Mit verknüpftem Sparkonto** ist der Stand der des Kontos, und Zahlungen von diesem Konto gelten automatisch als aus der Rücklage bezahlt.
@@ -94,7 +95,7 @@ Alles andere bleibt, wie es ist. Inhaltlich ändert sich durch das neue Modell n
 
 ### 4.2 Transaktionen
 Wie heute (Zeitraum, Suche, Filter, Liste nach Tagen, Import). Neu:
-- Kennzeichen **fix**, **automatisch** und wie bisher **Umbuchung**; der Filter Art bietet fix, variabel, Sparen.
+- Kennzeichen **fix** (nur bei Ausgaben, siehe P5), **automatisch** und wie bisher **Umbuchung**; der Filter Art bietet fix, variabel, Sparen. Ein Info-Tipp (?) erklärt „fix": „Fix sind Ausgaben, die zu einem geplanten Posten passen, z. B. Miete, Versicherungen, Abos." Gleicher Tipp an „fix · variabel" in der Kachel Ausgaben der Übersicht.
 - **Abschnitt „Erwartet bis 30.11."** am Ende der Liste (eigene Adresse `#erwartet`): alle Termine des Monats, die noch nicht erfüllt sind.
   - Automatische zeigen „wird am 15.11. eingetragen".
   - Die anderen haben einen Kreis zum Abhaken, bezahlte einen Haken.
@@ -131,11 +132,11 @@ Meldungen stehen nicht auf den Seiten, sondern hinter der Glocke mit Zähler. Je
 | Nr. | Regel |
 |---|---|
 | P1 | **Ist** eines Monats = Summe der echten Buchungen je Art (Einnahme, Ausgabe, Sparen). Geplante Posten zählen nie. |
-| P2 | **Monatsanteil** eines Postens = Betrag ÷ Monate des Rhythmus (monatlich 1, vierteljährlich 3, halbjährlich 6, jährlich 12); ohne festen Termin = Betrag im Monat. Skala 2, HALF_UP. |
+| P2 | **Monatsanteil** eines Postens = Betrag × Faktor des Rhythmus. Einheit Woche: Faktor = 52/12 ÷ Anzahl (10 € wöchentlich = 43,33 €, alle 2 Wochen = 21,67 €). Einheit Monat: Faktor = 1 ÷ Anzahl (1.200 € jährlich = 100 €). Ohne festen Termin: Betrag im Monat. Gerechnet in voller Genauigkeit, gerundet erst am Ende (Skala 2, HALF_UP). Ein Monat mit 5 statt 4 Terminen eines wöchentlichen Postens liegt im Ist leicht über dem Monatsanteil; das ist der echte Geldfluss und bleibt so. |
 | P3 | **Plan einer Kategorie** = Summe der Monatsanteile ihrer Posten. **Gesamtplan** = Summe aller Kategorien. |
 | P4 | **Nicht verplant** = geplantes Einkommen − Fixkosten − Budgets − Sparen (alle als Monatsanteil). |
-| P5 | **Erfüllung:** Eine echte Buchung erfüllt einen Termin nach der heutigen Treffer-Regel (R28: gleiches Vorzeichen, ±5 Tage, ±20 % Betrag, gemeinsames Wort bzw. gleiche Kategorie). Erfüllte Ausgaben sind **fix** (ersetzt R10). |
-| P6 | **Automatischer Eintrag:** Am Termin (bzw. nächsten Werktag) legt die App eine Buchung mit dem geplanten Betrag an, gekennzeichnet „automatisch". Bringt ein Import eine Buchung, die diesen Termin erfüllt, **ersetzt** sie den automatischen Eintrag (der echte Betrag gilt). Ist ein automatischer Eintrag im Zeitraum eines Imports desselben Kontos nicht enthalten, meldet der Import das. |
+| P5 | **Erfüllung:** Eine echte Buchung erfüllt einen Termin nach der heutigen Treffer-Regel (R28: gleiches Vorzeichen, ±20 % Betrag, gemeinsames Wort bzw. gleiche Kategorie), mit einer **Toleranz beim Datum von höchstens 5 Tagen und höchstens dem halben Abstand** zum Nachbartermin (abgerundet): ±3 Tage bei wöchentlich, ±5 Tage sonst. So trifft eine Buchung nie den Termin der Nachbarwoche (aus PR #98). Erfüllte **Ausgaben** sind **fix** (ersetzt R10); Einnahmen bekommen kein Kennzeichen. |
+| P6 | **Automatischer Eintrag:** Am Termin (bzw. nächsten Werktag) legt die App eine Buchung mit dem geplanten Betrag an, gekennzeichnet „automatisch". Bringt ein Import eine Buchung, die diesen Termin erfüllt (mit der Toleranz aus P5), **ersetzt** sie den automatischen Eintrag (der echte Betrag gilt). Ist ein automatischer Eintrag im Zeitraum eines Imports desselben Kontos nicht enthalten, meldet der Import das. |
 | P7 | **Abhaken:** „Ist bezahlt" legt eine Buchung mit dem geplanten Betrag an; „Rückgängig" löscht sie wieder. |
 | P8 | **Rücklage:** Soll-Stand eines Topfs = Monatsanteil × Monate seit der letzten Fälligkeit (heutige Logik aus R14). Mit verknüpftem Konto zählt dessen Saldo. In der Budgetzeile zählt jeden Monat der Monatsanteil als erledigt. Im Fälligkeitsmonat wird die Zahlung aus dem Topf bezahlt; was der Topf nicht deckt, zählt ins Monatsbudget. |
 | P9 | **Sparquote** = geplantes Sparen ÷ geplantes Einkommen (in der Sparen-Karte). |
@@ -160,7 +161,7 @@ Meldungen stehen nicht auf den Seiten, sondern hinter der Glocke mit Zähler. Je
 | Entscheidung 6 | abgelöst: Ist = nur echte Buchungen |
 | Entscheidungen 36 (Soll in €, % als Hilfe), 41, 44 | durch P3, Kontorollen und die Art Sparen ersetzt |
 | Tickets #76, #91 (PR #96) | entfallen: abgedeckt durch Abhaken, Erfüllung und „Übernehmen" von Vorschlägen |
-| Ticket #79 (wöchentlich) | als weiterer Rhythmus nachrüstbar, nicht Teil dieser Runde |
+| Ticket #79 (wöchentlich) | gelöst: flexibler Rhythmus mit Einheit und Anzahl (3.1), wöchentlich und alle 2 Wochen von Anfang an; Monatsanteil P2, Toleranz P5 |
 | Ticket #86 (fix/variabel) | gelöst durch P5 |
 | Ticket #104 (Rhythmus anzeigen und ändern) | gelöst durch die Planung (3.1) |
 
@@ -177,7 +178,7 @@ Meldungen stehen nicht auf den Seiten, sondern hinter der Glocke mit Zähler. Je
 | AP | Inhalt | Umfang |
 |---|---|---|
 | 27a | Spezifikation, Entscheidungen, `CLAUDE.md` | S |
-| 27b | **Geplante Posten** statt Serien und Kategorie-Soll: Datenmodell, Migration (Abschnitt 7), P2–P4, Seite *Planung* (Gruppen, Kategorien, Nicht verplant, Bearbeiten mit Rhythmus) | L |
+| 27b | **Geplante Posten** statt Serien und Kategorie-Soll: Datenmodell mit flexiblem Rhythmus (Einheit, Anzahl, Anker), Migration (Abschnitt 7), P2–P4, Seite *Planung* (Gruppen, Kategorien, Nicht verplant, Bearbeiten mit Rhythmus) | L |
 | 27c | **Ist nur aus Buchungen:** Termine und Erfüllung (P1, P5), automatische Einträge (P6), Abschnitt *Erwartet* mit Abhaken (P7), Übersicht mit fix/variabel und Plan je Kategorie | L |
 | 27d | **Übersicht:** Karten Sparen und Erwartet, Kachel Noch frei entfernen | S |
 | 27e | **Rücklagentöpfe** (P8) mit Anzeige in der Budgetzeile | M |
@@ -193,7 +194,7 @@ Rechenklassen ohne Spring, Tests zuerst: `PlanCalculator` (P2–P4), `Fulfillmen
 - „Verfügbar"-Zahl und Prognose je Konto über mehrere Monate.
 - Kostenhebel in der Auswertung, Verträge mit Kündigungsfristen (Vertragsende, Frist am Posten; Erinnerung in der Glocke).
 - Regeln zur Auto-Kategorisierung, CAMT.053 mit Kontostand.
-- Wöchentlicher Rhythmus (#79), Verschlüsselung (#89).
+- Freie Eingabe „alle X Wochen / Monate" in der Oberfläche; Verschlüsselung (#89, Vorschlag in PR #98).
 - Teilen (AP 20) und Investment (AP 21–25).
 
 ## 10. Geklärte Punkte (13.11.2026)
@@ -206,3 +207,4 @@ Rechenklassen ohne Spring, Tests zuerst: `PlanCalculator` (P2–P4), `Fulfillmen
 | „Gilt ab"? | je Posten: Änderungen gelten ab einem Monat (Vorgabe aktueller Monat), vergangene Monate behalten ihren Plan |
 | Kategorie-Soll beim Umstieg? | wird nicht übernommen; nur die Serien werden zu Posten |
 | Verträge mit Kündigungsfristen? | spätere Stufe |
+| Was wird aus PR #98 (Tickets #79, #86) übernommen? | flexibler Rhythmus mit wöchentlich und alle 2 Wochen, Toleranz nach Abstand, Info-Tipp zu „fix"; #86 ist durch P5 gelöst, „regelmäßig / einmalig" für Einnahmen entfällt |
