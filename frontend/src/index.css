@@ -3399,3 +3399,16 @@ button.account-open:hover {
   border-color: var(--primary);
   color: var(--primary);
 }
+/* 27f4: the search stays; the other filters fold below it */
+.filter-contents {
+  display: contents;
+}
+.filter-more {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.filter-row .filter-toggle {
+  align-self: center;
+}

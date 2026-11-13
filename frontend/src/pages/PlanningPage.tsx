@@ -24,7 +24,12 @@ const GROUPS: { group: PlanGroup; title: string; hint: string }[] = [
     title: 'Budgets (variable Kosten)',
     hint: 'Was du im Monat ausgeben willst, ohne festen Termin, z. B. Lebensmittel, Benzin.',
   },
-  { group: 'SAVING', title: 'Sparen', hint: 'Sparraten und Rücklagen, die du beim Abhaken einträgst.' },
+  {
+    group: 'SAVING',
+    title: 'Sparen',
+    // 27f4: how the booking comes about depends on the Eintragungsart of each item (decision 51)
+    hint: 'Was du regelmäßig zurücklegst, z. B. Notgroschen oder ETF-Sparplan. Ob die Buchung automatisch entsteht, beim Abhaken oder wenn du sie selbst anlegst, stellst du je Posten bei „Eintragen“ ein.',
+  },
 ]
 
 type DialogState = { item: PlannedItem | null; group?: PlanGroup; preset?: { name?: string; amount?: number; categoryId?: number } }

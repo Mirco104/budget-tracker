@@ -103,10 +103,9 @@ export function TransactionsPage({
   // Ticket #84: the hits of each filter option with the other filters
   const counts = facetCounts(loaded, filters, matchesFilters, FACET_KEYS)
   const sums = totals(shown)
-  const active = [filters.query.trim(), filters.category, filters.kind, filters.account, filters.direction].filter(
-    (value) => value !== '',
-  ).length
-  const filtered = active > 0
+  // The active filters behind the button "Filter"; the search is always shown
+  const hidden = [filters.category, filters.kind, filters.account, filters.direction].filter((v) => v !== '').length
+  const filtered = hidden > 0 || filters.query.trim() !== ''
   const accounts = bankAccounts.data ?? []
 
   return (
@@ -156,37 +155,38 @@ export function TransactionsPage({
           </div>
         )}
 
-        <div className="filter-toggle-row">
-          <button
-            type="button"
-            className={active > 0 ? 'chip plain filter-toggle active' : 'chip plain filter-toggle'}
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((v) => !v)}
-          >
-            <Icon name="filter" size={16} />
-            Filter{active > 0 && ` (${active})`}
-          </button>
-          {filtered && (
-            <button type="button" className="link-button" onClick={() => setFilters(NO_FILTERS)}>
-              Filter zurücksetzen
-            </button>
-          )}
-        </div>
-
-        {filtersOpen && (
-          <TransactionFilters
-            filters={filters}
-            onChange={setFilters}
-            counts={counts}
-            categories={categories.data ?? []}
-            extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
-            directions={DIRECTIONS}
-            accounts={accounts.map((account) => ({
-              value: String(account.id),
-              label: account.archived ? `${account.name} (archiviert)` : account.name,
-            }))}
-          />
-        )}
+        <TransactionFilters
+          filters={filters}
+          onChange={setFilters}
+          counts={counts}
+          categories={categories.data ?? []}
+          extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
+          directions={DIRECTIONS}
+          accounts={accounts.map((account) => ({
+            value: String(account.id),
+            label: account.archived ? `${account.name} (archiviert)` : account.name,
+          }))}
+          // 27f4: the search stays; the other filters fold behind the button, which counts the active ones
+          expanded={filtersOpen}
+          toggle={
+            <>
+              <button
+                type="button"
+                className={hidden > 0 ? 'chip plain filter-toggle active' : 'chip plain filter-toggle'}
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((v) => !v)}
+              >
+                <Icon name="filter" size={16} />
+                Filter{hidden > 0 && ` (${hidden})`}
+              </button>
+              {filtered && (
+                <button type="button" className="link-button" onClick={() => setFilters(NO_FILTERS)}>
+                  Filter zurücksetzen
+                </button>
+              )}
+            </>
+          }
+        />
 
         {transactions.data && (
           <p className="hint period-summary" aria-live="polite">

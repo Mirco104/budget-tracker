@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Category } from '../api/types'
 import type { FacetCounts, FacetField, Filters } from '../filters'
 import { Icon } from './ui/Icon'
@@ -29,6 +30,8 @@ export function TransactionFilters({
   counts,
   kinds = KINDS,
   directions,
+  toggle,
+  expanded = true,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
@@ -39,6 +42,10 @@ export function TransactionFilters({
   kinds?: FilterOption[]
   /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter (the import) */
   directions?: FilterOption[]
+  /** 27f4: a button after the search that folds the other filters (Transaktionen) */
+  toggle?: ReactNode
+  /** 27f4: false shows only the search and the toggle */
+  expanded?: boolean
 }) {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
@@ -72,34 +79,39 @@ export function TransactionFilters({
           onChange={(e) => set('query', e.target.value)}
         />
       </label>
-      <select aria-label="Kategorie filtern" value={filters.category} onChange={(e) => set('category', e.target.value)}>
-        <option value="">Alle Kategorien</option>
-        {options('category', categoryOptions)}
-      </select>
-      {accounts.length > 1 && (
-        <select aria-label="Konto filtern" value={filters.account} onChange={(e) => set('account', e.target.value)}>
-          <option value="">Alle Konten</option>
-          {options('account', accounts)}
-        </select>
-      )}
-      {directions && (
-        <select
-          aria-label="Einnahmen oder Ausgaben filtern"
-          value={filters.direction}
-          // Fix and variable are kinds of expenses; with Einnahmen they do not apply
-          onChange={(e) =>
-            onChange({ ...filters, direction: e.target.value, kind: e.target.value === 'INCOME' ? '' : filters.kind })
-          }
-        >
-          <option value="">Einnahmen und Ausgaben</option>
-          {options('direction', directions)}
-        </select>
-      )}
-      {filters.direction !== 'INCOME' && (
-        <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
-          <option value="">{directions ? 'Fix und variabel' : 'Alle Arten'}</option>
-          {options('kind', kinds)}
-        </select>
+      {toggle}
+      {expanded && (
+        <div className={toggle ? 'filter-more' : 'filter-contents'}>
+          <select aria-label="Kategorie filtern" value={filters.category} onChange={(e) => set('category', e.target.value)}>
+            <option value="">Alle Kategorien</option>
+            {options('category', categoryOptions)}
+          </select>
+          {accounts.length > 1 && (
+            <select aria-label="Konto filtern" value={filters.account} onChange={(e) => set('account', e.target.value)}>
+              <option value="">Alle Konten</option>
+              {options('account', accounts)}
+            </select>
+          )}
+          {directions && (
+            <select
+              aria-label="Einnahmen oder Ausgaben filtern"
+              value={filters.direction}
+              // Fix and variable are kinds of expenses; with Einnahmen they do not apply
+              onChange={(e) =>
+                onChange({ ...filters, direction: e.target.value, kind: e.target.value === 'INCOME' ? '' : filters.kind })
+              }
+            >
+              <option value="">Einnahmen und Ausgaben</option>
+              {options('direction', directions)}
+            </select>
+          )}
+          {filters.direction !== 'INCOME' && (
+            <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
+              <option value="">{directions ? 'Fix und variabel' : 'Alle Arten'}</option>
+              {options('kind', kinds)}
+            </select>
+          )}
+        </div>
       )}
     </div>
   )

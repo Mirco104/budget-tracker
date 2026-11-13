@@ -328,16 +328,20 @@ describe('TransactionsPage', () => {
     expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 
-  // 27f4: the filters hide behind a button that counts the active ones; "Filter zurücksetzen" clears them
-  it('hides the filters behind a button and resets them', async () => {
+  // 27f4: the search is always shown; the other filters fold behind a button that counts the active ones
+  it('folds the filters except the search behind a button and resets them', async () => {
     renderPage()
     const toggle = await screen.findByRole('button', { name: 'Filter' })
+    expect(screen.getByLabelText('Beschreibung suchen')).toBeInTheDocument()
     expect(screen.queryByLabelText('Kategorie filtern')).not.toBeInTheDocument()
-    fireEvent.click(toggle)
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
+    fireEvent.click(toggle)
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '6' } })
     expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
     expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('')
+    expect(screen.getByLabelText('Kategorie filtern')).toHaveValue('')
     expect(screen.queryByRole('button', { name: 'Filter zurücksetzen' })).not.toBeInTheDocument()
   })
 
