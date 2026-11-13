@@ -188,4 +188,30 @@ describe('PlanningPage', () => {
     expect(call![0]).toBe('/api/planned-items/1')
     expect(JSON.parse(call![1]!.body as string)).toMatchObject({ amount: -950, validFrom: currentMonth() })
   })
+
+  // 27f3: "Monatlich sparen" splits the rest onto the saving items that exist
+  it('splits the part not planned onto the saving items', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Monatlich sparen' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /800,00.€ aufteilen/ })
+    expect(within(dialog).getByRole('status')).toHaveTextContent('noch 800,00 € offen')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rest' }))
+    expect(within(dialog).getByLabelText('Mehr für Notgroschen')).toHaveValue('800,00')
+    expect(within(dialog).getByRole('status')).toHaveTextContent('noch 0,00 € offen')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/planned-items/4' && init?.method === 'PUT')).toBe(true))
+    const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/planned-items/4' && init?.method === 'PUT')
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({ amount: -1100, saving: true, validFrom: currentMonth() })
+  })
+
+  // 27f3: the budget of "Sonstiges" is named in the head
+  it('names the budget of Sonstiges in the head', async () => {
+    renderPage({
+      ...plan,
+      categories: [...plan.categories, { group: 'BUDGET', categoryId: 9, categoryName: 'Sonstiges', total: 120 }],
+    })
+    expect(await screen.findByText('davon Sonstiges 120,00 €')).toBeInTheDocument()
+  })
 })

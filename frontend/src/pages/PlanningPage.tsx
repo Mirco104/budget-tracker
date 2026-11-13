@@ -3,6 +3,7 @@ import { useCategories, useCreateCategory } from '../api/categories'
 import { useCreatePlannedItem, usePlan, useUpdatePlannedItem } from '../api/plan'
 import type { Category, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
+import { SplitSavingDialog } from '../components/SplitSavingDialog'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { InfoTip } from '../components/ui/InfoTip'
 import { Loading } from '../components/ui/Loading'
@@ -92,11 +93,14 @@ function PlanBar({ plan }: { plan: Plan }) {
 
 function PlanHead({
   plan,
+  other,
   onToSaving,
   onToOther,
   busy,
 }: {
   plan: Plan
+  /** 27f3: the budget of the category "Sonstiges", undefined without one. */
+  other?: number
   onToSaving: () => void
   onToOther: () => void
   busy: boolean
@@ -117,6 +121,8 @@ function PlanHead({
             <span className="dot stack-budget" /> Budgets
           </dt>
           <dd>{formatEuro(plan.budgets)}</dd>
+          {/* 27f3: the catch-all is shown, so its size does not hide */}
+          {other !== undefined && <dd className="tile-note">davon Sonstiges {formatEuro(other)}</dd>}
         </div>
         <div>
           <dt>
@@ -271,6 +277,7 @@ function PlanningContent({ month }: { month: string }) {
   const updateItem = useUpdatePlannedItem()
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [splitting, setSplitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   if (plan.isPending || categories.isPending) {
@@ -332,10 +339,9 @@ function PlanningContent({ month }: { month: string }) {
       </p>
       <PlanHead
         plan={data}
+        other={data.categories.find((line) => line.group === 'BUDGET' && line.categoryName === SONSTIGES)?.total}
         busy={createItem.isPending || updateItem.isPending || createCategory.isPending}
-        onToSaving={() =>
-          setDialog({ item: null, group: 'SAVING', preset: { name: 'Sparen', amount: data.unplanned } })
-        }
+        onToSaving={() => setSplitting(true)}
         onToOther={() => void toOther()}
       />
       {error && (
@@ -370,6 +376,22 @@ function PlanningContent({ month }: { month: string }) {
           onClose={() => setDialog(null)}
           onDone={(message) => {
             setDialog(null)
+            setToast(message)
+          }}
+        />
+      )}
+      {splitting && (
+        <SplitSavingDialog
+          amount={data.unplanned}
+          items={data.items.filter((item) => item.group === 'SAVING')}
+          month={month}
+          onNewItem={() => {
+            setSplitting(false)
+            setDialog({ item: null, group: 'SAVING', preset: { name: 'Sparen', amount: data.unplanned } })
+          }}
+          onClose={() => setSplitting(false)}
+          onDone={(message) => {
+            setSplitting(false)
             setToast(message)
           }}
         />

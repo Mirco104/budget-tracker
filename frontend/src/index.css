@@ -3198,3 +3198,11 @@ button.booking-row {
 .reserve-row {
   align-items: center;
 }
+.split-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.split-input input {
+  width: 6.5em;
+}
