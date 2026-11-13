@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '../components/ui/Icon'
 import { InfoTip } from '../components/ui/InfoTip'
 import { EXPECTED_ROUTE } from '../router'
 import { useCategories } from '../api/categories'
@@ -53,6 +54,7 @@ export function DashboardPage({ month, onMonthChange }: Props) {
 
 function DashboardContent({ month }: { month: string }) {
   const { data, isPending, error } = useDashboard(month)
+  const [incomeOpen, setIncomeOpen] = useState(false)
   // The dashboard lines carry no icon; the categories do (US28)
   const categories = useCategories(month)
 
@@ -76,8 +78,35 @@ function DashboardContent({ month }: { month: string }) {
 
       <dl className="summary">
         <div>
-          <dt>Einnahmen</dt>
+          <dt>
+            <button
+              type="button"
+              className="tile-toggle"
+              aria-expanded={incomeOpen}
+              onClick={() => setIncomeOpen((value) => !value)}
+            >
+              Einnahmen <span aria-hidden="true">{incomeOpen ? '▴' : '▾'}</span>
+            </button>
+          </dt>
           <dd>{formatEuro(data.incomeTotal)}</dd>
+          {/* 27f2: the income per category of the month, only when the tile is open */}
+          {incomeOpen && (
+            <dd className="tile-list">
+              {data.income.length === 0 ? (
+                <span className="hint">Keine Einnahmen in diesem Monat.</span>
+              ) : (
+                <ul>
+                  {data.income.map((line) => (
+                    <li key={line.id}>
+                      <CategoryIcon icon={iconOf(line.id)} size={14} />
+                      <span>{line.name}</span>
+                      <span className="income">{formatEuro(line.actual)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </dd>
+          )}
           {/* R23: the Ø of the months before is the basis of the percent targets */}
           {data.averageIncome !== null && (
             <dd className="tile-note">
@@ -104,36 +133,6 @@ function DashboardContent({ month }: { month: string }) {
             </dd>
           )}
         </div>
-        {data.saving && (
-          <div className="saving-tile">
-            <dt>Sparen</dt>
-            <dd>{formatEuro(data.saving.planned)}</dd>
-            <dd className="tile-note">
-              {data.saving.rate !== null ? `Sparquote ${data.saving.rate.toLocaleString('de-DE')} %` : 'geplant'}
-              {data.saving.actual ? ` · gespart ${formatEuro(data.saving.actual)}` : ''}
-              {data.saving.items.length > 0 && (
-                <>
-                  {' '}
-                  <InfoTip label="Welche Sparposten?">
-                    {data.saving.items.map((item) => `${item.name}: ${formatEuro(item.monthly)}`).join(' · ')}
-                  </InfoTip>
-                </>
-              )}
-            </dd>
-          </div>
-        )}
-        {data.expected && (
-          <div>
-            <dt>Erwartet</dt>
-            <dd>
-              <a href={EXPECTED_ROUTE}>
-                {data.expected.count === 1 ? '1 Zahlung' : `${data.expected.count} Zahlungen`} im{' '}
-                {formatMonthName(month)}
-              </a>
-            </dd>
-            {data.expected.count > 0 && <dd className="tile-note">zusammen {formatSigned(data.expected.total)}</dd>}
-          </div>
-        )}
       </dl>
 
       {showOnboarding && <Onboarding />}
@@ -161,23 +160,51 @@ function DashboardContent({ month }: { month: string }) {
         </ul>
       )}
 
-      <h3>Einnahmen</h3>
-      {data.income.length === 0 ? (
-        <p className="hint">In diesem Monat gibt es keine Einnahmen.</p>
-      ) : (
-        <ul className="budget-list">
-          {data.income.map((line) => (
-            <li key={line.id} className="budget-item">
-              <div className="budget-head">
-                <CategoryIcon icon={iconOf(line.id)} />
-                <span className="budget-name">{line.name}</span>
-                <span className="budget-amount income">{formatEuro(line.actual)}</span>
-              </div>
+      {data.saving && <SavingCard saving={data.saving} />}
+
+      {data.expected && (
+        <a className="budget-item expected-card" href={EXPECTED_ROUTE}>
+          <span className="budget-name">Erwartet</span>
+          <span className="budget-amount">
+            <span>
+              {data.expected.count === 1 ? '1 Zahlung' : `${data.expected.count} Zahlungen`} im {formatMonthName(month)}
+            </span>
+            {data.expected.count > 0 && <span className="budget-left">zusammen {formatSigned(data.expected.total)}</span>}
+          </span>
+        </a>
+      )}
+    </>
+  )
+}
+
+/** P9, 27f2: planned and saved this month; open it shows the saving items with their monthly share. */
+function SavingCard({ saving }: { saving: NonNullable<DashboardData['saving']> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="budget-item saving-card">
+      <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="budget-name">Sparen</span>
+        <span className="budget-amount">
+          <span>
+            {formatEuro(saving.actual ?? 0)} von {formatEuro(saving.planned)}
+          </span>
+          {saving.rate !== null && (
+            <span className="budget-left">Sparquote {saving.rate.toLocaleString('de-DE')} %</span>
+          )}
+        </span>
+      </button>
+      {open && (
+        <ul className="bookings">
+          {saving.items.length === 0 && <li className="hint">Noch keine Sparposten in der Planung.</li>}
+          {saving.items.map((item) => (
+            <li key={item.name}>
+              <span className="booking-description">{item.name}</span>
+              <span className="booking-amount saving">{formatEuro(item.monthly)} im Monat</span>
             </li>
           ))}
         </ul>
       )}
-    </>
+    </div>
   )
 }
 
@@ -199,23 +226,6 @@ function BudgetNumbers({ line }: { line: Line }) {
       )}
     </span>
   )
-}
-
-/**
- * P8 (concept 4.1): under a budget row, what a rare item put aside this month; in its due month what the pot paid,
- * in orange when the pot was too small.
- */
-function ReserveLine({ pot }: { pot: ReservePot }) {
-  const short = pot.shortfall > 0
-  let text: string
-  if (pot.paid > 0 && short) {
-    text = `${formatEuro(pot.fromPot)} aus der Rücklage, ${formatEuro(pot.shortfall)} fehlten darin`
-  } else if (pot.paid > 0) {
-    text = `${pot.name} ${formatEuro(pot.paid)} aus der Rücklage bezahlt`
-  } else {
-    text = `${formatEuro(pot.monthly)} zurückgelegt für ${pot.name} · Rücklage ${formatEuro(pot.balance)} von ${formatEuro(pot.amount)}`
-  }
-  return <p className={short ? 'reserve-line short' : 'reserve-line'}>{text}</p>
 }
 
 function BudgetItem({
@@ -247,16 +257,13 @@ function BudgetItem({
         <BudgetNumbers line={line} />
       </button>
       {line.target !== null && <ProgressBar value={used} over={over} />}
-      {pots.map((pot) => (
-        <ReserveLine key={pot.itemId} pot={pot} />
-      ))}
-      {open && <CategoryBookings month={month} categoryId={line.id} />}
+      {open && <CategoryBookings month={month} categoryId={line.id} pots={pots} />}
     </li>
   )
 }
 
 /** US12: single transactions and occurrences of recurring ones that count in the category in the month. */
-function CategoryBookings({ month, categoryId }: { month: string; categoryId: number }) {
+function CategoryBookings({ month, categoryId, pots }: { month: string; categoryId: number; pots: ReservePot[] }) {
   const { data, isPending, error } = useTransactions(month)
 
   if (isPending) {
@@ -266,11 +273,14 @@ function CategoryBookings({ month, categoryId }: { month: string; categoryId: nu
     return <p className="error">Buchungen konnten nicht geladen werden: {error.message}</p>
   }
   const entries = data.filter((entry) => entry.categoryId === categoryId)
-  if (entries.length === 0) {
+  if (entries.length === 0 && pots.length === 0) {
     return <p className="hint">Keine Buchungen in diesem Monat.</p>
   }
   return (
     <ul className="bookings">
+      {pots.map((pot) => (
+        <ReserveRow key={pot.itemId} pot={pot} />
+      ))}
       {entries.map((entry) => (
         <li key={entry.id}>
           <span className="booking-date">{formatDate(entry.date)}</span>
@@ -282,6 +292,34 @@ function CategoryBookings({ month, categoryId }: { month: string; categoryId: nu
         </li>
       ))}
     </ul>
+  )
+}
+
+/**
+ * P8, 27f2: the reserve of a rare item in the open budget row, shown like a transfer: put aside this month, or in
+ * the due month paid from the pot (orange when the pot was too small). It is no booking.
+ */
+function ReserveRow({ pot }: { pot: ReservePot }) {
+  const short = pot.shortfall > 0
+  const paid = pot.paid > 0
+  return (
+    <li className={short ? 'reserve-row short' : 'reserve-row'}>
+      <span className="booking-date" aria-hidden="true">
+        <Icon name="transfer" size={14} />
+      </span>
+      <span className="booking-description">
+        Rücklage {pot.name}
+        <span className="tx-meta">
+          {paid
+            ? short
+              ? `${formatEuro(pot.shortfall)} fehlten in der Rücklage`
+              : 'aus der Rücklage bezahlt'
+            : `zurückgelegt · Stand ${formatEuro(pot.balance)} von ${formatEuro(pot.amount)}`}{' '}
+          · keine Buchung
+        </span>
+      </span>
+      <span className="booking-amount saving">{formatEuro(paid ? pot.fromPot : pot.monthly)}</span>
+    </li>
   )
 }
 

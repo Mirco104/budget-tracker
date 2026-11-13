@@ -108,7 +108,8 @@ function renderPage(data: DashboardData = dashboard, categoryList: Category[] = 
 }
 
 function tile(label: string) {
-  return screen.getByText(label, { selector: 'dt' }).nextSibling as HTMLElement
+  const dt = screen.getAllByRole('term').find((term) => term.textContent?.startsWith(label))
+  return dt?.nextSibling as HTMLElement
 }
 
 function item(name: string) {
@@ -119,7 +120,7 @@ describe('DashboardPage', () => {
   it('requests the selected month and shows income, expenses, saving and expected payments', async () => {
     const fetchMock = renderPage()
 
-    expect(await screen.findByText('Sparen', { selector: 'dt' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Sparen/ })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-10', expect.anything())
     expect(tile('Einnahmen')).toHaveTextContent('2.000,00 €')
     expect(screen.getByText(/^Ø 2\.000,00 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
@@ -128,9 +129,9 @@ describe('DashboardPage', () => {
     // R23, decision 34: Ā over the same months as the Ø income
     expect(screen.getByText(/^Ø 912,50 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
     // AP 27d: Sparen and Erwartet instead of the surplus tile
-    expect(tile('Sparen')).toHaveTextContent('300,00 €')
+    expect(screen.getByRole('button', { name: /^Sparen/ })).toHaveTextContent('300,00 €')
     expect(screen.getByText(/Sparquote 12 %/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '3 Zahlungen im Oktober' })).toHaveAttribute('href', '#/transaktionen/erwartet')
+    expect(screen.getByRole('link', { name: /3 Zahlungen im Oktober/ })).toHaveAttribute('href', '#/transaktionen/erwartet')
     expect(screen.queryByText('Monatlicher Überschuss')).not.toBeInTheDocument()
     expect(screen.getByText('Abgeschlossener Monat.')).toBeInTheDocument()
     expect(screen.queryByText(/Nicht verplant/)).not.toBeInTheDocument()
@@ -139,7 +140,7 @@ describe('DashboardPage', () => {
   // US27: booking also starts on the overview, with the last used categories of the month
   it('opens the booking dialog with "+ Buchung" and the round button', async () => {
     renderPage()
-    await screen.findByText('Sparen', { selector: 'dt' })
+    await screen.findByRole('button', { name: /^Sparen/ })
 
     fireEvent.click(screen.getByRole('button', { name: 'Buchung' }))
 
@@ -160,7 +161,7 @@ describe('DashboardPage', () => {
   it('has no switch between euros and percent', async () => {
     renderPage()
 
-    expect(await screen.findByText('Sparen', { selector: 'dt' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Sparen/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '%' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Anzeige' })).not.toBeInTheDocument()
   })
@@ -175,17 +176,19 @@ describe('DashboardPage', () => {
       averageIncomeTo: null,
     })
 
-    expect(await screen.findByText('Sparen', { selector: 'dt' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Sparen/ })).toBeInTheDocument()
     expect(screen.queryByText(/^Ø /)).not.toBeInTheDocument()
   })
 
   it('shows a month without income', async () => {
     renderPage({ ...dashboard, incomeTotal: 0, surplus: -895, surplusLabel: 'Monatlicher Verlust', income: [] })
 
-    expect(await screen.findByText('Einnahmen', { selector: 'dt' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Einnahmen/ })).toBeInTheDocument()
     expect(tile('Einnahmen')).toHaveTextContent('0,00 €')
     expect(item('Wohnen')).toHaveTextContent('780,00 € von 800,00 €')
-    expect(screen.getByText('In diesem Monat gibt es keine Einnahmen.')).toBeInTheDocument()
+    // 27f2: the income list is in the Einnahmen tile, open on a click
+    fireEvent.click(screen.getByRole('button', { name: /^Einnahmen/ }))
+    expect(screen.getByText('Keine Einnahmen in diesem Monat.')).toBeInTheDocument()
   })
 
   // US12
@@ -219,20 +222,24 @@ describe('DashboardPage', () => {
       categories.map((c) => ({ ...c, targetValidFrom: null })),
     )
 
-    expect(await screen.findByText('In diesem Monat gibt es keine Einnahmen.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Einnahmen/ })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Erste Schritte' })).not.toBeInTheDocument()
   })
 
-  // P8, AP 27e: a green line under the budget row for a rare item, orange when the pot was too small
+  // P8, 27f2: the reserve of a rare item is a row like a transfer in the open budget row, orange when the pot was
+  // too small
   it('shows what a rare item put aside and what its pot paid', async () => {
     const pot = {
       itemId: 5, name: 'Kfz-Versicherung', categoryId: 1, amount: 1200, monthly: 100, balance: 1000, due: false,
       nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0,
     }
     renderPage({ ...dashboard, reserves: [pot] })
-    expect(
-      await screen.findByText('100,00 € zurückgelegt für Kfz-Versicherung · Rücklage 1.000,00 € von 1.200,00 €'),
-    ).toBeInTheDocument()
+    await screen.findByRole('button', { name: /^Einnahmen/ })
+    expect(screen.queryByText('Rücklage Kfz-Versicherung', { exact: false })).not.toBeInTheDocument()
+    fireEvent.click(within(item('Wohnen')).getByRole('button'))
+    const row = (await screen.findByText(/Rücklage Kfz-Versicherung/)).closest('li') as HTMLElement
+    expect(row).toHaveTextContent('zurückgelegt · Stand 1.000,00 € von 1.200,00 € · keine Buchung')
+    expect(row).toHaveTextContent('100,00 €')
   })
 
   it('shows in orange what was missing in the pot', async () => {
@@ -241,7 +248,10 @@ describe('DashboardPage', () => {
       nextDue: '2026-10-15', paid: 1200, fromPot: 1000, shortfall: 200,
     }
     renderPage({ ...dashboard, reserves: [pot] })
-    const line = await screen.findByText('1.000,00 € aus der Rücklage, 200,00 € fehlten darin')
-    expect(line).toHaveClass('short')
+    await screen.findByRole('button', { name: /^Einnahmen/ })
+    fireEvent.click(within(item('Wohnen')).getByRole('button'))
+    const row = (await screen.findByText(/Rücklage Kfz-Versicherung/)).closest('li') as HTMLElement
+    expect(row).toHaveTextContent('200,00 € fehlten in der Rücklage')
+    expect(row).toHaveClass('short')
   })
 })

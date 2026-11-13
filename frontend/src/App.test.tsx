@@ -166,9 +166,10 @@ describe('App', () => {
     // Transforming Recharts for the first import takes a while in the test environment
     await waitFor(
       () => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/history\?from=.*&to=.*$/), expect.anything()),
-      { timeout: 5000 },
+      { timeout: 15000 },
     )
-  })
+    // The first import of Recharts can take longer than 5 s when the whole suite runs in parallel
+  }, 20000)
 
   it('opens the account menu with name, settings and sign-out', async () => {
     await renderApp()

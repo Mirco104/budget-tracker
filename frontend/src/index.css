@@ -3023,3 +3023,58 @@ button.tick.done {
 .account-row select {
   max-width: 45%;
 }
+
+/* --- Overview after the first test (AP 27f2) --- */
+button.tile-toggle {
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.summary dd.tile-list {
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+.tile-list ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.tile-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+.tile-list .income {
+  color: var(--income);
+  font-variant-numeric: tabular-nums;
+}
+.saving-card,
+a.expected-card {
+  display: block;
+  margin-top: 12px;
+}
+a.expected-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.saving-card .budget-amount > span:first-child,
+.booking-amount.saving {
+  color: var(--saving);
+}
+.reserve-row .booking-description {
+  display: grid;
+}
+.reserve-row.short .booking-amount,
+.reserve-row.short .tx-meta {
+  color: var(--warn);
+}
