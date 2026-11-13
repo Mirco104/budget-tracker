@@ -60,9 +60,7 @@ public class TermController {
     @PostMapping("/paid")
     @ResponseStatus(HttpStatus.CREATED)
     public TransactionResponse pay(@Valid @RequestBody PayRequest request) {
-        return TransactionResponse.from(
-                termService.pay(request.itemId(), request.date(), request.amount(), request.bookingDate()),
-                false);
+        return termService.pay(request.itemId(), request.date(), request.amount(), request.bookingDate());
     }
 
     @DeleteMapping("/paid")

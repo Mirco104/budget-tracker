@@ -148,7 +148,8 @@ public class TermService {
 
     /** P7 "Ist bezahlt": books the term with the planned or the given amount and date and links it. */
     @Transactional
-    public Transaction pay(long itemId, LocalDate date, BigDecimal amount, LocalDate bookingDate) {
+    public io.github.mirco104.budget.transaction.TransactionResponse pay(
+            long itemId, LocalDate date, BigDecimal amount, LocalDate bookingDate) {
         PlannedItem item = termItem(itemId, date, "date");
         if (termRepository.findByOwnerAndItemKeyAndTermDate(currentUser.get(), item.getItemKey(), date).isPresent()) {
             throw new InvalidFieldException("date", "Dieser Termin ist schon erledigt.");
@@ -161,7 +162,8 @@ public class TermService {
                 : amount.abs().multiply(BigDecimal.valueOf(item.getAmount().signum())).setScale(2, RoundingMode.HALF_UP);
         Transaction booking = book(item, value, bookingDate == null ? due : bookingDate);
         link(item.getItemKey(), date, booking);
-        return booking;
+        // The response is built here, while account and category can still be loaded (open-in-view is off)
+        return io.github.mirco104.budget.transaction.TransactionResponse.from(booking, booking.getAmount().signum() < 0);
     }
 
     /** P7 "Rückgängig": deletes the booking of a paid term and the link; the term is expected again. */
