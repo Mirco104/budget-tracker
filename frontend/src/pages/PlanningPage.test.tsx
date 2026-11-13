@@ -117,6 +117,13 @@ describe('PlanningPage', () => {
     expect(screen.getByRole('region', { name: 'Einkommen' })).not.toHaveTextContent('Zur Orientierung')
   })
 
+  // 27f4: the planned income stands above the bar
+  it('shows the planned income above the bar', async () => {
+    renderPage()
+    const income = (await screen.findByText('Geplante Einnahmen')).closest('p') as HTMLElement
+    expect(income).toHaveTextContent('2.500,00 €')
+  })
+
   it('asks what to do with the part not planned', async () => {
     renderPage()
 
@@ -140,6 +147,16 @@ describe('PlanningPage', () => {
     expect(JSON.parse(category![1]!.body as string)).toEqual({ name: 'Sonstiges' })
     const created = fetchMock.mock.calls.find(([url]) => url === '/api/planned-items')
     expect(JSON.parse(created![1]!.body as string)).toMatchObject({ name: 'Sonstiges', amount: -800, rhythmUnit: null })
+  })
+
+  // 27f4: the item dialog uses the shared selection with "+ Neue Kategorie …"
+  it('offers a new category right in the item dialog', async () => {
+    renderPage()
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: 'new' } })
+    expect(within(dialog).getByRole('textbox', { name: 'Neue Kategorie' })).toBeInTheDocument()
   })
 
   it('creates a yearly item with its due month and the month "Gilt ab"', async () => {

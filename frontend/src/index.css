@@ -3245,3 +3245,16 @@ a.summary-link:hover {
   color: var(--warn);
   font-weight: 600;
 }
+.plan-income {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 8px;
+}
+.plan-income strong {
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.plan-income .income {
+  color: var(--income);
+}

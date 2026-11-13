@@ -108,6 +108,11 @@ function PlanHead({
   const over = plan.unplanned < 0
   return (
     <div className="card plan-summary">
+      {/* 27f4: the planned income the bar divides */}
+      <p className="plan-income">
+        <span>Geplante Einnahmen</span>
+        <strong className="income">{formatEuro(plan.income)}</strong>
+      </p>
       <PlanBar plan={plan} />
       <dl className="plan-legend">
         <div>
