@@ -3073,6 +3073,7 @@ a.expected-card {
 }
 .reserve-row .booking-description {
   display: grid;
+  text-align: left;
 }
 .reserve-row.short .booking-amount,
 .reserve-row.short .tx-meta {
@@ -3115,6 +3116,7 @@ a.expected-card {
   background: var(--surface);
 }
 .summary-head {
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: baseline;
@@ -3188,6 +3190,7 @@ a.link-card .budget-amount {
 }
 button.booking-row {
   display: contents;
+  text-align: left;
   color: inherit;
   font: inherit;
   cursor: pointer;
