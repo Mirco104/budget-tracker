@@ -141,6 +141,9 @@ Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
 - **US34 Import rückgängig:** Als Nutzer sehe ich auf der Import-Seite meine bisherigen Importe (Datum, Bank, Anzahl, Zeitraum) und mache einen ganz rückgängig. *AK:* Alle Transaktionen des Imports werden gelöscht, ersetzte Vorkommen zählen wieder (R28), Serien, die der Import angelegt hat, werden gelöscht (R31), gespeicherte Gegenbuchungen, die beim Import zur Umbuchung wurden, bekommen ihre Kategorie zurück, sofern sie noch Umbuchungen sind (R27); eine Umbuchung aus einem anderen Import, deren Gegenbuchung so gelöscht wird, bleibt Umbuchung; Rückfrage vor dem Löschen; ein fremder Import ergibt 404.
 - **US35 Ist ersetzt Plan:** Als Nutzer sehe ich in der Import-Vorschau und im Buchungsdialog, wenn eine Buchung ein geplantes Vorkommen einer Serie ersetzt ("ersetzt „Miete“ vom 01.11.", abwählbar), damit nichts doppelt zählt. *AK:* R28; ein ersetztes Vorkommen erscheint nicht mehr in Liste und Übersicht, die Buchung zählt als wiederkehrend; Löschen der Buchung bringt das Vorkommen zurück; ein fremdes oder nicht zählendes Vorkommen ergibt 400.
 
+### Tickets ab 09.11.2026
+- **US36 Passwort vergessen (Ticket #81):** Als Admin erzeuge ich unter *Einstellungen › Nutzer* für ein Konto, dessen Passwort vergessen ist, einen Link für ein neues Passwort und schicke ihn selbst weiter (kein Mailversand, Entscheidung 19). Wer den Link öffnet, legt ein neues Passwort fest (zweimal eingegeben) und ist danach angemeldet. *AK:* Link einmal nutzbar und 24 Stunden gültig (sonst 410, unbekannt 404); ein neuer Link für dasselbe Konto macht ältere unbenutzbar; gespeichert wird nur der SHA-256-Hash des Tokens; Passwort mindestens 12 Zeichen (400); eine Anmeldesperre (US14) für die E-Mail wird aufgehoben. Ein Link gibt nie mehr Rechte als sein Ersteller: Ein Admin erzeugt ihn nur für User, der Systemadmin auch für Admins; für sich selbst (dafür *Einstellungen › Konto*) und für den Systemadmin gibt es keinen (409); nur Admins (403). Die Anmeldeseite hat "Passwort vergessen?" mit dem Hinweis, den Admin um einen Link zu bitten. Andere offene Sitzungen des Kontos bleiben bestehen (keine Sitzungsliste). Löschen eines Kontos (US16) entfernt seine Links und die Links, die es erzeugt hat.
+
 ### Nice
 - **US9 Diagramm** (Soll gegen Ist je Kategorie) mit Recharts. *Ersetzt durch das Diagramm in US13 (Erweiterung).*
 - **US23 Depot mit Positionen (vorgemerkt, eigene Spec-Runde):** R22.
@@ -208,6 +211,14 @@ Invitation                             (US15)
   createdBy     → User
   expiresAt     Instant                (7 Tage nach Erzeugung)
   usedAt        Instant, nullable
+
+PasswordReset                          (US36, Migration V12)
+  id            Long, PK
+  tokenHash     String, eindeutig      (SHA-256 des zufälligen Tokens mit 256 Bit, hex; das Token selbst nie)
+  user          → User                 (das Konto, dessen Passwort neu gesetzt wird)
+  createdBy     → User                 (der Admin)
+  expiresAt     Instant                (24 Stunden nach Erzeugung)
+  usedAt        Instant, nullable      (auch gesetzt, wenn ein neuerer Link ihn ablöst)
 
 Person                                 (US17)
   id            Long, PK
@@ -346,6 +357,8 @@ Basis: `/api`, JSON. Fehler als RFC 7807 (`ProblemDetail`), Validierung per Bean
 | PUT | `/account/display-name` | Anzeigenamen ändern, Body `{displayName}` (US16) | 200, 400 |
 | GET | `/users` | Alle Konten ohne Finanzdaten, nur Admins (US25) | 200, 403 |
 | PUT | `/users/{id}/role` | Rolle ändern, Body `{role: USER\|ADMIN}`, nur Admins (US25) | 200, 400, 403, 404, 409 |
+| POST | `/users/{id}/password-reset` | Link für ein neues Passwort erzeugen (US36), Antwort `{link, expiresAt}`, Link `/?passwort=<token>` | 201, 403, 404, 409 (eigenes Konto, Systemadmin, Admin durch Admin) |
+| POST | `/password-resets/{token}` | Neues Passwort setzen ohne Anmeldung, Body `{password}`, meldet an (US36) | 200 + `MeResponse`, 404, 410 (abgelaufen/benutzt), 400 |
 | POST | `/categories` | Kategorie anlegen, Body `{name, icon?}` (US10, US28) | 201 + Location, 400, 409 |
 | PUT | `/categories/{id}` | Ändern, Body `{name, archived, icon?}`; seit Entscheidung 38 ohne `sortOrder` (ein mitgeschicktes Feld wird ignoriert), alle Listen sind alphabetisch | 200, 404, 400, 409 |
 | DELETE | `/categories/{id}` | Löschen (nur unbenutzt, US10) | 204, 404, 409 |
@@ -791,6 +804,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 - `docker-compose.yml` mit App und PostgreSQL; die Datenbank liegt in einem benannten Volume. Optional (Profil `https`) Caddy als Reverse Proxy mit automatischen Zertifikaten; die App lauscht dann nur lokal.
 - Konfiguration und Secrets (Datenbank-Passwort, erster Admin) nur über Umgebungsvariablen; im Repo nur `.env.example` mit Platzhaltern.
 - Health-Check über Spring Boot Actuator (`/actuator/health`, nur Status nach außen).
+- Lokaler Modus (Ticket #82): `GET /api/health` liefert neben `status` das Feld `mode` mit dem lokalen Profil (`dev` oder `sample`, Entscheidung 35), ohne Anmeldung; im Betrieb (`postgres`) und in den Tests ist es `null`. Die Oberfläche zeigt einen lokalen Modus neben dem Namen der App als orangefarbenes Abzeichen ("Entwicklung (dev)", "Beispieldaten (sample)", am Handy nur `dev` bzw. `sample`) und vor dem Titel des Browser-Tabs (`[sample] Budget-Tracker`), auch auf der Anmeldeseite.
 
 **Betrieb (jede Plattform muss das erfüllen):**
 - Nur HTTPS (z. B. über einen Reverse Proxy mit automatischen Zertifikaten); HTTP leitet um.
@@ -855,6 +869,7 @@ Umsetzung der Entscheidungen 26 bis 33, vor AP 20. Ziel: Die App soll ohne Erkl�
 - *19i Auswertung:* `/history` verlangt beide Monate oder keinen (nur einer ergibt 400 mit dem fehlenden Parameter). Zu lang (mehr als 120 Monate) ist ein Feldfehler an `from`, "Bis" im aktuellen Monat oder später und "Von" nach "Bis" an `to`. `total` ist ein Objekt `{income, expenses, surplus}` wie im Antwort-Beispiel. Die Kategorien im Rückblick tragen `id`, `name`, `icon` und `amount`. `/reserves` liefert nur noch Monat, Rücklagen-Topf und Vorschau; ohne `month` gilt der aktuelle Monat. Die Rechnung bleibt in `ReserveCalculator` (Methoden `history` und `outlook`), ohne neue Klasse. Fixture F1 im Integrationstest bucht das Gehalt jetzt wie in Abschnitt 12 als monatliche Serie. Schnellwahl im Rückblick: letzte 3, 6 und 12 Monate (Vorgabe), "Jahr <Vorjahr>" und "<Jahr> bisher" (im Januar nicht angeboten) als Kalenderjahr sowie "Zeitraum …" mit zwei Monatsfeldern (höchstens bis zum Vormonat), der mit dem gezeigten Zeitraum beginnt. `#/auswertung` zeigt den Rückblick; die Unterseiten heißen `#/auswertung/rueckblick` und `#/auswertung/vorausschau`. Der Tooltip zeigt Einnahmen, Ausgaben und Überschuss des Monats. Das Einklappen von Rückblick und Vorschau (AP 15a, im Browser gespeichert) entfällt. Der Monatswähler bleibt nur in der *Übersicht*.
 - *19i nach dem ersten Test (06.11.2026, Entscheidung 37):* `/reserves` liefert zusätzlich `ratesLeft` je seltene Ausgabe und `fromReserves` je Monat und je Eintrag der Vorschau; ein Eintrag zählt dazu, wenn er ein Vorkommen einer Serie mit Intervall über 1 Monat ist, denn genau diese bilden den Topf. In der Vorschau steht der blaue Teil oben auf dem Balken. Die Tabelle zeigt in "davon aus den Rücklagen" den Betrag oder "–"; aufgeklappt steht er auch bei der einzelnen Ausgabe. Die Karten verwenden den Baustein `ProgressBar` der *Übersicht*. Am Handy steht das Datum eines Eintrags über seinem Namen, und das Etikett "wiederkehrend" entfällt. Das Info-Symbol ist ein gemeinsamer Baustein `InfoTip` in `src/components/ui/`; die Erklärung öffnet sich beim Überfahren und beim Fokus, ein Klick hält sie offen, Escape und ein Klick daneben schließen sie. Gibt es keine seltenen Ausgaben, entfallen Satz, Kacheln und Karten, und ein Hinweis erklärt, welche Ausgaben hier erscheinen.
 - *19j Einstellungen:* Die Unterseiten liegen unter `#/einstellungen/kategorien`, `/konto`, `/einladungen` und `/nutzer`; `#/einstellungen` zeigt die Kategorien. Einladungen und Nutzer erscheinen nur für Admins; ruft ein Nutzer ihre Adresse auf, sieht er die Kategorien. Die Unterseiten stehen wie bei der *Auswertung* als Reiter oben (am Handy seitlich scrollbar), nicht als Seitenleiste. Ziehen und "Nach oben" / "Nach unten" sind nach dem Test vom 07.11.2026 entfallen (Entscheidung 38). Das Menü "⋯" enthält Umbenennen (Feld in der Zeile, Enter oder Verlassen speichert, Escape bricht ab), Icon ändern, Archivieren und Löschen; ein Klick auf das Icon öffnet die Icon-Auswahl ebenfalls. Löschen fragt in der Zeile noch einmal nach ("Endgültig löschen"). Archivierte Kategorien stehen in einem eigenen Abschnitt mit "Wiederherstellen" und "Löschen". "+ Kategorie" öffnet ein Namensfeld mit Icon-Auswahl (Vorgabe `tag`). Unter *Konto* wird das neue Passwort zweimal eingegeben (die Einladung hatte das schon); die Prüfung macht das Formular, die API bleibt unverändert. Inhalte von Einladungen und Nutzer bleiben wie bisher.
+- *Ticket #78 Laden (09.11.2026):* Solange eine Seite ihre Daten lädt, zeigt sie einen Kreisel mit Text ("Lade Übersicht …"); unter dem Kopf läuft ein dünner blauer Balken, solange eine Anfrage an den Server läuft (Laden, Speichern, Import). Beides erscheint erst nach einem kurzen Moment (0,3 bzw. 0,4 s), damit eine schnelle Antwort nicht flackert; der Baustein ist `Loading` in `src/components/ui/`.
 
 ## 18. Bank-Import ab 07.11.2026
 

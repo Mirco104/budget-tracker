@@ -19,6 +19,7 @@ import {
 } from '../format'
 import { INTERVAL_LABELS } from '../labels'
 import { EVALUATION_ROUTES, useEvaluationPage } from '../router'
+import { Loading } from '../components/ui/Loading'
 
 /** Analysis (R14, US13, decision 29): look back over a period and outlook from the current month on. */
 export function EvaluationPage() {
@@ -148,7 +149,7 @@ function LookBack() {
       </div>
 
       {!complete && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
-      {complete && isPending && <p>Lade Rückblick …</p>}
+      {complete && isPending && <Loading text="Lade Rückblick …" />}
       {error && <p className="error">Rückblick konnte nicht geladen werden: {errorText(error, 'Unbekannter Fehler')}</p>}
       {data && !error && <LookBackContent data={data} requested={monthCount(period)} active={active} onActive={setActive} />}
     </>
@@ -382,7 +383,7 @@ function Outlook() {
   const { data, isPending, error } = useReserves()
   const [active, setActive] = useState<string | null>(null)
   if (isPending) {
-    return <p>Lade Vorausschau …</p>
+    return <Loading text="Lade Vorausschau …" />
   }
   if (error) {
     return <p className="error">Vorausschau konnte nicht geladen werden: {error.message}</p>

@@ -12,6 +12,7 @@ import { ProgressBar } from '../components/ui/ProgressBar'
 import { bookingDateFor, formatDate, formatEuro } from '../format'
 import { averagePeriod } from '../labels'
 import { ROUTES } from '../router'
+import { Loading } from '../components/ui/Loading'
 
 type Line = Pick<CategoryLine, 'target' | 'actual' | 'difference'>
 
@@ -58,7 +59,7 @@ function DashboardContent({ month }: { month: string }) {
   const categories = useCategories(month)
 
   if (isPending) {
-    return <p>Lade Übersicht …</p>
+    return <Loading text="Lade Übersicht …" />
   }
   if (error) {
     return <p className="error">Übersicht konnte nicht geladen werden: {error.message}</p>
@@ -206,7 +207,7 @@ function CategoryBookings({ month, categoryId }: { month: string; categoryId: nu
   const { data, isPending, error } = useTransactions(month)
 
   if (isPending) {
-    return <p className="hint">Lade Buchungen …</p>
+    return <Loading text="Lade Buchungen …" inline />
   }
   if (error) {
     return <p className="error">Buchungen konnten nicht geladen werden: {error.message}</p>

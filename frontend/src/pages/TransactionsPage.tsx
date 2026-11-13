@@ -16,6 +16,7 @@ import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type P
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
 import { ImportPage } from './ImportPage'
 import { totals } from '../sums'
+import { Loading } from '../components/ui/Loading'
 
 /** For the filter Art: a booking that replaces an occurrence counts as recurring (R28). */
 function kindOf(entry: Transaction): Transaction['kind'] {
@@ -161,7 +162,7 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
       )}
 
       {!complete && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
-      {complete && transactions.isPending && <p>Lade Transaktionen …</p>}
+      {complete && transactions.isPending && <Loading text="Lade Transaktionen …" />}
       {transactions.error && (
         <p className="error">
           Transaktionen konnten nicht geladen werden: {errorText(transactions.error, 'Unbekannter Fehler')}
