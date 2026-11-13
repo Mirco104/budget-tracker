@@ -24,6 +24,7 @@ import { Segmented } from '../components/ui/Segmented'
 import { facetCounts, IMPORT_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
+import { Loading } from '../components/ui/Loading'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
@@ -1163,7 +1164,7 @@ export function ImportPage() {
             CSV-Datei wählen
             <input type="file" accept=".csv,text/csv" className="visually-hidden" onChange={(e) => void handleFile(e)} />
           </label>
-          {upload.isPending && <p className="hint">Lese Datei …</p>}
+          {upload.isPending && <Loading text="Lese Datei …" inline />}
           {error && (
             <p className="error" role="alert">
               {error}

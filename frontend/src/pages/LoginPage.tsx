@@ -7,6 +7,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [forgotten, setForgotten] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -56,6 +57,16 @@ export function LoginPage() {
           </p>
         )}
       </form>
+      {/* US36: the app sends no e-mail (decision 19), an admin creates a link for a new password */}
+      <button type="button" className="link-button" aria-expanded={forgotten} onClick={() => setForgotten(!forgotten)}>
+        Passwort vergessen?
+      </button>
+      {forgotten && (
+        <p className="hint">
+          Bitte deinen Admin um einen Link für ein neues Passwort. Er erzeugt ihn unter Einstellungen › Nutzer; der Link
+          ist einmal nutzbar und 24 Stunden gültig.
+        </p>
+      )}
     </section>
   )
 }

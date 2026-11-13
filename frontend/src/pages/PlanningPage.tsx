@@ -8,6 +8,7 @@ import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { currentMonth, formatEuro, formatMonth, formatMonthName, shiftMonth } from '../format'
 import { averagePeriod } from '../labels'
+import { Loading } from '../components/ui/Loading'
 
 export type PlanningBase = 'avg' | 'min'
 
@@ -173,7 +174,7 @@ function PlanningContent({ month }: { month: string }) {
   const [base, setBase] = useState(storedBase)
 
   if (categories.isPending) {
-    return <p>Lade Kategorien …</p>
+    return <Loading text="Lade Kategorien …" />
   }
   if (categories.error) {
     return <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>
