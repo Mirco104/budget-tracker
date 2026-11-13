@@ -226,8 +226,6 @@ export interface Plan {
   /** 27f4: the months of the average, null without one */
   averageFrom?: string | null
   averageTo?: string | null
-  /** 27f4: how much the planned income lies above the minimum income; null when it does not */
-  incomeOverMinimum?: number | null
   categories: PlanCategoryTotal[]
   items: PlannedItem[]
 }

@@ -80,9 +80,9 @@ class PlanControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.name == 'Mobilität')].target").value(143.33));
     }
 
-    // 27f4: the planning page shows Ē(M) and Emin(M) with their months and whether the plan lies above Emin(M)
+    // 27f4: the planning page shows Ē(M) and Emin(M) with their months, only for orientation (R23)
     @Test
-    void thePlanNamesTheMonthsOfTheAverageIncomeAndWhetherItPlansMoreThanTheWeakestMonth() throws Exception {
+    void thePlanNamesTheMonthsOfTheAverageIncome() throws Exception {
         create("""
                 {"name": "Gehalt", "amount": 2500, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
                  "anchorDate": "2026-01-01", "entryMode": "MANUAL", "validFrom": "2026-01"}"""
@@ -96,8 +96,7 @@ class PlanControllerTest {
         mockMvc.perform(get("/api/plan").param("month", "2026-11"))
                 .andExpect(jsonPath("$.minimumIncome").value(2000.00))
                 .andExpect(jsonPath("$.averageFrom").value("2026-10"))
-                .andExpect(jsonPath("$.averageTo").value("2026-10"))
-                .andExpect(jsonPath("$.incomeOverMinimum").value(500.00));
+                .andExpect(jsonPath("$.averageTo").value("2026-10"));
     }
 
     @Test

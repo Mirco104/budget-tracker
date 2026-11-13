@@ -3419,7 +3419,7 @@ button.account-open:hover {
 }
 .income-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 6px;
 }
@@ -3448,12 +3448,6 @@ button.account-open:hover {
 .income-stats-period {
   grid-column: 1 / -1;
   margin: 0;
-}
-.income-stat.over {
-  border-color: var(--warn);
-}
-.income-stat.over .income-stat-note {
-  color: var(--warn);
 }
 /* 27f4: all filters in one row next to each other */
 .filter-more {

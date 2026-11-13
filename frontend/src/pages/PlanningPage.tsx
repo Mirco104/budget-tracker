@@ -248,15 +248,7 @@ function GroupSection({
       {group === 'INCOME' && plan.averageIncome !== null && plan.minimumIncome !== null && (
         <div className="income-stats-block">
           <div className="income-stats">
-            {/* 27f4: orange with the amount only when the plan lies above the minimum income */}
-            <div className={plan.incomeOverMinimum != null ? 'income-stat over' : 'income-stat'}>
-              <span className="income-stat-label">Geplant</span>
-              <span className="income-stat-value">{formatEuro(plan.income)}</span>
-              {plan.incomeOverMinimum != null && (
-                <span className="income-stat-note">{formatEuro(plan.incomeOverMinimum)} über Mindesteinnahmen</span>
-              )}
-            </div>
-            <div className="income-stat">
+              <div className="income-stat">
               <span className="income-stat-label">Durchschnitt</span>
               <span className="income-stat-value">{formatEuro(plan.averageIncome)}</span>
               <span className="income-stat-note">pro Monat</span>

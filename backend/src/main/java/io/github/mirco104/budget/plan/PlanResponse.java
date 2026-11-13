@@ -24,8 +24,6 @@ public record PlanResponse(
         // 27f4: the months of Ē(M) and Emin(M), null without one
         String averageFrom,
         String averageTo,
-        // 27f4: how much the planned income lies above Emin(M); null when it does not or without Emin(M)
-        BigDecimal incomeOverMinimum,
         List<CategoryTotal> categories,
         List<PlannedItemResponse> items) {
 
