@@ -83,6 +83,7 @@ public class DashboardService {
                 .forEach(t -> potOf.put(t.getId(), t.getReserveItemKey()));
         Map<java.util.UUID, BigDecimal> paid = new HashMap<>();
         java.util.Set<Long> excluded = new java.util.HashSet<>();
+        BigDecimal fromGoals = BigDecimal.ZERO;
         for (io.github.mirco104.budget.transaction.Transaction t : bookings) {
             java.util.UUID key = potOf.get(t.getId());
             if (key != null && t.getAmount().signum() < 0) {
@@ -90,6 +91,7 @@ public class DashboardService {
                 excluded.add(t.getId());
             } else if (t.getSavingGoal() != null) {
                 excluded.add(t.getId());
+                fromGoals = fromGoals.add(t.getAmount().negate());
             }
         }
 
@@ -119,7 +121,11 @@ public class DashboardService {
         }
         DashboardResponse budget = calculator.calculate(
                 categoriesOf(month), entries, month, averages.income(), averages.expenses(), currentMonth);
-        return real.withBudget(budget.categories(), budget.expenses(), pots);
+        // 27f4: the part of the real expenses the pots and saving goals paid
+        BigDecimal fromReserves = pots.stream().map(ReserveCalculator.Pot::fromPot)
+                .reduce(fromGoals, BigDecimal::add).setScale(2, java.math.RoundingMode.HALF_UP);
+        return real.withBudget(budget.categories(), budget.expenses(), pots,
+                fromReserves.signum() > 0 ? fromReserves : null);
     }
 
     // P9: the saving items valid in the month with their monthly share

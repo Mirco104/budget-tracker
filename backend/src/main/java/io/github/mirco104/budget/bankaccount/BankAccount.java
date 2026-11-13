@@ -46,6 +46,10 @@ public class BankAccount {
     @Column(nullable = false)
     private boolean archived;
 
+    // 27f4: optional; the page Konten marks a balance below it
+    @Column(name = "comfort_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal comfortAmount;
+
     protected BankAccount() {
     }
 
@@ -96,5 +100,13 @@ public class BankAccount {
 
     public void setRole(AccountRole role) {
         this.role = role;
+    }
+
+    public java.math.BigDecimal getComfortAmount() {
+        return comfortAmount;
+    }
+
+    public void setComfortAmount(java.math.BigDecimal comfortAmount) {
+        this.comfortAmount = comfortAmount;
     }
 }

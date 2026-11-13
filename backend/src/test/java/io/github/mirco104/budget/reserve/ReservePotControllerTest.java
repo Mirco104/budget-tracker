@@ -63,6 +63,7 @@ class ReservePotControllerTest {
                 .andExpect(jsonPath("$.expenses.actual").value(1200.00))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Mobilität')].actual").value(100.00))
                 .andExpect(jsonPath("$.budget.actual").value(100.00))
+                .andExpect(jsonPath("$.fromReserves").value(1200.00))
                 .andExpect(jsonPath("$.reserves[0].name").value("Kfz-Versicherung"))
                 .andExpect(jsonPath("$.reserves[0].balance").value(1200.00))
                 .andExpect(jsonPath("$.reserves[0].due").value(true))
@@ -99,7 +100,8 @@ class ReservePotControllerTest {
 
         mockMvc.perform(get("/api/dashboard").param("month", month))
                 .andExpect(jsonPath("$.expenses.actual").value(300.00))
-                .andExpect(jsonPath("$.budget.actual").value(0.00));
+                .andExpect(jsonPath("$.budget.actual").value(0.00))
+                .andExpect(jsonPath("$.fromReserves").value(300.00));
         mockMvc.perform(get("/api/saving-goals"))
                 .andExpect(jsonPath("$[0].name").value("Notgroschen"))
                 .andExpect(jsonPath("$[0].saved").value(-300.00));

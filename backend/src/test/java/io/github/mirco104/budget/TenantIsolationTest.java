@@ -117,7 +117,8 @@ class TenantIsolationTest {
                 Arguments.of("PUT planned item", "item"),
                 Arguments.of("DELETE planned item", "deleteItem"),
                 Arguments.of("PUT bank account", "bankAccount"),
-                Arguments.of("DELETE bank account", "deleteBankAccount"));
+                Arguments.of("DELETE bank account", "deleteBankAccount"),
+                Arguments.of("PUT comfort amount", "comfortAmount"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -135,6 +136,7 @@ class TenantIsolationTest {
             case "bankAccount" -> put("/api/bank-accounts/{id}", accountOfB)
                     .content("{\"name\": \"Neu\", \"archived\": false, \"defaultAccount\": true}");
             case "deleteBankAccount" -> delete("/api/bank-accounts/{id}", accountOfB);
+            case "comfortAmount" -> put("/api/bank-accounts/{id}/comfort-amount", accountOfB).content("{\"amount\": 1}");
             default -> throw new IllegalArgumentException(request);
         };
 

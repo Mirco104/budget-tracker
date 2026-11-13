@@ -37,10 +37,14 @@ public class AccountOverviewService {
         this.clock = clock;
     }
 
-    /** One account with its app balance today and its last balance from the bank (null without one). */
+    /**
+     * One account with its app balance today and its last balance from the bank (null without one). belowComfort is
+     * true when a comfort amount is set and the balance lies below it (27f4).
+     */
     public record AccountLine(
             long id, String name, String iban, AccountRole role, boolean defaultAccount, boolean archived,
-            BigDecimal balance, LocalDate statementDate, BigDecimal statementAmount) {
+            BigDecimal balance, LocalDate statementDate, BigDecimal statementAmount, BigDecimal comfortAmount,
+            boolean belowComfort) {
     }
 
     /** The accounts of one role with the sum of their balances. */
@@ -63,17 +67,27 @@ public class AccountOverviewService {
                     .filter(account -> account.getRole() == role)
                     .map(account -> {
                         BankStatement last = lastOnOrBefore(statements.get(account.getId()), today);
+                        BigDecimal balance = AccountBalance.balance(last == null ? null : last.statement(),
+                                entries.getOrDefault(account.getId(), List.of()), today);
+                        BigDecimal comfort = account.getComfortAmount();
                         return new AccountLine(account.getId(), account.getName(), account.getIban(), role,
-                                account.isDefaultAccount(), account.isArchived(),
-                                AccountBalance.balance(last == null ? null : last.statement(),
-                                        entries.getOrDefault(account.getId(), List.of()), today),
-                                last == null ? null : last.getDate(), last == null ? null : last.getAmount());
+                                account.isDefaultAccount(), account.isArchived(), balance,
+                                last == null ? null : last.getDate(), last == null ? null : last.getAmount(),
+                                comfort, comfort != null && balance.compareTo(comfort) < 0);
                     })
                     .toList();
             BigDecimal total = lines.stream().map(AccountLine::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
             groups.add(new RoleGroup(role, total.setScale(2, RoundingMode.HALF_UP), lines));
         }
         return groups;
+    }
+
+    /** 27f4: sets the comfort amount of the account; null removes it. */
+    @Transactional
+    public void setComfortAmount(long accountId, BigDecimal amount) {
+        BankAccount account = accountRepository.findByIdAndOwner(accountId, currentUser.get())
+                .orElseThrow(() -> new NotFoundException("Konto " + accountId + " wurde nicht gefunden."));
+        account.setComfortAmount(amount == null ? null : amount.setScale(2, RoundingMode.HALF_UP));
     }
 
     /** P11: the app balance of the account at the end of the day. */

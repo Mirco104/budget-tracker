@@ -135,6 +135,28 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$[0].pots[0].name").value("Kfz-Versicherung"));
     }
 
+    @Test
+    void aBalanceBelowTheComfortAmountIsMarked() throws Exception {
+        book("{\"amount\": 400, \"description\": \"Einzahlung\", \"date\": \"%s\", \"accountId\": %d, \"transfer\": true}"
+                .formatted(today, tagesgeld));
+        mockMvc.perform(put("/api/bank-accounts/{id}/comfort-amount", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": 500}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$[1].accounts[0].comfortAmount").value(500.00))
+                .andExpect(jsonPath("$[1].accounts[0].belowComfort").value(true))
+                .andExpect(jsonPath("$[0].accounts[0].comfortAmount").doesNotExist())
+                .andExpect(jsonPath("$[0].accounts[0].belowComfort").value(false));
+        mockMvc.perform(put("/api/bank-accounts/{id}/comfort-amount", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": -1}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/bank-accounts/{id}/comfort-amount", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": null}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$[1].accounts[0].belowComfort").value(false));
+    }
+
     private void book(String json) throws Exception {
         mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isCreated());

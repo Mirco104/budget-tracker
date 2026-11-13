@@ -31,6 +31,19 @@ public class AccountOverviewController {
             BigDecimal amount) {
     }
 
+    /** 27f4: the comfort amount of an account, null removes it. */
+    public record ComfortRequest(
+            @jakarta.validation.constraints.PositiveOrZero(message = "Der Betrag darf nicht negativ sein.")
+            @Digits(integer = 10, fraction = 2, message = "Der Betrag darf höchstens 2 Nachkommastellen haben.")
+            BigDecimal amount) {
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/api/bank-accounts/{id}/comfort-amount")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void comfort(@PathVariable long id, @Valid @RequestBody ComfortRequest request) {
+        overviewService.setComfortAmount(id, request.amount());
+    }
+
     @GetMapping("/api/accounts")
     public List<RoleGroup> accounts() {
         return overviewService.groups();

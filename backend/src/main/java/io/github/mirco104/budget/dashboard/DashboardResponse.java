@@ -35,26 +35,29 @@ public record DashboardResponse(
         SavingCard saving,
         ExpectedCard expected,
         Totals budget,
-        List<ReserveCalculator.Pot> reserves) {
+        List<ReserveCalculator.Pot> reserves,
+        BigDecimal fromReserves) {
 
     /** The cards Sparen and Erwartet (section 19, AP 27d); the calculator leaves them empty. */
     public DashboardResponse withCards(SavingCard savingCard, ExpectedCard expectedCard) {
         return new DashboardResponse(month, monthState, incomeTotal, averageIncome, minimumIncome, averageExpenses,
                 averageIncomeMonths, averageIncomeFrom, averageIncomeTo, expenses, unplanned, unplannedLabel,
                 unplannedMinimum, unplannedMinimumLabel, surplus, surplusLabel, categories, income, savingCard,
-                expectedCard, budget, reserves);
+                expectedCard, budget, reserves, fromReserves);
     }
 
     /**
      * P8: the budget lines with the reserve pots: categoryLines and budgetTotals count the monthly share of a rare
-     * item instead of its payment; the tiles (expenses, incomeTotal) keep the real bookings (P1).
+     * item instead of its payment; the tiles (expenses, incomeTotal) keep the real bookings (P1). paidFromReserves is
+     * the part of the expenses of the month paid from reserve pots or saving goals (27f4, null when nothing).
      */
     public DashboardResponse withBudget(
-            List<CategoryLine> categoryLines, Totals budgetTotals, List<ReserveCalculator.Pot> pots) {
+            List<CategoryLine> categoryLines, Totals budgetTotals, List<ReserveCalculator.Pot> pots,
+            BigDecimal paidFromReserves) {
         return new DashboardResponse(month, monthState, incomeTotal, averageIncome, minimumIncome, averageExpenses,
                 averageIncomeMonths, averageIncomeFrom, averageIncomeTo, expenses, unplanned, unplannedLabel,
                 unplannedMinimum, unplannedMinimumLabel, surplus, surplusLabel, categoryLines, income, saving,
-                expected, budgetTotals, pots);
+                expected, budgetTotals, pots, paidFromReserves);
     }
 
     /** P9: planned saving of the month (monthly shares), saving rate in percent (null without planned income). */
