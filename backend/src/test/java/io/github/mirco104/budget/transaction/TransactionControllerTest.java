@@ -3,6 +3,7 @@ package io.github.mirco104.budget.transaction;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -60,6 +61,21 @@ class TransactionControllerTest {
         postTransaction(body("30", "Erstattung", "2026-10-06", categoryId("Lebensmittel")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.amount").value(30.00));
+    }
+
+    // 27f4: the quick choice "Gesamt" asks for the first and the last booking day, at most 10 years
+    @Test
+    void theRangeGoesFromTheFirstToTheLastBookingForAtMostTenYears() throws Exception {
+        mockMvc.perform(get("/api/transactions/range"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(nullValue()));
+        postTransaction(body("-10", "Kino", "2026-10-05", categoryId("Freizeit"))).andExpect(status().isCreated());
+        postTransaction(body("-20", "Alt", "2014-03-01", categoryId("Freizeit"))).andExpect(status().isCreated());
+        postTransaction(body("-30", "Später", "2026-12-24", categoryId("Freizeit"))).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/transactions/range"))
+                .andExpect(jsonPath("$.from").value("2016-12-25"))
+                .andExpect(jsonPath("$.to").value("2026-12-24"));
     }
 
     @Test

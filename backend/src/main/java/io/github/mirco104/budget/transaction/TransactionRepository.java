@@ -69,6 +69,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("delete from Transaction t where t.importBatch = :batch")
     void deleteByImportBatch(io.github.mirco104.budget.importer.ImportBatch batch);
 
+    /** 27f4: the first day of any booking of the user, transfers included; null without one. */
+    @Query("select min(t.date) from Transaction t where t.owner = :owner")
+    LocalDate findFirstBookingDate(User owner);
+
+    /** 27f4: the last day of any booking of the user, transfers included; null without one. */
+    @Query("select max(t.date) from Transaction t where t.owner = :owner")
+    LocalDate findLastBookingDate(User owner);
+
     /** Date of the earliest transaction that is no transfer (R27), null without one. */
     @Query("select min(t.date) from Transaction t where t.owner = :owner and t.transfer = false")
     LocalDate findMinDate(User owner);

@@ -3,7 +3,7 @@ import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import { useReserves } from '../api/reserves'
-import { useTransactionsBetween } from '../api/transactions'
+import { useTransactionRange, useTransactionsBetween } from '../api/transactions'
 import type { Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { BookingList } from '../components/BookingList'
@@ -81,8 +81,18 @@ export function TransactionsPage({
   // 27f4: the filters hide behind a button until it is clicked
   const [filtersOpen, setFiltersOpen] = useState(false)
 
-  const period = preset === 'custom' ? custom : presetPeriod(preset, today)
-  const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
+  // 27f4: "Gesamt" goes from the first to the last booking; without any booking it shows this month
+  const range = useTransactionRange(preset === 'all')
+  const period =
+    preset === 'custom'
+      ? custom
+      : preset === 'all'
+        ? range.data?.from && range.data.to
+          ? { from: range.data.from, to: range.data.to }
+          : presetPeriod('month', today)
+        : presetPeriod(preset, today)
+  const complete =
+    isCompleteDate(period.from) && isCompleteDate(period.to) && !(preset === 'all' && range.isPending)
   const transactions = useTransactionsBetween(period.from, period.to, complete)
   const categories = useCategories(currentMonth())
   const bankAccounts = useBankAccounts()
@@ -205,7 +215,7 @@ export function TransactionsPage({
         </p>
       )}
 
-      {!complete && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
+      {!complete && preset === 'custom' && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
       {complete && transactions.isPending && <Loading text="Lade Transaktionen …" />}
       {transactions.error && (
         <p className="error">

@@ -35,6 +35,12 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
+    /** 27f4: the first and the last day of the user's bookings, for the quick choice "Gesamt" (US26). */
+    @GetMapping("/range")
+    public TransactionService.Range range() {
+        return transactionService.range();
+    }
+
     /**
      * Entries of a month ({@code month}) or of a period ({@code from}, {@code to}, both days included, US26).
      * The month is the short form of a period; one of the two is required, not both.

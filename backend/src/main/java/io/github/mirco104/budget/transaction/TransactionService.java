@@ -48,6 +48,25 @@ public class TransactionService {
     static final int MAX_PERIOD_YEARS = 10;
 
     // Bookings with their date in the period, both days included, newest first. Planned items are no bookings (P1).
+    /** 27f4: from the first to the last booking, both null without one. */
+    public record Range(LocalDate from, LocalDate to) {
+    }
+
+    /**
+     * 27f4: the whole period of the user's bookings for the quick choice "Gesamt" (US26); at most the last 10 years
+     * of it, like every period of the list.
+     */
+    @Transactional(readOnly = true)
+    public Range range() {
+        LocalDate first = transactionRepository.findFirstBookingDate(currentUser.get());
+        LocalDate last = transactionRepository.findLastBookingDate(currentUser.get());
+        if (first == null || last == null) {
+            return new Range(null, null);
+        }
+        LocalDate earliest = last.minusYears(MAX_PERIOD_YEARS).plusDays(1);
+        return new Range(first.isBefore(earliest) ? earliest : first, last);
+    }
+
     @Transactional(readOnly = true)
     public List<TransactionResponse> findBetween(LocalDate from, LocalDate to) {
         if (to.isBefore(from)) {

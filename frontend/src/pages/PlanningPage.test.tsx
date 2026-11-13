@@ -121,7 +121,7 @@ describe('PlanningPage', () => {
     expect(income).toHaveTextContent('Durchschnitt2.450,00 €pro Monat')
     expect(income).toHaveTextContent('Mindestens2.300,00 €im schwächsten Monat')
     expect(income).toHaveTextContent('November 2025 – Oktober 2026 · 12 Monate')
-    expect(income).toHaveTextContent('Geplant ist mehr als dein schwächster Monat.')
+    expect(income).toHaveTextContent('Geplant ist mehr als deine Mindesteinnahmen.')
     expect(screen.getByRole('region', { name: 'Einkommen' })).not.toHaveTextContent('Zur Orientierung')
   })
 

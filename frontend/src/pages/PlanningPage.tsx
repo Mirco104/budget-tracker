@@ -266,7 +266,7 @@ function GroupSection({
             {plan.averageMonths === 1 ? '1 Monat' : `${plan.averageMonths} Monate`}
           </p>
           {plan.incomeAboveMinimum && (
-            <p className="hint income-stats-warn">Geplant ist mehr als dein schwächster Monat.</p>
+            <p className="hint income-stats-warn">Geplant ist mehr als deine Mindesteinnahmen.</p>
           )}
         </div>
       )}

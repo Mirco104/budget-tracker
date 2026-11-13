@@ -34,7 +34,9 @@ function renderPage(entries: Transaction[] = transactions, bankAccounts: BankAcc
     }
     const body = init?.method
       ? {}
-      : url.startsWith('/api/transactions')
+      : url === '/api/transactions/range'
+        ? { from: '2025-03-01', to: '2026-10-20' }
+        : url.startsWith('/api/transactions')
         ? entries
         : url.startsWith('/api/categories')
           ? categories
@@ -259,6 +261,8 @@ describe('TransactionsPage', () => {
   it.each([
     ['Letzte 3 Monate', '/api/transactions?from=2026-08-01&to=2026-10-31', 'August bis Oktober 2026'],
     ['Dieses Jahr', '/api/transactions?from=2026-01-01&to=2026-12-31', '2026 ·'],
+    // 27f4: from the first to the last booking
+    ['Gesamt', '/api/transactions?from=2025-03-01&to=2026-10-20', '01.03.2025 bis 20.10.2026'],
   ])('loads the quick choice %s', async (label, url, text) => {
     const fetchMock = renderPage()
     await screen.findByText('Kino')

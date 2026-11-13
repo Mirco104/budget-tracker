@@ -1,7 +1,7 @@
 // Periods of the transaction list (US26): date arithmetic for display and requests only, no business rules.
 import { formatDate, formatMonth } from './format'
 
-export type PeriodPreset = 'month' | 'quarter' | 'year' | 'custom'
+export type PeriodPreset = 'month' | 'quarter' | 'year' | 'all' | 'custom'
 
 export interface Period {
   from: string
@@ -12,6 +12,8 @@ export const PRESETS: { value: PeriodPreset; label: string }[] = [
   { value: 'month', label: 'Dieser Monat' },
   { value: 'quarter', label: 'Letzte 3 Monate' },
   { value: 'year', label: 'Dieses Jahr' },
+  // 27f4: from the first to the last booking; the period comes from the backend
+  { value: 'all', label: 'Gesamt' },
   { value: 'custom', label: 'Zeitraum …' },
 ]
 
@@ -27,7 +29,7 @@ function lastDay(year: number, month: number): number {
  * The period of a quick choice around today ("YYYY-MM-DD"): this month, the last 3 months including this one, or
  * this calendar year. "custom" has no own period.
  */
-export function presetPeriod(preset: Exclude<PeriodPreset, 'custom'>, today: string): Period {
+export function presetPeriod(preset: Exclude<PeriodPreset, 'custom' | 'all'>, today: string): Period {
   const [year, month] = today.split('-').map(Number)
   const end = `${year}-${pad(month)}-${pad(lastDay(year, month))}`
   if (preset === 'year') {
