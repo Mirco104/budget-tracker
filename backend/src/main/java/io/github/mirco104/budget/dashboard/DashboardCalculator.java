@@ -106,7 +106,9 @@ public class DashboardCalculator {
                 surplus,
                 surplusLabel,
                 categoryLines,
-                incomeLines);
+                incomeLines,
+                null,
+                null);
     }
 
     // R1: sum of the signed amounts of the month, per category

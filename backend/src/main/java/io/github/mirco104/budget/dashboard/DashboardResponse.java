@@ -30,7 +30,29 @@ public record DashboardResponse(
         BigDecimal surplus,
         String surplusLabel,
         List<CategoryLine> categories,
-        List<IncomeLine> income) {
+        List<IncomeLine> income,
+        SavingCard saving,
+        ExpectedCard expected) {
+
+    /** The cards Sparen and Erwartet (section 19, AP 27d); the calculator leaves them empty. */
+    public DashboardResponse withCards(SavingCard savingCard, ExpectedCard expectedCard) {
+        return new DashboardResponse(month, monthState, incomeTotal, averageIncome, minimumIncome, averageExpenses,
+                averageIncomeMonths, averageIncomeFrom, averageIncomeTo, expenses, unplanned, unplannedLabel,
+                unplannedMinimum, unplannedMinimumLabel, surplus, surplusLabel, categories, income, savingCard,
+                expectedCard);
+    }
+
+    /** P9: planned saving of the month (monthly shares), saving rate in percent (null without planned income). */
+    public record SavingCard(BigDecimal planned, BigDecimal rate, List<SavingLine> items) {
+    }
+
+    public record SavingLine(String name, BigDecimal monthly) {
+    }
+
+    /** P5: terms of the month without a booking yet (expected or missed) and their sum with sign. */
+    public record ExpectedCard(int count, BigDecimal total) {
+    }
+
 
     /** The month compared with the month of today (R7). */
     public enum MonthState {

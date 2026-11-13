@@ -2976,3 +2976,15 @@ button.tick.done {
   margin-top: 8px;
   color: var(--muted);
 }
+
+/* --- Overview cards (AP 27d) --- */
+.summary .saving-tile dd:not(.tile-note) {
+  color: var(--saving);
+}
+.summary dd a {
+  color: inherit;
+  text-decoration: none;
+}
+.summary dd a:hover {
+  text-decoration: underline;
+}

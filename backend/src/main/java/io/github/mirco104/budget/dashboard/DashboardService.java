@@ -3,6 +3,8 @@ package io.github.mirco104.budget.dashboard;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
 import io.github.mirco104.budget.plan.TermService;
+import io.github.mirco104.budget.plan.Fulfillment;
+import io.github.mirco104.budget.plan.PlanCalculator;
 import io.github.mirco104.budget.plan.PlanService;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
 import io.github.mirco104.budget.transaction.TransactionRepository;
@@ -44,7 +46,28 @@ public class DashboardService {
     public DashboardResponse calculate(YearMonth month) {
         YearMonth currentMonth = YearMonth.now(clock);
         Averages averages = averages(month, currentMonth);
-        return calculate(month, averages.income(), averages.expenses(), currentMonth);
+        return calculate(month, averages.income(), averages.expenses(), currentMonth)
+                .withCards(savingCard(month), expectedCard(month));
+    }
+
+    // P9: the saving items valid in the month with their monthly share
+    private DashboardResponse.SavingCard savingCard(YearMonth month) {
+        PlanCalculator.Result plan = planService.calculate(month);
+        List<DashboardResponse.SavingLine> items = planService.findAll().stream()
+                .filter(item -> item.isSaving() && PlanCalculator.validIn(item.data(), month))
+                .map(item -> new DashboardResponse.SavingLine(item.getName(),
+                        PlanCalculator.monthlyShare(item.getAmount(), item.getRhythmUnit(), item.getRhythmCount())))
+                .toList();
+        return new DashboardResponse.SavingCard(plan.saving(), plan.savingRate(), items);
+    }
+
+    // P5: the terms of the month that are still expected or missed
+    private DashboardResponse.ExpectedCard expectedCard(YearMonth month) {
+        List<TermService.Evaluated> open = termService.terms(month.atDay(1), month.atEndOfMonth()).stream()
+                .filter(e -> e.status() == Fulfillment.Status.EXPECTED || e.status() == Fulfillment.Status.MISSED)
+                .toList();
+        BigDecimal total = open.stream().map(e -> e.item().getAmount()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new DashboardResponse.ExpectedCard(open.size(), total.setScale(2, java.math.RoundingMode.HALF_UP));
     }
 
     /** Ē(M) and Emin(M) (R23), for orientation on the planning page (P4). */

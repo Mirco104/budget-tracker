@@ -178,6 +178,24 @@ class TermControllerTest {
                 .andExpect(jsonPath("$", hasSize(0)));
     }
 
+    // AP 27d: the overview shows the planned saving and the payments still expected in the month
+    @Test
+    void theOverviewShowsSavingAndExpectedCards() throws Exception {
+        LocalDate date = today.plusDays(3);
+        item("Verein", "-20", "Freizeit", date, "TICK");
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Notgroschen", "amount": 150, "saving": true, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "validFrom": "%s"}""".formatted(date, month)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/dashboard").param("month", YearMonth.from(date).toString()))
+                .andExpect(jsonPath("$.saving.planned").value(150.00))
+                .andExpect(jsonPath("$.saving.rate").doesNotExist())
+                .andExpect(jsonPath("$.saving.items[0].name").value("Notgroschen"))
+                .andExpect(jsonPath("$.expected.count").value(2))
+                .andExpect(jsonPath("$.expected.total").value(-170.00));
+    }
+
     private ResultActions terms() throws Exception {
         return mockMvc.perform(get("/api/terms")
                         .param("from", today.minusDays(10).toString())

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { InfoTip } from '../components/ui/InfoTip'
+import { EXPECTED_ROUTE } from '../router'
 import { useCategories } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
 import { useTransactions } from '../api/transactions'
@@ -9,7 +11,7 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { bookingDateFor, formatDate, formatEuro } from '../format'
+import { bookingDateFor, formatDate, formatEuro, formatMonthName, formatSigned } from '../format'
 import { averagePeriod } from '../labels'
 import { ROUTES } from '../router'
 import { Loading } from '../components/ui/Loading'
@@ -20,10 +22,6 @@ const MONTH_NOTES: Record<DashboardData['monthState'], string> = {
   PAST: 'Abgeschlossener Monat.',
   CURRENT: 'Laufender Monat: die Werte können sich noch ändern.',
   FUTURE: 'Künftiger Monat: es zählen nur schon gebuchte Einträge.',
-}
-
-function signClass(value: number | null): string | undefined {
-  return value !== null && value < 0 ? 'negative' : undefined
 }
 
 interface Props {
@@ -90,12 +88,14 @@ function DashboardContent({ month }: { month: string }) {
         <div>
           <dt>Ausgaben</dt>
           <dd>{formatEuro(data.expenses.actual)}</dd>
-          {/* R10: recurring transactions are the fixed costs, single transactions the rest */}
+          {/* P5: an expense that fits a planned item is fix, every other one variable */}
           <dd className="breakdown">
-            davon fix <span>{formatEuro(data.expenses.recurring)}</span>
-          </dd>
-          <dd className="breakdown">
-            davon einmalig <span>{formatEuro(data.expenses.oneOff)}</span>
+            <span>
+              fix {formatEuro(data.expenses.recurring)} · variabel {formatEuro(data.expenses.oneOff)}
+            </span>{' '}
+            <InfoTip label="Was ist fix?">
+              Fix sind Ausgaben, die zu einem geplanten Posten passen, z. B. Miete, Versicherungen, Abos.
+            </InfoTip>
           </dd>
           {/* R23, decision 34: Ā over the same months as the Ø income */}
           {data.averageExpenses !== null && (
@@ -104,11 +104,35 @@ function DashboardContent({ month }: { month: string }) {
             </dd>
           )}
         </div>
-        <div>
-          <dt>{data.surplusLabel}</dt>
-          {/* R7: "Überschritten" keeps the minus sign, in the warning color */}
-          <dd className={signClass(data.surplus)}>{formatEuro(data.surplus)}</dd>
-        </div>
+        {data.saving && (
+          <div className="saving-tile">
+            <dt>Sparen</dt>
+            <dd>{formatEuro(data.saving.planned)}</dd>
+            <dd className="tile-note">
+              {data.saving.rate !== null ? `Sparquote ${data.saving.rate.toLocaleString('de-DE')} %` : 'geplant'}
+              {data.saving.items.length > 0 && (
+                <>
+                  {' '}
+                  <InfoTip label="Welche Sparposten?">
+                    {data.saving.items.map((item) => `${item.name}: ${formatEuro(item.monthly)}`).join(' · ')}
+                  </InfoTip>
+                </>
+              )}
+            </dd>
+          </div>
+        )}
+        {data.expected && (
+          <div>
+            <dt>Erwartet</dt>
+            <dd>
+              <a href={EXPECTED_ROUTE}>
+                {data.expected.count === 1 ? '1 Zahlung' : `${data.expected.count} Zahlungen`} im{' '}
+                {formatMonthName(month)}
+              </a>
+            </dd>
+            {data.expected.count > 0 && <dd className="tile-note">zusammen {formatSigned(data.expected.total)}</dd>}
+          </div>
+        )}
       </dl>
 
       {showOnboarding && <Onboarding />}

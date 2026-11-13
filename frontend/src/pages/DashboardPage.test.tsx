@@ -35,6 +35,8 @@ const dashboard: DashboardData = {
     { id: 9, name: 'Urlaub', target: null, actual: 35, difference: null },
   ],
   income: [{ id: 20, name: 'Gehalt', actual: 2000 }],
+  saving: { planned: 300, rate: 12, items: [{ name: 'Notgroschen', monthly: 300 }] },
+  expected: { count: 3, total: -170 },
 }
 
 // The plan of a category comes with the dashboard (P3); the number stays for the readability of the fixtures
@@ -114,19 +116,22 @@ function item(name: string) {
 }
 
 describe('DashboardPage', () => {
-  it('requests the selected month and shows income and expenses with their averages and the surplus', async () => {
+  it('requests the selected month and shows income, expenses, saving and expected payments', async () => {
     const fetchMock = renderPage()
 
-    expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
+    expect(await screen.findByText('Sparen', { selector: 'dt' })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-10', expect.anything())
     expect(tile('Einnahmen')).toHaveTextContent('2.000,00 €')
     expect(screen.getByText(/^Ø 2\.000,00 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
     expect(tile('Ausgaben')).toHaveTextContent('895,00 €')
-    expect(screen.getByText(/davon fix/)).toHaveTextContent('840,00 €')
-    expect(screen.getByText(/davon einmalig/)).toHaveTextContent('55,00 €')
+    expect(screen.getByText(/^fix /)).toHaveTextContent('fix 840,00 € · variabel 55,00 €')
     // R23, decision 34: Ā over the same months as the Ø income
     expect(screen.getByText(/^Ø 912,50 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
-    expect(tile('Monatlicher Überschuss')).toHaveTextContent('1.105,00 €')
+    // AP 27d: Sparen and Erwartet instead of the surplus tile
+    expect(tile('Sparen')).toHaveTextContent('300,00 €')
+    expect(screen.getByText(/Sparquote 12 %/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '3 Zahlungen im Oktober' })).toHaveAttribute('href', '#/transaktionen/erwartet')
+    expect(screen.queryByText('Monatlicher Überschuss')).not.toBeInTheDocument()
     expect(screen.getByText('Abgeschlossener Monat.')).toBeInTheDocument()
     expect(screen.queryByText(/Nicht verplant/)).not.toBeInTheDocument()
   })
@@ -134,7 +139,7 @@ describe('DashboardPage', () => {
   // US27: booking also starts on the overview, with the last used categories of the month
   it('opens the booking dialog with "+ Buchung" and the round button', async () => {
     renderPage()
-    await screen.findByText('Monatlicher Überschuss')
+    await screen.findByText('Sparen', { selector: 'dt' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Buchung' }))
 
@@ -155,7 +160,7 @@ describe('DashboardPage', () => {
   it('has no switch between euros and percent', async () => {
     renderPage()
 
-    expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
+    expect(await screen.findByText('Sparen', { selector: 'dt' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '%' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Anzeige' })).not.toBeInTheDocument()
   })
@@ -170,32 +175,15 @@ describe('DashboardPage', () => {
       averageIncomeTo: null,
     })
 
-    expect(await screen.findByText('Monatlicher Überschuss')).toBeInTheDocument()
+    expect(await screen.findByText('Sparen', { selector: 'dt' })).toBeInTheDocument()
     expect(screen.queryByText(/^Ø /)).not.toBeInTheDocument()
-  })
-
-  it('calls the surplus "Noch frei" in the current month', async () => {
-    renderPage({ ...dashboard, monthState: 'CURRENT', surplusLabel: 'Noch frei' })
-
-    expect(await screen.findByText('Noch frei', { selector: 'dt' })).toBeInTheDocument()
-    expect(screen.getByText(/Laufender Monat/)).toBeInTheDocument()
-  })
-
-  // R7, decision 34: the amount keeps its minus sign, in the warning color
-  it('shows an overrun with minus sign in the warning color', async () => {
-    renderPage({ ...dashboard, monthState: 'CURRENT', surplus: -120.5, surplusLabel: 'Überschritten' })
-
-    expect(await screen.findByText('Überschritten', { selector: 'dt' })).toBeInTheDocument()
-    expect(tile('Überschritten')).toHaveTextContent('-120,50 €')
-    expect(tile('Überschritten')).toHaveClass('negative')
   })
 
   it('shows a month without income', async () => {
     renderPage({ ...dashboard, incomeTotal: 0, surplus: -895, surplusLabel: 'Monatlicher Verlust', income: [] })
 
-    expect(await screen.findByText('Monatlicher Verlust', { selector: 'dt' })).toBeInTheDocument()
+    expect(await screen.findByText('Einnahmen', { selector: 'dt' })).toBeInTheDocument()
     expect(tile('Einnahmen')).toHaveTextContent('0,00 €')
-    expect(tile('Monatlicher Verlust')).toHaveTextContent('-895,00 €')
     expect(item('Wohnen')).toHaveTextContent('780,00 € von 800,00 €')
     expect(screen.getByText('In diesem Monat gibt es keine Einnahmen.')).toBeInTheDocument()
   })

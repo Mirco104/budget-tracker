@@ -223,6 +223,10 @@ export interface DashboardData {
   surplusLabel: string
   categories: CategoryLine[]
   income: IncomeLine[]
+  /** P9: planned saving of the month (monthly shares) and the saving rate in percent, with the saving items. */
+  saving: { planned: number; rate: number | null; items: { name: string; monthly: number }[] } | null
+  /** P5: terms of the month without a booking yet and their sum with sign. */
+  expected: { count: number; total: number } | null
 }
 
 /** A bank account (R26); used means that entries are booked on it, so it can only be archived. */
