@@ -102,8 +102,8 @@ public class TermService {
     }
 
     /**
-     * P6: enters every due term of an automatic item that is not fulfilled or handled yet, from the day the item was
-     * created on. Saving items are entered as a transfer until the kind Sparen exists (AP 27f).
+     * P6: enters every due term of an automatic item that is not fulfilled or handled yet, from the month "Gilt ab" of
+     * the item on (27f2; before, from the day it was created). Saving items are entered as a transfer until the kind Sparen exists (AP 27f).
      */
     @Transactional
     public int enterDue() {
@@ -111,7 +111,9 @@ public class TermService {
         List<PlannedItem> automatic = itemRepository.findAllOf(currentUser.get()).stream()
                 .filter(item -> item.getEntryMode() == EntryMode.AUTO && item.schedule() != null)
                 .toList();
-        LocalDate first = automatic.stream().map(PlannedItem::getAutoFrom).min(Comparator.naturalOrder()).orElse(null);
+        // 27f2: from the month "Gilt ab" of the item on; terms fulfilled by a booking are not entered again
+        LocalDate first = automatic.stream().map(item -> item.getValidFrom().atDay(1))
+                .min(Comparator.naturalOrder()).orElse(null);
         if (first == null || first.isAfter(today)) {
             return 0;
         }
@@ -119,8 +121,7 @@ public class TermService {
         for (Evaluated e : evaluate(first, today).terms()) {
             PlannedItem item = e.item();
             boolean open = e.status() == Fulfillment.Status.EXPECTED || e.status() == Fulfillment.Status.MISSED;
-            if (open && item.getEntryMode() == EntryMode.AUTO && !e.term().date().isBefore(item.getAutoFrom())
-                    && !e.term().dueDate().isAfter(today)) {
+            if (open && item.getEntryMode() == EntryMode.AUTO && !e.term().dueDate().isAfter(today)) {
                 Transaction booking = book(item, item.getAmount(), e.term().dueDate());
                 booking.markAuto();
                 link(item.getItemKey(), e.term().date(), booking);
@@ -128,6 +129,21 @@ public class TermService {
             }
         }
         return entered;
+    }
+
+    /**
+     * 27f2: how many terms of an item with these values the app would enter right away: terms from validFrom up to
+     * today (before fulfilment by existing bookings), for the hint in the item dialog.
+     */
+    public static int pastTerms(RhythmUnit unit, Integer count, LocalDate anchor, java.time.YearMonth validFrom,
+            boolean workdaysOnly, LocalDate today) {
+        if (unit == null || count == null || anchor == null) {
+            return 0;
+        }
+        return (int) new TermSchedule(unit, count, anchor, validFrom, null)
+                .termsBetween(validFrom.atDay(1), today).stream()
+                .filter(date -> !(workdaysOnly ? TermSchedule.nextWorkingDay(date) : date).isAfter(today))
+                .count();
     }
 
     /** P7 "Ist bezahlt": books the term with the planned or the given amount and date and links it. */

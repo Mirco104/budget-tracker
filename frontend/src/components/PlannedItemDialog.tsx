@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { ApiError } from '../api/client'
-import { useCreatePlannedItem, useDeletePlannedItem, useUpdatePlannedItem } from '../api/plan'
+import { useCreatePlannedItem, useDeletePlannedItem, usePastTerms, useUpdatePlannedItem } from '../api/plan'
 import type { Category, EntryMode, PlanGroup, PlannedItem, PlannedItemInput, RhythmUnit } from '../api/types'
 import { formatEuro, formatMonth, parseAmountInput, shiftMonth } from '../format'
 import { RHYTHM_PRESETS } from '../labels'
@@ -113,6 +113,25 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const [unit, count] = rhythm === NONE ? [null, null] : (rhythm.split(':') as [RhythmUnit, string])
   const rhythmCount = count === null ? null : Number(count)
   const rare = unit === 'MONTH' && rhythmCount !== null && rhythmCount > 1
+
+  // 27f2: an automatic item enters its past terms from "Gilt ab" on; the dialog says how many before saving. Only
+  // asked when the dates change compared with the saved item.
+  const datesChanged =
+    !item || validFrom !== item.validFrom || anchorDate() !== item.anchorDate || rhythm !== initialRhythm
+  const pastQuery =
+    entryMode === 'AUTO' && unit !== null && datesChanged && /^\d{4}-\d{2}$/.test(validFrom) && (unit === 'WEEK' || Number(day) >= 1)
+      ? {
+          name: name.trim() || 'Posten',
+          amount: -1,
+          rhythmUnit: unit,
+          rhythmCount,
+          anchorDate: anchorDate(),
+          entryMode,
+          workdaysOnly,
+          validFrom,
+        }
+      : null
+  const pastTerms = usePastTerms(pastQuery).data?.count ?? 0
 
   function chooseRhythm(next: string) {
     setRhythm(next)
@@ -406,6 +425,12 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
             {errors.validFrom && <span className="error">{errors.validFrom}</span>}
           </label>
         </div>
+        {pastQuery && pastTerms > 0 && (
+          <p className="hint">
+            {pastTerms === 1 ? 'Für 1 vergangenen Termin' : `Für ${pastTerms} vergangene Termine`} trägt die App gleich eine
+            Buchung ein, sofern noch keine passende da ist.
+          </p>
+        )}
         {unit !== null && (
           <label className="check-field">
             <input type="checkbox" checked={workdaysOnly} onChange={(e) => setWorkdaysOnly(e.target.checked)} />

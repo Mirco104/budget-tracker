@@ -94,7 +94,7 @@ function DashboardContent({ month }: { month: string }) {
               fix {formatEuro(data.expenses.recurring)} · variabel {formatEuro(data.expenses.oneOff)}
             </span>{' '}
             <InfoTip label="Was ist fix?">
-              Fix sind Ausgaben, die zu einem geplanten Posten passen, z. B. Miete, Versicherungen, Abos.
+              Fix sind regelmäßige Zahlungen, die du in der Planung eingetragen hast, z. B. Miete, Versicherungen, Abos. Alles andere ist variabel.
             </InfoTip>
           </dd>
           {/* R23, decision 34: Ā over the same months as the Ø income */}

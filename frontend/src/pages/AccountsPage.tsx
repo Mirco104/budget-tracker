@@ -76,7 +76,7 @@ export function AccountsPage() {
                     </span>
                   </span>
                   <select
-                    aria-label={`Rolle von ${account.name}`}
+                    aria-label={`Kontoart von ${account.name}`}
                     value={account.role}
                     onChange={(e) => void changeRole(account, e.target.value as AccountRole)}
                   >

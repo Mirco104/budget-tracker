@@ -22,6 +22,17 @@ export function deletePlannedItem(id: number, from?: string): Promise<void> {
   return request<void>(`/planned-items/${id}${query}`, { method: 'DELETE' })
 }
 
+/** 27f2: how many past terms an automatic item with these values would enter at once. */
+export function usePastTerms(input: PlannedItemInput | null) {
+  return useQuery({
+    queryKey: ['past-terms', input],
+    queryFn: () =>
+      request<{ count: number }>('/planned-items/past-terms', { method: 'POST', body: JSON.stringify(input) }),
+    enabled: input !== null,
+    staleTime: 30_000,
+  })
+}
+
 export function usePlan(month: string) {
   return useQuery({ queryKey: ['plan', month], queryFn: () => fetchPlan(month) })
 }

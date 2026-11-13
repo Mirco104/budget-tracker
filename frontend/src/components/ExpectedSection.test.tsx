@@ -65,7 +65,7 @@ describe('ExpectedSection', () => {
     expect(within(section).getByRole('button', { name: 'Notgroschen abhaken' })).toBeInTheDocument()
     expect(within(section).getByRole('button', { name: 'Abhaken von Verein rückgängig machen' })).toBeInTheDocument()
     expect(within(section).getByText('fällt diesen Monat weg')).toBeInTheDocument()
-    expect(within(section).getByText('ausgeblieben, fällig am 03.11.2026')).toBeInTheDocument()
+    expect(within(section).getByText('Überfällig seit 03.11.')).toBeInTheDocument()
     expect(within(section).queryByText('Strom')).not.toBeInTheDocument()
     // An automatic item has no circle
     expect(within(section).queryByRole('button', { name: 'Miete abhaken' })).not.toBeInTheDocument()

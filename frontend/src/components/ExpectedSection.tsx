@@ -7,6 +7,11 @@ import { BookingDialog } from './BookingDialog'
 import { Dialog } from './ui/Dialog'
 import { Toast } from './ui/Toast'
 
+/** "03.11." */
+function formatDayMonth(isoDate: string): string {
+  return `${isoDate.slice(8, 10)}.${isoDate.slice(5, 7)}.`
+}
+
 interface Props {
   /** First and last day of the month whose terms are shown (ISO dates). */
   from: string
@@ -103,7 +108,7 @@ export function ExpectedSection({ from, to, categories, focus = false }: Props) 
                       : auto
                         ? `wird am ${formatDate(term.dueDate)} eingetragen`
                         : term.status === 'MISSED'
-                          ? `ausgeblieben, fällig am ${formatDate(term.dueDate)}`
+                          ? `Überfällig seit ${formatDayMonth(term.dueDate)}`
                           : `fällig am ${formatDate(term.dueDate)}`}
                 </span>
               </button>

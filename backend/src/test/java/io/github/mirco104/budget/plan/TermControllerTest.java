@@ -86,11 +86,27 @@ class TermControllerTest {
         terms().andExpect(jsonPath("$[0].status").value("SKIPPED"));
     }
 
+    // 27f2: an automatic item enters its terms from the month "Gilt ab" on, also those before the day it was created,
+    // but none of earlier months
     @Test
-    void anItemCreatedTodayEntersNoTermBeforeToday() throws Exception {
-        item("Miete", "-900", "Wohnen", today.minusDays(1), "AUTO");
+    void anItemEntersItsTermsFromTheMonthGiltAbOn() throws Exception {
+        LocalDate lastMonth = today.minusMonths(1);
+        mockMvc.perform(post("/api/planned-items/past-terms").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "entryMode": "AUTO", "validFrom": "%s"}"""
+                        .formatted(category("Wohnen"), lastMonth, YearMonth.from(lastMonth))))
+                .andExpect(jsonPath("$.count").value(2));
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "entryMode": "AUTO", "validFrom": "%s"}"""
+                        .formatted(category("Wohnen"), lastMonth, month)))
+                .andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/transactions").param("month", month)).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/transactions").param("from", lastMonth.minusDays(1).toString())
+                        .param("to", today.toString()))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].date").value(today.toString()))
+                .andExpect(jsonPath("$[0].auto").value(true));
     }
 
     @Test

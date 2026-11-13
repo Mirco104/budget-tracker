@@ -40,6 +40,15 @@ public class PlanController {
         return planService.create(request);
     }
 
+    /** 27f2: the number of past terms an automatic item would enter at once, for the hint before saving. */
+    public record PastTermsResponse(int count) {
+    }
+
+    @PostMapping("/planned-items/past-terms")
+    public PastTermsResponse pastTerms(@Valid @RequestBody PlannedItemRequest request) {
+        return new PastTermsResponse(planService.pastTerms(request));
+    }
+
     @PutMapping("/planned-items/{id}")
     public PlannedItemResponse update(@PathVariable long id, @Valid @RequestBody PlannedItemRequest request) {
         return planService.update(id, request);

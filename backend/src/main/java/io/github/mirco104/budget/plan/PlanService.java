@@ -100,6 +100,15 @@ public class PlanService {
                 valid);
     }
 
+    /** 27f2: past terms an automatic item with these values enters at once; 0 for other entry modes. */
+    public int pastTerms(PlannedItemRequest request) {
+        if (request.entryMode() != null && request.entryMode() != EntryMode.AUTO) {
+            return 0;
+        }
+        return TermService.pastTerms(request.rhythmUnit(), request.rhythmCount(), request.anchorDate(),
+                request.validFrom(), Boolean.TRUE.equals(request.workdaysOnly()), LocalDate.now(clock));
+    }
+
     @Transactional
     public PlannedItemResponse create(PlannedItemRequest request) {
         PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID(), LocalDate.now(clock));
