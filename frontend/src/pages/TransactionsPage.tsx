@@ -15,6 +15,7 @@ import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
 import { ImportPage } from './ImportPage'
+import { ExpectedSection } from '../components/ExpectedSection'
 import { totals } from '../sums'
 import { Loading } from '../components/ui/Loading'
 
@@ -53,13 +54,18 @@ const FACET_KEYS = {
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
  * entries. Booking is in a dialog (US27, decision 30).
  */
-export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Period | null }) {
+export function TransactionsPage({
+  initialPeriod = null,
+  focusExpected = false,
+}: {
+  initialPeriod?: Period | null
+  focusExpected?: boolean
+}) {
   const today = todayIso()
   // A period in the address bar (e.g. after an import, US33) starts as a custom period
   const [preset, setPreset] = useState<PeriodPreset>(initialPeriod ? 'custom' : 'month')
   const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
-  // Description, category, account (US26, US30: only with more than one) and kind: Wiederkehrend, einmalig (single
-  // transactions that are no transfer) or Umbuchung (R27)
+  // Description, category, account (US26, US30: only with more than one) and kind: fix, variable or income (P5)
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
 
   const period = preset === 'custom' ? custom : presetPeriod(preset, today)
@@ -186,6 +192,16 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
         />
       )}
 
+      {/* Concept 4.2: the terms of the current month that are still expected, at the end of the list */}
+      {categories.data && (
+        <ExpectedSection
+          from={presetPeriod('month', today).from}
+          to={presetPeriod('month', today).to}
+          categories={categories.data}
+          focus={focusExpected}
+        />
+      )}
+
       <AddBookingFab onClick={booking.openNew} />
       {booking.element}
     </section>
@@ -198,5 +214,5 @@ export function TransactionsRoute() {
   if (route.importPage) {
     return <ImportPage />
   }
-  return <TransactionsPage key={route.hash} initialPeriod={route.period} />
+  return <TransactionsPage key={route.hash} initialPeriod={route.period} focusExpected={route.expected} />
 }

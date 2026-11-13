@@ -113,6 +113,30 @@ export interface PlannedItemInput {
   validFrom: string
 }
 
+/** Status of a term (P5). */
+export type TermStatus = 'EXPECTED' | 'FULFILLED' | 'MISSED' | 'SKIPPED'
+
+/**
+ * A term of a planned item: date is the planned date (with itemId the key for tick-off and skip), dueDate the date
+ * after the working-day shift. transactionId is the booking that fulfils it; linked when ticked off or entered.
+ */
+export interface Term {
+  itemId: number
+  itemKey: string
+  name: string
+  date: string
+  dueDate: string
+  amount: number
+  categoryId: number | null
+  categoryName: string | null
+  accountId: number
+  entryMode: EntryMode
+  group: PlanGroup
+  status: TermStatus
+  transactionId: number | null
+  linked: boolean
+}
+
 /** Sum of the items of one category in one group. */
 export interface PlanCategoryTotal {
   group: PlanGroup

@@ -2909,3 +2909,70 @@ button.item-row {
   align-items: center;
   gap: 8px;
 }
+
+/* --- Erwartet (concept 4.2, AP 27c) --- */
+.expected {
+  margin-top: 16px;
+}
+.expected h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.expected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.expected-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.expected-row.missed .tx-meta {
+  color: var(--warn);
+}
+.expected-row.skipped .tx-description {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+button.expected-main {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+button.tick {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--surface);
+  font-weight: 700;
+  line-height: 1;
+}
+button.tick.done {
+  border-color: var(--saving);
+  background: var(--saving);
+}
+.term-choices {
+  display: grid;
+  gap: 8px;
+}
+.undo-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  color: var(--muted);
+}
