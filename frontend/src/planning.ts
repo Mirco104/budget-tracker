@@ -1,27 +1,27 @@
-// Input helper for the planning page (decision 36, CLAUDE.md): a target is entered in euro or in percent of a
-// base from /dashboard (Ø or minimum income) and always saved in euro. This is not a business rule; the backend
-// only knows euro. Both directions calculate in whole cents and hundredths of a percent to avoid float noise.
+// Input helpers for the planning page (CLAUDE.md: input helpers are allowed). The backend stores the rhythm as unit,
+// count and the date of the first term (section 19.3); the dialog asks for "Am Tag" and "Fällig im" instead.
 
-function hasBase(base: number | null): base is number {
-  return base !== null && base > 0
+/** Days in a month ("YYYY-MM"). */
+function daysIn(month: string): number {
+  const [year, m] = month.split('-').map(Number)
+  return new Date(year, m, 0).getDate()
 }
 
-/** Percent of the base in euro, rounded half up to cents; null without a base. */
-export function percentToEuro(percent: number, base: number | null): number | null {
-  if (!hasBase(base)) {
-    return null
-  }
-  const baseCents = Math.round(base * 100)
-  const hundredths = Math.round(percent * 100)
-  return Math.round((baseCents * hundredths) / 10000) / 100
+function pad(value: number): string {
+  return String(value).padStart(2, '0')
 }
 
-/** Euro as percent of the base, rounded half up to 2 decimals; null without a base. */
-export function euroToPercent(euro: number, base: number | null): number | null {
-  if (!hasBase(base)) {
-    return null
-  }
-  const euroCents = Math.round(euro * 100)
-  const baseCents = Math.round(base * 100)
-  return Math.round((euroCents * 10000) / baseCents) / 100
+/**
+ * The first term from "Am Tag" (1–31) and, for a rhythm over one month, "Fällig im" (1–12), in the year of the month
+ * "Gilt ab". A day after the end of the month becomes its last day, as the backend does for the 31st (R12).
+ */
+export function anchorFromDay(validFrom: string, day: number, dueMonth: number | null): string {
+  const year = Number(validFrom.slice(0, 4))
+  const month = dueMonth === null ? validFrom : `${year}-${pad(dueMonth)}`
+  return `${month}-${pad(Math.min(day, daysIn(month)))}`
+}
+
+/** "Am Tag" and "Fällig im" of a stored first term, for the dialog. */
+export function dayOfAnchor(anchor: string): { day: number; month: number } {
+  return { day: Number(anchor.slice(8, 10)), month: Number(anchor.slice(5, 7)) }
 }

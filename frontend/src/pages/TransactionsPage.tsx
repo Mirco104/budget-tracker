@@ -18,9 +18,12 @@ import { ImportPage } from './ImportPage'
 import { totals } from '../sums'
 import { Loading } from '../components/ui/Loading'
 
-/** For the filter Art: a booking that replaces an occurrence counts as recurring (R28). */
-function kindOf(entry: Transaction): Transaction['kind'] {
-  return entry.replaces ? 'RECURRING' : entry.kind
+/** For the filter Art: income, or an expense that is fix (fulfils a term, P5) or variable. */
+function kindOf(entry: Transaction): string {
+  if (entry.transfer) {
+    return 'TRANSFER'
+  }
+  return entry.amount > 0 ? 'INCOME' : entry.fix ? 'FIX' : 'VARIABLE'
 }
 
 /** The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking. */

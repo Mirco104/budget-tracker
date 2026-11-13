@@ -2,28 +2,17 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
 import { useCreateCategory } from '../api/categories'
 import { ApiError } from '../api/client'
-import {
-  useCreateRecurringTransaction,
-  useDeleteOccurrence,
-  useRecurringTransactions,
-  useUpdateOccurrenceAll,
-  useUpdateOccurrenceFollowing,
-  useUpdateOccurrenceThis,
-} from '../api/recurring'
 import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
-import type { Category, OccurrenceScope, RecurringInterval, Transaction } from '../api/types'
+import type { Category, TermRef, Transaction } from '../api/types'
 import { formatDate, formatEuro, parseAmountInput } from '../format'
-import { INTERVAL_LABELS } from '../labels'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
 import { InlineCreate } from './ui/InlineCreate'
 import { Segmented } from './ui/Segmented'
 
 type Kind = 'expense' | 'income'
-/** NONE is a single transaction; an interval makes it a series (R12). */
-type Repeat = 'NONE' | RecurringInterval
-type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'repeat' | 'endDate' | 'accountId'
+type Field = 'amount' | 'description' | 'date' | 'categoryId' | 'accountId'
 type Errors = Partial<Record<Field, string>>
 
 interface Props {
@@ -35,6 +24,11 @@ interface Props {
   onClose: () => void
   /** Called after saving or deleting, with the confirmation to show. */
   onDone: (message: string) => void
+  /**
+   * P7: a new booking that fulfils this term ("Anderer Betrag oder anderes Datum"), prefilled with its values; the
+   * booking is linked to the term when it is saved.
+   */
+  term?: (TermRef & { name: string; amount: number; categoryId: number | null; accountId: number }) | null
 }
 
 const KINDS: { value: Kind; label: string }[] = [
@@ -42,8 +36,8 @@ const KINDS: { value: Kind; label: string }[] = [
   { value: 'income', label: 'Einnahme' },
 ]
 
-// The series API names the first occurrence startDate; the dialog shows it in the date field.
-const SERVER_FIELDS: Record<string, Field> = { startDate: 'date', interval: 'repeat' }
+// A term link that fails is shown at the date (P5)
+const SERVER_FIELDS: Record<string, Field> = { replaces: 'date' }
 
 const QUICK_PICKS = 4
 
@@ -54,10 +48,6 @@ const NEW = 'new'
 
 function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
-}
-
-function isOccurrence(entry: Transaction | null): entry is Transaction & { recurringId: number; occurrenceDate: string } {
-  return entry?.kind === 'RECURRING' && entry.recurringId !== null && entry.occurrenceDate !== null
 }
 
 /** The value after it has not changed for the delay, so typing does not send a request per key. */
@@ -90,24 +80,16 @@ function lastUsed(recent: Transaction[], categories: Category[], kind: Kind): Ca
 }
 
 /**
- * Booking dialog (US27): Ausgabe / Einnahme, a large amount, description, category with the last used ones, date,
- * repeat and end date. Editing an occurrence asks whether the change is for this entry only or this and all
- * following ones (R13). Delete is in the dialog and asks once more.
+ * Booking dialog (US27): Ausgabe / Einnahme, a large amount, description, category with the last used ones, date and
+ * account. Only real bookings (P1); regular payments are planned items on the planning page (section 19.6). Delete is
+ * in the dialog and asks once more.
  */
-export function BookingDialog({ categories: loaded, entry, defaultDate, onClose, onDone }: Props) {
-  const occurrence = isOccurrence(entry) ? entry : null
+export function BookingDialog({ categories: loaded, entry, defaultDate, onClose, onDone, term = null }: Props) {
   // Already loaded on the transactions page; the overview loads it when the dialog opens
   const recent = useTransactions(defaultDate.slice(0, 7)).data ?? []
-  // The series of an occurrence is active in the month of the occurrence; it fills "Dieser und alle folgenden".
-  const series = useRecurringTransactions(occurrence ? occurrence.occurrenceDate.slice(0, 7) : '', occurrence !== null)
   const createTransaction = useCreateTransaction()
-  const createSeries = useCreateRecurringTransaction()
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
-  const updateThis = useUpdateOccurrenceThis()
-  const updateFollowing = useUpdateOccurrenceFollowing()
-  const updateAll = useUpdateOccurrenceAll()
-  const deleteOccurrence = useDeleteOccurrence()
   const bankAccounts = useBankAccounts().data ?? []
   const createCategory = useCreateCategory()
   const createAccount = useCreateBankAccount()
@@ -118,58 +100,32 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const [creatingAccount, setCreatingAccount] = useState(false)
 
   // The amount is entered positive; the switch sets the sign (R11).
-  const [kind, setKind] = useState<Kind>(entry && entry.amount > 0 ? 'income' : 'expense')
-  const [amount, setAmount] = useState(entry ? toAmountText(entry.amount) : '')
-  const [description, setDescription] = useState(entry?.description ?? '')
+  const initialAmount = entry?.amount ?? term?.amount
+  const [kind, setKind] = useState<Kind>(initialAmount !== undefined && initialAmount > 0 ? 'income' : 'expense')
+  const [amount, setAmount] = useState(initialAmount !== undefined ? toAmountText(initialAmount) : '')
+  const [description, setDescription] = useState(entry?.description ?? term?.name ?? '')
   // TRANSFER stands for a transfer between own accounts, which has no category (R27)
-  const [categoryId, setCategoryId] = useState(entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : '')
+  const [categoryId, setCategoryId] = useState(
+    entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : term?.categoryId ? String(term.categoryId) : '',
+  )
   // '' is the default account (R26)
-  const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : '')
-  const [date, setDate] = useState(entry?.date ?? defaultDate)
-  const [repeat, setRepeat] = useState<Repeat>('NONE')
-  const [endDate, setEndDate] = useState('')
-  const [scope, setScope] = useState<OccurrenceScope>('THIS')
+  const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : term ? String(term.accountId) : '')
+  const [date, setDate] = useState(entry?.date ?? term?.date ?? defaultDate)
   const [errors, setErrors] = useState<Errors>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const quick = lastUsed(recent, categories, kind)
-  // US32: the suggestion for the description, asked for once typing pauses; R28: for a new single booking also the
-  // occurrence of a series it replaces, from amount and date
-  const newSingle = !entry && repeat === 'NONE' && categoryId !== TRANSFER
-  const parsedAmount = parseAmountInput(amount)
-  const signedAmount = parsedAmount === null || parsedAmount <= 0 ? null : kind === 'expense' ? -parsedAmount : parsedAmount
-  // Debounced as a string, so equal values do not start the timer again
-  const asked = JSON.parse(
-    useDebounced(
-      JSON.stringify({ text: description.trim(), amount: newSingle ? signedAmount : null, date: newSingle ? date : '' }),
-      300,
-    ),
-  ) as { text: string; amount: number | null; date: string }
-  const suggestion = useBookingSuggestion(
-    asked.text,
-    kind === 'income',
-    (categoryId === '' || newSingle) && asked.text.length >= 2,
-    asked,
-  )
-  const suggestedOccurrence = newSingle ? (suggestion.data?.occurrence ?? null) : null
-  const [keepReplace, setKeepReplace] = useState(true)
+  // US32: the suggestion for the description, asked for once typing pauses
+  const asked = useDebounced(description.trim(), 300)
+  const suggestion = useBookingSuggestion(asked, kind === 'income', categoryId === '' && asked.length >= 2)
   // US32, decision 46: the suggestion is never preset; it is offered as a button while no category is chosen
   const suggestedId = suggestion.data?.categoryId
   const suggested =
     categoryId === '' && suggestedId != null ? categories.find((c) => c.id === suggestedId && !c.archived) : undefined
 
   const transfer = categoryId === TRANSFER
-  const recurring = repeat !== 'NONE' && !transfer
-  // Repeat is offered for a new booking and for a series from an occurrence on, not for a single entry or a transfer.
-  const repeatOption: 'optional' | 'required' | 'none' = transfer
-    ? 'none'
-    : !entry
-      ? 'optional'
-      : occurrence && scope === 'FOLLOWING'
-        ? 'required'
-        : 'none'
 
   function chooseCategory(value: string) {
     if (value === NEW) {
@@ -200,19 +156,6 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
   const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
 
-  function chooseScope(next: OccurrenceScope) {
-    setScope(next)
-    setConfirmingDelete(false)
-    if (next !== 'FOLLOWING') {
-      setRepeat('NONE')
-      setEndDate('')
-      return
-    }
-    const current = series.data?.find((s) => s.id === occurrence?.recurringId)
-    setRepeat(current?.interval ?? 'MONTHLY')
-    setEndDate(current?.endDate ?? '')
-  }
-
   function validate(): Errors {
     const found: Errors = {}
     const parsed = parseAmountInput(amount)
@@ -230,9 +173,6 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
     }
     if (date === '') {
       found.date = 'Das Datum ist Pflicht.'
-    } else if (recurring && endDate !== '' && endDate < date) {
-      // ISO dates compare correctly as strings
-      found.endDate = 'Das Enddatum darf nicht vor dem Startdatum liegen.'
     }
     if (categoryId === '') {
       found.categoryId = 'Die Kategorie ist Pflicht.'
@@ -247,32 +187,10 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
       description: description.trim(),
       ...(accountId === '' ? {} : { accountId: Number(accountId) }),
     }
-    const replaces =
-      suggestedOccurrence && keepReplace && !entry
-        ? { replaces: { recurringId: suggestedOccurrence.recurringId, date: suggestedOccurrence.date } }
-        : {}
+    const linked = term && !entry && !transfer ? { replaces: { itemId: term.itemId, date: term.date } } : {}
     const single = transfer
       ? { ...common, date, transfer: true }
-      : { ...common, categoryId: Number(categoryId), date, ...replaces }
-    if (recurring) {
-      const input = {
-        ...common,
-        categoryId: Number(categoryId),
-        interval: repeat,
-        startDate: date,
-        endDate: endDate === '' ? null : endDate,
-      }
-      return occurrence
-        ? updateFollowing.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
-        : createSeries.mutateAsync(input)
-    }
-    if (occurrence && scope === 'ALL') {
-      const input = { ...common, categoryId: Number(categoryId) }
-      return updateAll.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input })
-    }
-    if (occurrence) {
-      return updateThis.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, input: single })
-    }
+      : { ...common, categoryId: Number(categoryId), date, ...linked }
     if (entry?.id != null) {
       return updateTransaction.mutateAsync({ id: entry.id, input: single })
     }
@@ -309,19 +227,13 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   }
 
   function handleDelete() {
-    if (occurrence) {
-      void run(
-        () => deleteOccurrence.mutateAsync({ recurringId: occurrence.recurringId, date: occurrence.occurrenceDate, scope }),
-        'Buchung gelöscht.',
-      )
-    } else if (entry?.id != null) {
+    if (entry?.id != null) {
       const id = entry.id
       void run(() => deleteTransaction.mutateAsync(id), 'Buchung gelöscht.')
     }
   }
 
-  const title = !entry ? 'Neue Buchung' : occurrence ? 'Wiederkehrende Buchung bearbeiten' : 'Buchung bearbeiten'
-  const intervals = Object.keys(INTERVAL_LABELS) as RecurringInterval[]
+  const title = entry ? 'Buchung bearbeiten' : term ? 'Als Buchung eintragen' : 'Neue Buchung'
 
   return (
     <Dialog title={title} onClose={onClose}>
@@ -389,7 +301,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
             aria-invalid={errors.categoryId ? true : undefined}
           >
             <option value="">Kategorie wählen …</option>
-            {!occurrence && <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>}
+            {!term && <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>}
             {options.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -414,89 +326,21 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           {errors.categoryId && <span className="error">{errors.categoryId}</span>}
         </div>
 
-        {occurrence && (
-          <fieldset className="field scope-choice">
-            <legend>Änderung gilt für</legend>
-            <label>
-              <input type="radio" name="scope" checked={scope === 'THIS'} onChange={() => chooseScope('THIS')} />
-              Nur dieser Eintrag
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="scope"
-                checked={scope === 'FOLLOWING'}
-                // Waits for the series, which fills interval and end date
-                disabled={!series.data}
-                onChange={() => chooseScope('FOLLOWING')}
-              />
-              Dieser und alle folgenden
-            </label>
-            <label>
-              <input type="radio" name="scope" checked={scope === 'ALL'} onChange={() => chooseScope('ALL')} />
-              Alle Einträge
-            </label>
-            <p className="hint">
-              {scope === 'ALL'
-                ? 'Betrag, Beschreibung, Kategorie und Konto gelten für die ganze Serie, auch frühere Einträge; Datum und Rhythmus bleiben. Einzeln geänderte Einträge bleiben, wie sie sind.'
-                : `Eintrag vom ${formatDate(occurrence.occurrenceDate)}; frühere Einträge bleiben unverändert.`}
-            </p>
-          </fieldset>
-        )}
+        <label className="field">
+          Datum
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            aria-invalid={errors.date ? true : undefined}
+          />
+          {errors.date && <span className="error">{errors.date}</span>}
+        </label>
 
-        {/* "Alle Einträge" keeps the dates of the series (ticket #80) */}
-        {!(occurrence && scope === 'ALL') && (
-          <div className="field-row">
-            <label className="field">
-              {recurring ? 'Erste Abbuchung' : 'Datum'}
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                aria-invalid={errors.date ? true : undefined}
-              />
-              {errors.date && <span className="error">{errors.date}</span>}
-            </label>
-
-            {repeatOption !== 'none' && (
-              <label className="field">
-                Wiederholen
-                <select value={repeat} onChange={(e) => setRepeat(e.target.value as Repeat)}>
-                  {repeatOption === 'optional' && <option value="NONE">nie</option>}
-                  {intervals.map((value) => (
-                    <option key={value} value={value}>
-                      {INTERVAL_LABELS[value]}
-                    </option>
-                  ))}
-                </select>
-                {errors.repeat && <span className="error">{errors.repeat}</span>}
-              </label>
-            )}
-          </div>
-        )}
-
-        {recurring && (
-          <label className="field">
-            Enddatum (optional)
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              aria-invalid={errors.endDate ? true : undefined}
-            />
-            {errors.endDate && <span className="error">{errors.endDate}</span>}
-          </label>
-        )}
-
-        {suggestedOccurrence && !transfer && (
-          <label className="replace-choice">
-            <input type="checkbox" checked={keepReplace} onChange={(e) => setKeepReplace(e.target.checked)} />
-            <span>
-              Ersetzt das geplante „{suggestedOccurrence.description}“ vom {formatDate(suggestedOccurrence.date)} (
-              {formatEuro(suggestedOccurrence.amount)})
-              <span className="hint">Dann zählt diese Buchung statt des geplanten Betrags.</span>
-            </span>
-          </label>
+        {term && (
+          <p className="hint">
+            Erfüllt den geplanten Termin „{term.name}“ vom {formatDate(term.date)} ({formatEuro(Math.abs(term.amount))}).
+          </p>
         )}
 
         {accountOptions.length > 0 && (
@@ -536,12 +380,8 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
         {confirmingDelete ? (
           <div className="dialog-actions confirm" role="group" aria-label="Löschen bestätigen">
             <span>
-              {occurrence
-                ? scope === 'THIS'
-                  ? 'Nur diesen Eintrag löschen?'
-                  : scope === 'ALL'
-                    ? 'Alle Einträge dieser Serie löschen? Einzeln geänderte Einträge bleiben als einmalige Buchungen.'
-                    : 'Diesen und alle folgenden Einträge löschen?'
+              {entry?.auto
+                ? 'Automatischen Eintrag löschen? Er wird für diesen Termin nicht neu angelegt.'
                 : 'Buchung wirklich löschen?'}
             </span>
             <div className="dialog-buttons">

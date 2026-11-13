@@ -5,26 +5,10 @@ export interface Category {
   name: string
   /** Icon key from the fixed list (US28); the frontend draws unknown keys as "tag". */
   icon: string
-  /** The target in euro (R3); percent is only an input helper on the planning page (decision 36). */
-  targetAmount: number | null
-  /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
-  targetValidFrom: string | null
   /** Archived categories are hidden in forms and planning (US10). */
   archived: boolean
   /** The category has entries and all of them are positive (R24). */
   incomeOnly: boolean
-  /** Fixed costs F(k, M) of the requested month (R25); null without a recurring expense. */
-  fixedCosts: number | null
-  fixedCostItems: FixedCostItem[]
-}
-
-/** One recurring expense behind the fixed costs: amount without sign, interval in months, monthly share (R25). */
-export interface FixedCostItem {
-  recurringId: number
-  description: string
-  amount: number
-  interval: number
-  monthly: number
 }
 
 /** Without an icon the category gets "tag" (US28). */
@@ -40,21 +24,12 @@ export interface CategoryUpdate {
   icon?: string
 }
 
-/** The target in euro; null means no target from the month on. */
-export interface TargetInput {
-  targetAmount: number | null
-}
-
 /**
- * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
- * recurring transaction (kind RECURRING, recurringId, occurrenceDate). amount is signed: positive is income,
- * negative is expense. A transfer between own accounts (R27) has no category and counts nowhere.
+ * A booking (P1: only real bookings, planned items are not listed). amount is signed: positive is income, negative is
+ * expense. A transfer between own accounts (R27) has no category and counts nowhere.
  */
 export interface Transaction {
-  kind: 'SINGLE' | 'RECURRING'
-  id: number | null
-  recurringId: number | null
-  occurrenceDate: string | null
+  id: number
   amount: number
   description: string
   date: string
@@ -64,13 +39,15 @@ export interface Transaction {
   accountId: number
   accountName: string
   transfer: boolean
-  /** The occurrence of a series this single transaction replaces (R28); it then counts as recurring. */
-  replaces: OccurrenceRef | null
+  /** Entered by the app from the plan (P6). */
+  auto: boolean
+  /** An expense that fulfils a term of a planned item (P5). */
+  fix: boolean
 }
 
-/** An occurrence of a series by series and date. */
-export interface OccurrenceRef {
-  recurringId: number
+/** A term of a planned item: the id of the item version and the planned date (P5). */
+export interface TermRef {
+  itemId: number
   date: string
 }
 
@@ -83,55 +60,91 @@ export interface TransactionInput {
   /** Without it the default account (R26). */
   accountId?: number
   transfer?: boolean
-  /** Only when created: the occurrence the transaction replaces (R28). */
-  replaces?: OccurrenceRef
+  /** Only when created: the term of a planned item the booking fulfils (P5, P7). */
+  replaces?: TermRef
 }
 
-export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
+/** Rhythm of a planned item (section 19.3): unit and count; no unit means "ohne festen Termin". */
+export type RhythmUnit = 'WEEK' | 'MONTH'
 
-/** One series of a recurring transaction. amount is signed per occurrence; endDate is inclusive. */
-export interface RecurringTransaction {
-  id: number
-  seriesId: string
-  amount: number
-  description: string
-  categoryId: number
-  categoryName: string
-  accountId: number
-  accountName: string
-  interval: RecurringInterval
-  startDate: string
-  endDate: string | null
-  /** |amount| per month of the interval, calculated by the backend. */
-  monthlyEquivalent: number
-}
+/** How a term becomes a booking (decision 51). */
+export type EntryMode = 'AUTO' | 'TICK' | 'MANUAL'
 
-export interface RecurringTransactionInput {
-  amount: number
-  description: string
-  categoryId: number
-  interval: RecurringInterval
-  startDate: string
-  endDate: string | null
-  /** Without it the default account (R26). */
-  accountId?: number
-}
-
-/** "Alle Einträge" (ticket #80): the values that change for every part of a series; the dates stay. */
-export interface RecurringValuesInput {
-  amount: number
-  description: string
-  categoryId: number
-  /** Without it the default account (R26). */
-  accountId?: number
-}
-
-/** "Nur dieser Eintrag" (THIS), "Dieser und alle folgenden" (FOLLOWING) or "Alle Einträge" (ALL, ticket #80). */
-export type OccurrenceScope = 'THIS' | 'FOLLOWING' | 'ALL'
+/** Group of a planned item (P4). */
+export type PlanGroup = 'INCOME' | 'FIXED' | 'BUDGET' | 'SAVING'
 
 /**
- * difference is the deviation from the target (target - actual).
- * recurring is the part of the expenses from recurring transactions, oneOff the rest; together they are actual.
+ * One version of a planned item. amount is the real amount per payment with its sign (saving negative);
+ * monthlyShare its monthly share without sign (P2). validFrom/validTo are months ("YYYY-MM"); validTo null = open.
+ */
+export interface PlannedItem {
+  id: number
+  itemKey: string
+  name: string
+  amount: number
+  saving: boolean
+  categoryId: number | null
+  categoryName: string | null
+  accountId: number
+  accountName: string
+  rhythmUnit: RhythmUnit | null
+  rhythmCount: number | null
+  anchorDate: string | null
+  entryMode: EntryMode
+  workdaysOnly: boolean
+  validFrom: string
+  validTo: string | null
+  group: PlanGroup
+  monthlyShare: number
+}
+
+/** Create or change a planned item; validFrom is the month from which the item or the change applies. */
+export interface PlannedItemInput {
+  name: string
+  amount: number
+  saving?: boolean
+  categoryId?: number | null
+  accountId?: number
+  rhythmUnit: RhythmUnit | null
+  rhythmCount: number | null
+  anchorDate: string | null
+  entryMode?: EntryMode
+  workdaysOnly?: boolean
+  validFrom: string
+}
+
+/** Sum of the items of one category in one group. */
+export interface PlanCategoryTotal {
+  group: PlanGroup
+  categoryId: number
+  categoryName: string
+  total: number
+}
+
+/**
+ * The plan of a month (P2–P4, P9). Sums are monthly shares without sign; unplanned is negative when overplanned.
+ * averageIncome and minimumIncome are only for orientation (R23).
+ */
+export interface Plan {
+  month: string
+  income: number
+  fixed: number
+  budgets: number
+  saving: number
+  unplanned: number
+  /** Percent with one decimal, null without planned income (P9). */
+  savingRate: number | null
+  planTotal: number
+  averageIncome: number | null
+  minimumIncome: number | null
+  averageMonths: number
+  categories: PlanCategoryTotal[]
+  items: PlannedItem[]
+}
+
+/**
+ * difference is the deviation from the plan (target - actual); target is the plan of the category (P3).
+ * recurring is the part of the expenses that fulfils a term ("fix", P5), oneOff the rest ("variabel").
  */
 export interface Totals {
   target: number
@@ -223,13 +236,14 @@ export interface ProblemDetail {
   errors?: FieldError[]
 }
 
-/** A rare expense in the reserve pot. amount is the cost (positive); nextDate is its next occurrence. */
+/** A rare expense in the reserve pot. amount is the cost (positive); nextDate is its next term. */
 export interface ReserveLine {
-  recurringId: number
+  itemId: number
   description: string
   categoryName: string
   amount: number
-  interval: RecurringInterval
+  rhythmUnit: RhythmUnit
+  rhythmCount: number
   nextDate: string
   /** To put aside each month. */
   monthly: number
@@ -239,11 +253,11 @@ export interface ReserveLine {
   ratesLeft: number
 }
 
-/** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). amount is positive. */
+/** A booked expense (kind SINGLE, id) or a term of a planned item (kind PLANNED, itemId). amount is positive. */
 export interface ForecastEntry {
-  kind: 'SINGLE' | 'RECURRING'
+  kind: 'SINGLE' | 'PLANNED'
   id: number | null
-  recurringId: number | null
+  itemId: number | null
   description: string
   date: string
   amount: number

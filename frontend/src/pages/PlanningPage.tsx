@@ -1,246 +1,333 @@
 import { useState } from 'react'
-import { useCategories, useUpdateTarget } from '../api/categories'
-import { useDashboard } from '../api/dashboard'
-import type { Category, DashboardData } from '../api/types'
-import { TargetRow } from '../components/TargetRow'
-import { MonthNav } from '../components/ui/MonthNav'
-import { Icon } from '../components/ui/Icon'
-import { PageHeader } from '../components/ui/PageHeader'
-import { currentMonth, formatEuro, formatMonth, formatMonthName, shiftMonth } from '../format'
-import { averagePeriod } from '../labels'
+import { useCategories, useCreateCategory } from '../api/categories'
+import { useCreatePlannedItem, usePlan, useUpdatePlannedItem } from '../api/plan'
+import type { Category, Plan, PlanGroup, PlannedItem } from '../api/types'
+import { PlannedItemDialog } from '../components/PlannedItemDialog'
+import { InfoTip } from '../components/ui/InfoTip'
 import { Loading } from '../components/ui/Loading'
+import { MonthNav } from '../components/ui/MonthNav'
+import { PageHeader } from '../components/ui/PageHeader'
+import { Toast } from '../components/ui/Toast'
+import { currentMonth, formatEuro, formatMonth } from '../format'
+import { rhythmLabel } from '../labels'
 
-export type PlanningBase = 'avg' | 'min'
+/** The standard catch-all budget (concept 3.7); created on first use. */
+const SONSTIGES = 'Sonstiges'
 
-const BASE_NAMES: Record<PlanningBase, string> = { avg: 'Ø Einnahmen', min: 'Mindesteinnahmen' }
+const GROUPS: { group: PlanGroup; title: string; hint: string }[] = [
+  { group: 'INCOME', title: 'Einkommen', hint: 'Was regelmäßig hereinkommt, z. B. Gehalt.' },
+  { group: 'FIXED', title: 'Fixkosten', hint: 'Ausgaben mit festem Termin, z. B. Miete, Versicherungen, Abos.' },
+  {
+    group: 'BUDGET',
+    title: 'Budgets (variable Kosten)',
+    hint: 'Was du im Monat ausgeben willst, ohne festen Termin, z. B. Lebensmittel, Benzin.',
+  },
+  { group: 'SAVING', title: 'Sparen', hint: 'Sparraten und Rücklagen, die du beim Abhaken einträgst.' },
+]
 
-// The chosen base is a convenience per browser (US7a); without a stored choice the minimum income is the default,
-// because careful planning starts from the weakest month
-const BASE_KEY = 'planning-base'
+type DialogState = { item: PlannedItem | null; group?: PlanGroup; preset?: { name?: string; amount?: number; categoryId?: number } }
 
-function storedBase(): PlanningBase {
-  try {
-    return localStorage.getItem(BASE_KEY) === 'avg' ? 'avg' : 'min'
-  } catch {
-    return 'min'
-  }
-}
-
-function storeBase(base: PlanningBase) {
-  try {
-    localStorage.setItem(BASE_KEY, base)
-  } catch {
-    // Storage blocked: the choice lasts until the page is left
-  }
-}
-
-const percentFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 })
-
-/** One of the two income tiles; clicking it makes it the base (US7a, decision 36). */
-function BaseTile({
-  label,
-  value,
-  selected,
-  onSelect,
-  period,
-}: {
-  label: string
-  value: number
-  selected: boolean
-  onSelect: () => void
-  period: string
-}) {
-  return (
-    <button
-      type="button"
-      className={selected ? 'plan-tile base-tile selected' : 'plan-tile base-tile'}
-      aria-pressed={selected}
-      onClick={onSelect}
-    >
-      <span className="tile-head">
-        <span className="tile-label">{label}</span>
-        <span className="base-mark">{selected ? 'Basis' : 'als Basis wählen'}</span>
-      </span>
-      <span className="tile-value">{formatEuro(value)}</span>
-      <span className="tile-note period">{period}</span>
-    </button>
-  )
-}
-
-/**
- * Bar that stays at the top while scrolling (US7a): minimum and Ø income (R23), planned targets and the unplanned
- * rest (R4) for the month "Gilt ab", taken from the dashboard. A click on an income tile makes it the base for
- * "Nicht verplant" and the input in percent. It refreshes after every saved target.
- */
-function PlanningBar({
-  data,
-  base,
-  onBaseChange,
-}: {
-  data: DashboardData | undefined
-  base: PlanningBase
-  onBaseChange: (base: PlanningBase) => void
-}) {
-  if (!data) {
-    return null
-  }
-  if (data.averageIncome === null || data.minimumIncome === null || data.unplanned === null) {
-    return (
-      <div className="plan-bar">
-        <p className="hint">
-          Noch kein abgeschlossener Monat mit Einträgen. Mindesteinnahmen, Ø Einnahmen und „Nicht verplant“ gibt es,
-          sobald einer da ist; bis dahin lässt sich das Soll nur in Euro eingeben.
-        </p>
-      </div>
-    )
-  }
-  const useMinimum = base === 'min'
-  const baseValue = useMinimum ? data.minimumIncome : data.averageIncome
-  const unplanned = (useMinimum ? data.unplannedMinimum : data.unplanned) ?? 0
-  const unplannedLabel = useMinimum ? data.unplannedMinimumLabel : data.unplannedLabel
-  const overPlanned = unplanned < 0
-  const period = averagePeriod(data)
-  return (
-    <div className="plan-bar plan-tiles">
-      <BaseTile
-        label="Mindesteinnahmen"
-        value={data.minimumIncome}
-        selected={useMinimum}
-        onSelect={() => onBaseChange('min')}
-        period={period}
-      />
-      <BaseTile
-        label="Ø Einnahmen"
-        value={data.averageIncome}
-        selected={!useMinimum}
-        onSelect={() => onBaseChange('avg')}
-        period={period}
-      />
-      <div className="plan-tile">
-        <span className="tile-label">Verplant</span>
-        <span className="tile-value">{formatEuro(data.expenses.target)}</span>
-        <span className="tile-note">
-          {baseValue > 0 ? `${percentFormat.format((data.expenses.target / baseValue) * 100)} % der ${BASE_NAMES[base]}` : ''}
-        </span>
-      </div>
-      <div className={overPlanned ? 'plan-tile over' : 'plan-tile'}>
-        <span className="tile-label">{unplannedLabel}</span>
-        {/* The label already says "Überplant", so the amount is shown without minus sign in the warning color (R4). */}
-        <span className="tile-value">{formatEuro(Math.abs(unplanned))}</span>
-        <span className="tile-note">{overPlanned ? `mehr verplant als ${BASE_NAMES[base]}` : 'ohne Budget'}</span>
-      </div>
-    </div>
-  )
-}
-
-/** The page owns its month: from when a target applies (decision 28). The current month is the default (US2). */
+/** The page owns its month: the normal month shown and the default of "Gilt ab" (section 19, decision 49). */
 export function PlanningPage() {
   const [month, setMonth] = useState(currentMonth)
   return (
     <section>
       <PageHeader title="Planung">
-        <MonthNav month={month} onChange={setMonth} label="Gilt ab" />
+        <MonthNav month={month} onChange={setMonth} />
       </PageHeader>
       <PlanningContent month={month} />
     </section>
   )
 }
 
-/** The actual of a category in a month: its expenses, or its net when it was income (R2). */
-function actualOf(data: DashboardData | undefined, id: number): { amount: number; income: boolean } {
-  const expense = data?.categories.find((line) => line.id === id)
-  if (expense && expense.actual > 0) {
-    return { amount: expense.actual, income: false }
+/** "1.200,00 € jährlich" for an item that is not a monthly amount, otherwise nothing. */
+function paymentNote(item: PlannedItem): string | null {
+  if (item.rhythmUnit === 'MONTH' && item.rhythmCount === 1) {
+    return 'monatlich'
   }
-  const income = data?.income.find((line) => line.id === id)
-  if (income) {
-    return { amount: income.actual, income: true }
+  if (item.rhythmUnit === null) {
+    return null
   }
-  return { amount: 0, income: false }
+  return `${formatEuro(Math.abs(item.amount))} ${rhythmLabel(item.rhythmUnit, item.rhythmCount)}`
 }
 
-/** R24: hidden unless it has a target in the month "Gilt ab"; categories without entries are never income-only. */
-function hiddenByDefault(category: Category): boolean {
-  return category.incomeOnly && category.targetAmount === null
+function ItemRow({ item, onEdit }: { item: PlannedItem; onEdit: () => void }) {
+  const note = paymentNote(item)
+  return (
+    <li>
+      <button type="button" className="item-row" onClick={onEdit}>
+        <span className="item-main">
+          <span className="item-name">{item.name}</span>
+          <span className="tx-meta">
+            {note}
+            {item.entryMode === 'AUTO' && <span className="badge auto">automatisch</span>}
+            {item.entryMode === 'TICK' && <span className="badge">abhaken</span>}
+          </span>
+        </span>
+        <span className="item-amount">{formatEuro(item.monthlyShare)}</span>
+      </button>
+    </li>
+  )
+}
+
+/** P4: a bar of fixed costs, budgets and saving against the planned income, the rest grey. */
+function PlanBar({ plan }: { plan: Plan }) {
+  const base = Math.max(plan.income, plan.fixed + plan.budgets + plan.saving, 0.01)
+  const part = (value: number) => `${Math.max(0, (value / base) * 100)}%`
+  return (
+    <div className="plan-stack" aria-hidden="true">
+      <span className="stack-fixed" style={{ width: part(plan.fixed) }} />
+      <span className="stack-budget" style={{ width: part(plan.budgets) }} />
+      <span className="stack-saving" style={{ width: part(plan.saving) }} />
+      <span className="stack-rest" style={{ width: part(Math.max(0, plan.unplanned)) }} />
+    </div>
+  )
+}
+
+function PlanHead({
+  plan,
+  onToSaving,
+  onToOther,
+  busy,
+}: {
+  plan: Plan
+  onToSaving: () => void
+  onToOther: () => void
+  busy: boolean
+}) {
+  const over = plan.unplanned < 0
+  return (
+    <div className="card plan-summary">
+      <PlanBar plan={plan} />
+      <dl className="plan-legend">
+        <div>
+          <dt>
+            <span className="dot stack-fixed" /> Fixkosten
+          </dt>
+          <dd>{formatEuro(plan.fixed)}</dd>
+        </div>
+        <div>
+          <dt>
+            <span className="dot stack-budget" /> Budgets
+          </dt>
+          <dd>{formatEuro(plan.budgets)}</dd>
+        </div>
+        <div>
+          <dt>
+            <span className="dot stack-saving" /> Sparen
+          </dt>
+          <dd>
+            {formatEuro(plan.saving)}
+            {plan.savingRate !== null && <span className="tile-note"> · {plan.savingRate.toLocaleString('de-DE')} %</span>}
+          </dd>
+        </div>
+        <div className={over ? 'over' : undefined}>
+          <dt>
+            <span className="dot stack-rest" /> {over ? 'Überplant' : 'Nicht verplant'}
+            <InfoTip label="Was heißt nicht verplant?">
+              Nicht verplant = Einkommen − Fixkosten − Budgets − Sparen, alles als Monatsanteil.
+            </InfoTip>
+          </dt>
+          <dd>{formatEuro(Math.abs(plan.unplanned))}</dd>
+        </div>
+      </dl>
+      {plan.unplanned > 0 ? (
+        <div className="plan-actions">
+          <button type="button" className="saving-button" onClick={onToSaving} disabled={busy}>
+            Zum Sparen
+          </button>
+          <button type="button" onClick={onToOther} disabled={busy}>
+            Zu Sonstiges
+          </button>
+        </div>
+      ) : (
+        plan.unplanned === 0 &&
+        plan.income > 0 && (
+          <p className="plan-done">
+            ✓ Alles verplant
+          </p>
+        )
+      )}
+    </div>
+  )
+}
+
+function GroupSection({
+  title,
+  hint,
+  group,
+  plan,
+  onEdit,
+  onAdd,
+}: {
+  title: string
+  hint: string
+  group: PlanGroup
+  plan: Plan
+  onEdit: (item: PlannedItem) => void
+  onAdd: () => void
+}) {
+  const items = plan.items.filter((item) => item.group === group)
+  const total = { INCOME: plan.income, FIXED: plan.fixed, BUDGET: plan.budgets, SAVING: plan.saving }[group]
+  // Fixed costs and budgets are grouped by category with a subtotal (concept 4.3)
+  const byCategory = group === 'FIXED' || group === 'BUDGET'
+  const categories = plan.categories.filter((line) => line.group === group)
+  return (
+    <section className="card plan-group" aria-label={title}>
+      <div className="plan-group-head">
+        <h2>
+          {title} <InfoTip label={`Was gehört zu ${title}?`}>{hint}</InfoTip>
+        </h2>
+        <span className="plan-group-total">{formatEuro(total)}</span>
+      </div>
+      {group === 'INCOME' && plan.averageIncome !== null && plan.minimumIncome !== null && (
+        <p className="hint">
+          Zur Orientierung: Ø {formatEuro(plan.averageIncome)}, mindestens {formatEuro(plan.minimumIncome)} in den
+          letzten {plan.averageMonths === 1 ? 'Monat' : `${plan.averageMonths} Monaten`}.
+        </p>
+      )}
+      {items.length === 0 && <p className="hint">Noch keine Posten.</p>}
+      {byCategory ? (
+        categories.map((line) => (
+          <div key={line.categoryId} className="plan-category-block">
+            <div className="plan-category-head">
+              <span>{line.categoryName}</span>
+              <span>{formatEuro(line.total)}</span>
+            </div>
+            <ul className="item-list">
+              {items
+                .filter((item) => item.categoryId === line.categoryId)
+                .map((item) => (
+                  <ItemRow key={item.id} item={item} onEdit={() => onEdit(item)} />
+                ))}
+            </ul>
+          </div>
+        ))
+      ) : (
+        <ul className="item-list">
+          {items.map((item) => (
+            <ItemRow key={item.id} item={item} onEdit={() => onEdit(item)} />
+          ))}
+        </ul>
+      )}
+      <button type="button" className="link-button" onClick={onAdd}>
+        + Posten
+      </button>
+    </section>
+  )
 }
 
 function PlanningContent({ month }: { month: string }) {
+  const plan = usePlan(month)
   const categories = useCategories(month)
-  const dashboard = useDashboard(month)
-  const previousMonth = shiftMonth(month, -1)
-  const previous = useDashboard(previousMonth)
-  const updateTarget = useUpdateTarget()
-  const [showIncomeOnly, setShowIncomeOnly] = useState(false)
-  const [base, setBase] = useState(storedBase)
+  const createCategory = useCreateCategory()
+  const createItem = useCreatePlannedItem()
+  const updateItem = useUpdatePlannedItem()
+  const [dialog, setDialog] = useState<DialogState | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  if (categories.isPending) {
-    return <Loading text="Lade Kategorien …" />
+  if (plan.isPending || categories.isPending) {
+    return <Loading text="Lade Planung …" />
   }
-  if (categories.error) {
-    return <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>
+  if (plan.error || categories.error) {
+    return <p className="error">Planung konnte nicht geladen werden: {(plan.error ?? categories.error)?.message}</p>
   }
+  const data = plan.data
+  const noBudgets = !data.items.some((item) => item.group === 'BUDGET')
 
-  const baseValue = (base === 'min' ? dashboard.data?.minimumIncome : dashboard.data?.averageIncome) ?? null
-  const active = categories.data.filter((category) => !category.archived)
-  const incomeOnly = active.filter(hiddenByDefault)
-  const shown = showIncomeOnly ? active : active.filter((category) => !hiddenByDefault(category))
+  // P4 "Zu Sonstiges": the rest goes to the budget of the catch-all category, from this month on
+  async function toOther() {
+    setError(null)
+    try {
+      let category: Category | undefined = categories.data?.find((c) => c.name === SONSTIGES && !c.archived)
+      if (!category) {
+        category = await createCategory.mutateAsync({ name: SONSTIGES })
+      }
+      const existing = data.items.find((item) => item.group === 'BUDGET' && item.categoryId === category.id)
+      if (existing) {
+        await updateItem.mutateAsync({
+          id: existing.id,
+          input: {
+            name: existing.name,
+            amount: -(existing.monthlyShare + data.unplanned),
+            categoryId: existing.categoryId,
+            accountId: existing.accountId,
+            rhythmUnit: null,
+            rhythmCount: null,
+            anchorDate: null,
+            entryMode: existing.entryMode,
+            validFrom: month,
+          },
+        })
+      } else {
+        await createItem.mutateAsync({
+          name: SONSTIGES,
+          amount: -data.unplanned,
+          categoryId: category.id,
+          rhythmUnit: null,
+          rhythmCount: null,
+          anchorDate: null,
+          validFrom: month,
+        })
+      }
+      setToast(`${formatEuro(data.unplanned)} zu Sonstiges ab ${formatMonth(month)}.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')
+    }
+  }
 
   return (
     <>
       <p className="hint plan-intro">
-        Lege fest, wie viel du je Kategorie im Monat ausgeben willst. Du kannst Euro oder Prozent der gewählten Basis
-        eingeben, gespeichert wird immer der Euro-Betrag. Er gilt ab <strong>{formatMonth(month)}</strong> für alle
-        folgenden Monate, bis ein späterer Monat ein neues Soll bekommt; frühere Monate bleiben unverändert.
-        {dashboard.data?.averageIncomeFrom && <> Mindest- und Ø Einnahmen stammen aus {averagePeriod(dashboard.data)}.</>}{' '}
-        Gespeichert wird automatisch, sobald du ein Feld verlässt oder Enter drückst.
+        Plane einen <strong>normalen Monat</strong>: Trage ein, was regelmäßig kommt und geht. Seltene Zahlungen
+        (z. B. 1.200 € jährlich) zählen mit ihrem Monatsanteil. Änderungen gelten ab einem Monat; frühere Monate behalten
+        ihren Plan.
       </p>
-      <PlanningBar
-        data={dashboard.data}
-        base={base}
-        onBaseChange={(next) => {
-          setBase(next)
-          storeBase(next)
-        }}
+      <PlanHead
+        plan={data}
+        busy={createItem.isPending || updateItem.isPending || createCategory.isPending}
+        onToSaving={() =>
+          setDialog({ item: null, group: 'SAVING', preset: { name: 'Sparen', amount: data.unplanned } })
+        }
+        onToOther={() => void toOther()}
       />
-
-      <div className="card plan-list">
-        <div className="plan-head" aria-hidden="true">
-          <span>Kategorie</span>
-          <span>Soll pro Monat</span>
-          <span className="plan-head-previous">
-            <Icon name="history" size={14} />
-            Ist im Vormonat ({formatMonthName(previousMonth)})
-          </span>
-        </div>
-        {shown.map((category) => {
-          const actual = actualOf(previous.data, category.id)
-          return (
-            <TargetRow
-              key={`${category.id}-${month}`}
-              category={category}
-              month={month}
-              base={baseValue}
-              baseName={BASE_NAMES[base]}
-              previousActual={actual.amount}
-              previousIsIncome={actual.income}
-              previousMonth={previousMonth}
-              onSubmit={(input) => updateTarget.mutateAsync({ id: category.id, month, input })}
-            />
-          )
-        })}
-        {incomeOnly.length > 0 && (
-          <div className="toggle-line">
-            <span className="hint">
-              {showIncomeOnly
-                ? 'Kategorien, die bisher nur Einnahmen haben, werden angezeigt.'
-                : `${incomeOnly.length === 1 ? '1 Kategorie' : `${incomeOnly.length} Kategorien`} mit ausschließlich Einnahmen ausgeblendet: ${incomeOnly.map((category) => category.name).join(', ')}`}
-            </span>
-            <button type="button" onClick={() => setShowIncomeOnly(!showIncomeOnly)}>
-              {showIncomeOnly ? 'Ausblenden' : 'Einblenden'}
-            </button>
-          </div>
-        )}
-      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {noBudgets && (
+        <p className="hint plan-onboarding">
+          Lege deine Budgets für variable Kosten an, z. B. Lebensmittel oder Freizeit.
+        </p>
+      )}
+      {GROUPS.map(({ group, title, hint }) => (
+        <GroupSection
+          key={group}
+          title={title}
+          hint={hint}
+          group={group}
+          plan={data}
+          onEdit={(item) => setDialog({ item })}
+          onAdd={() => setDialog({ item: null, group })}
+        />
+      ))}
+      {dialog && (
+        <PlannedItemDialog
+          categories={categories.data}
+          item={dialog.item}
+          month={month}
+          group={dialog.group}
+          preset={dialog.preset}
+          onClose={() => setDialog(null)}
+          onDone={(message) => {
+            setDialog(null)
+            setToast(message)
+          }}
+        />
+      )}
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </>
   )
 }

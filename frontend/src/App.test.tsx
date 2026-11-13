@@ -145,14 +145,14 @@ describe('App', () => {
     expect(screen.queryByLabelText('Monat wählen')).not.toBeInTheDocument()
   })
 
-  // Decision 28: the planning page has its own month "Gilt ab", starting at the current month
+  // Decision 28: the planning page has its own month, starting at the current month
   it('starts the planning at the current month', async () => {
     await renderApp()
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
 
     goTo('#/planung')
 
-    expect(await screen.findByLabelText('Gilt ab', { selector: 'input' })).toHaveValue(currentMonth())
+    expect(await screen.findByLabelText('Monat wählen', { selector: 'input' })).toHaveValue(currentMonth())
   })
 
   // The analysis page is loaded on first use, because of the chart library

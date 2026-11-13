@@ -17,7 +17,7 @@ import {
   formatWholeNumber,
   shiftMonth,
 } from '../format'
-import { INTERVAL_LABELS } from '../labels'
+import { rhythmLabel } from '../labels'
 import { EVALUATION_ROUTES, useEvaluationPage } from '../router'
 import { Loading } from '../components/ui/Loading'
 
@@ -482,10 +482,10 @@ function Reserves({ data }: { data: ReserveData }) {
       </dl>
       <ul className="reserve-list" aria-label="Seltene Ausgaben">
         {data.reserves.map((line) => (
-          <li key={line.recurringId} className="reserve-item">
+          <li key={line.itemId} className="reserve-item">
             <div className="reserve-head">
               <span>
-                <strong>{line.description}</strong> <span className="badge">{INTERVAL_LABELS[line.interval]}</span>
+                <strong>{line.description}</strong> <span className="badge">{rhythmLabel(line.rhythmUnit, line.rhythmCount)}</span>
               </span>
               <span className="tile-note">
                 {formatEuro(line.amount)} · fällig am {formatDate(line.nextDate)}
@@ -544,7 +544,7 @@ function ForecastRows({ month, active, onActive }: {
       {open &&
         month.entries.map((entry) => (
           <tr
-            key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.date}`}
+            key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `planned-${entry.itemId}-${entry.date}`}
             className={`history-category${highlight}`}
             {...hover}
           >
@@ -552,7 +552,7 @@ function ForecastRows({ month, active, onActive }: {
               <span className="forecast-entry">
                 <span className="forecast-date">{formatDate(entry.date)}</span>
                 <span>{entry.description}</span>
-                {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
+                {entry.kind === 'PLANNED' && <span className="badge">geplant</span>}
               </span>
             </td>
             <td className="number">{formatAmount(entry.amount)}</td>

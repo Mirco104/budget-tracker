@@ -19,7 +19,7 @@ type Line = Pick<CategoryLine, 'target' | 'actual' | 'difference'>
 const MONTH_NOTES: Record<DashboardData['monthState'], string> = {
   PAST: 'Abgeschlossener Monat.',
   CURRENT: 'Laufender Monat: die Werte können sich noch ändern.',
-  FUTURE: 'Künftiger Monat: es zählen nur wiederkehrende und vorgemerkte Einträge.',
+  FUTURE: 'Künftiger Monat: es zählen nur schon gebuchte Einträge.',
 }
 
 function signClass(value: number | null): string | undefined {
@@ -68,7 +68,7 @@ function DashboardContent({ month }: { month: string }) {
   const iconOf = (id: number) => categories.data?.find((category) => category.id === id)?.icon ?? 'tag'
 
   // US5: nothing booked and planned yet. Only the current month counts, an empty past month is just empty.
-  const hasTarget = categories.data?.some((c) => c.targetAmount !== null) ?? true
+  const hasTarget = data.categories.some((c) => c.target !== null)
   const showOnboarding =
     data.monthState === 'CURRENT' && data.categories.length === 0 && data.income.length === 0 && !hasTarget
 
@@ -92,7 +92,7 @@ function DashboardContent({ month }: { month: string }) {
           <dd>{formatEuro(data.expenses.actual)}</dd>
           {/* R10: recurring transactions are the fixed costs, single transactions the rest */}
           <dd className="breakdown">
-            davon wiederkehrend <span>{formatEuro(data.expenses.recurring)}</span>
+            davon fix <span>{formatEuro(data.expenses.recurring)}</span>
           </dd>
           <dd className="breakdown">
             davon einmalig <span>{formatEuro(data.expenses.oneOff)}</span>
@@ -219,11 +219,11 @@ function CategoryBookings({ month, categoryId }: { month: string; categoryId: nu
   return (
     <ul className="bookings">
       {entries.map((entry) => (
-        <li key={entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.occurrenceDate}`}>
+        <li key={entry.id}>
           <span className="booking-date">{formatDate(entry.date)}</span>
           <span className="booking-description">
             {entry.description}
-            {entry.kind === 'RECURRING' && <span className="badge">wiederkehrend</span>}
+            {entry.fix && <span className="badge">fix</span>}
           </span>
           <span className={`booking-amount${entry.amount < 0 ? '' : ' positive'}`}>{formatEuro(entry.amount)}</span>
         </li>

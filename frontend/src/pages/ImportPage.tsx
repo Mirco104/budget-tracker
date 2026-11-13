@@ -21,7 +21,7 @@ import { Icon } from '../components/ui/Icon'
 import { InlineCreate } from '../components/ui/InlineCreate'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { facetCounts, IMPORT_FILTERS, type Filters } from '../filters'
+import { facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
@@ -897,6 +897,7 @@ function Preview({
             filters={filters}
             onChange={changeFilters}
             counts={counts}
+            kinds={IMPORT_KINDS}
             categories={categories}
             accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
             extraCategoryOptions={[

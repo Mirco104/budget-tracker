@@ -44,3 +44,9 @@ export function facetCounts<T>(
   }
   return { category: count('category'), account: count('account'), kind: count('kind') }
 }
+
+/** The kinds of the import: a row that fulfils a planned term or belongs to a new item is "Wiederkehrend". */
+export const IMPORT_KINDS: { value: string; label: string }[] = [
+  { value: 'RECURRING', label: 'Wiederkehrend' },
+  { value: 'SINGLE', label: 'Einmalig' },
+]

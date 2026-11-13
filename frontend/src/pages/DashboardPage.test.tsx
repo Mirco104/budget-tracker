@@ -37,14 +37,13 @@ const dashboard: DashboardData = {
   income: [{ id: 20, name: 'Gehalt', actual: 2000 }],
 }
 
-function category(id: number, name: string, icon: string, targetAmount: number | null = null): Category {
+// The plan of a category comes with the dashboard (P3); the number stays for the readability of the fixtures
+function category(id: number, name: string, icon: string, plan: number | null = null): Category {
+  void plan
   return {
     id,
     name,
     icon,
-    targetAmount,
-    fixedCosts: null, fixedCostItems: [],
-    targetValidFrom: targetAmount === null ? null : '2026-01',
     archived: false,
     incomeOnly: false,
   }
@@ -60,10 +59,7 @@ const categories: Category[] = [
 
 const transactions: Transaction[] = [
   {
-    kind: 'RECURRING',
-    id: null,
-    recurringId: 4,
-    occurrenceDate: '2026-10-01',
+    id: 4,
     amount: -780,
     description: 'Miete',
     date: '2026-10-01',
@@ -72,13 +68,11 @@ const transactions: Transaction[] = [
     accountId: 1,
     accountName: 'Girokonto',
     transfer: false,
-    replaces: null,
+    auto: true,
+    fix: true,
   },
   {
-    kind: 'SINGLE',
     id: 7,
-    recurringId: null,
-    occurrenceDate: null,
     amount: -35,
     description: 'Fähre',
     date: '2026-10-12',
@@ -87,7 +81,7 @@ const transactions: Transaction[] = [
     accountId: 1,
     accountName: 'Girokonto',
     transfer: false,
-    replaces: null,
+    auto: false, fix: false,
   },
 ]
 
@@ -128,7 +122,7 @@ describe('DashboardPage', () => {
     expect(tile('Einnahmen')).toHaveTextContent('2.000,00 €')
     expect(screen.getByText(/^Ø 2\.000,00 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
     expect(tile('Ausgaben')).toHaveTextContent('895,00 €')
-    expect(screen.getByText(/davon wiederkehrend/)).toHaveTextContent('840,00 €')
+    expect(screen.getByText(/davon fix/)).toHaveTextContent('840,00 €')
     expect(screen.getByText(/davon einmalig/)).toHaveTextContent('55,00 €')
     // R23, decision 34: Ā over the same months as the Ø income
     expect(screen.getByText(/^Ø 912,50 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
@@ -196,30 +190,6 @@ describe('DashboardPage', () => {
     expect(tile('Überschritten')).toHaveClass('negative')
   })
 
-  it('shows each category with icon, actual of target, progress and what is left', async () => {
-    renderPage()
-
-    const wohnen = await screen.findByRole('button', { name: /Wohnen/ })
-    expect(wohnen).toHaveTextContent('780,00 € von 800,00 €')
-    expect(wohnen).toHaveTextContent('noch 20,00 €')
-    await waitFor(() => expect(wohnen.querySelector('.category-icon')).toHaveAttribute('data-icon', 'home'))
-    expect(within(item('Wohnen')).getByTestId('progress')).not.toHaveClass('over')
-
-    const versicherungen = item('Versicherungen')
-    expect(within(versicherungen).getByText('20,00 € über dem Soll')).toHaveClass('over')
-    expect(within(versicherungen).getByTestId('progress')).toHaveClass('over')
-
-    const urlaub = item('Urlaub')
-    expect(urlaub).toHaveTextContent('35,00 € · kein Soll')
-    expect(within(urlaub).queryByTestId('progress')).not.toBeInTheDocument()
-
-    const total = item('Gesamt')
-    expect(total).toHaveTextContent('895,00 € von 960,00 €')
-    expect(total).toHaveTextContent('noch 65,00 €')
-
-    expect(item('Gehalt')).toHaveTextContent('2.000,00 €')
-  })
-
   it('shows a month without income', async () => {
     renderPage({ ...dashboard, incomeTotal: 0, surplus: -895, surplusLabel: 'Monatlicher Verlust', income: [] })
 
@@ -244,7 +214,7 @@ describe('DashboardPage', () => {
     expect(wohnen).toHaveAttribute('aria-expanded', 'true')
     expect(fetchMock).toHaveBeenCalledWith('/api/transactions?month=2026-10', expect.anything())
     const bookings = within(item('Wohnen'))
-    expect(bookings.getByText('wiederkehrend')).toBeInTheDocument()
+    expect(bookings.getByText('fix')).toBeInTheDocument()
     expect(bookings.getByText('01.10.2026')).toBeInTheDocument()
     expect(bookings.queryByText('Fähre')).not.toBeInTheDocument()
 
@@ -255,36 +225,10 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Keine Buchungen in diesem Monat.')).toBeInTheDocument()
   })
 
-  it('says so when there is nothing to show', async () => {
-    renderPage({ ...dashboard, categories: [] })
-
-    expect(await screen.findByText('In diesem Monat gibt es weder Soll-Werte noch Ausgaben.')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Erste Schritte' })).not.toBeInTheDocument()
-  })
-
-  it('shows the first steps in an empty current month without targets', async () => {
-    const empty: DashboardData = {
-      ...dashboard,
-      month: '2026-11',
-      monthState: 'CURRENT',
-      surplusLabel: 'Noch frei',
-      categories: [],
-      income: [],
-    }
-    renderPage(empty, categories.map((c) => ({ ...c, targetAmount: null, targetValidFrom: null })))
-
-    const steps = await screen.findByRole('region', { name: 'Erste Schritte' })
-    expect(within(steps).getByRole('link', { name: 'Soll festlegen' })).toHaveAttribute('href', '#/planung')
-    expect(within(steps).getByRole('link', { name: 'Erste Buchung erfassen' })).toHaveAttribute(
-      'href',
-      '#/transaktionen',
-    )
-  })
-
   it('shows no first steps in an empty past month', async () => {
     renderPage(
       { ...dashboard, categories: [], income: [] },
-      categories.map((c) => ({ ...c, targetAmount: null, targetValidFrom: null })),
+      categories.map((c) => ({ ...c, targetValidFrom: null })),
     )
 
     expect(await screen.findByText('In diesem Monat gibt es keine Einnahmen.')).toBeInTheDocument()

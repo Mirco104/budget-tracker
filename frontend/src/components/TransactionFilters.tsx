@@ -8,9 +8,11 @@ export interface FilterOption {
 }
 
 // An Umbuchung is chosen like a category when booking, so it is a category option, not a kind (ticket #84)
+// Transaktionen: fix and variable expenses (P5) and income; the import keeps its own kinds
 const KINDS: FilterOption[] = [
-  { value: 'RECURRING', label: 'Wiederkehrend' },
-  { value: 'SINGLE', label: 'Einmalig' },
+  { value: 'FIX', label: 'Fix' },
+  { value: 'VARIABLE', label: 'Variabel' },
+  { value: 'INCOME', label: 'Einnahmen' },
 ]
 
 /**
@@ -25,6 +27,7 @@ export function TransactionFilters({
   accounts,
   extraCategoryOptions = [],
   counts,
+  kinds = KINDS,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
@@ -32,6 +35,7 @@ export function TransactionFilters({
   accounts: FilterOption[]
   extraCategoryOptions?: FilterOption[]
   counts?: FacetCounts
+  kinds?: FilterOption[]
 }) {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
@@ -77,7 +81,7 @@ export function TransactionFilters({
       )}
       <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
         <option value="">Alle Arten</option>
-        {options('kind', KINDS)}
+        {options('kind', kinds)}
       </select>
     </div>
   )
