@@ -3,7 +3,8 @@ package io.github.mirco104.budget.reserve;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import io.github.mirco104.budget.recurring.RecurringInterval;
+import io.github.mirco104.budget.plan.RhythmUnit;
+import io.github.mirco104.budget.plan.TermSchedule;
 import io.github.mirco104.budget.reserve.HistoryResponse.CategoryAmount;
 import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.CategoryData;
@@ -13,7 +14,7 @@ import io.github.mirco104.budget.reserve.ReserveCalculator.SingleData;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastMonth;
 import io.github.mirco104.budget.reserve.ReserveResponse.ReserveLine;
-import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
+import io.github.mirco104.budget.reserve.ReserveResponse.Kind;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -41,17 +42,20 @@ class ReserveCalculatorTest {
         return YearMonth.parse(value);
     }
 
-    private static SeriesData series(long id, String description, String amount, RecurringInterval interval,
-            String start, String end, String... exceptions) {
+    // A planned item with a month rhythm; handled are term dates with a booking or skipped (former exceptions)
+    private static SeriesData series(long id, String description, String amount, int months,
+            String start, String end, String... handled) {
+        LocalDate anchor = LocalDate.parse(start);
         return new SeriesData(
                 id,
                 description,
                 "Kategorie " + id,
                 money(amount),
-                interval,
-                LocalDate.parse(start),
-                end == null ? null : LocalDate.parse(end),
-                Arrays.stream(exceptions).map(LocalDate::parse).collect(Collectors.toSet()));
+                RhythmUnit.MONTH,
+                months,
+                new TermSchedule(RhythmUnit.MONTH, months, anchor, YearMonth.from(anchor),
+                        end == null ? null : YearMonth.from(LocalDate.parse(end))),
+                Arrays.stream(handled).map(LocalDate::parse).collect(Collectors.toSet()));
     }
 
     private static SingleData single(long id, String description, String date, String amount) {
@@ -231,9 +235,9 @@ class ReserveCalculatorTest {
     @Test
     void potIsFullInTheMonthTheExpenseIsDue() {
         ReserveResponse response = onlySeries(OCTOBER,
-                series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null));
+                series(1, "Haftpflicht", "-240.00", 12, "2026-10-15", null));
 
-        assertThat(response.reserves()).extracting(ReserveLine::recurringId, ReserveLine::nextDate,
+        assertThat(response.reserves()).extracting(ReserveLine::itemId, ReserveLine::nextDate,
                         line -> line.monthly().toPlainString(), line -> line.saved().toPlainString())
                 .containsExactly(tuple(1L, LocalDate.parse("2026-10-15"), "20.00", "240.00"));
         assertThat(response.monthlyReserve()).isEqualByComparingTo("20.00");
@@ -242,7 +246,7 @@ class ReserveCalculatorTest {
 
     @Test
     void potStartsWithOneMonthlyRateAfterTheDueMonthAndGrowsEachMonth() {
-        SeriesData haftpflicht = series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null);
+        SeriesData haftpflicht = series(1, "Haftpflicht", "-240.00", 12, "2026-10-15", null);
 
         assertThat(onlySeries(month("2026-11"), haftpflicht).reserveBalance()).isEqualByComparingTo("20.00");
         assertThat(onlySeries(month("2027-03"), haftpflicht).reserveBalance()).isEqualByComparingTo("100.00");
@@ -254,7 +258,7 @@ class ReserveCalculatorTest {
     void quarterlyExpenseSavesInThirds() {
         // Occurrences Feb, May, Aug, Nov: in October the next one is one month away
         ReserveResponse response = onlySeries(OCTOBER,
-                series(1, "Kfz", "-90.00", RecurringInterval.QUARTERLY, "2026-02-01", null));
+                series(1, "Kfz", "-90.00", 3, "2026-02-01", null));
 
         assertThat(response.reserves().get(0).monthly()).isEqualByComparingTo("30.00");
         assertThat(response.reserves().get(0).saved()).isEqualByComparingTo("60.00");
@@ -263,13 +267,13 @@ class ReserveCalculatorTest {
     @Test
     void suspendedNextOccurrenceMovesTheDueDate() {
         ReserveResponse response = onlySeries(OCTOBER,
-                series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2025-10-15", null, "2026-10-15"));
+                series(1, "Haftpflicht", "-240.00", 12, "2025-10-15", null, "2026-10-15"));
 
         // Next counting occurrence is 2027-10-15, outside M..M+11
         assertThat(response.reserves()).isEmpty();
 
         ReserveResponse quarterly = onlySeries(OCTOBER,
-                series(2, "Kfz", "-90.00", RecurringInterval.QUARTERLY, "2026-02-01", null, "2026-11-01"));
+                series(2, "Kfz", "-90.00", 3, "2026-02-01", null, "2026-11-01"));
         assertThat(quarterly.reserves().get(0).nextDate()).isEqualTo(LocalDate.parse("2027-02-01"));
         // Four months away, more than one interval: nothing needs to be saved yet
         assertThat(quarterly.reserves().get(0).saved()).isEqualByComparingTo("0.00");
@@ -278,9 +282,9 @@ class ReserveCalculatorTest {
     @Test
     void potLeavesOutMonthlyEndedAndIncomeSeries() {
         ReserveResponse response = onlySeries(OCTOBER,
-                series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
-                series(2, "Beendet", "-240.00", RecurringInterval.YEARLY, "2025-10-15", "2026-06-30"),
-                series(3, "Bonus", "1200.00", RecurringInterval.YEARLY, "2026-12-01", null));
+                series(1, "Miete", "-900.00", 1, "2026-01-01", null),
+                series(2, "Beendet", "-240.00", 12, "2025-10-15", "2026-06-30"),
+                series(3, "Bonus", "1200.00", 12, "2026-12-01", null));
 
         assertThat(response.reserves()).isEmpty();
         assertThat(response.monthlyReserve()).isEqualByComparingTo("0.00");
@@ -291,8 +295,8 @@ class ReserveCalculatorTest {
     void potRoundsOnlyTheSums() {
         // 100/12 = 8.333… twice: rounded per series 16.66, rounded at the end 16.67
         ReserveResponse response = onlySeries(OCTOBER,
-                series(1, "A", "-100.00", RecurringInterval.YEARLY, "2027-01-01", null),
-                series(2, "B", "-100.00", RecurringInterval.YEARLY, "2027-02-01", null));
+                series(1, "A", "-100.00", 12, "2027-01-01", null),
+                series(2, "B", "-100.00", 12, "2027-02-01", null));
 
         assertThat(response.reserves()).extracting(ReserveLine::monthly)
                 .allSatisfy(value -> assertThat(value).isEqualByComparingTo("8.33"));
@@ -303,7 +307,7 @@ class ReserveCalculatorTest {
 
     @Test
     void ratesLeftAreTheMonthsUntilDueAtMostOneInterval() {
-        SeriesData haftpflicht = series(1, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null);
+        SeriesData haftpflicht = series(1, "Haftpflicht", "-240.00", 12, "2026-10-15", null);
 
         assertThat(onlySeries(OCTOBER, haftpflicht).reserves().get(0).ratesLeft()).isZero();
         assertThat(onlySeries(month("2026-11"), haftpflicht).reserves().get(0).ratesLeft()).isEqualTo(11);
@@ -311,16 +315,16 @@ class ReserveCalculatorTest {
 
         // Quarterly with the November occurrence suspended: due in February, four months away, at most 3 rates
         ReserveResponse suspended = onlySeries(OCTOBER,
-                series(2, "Kfz", "-90.00", RecurringInterval.QUARTERLY, "2026-02-01", null, "2026-11-01"));
+                series(2, "Kfz", "-90.00", 3, "2026-02-01", null, "2026-11-01"));
         assertThat(suspended.reserves().get(0).ratesLeft()).isEqualTo(3);
     }
 
     @Test
     void forecastMarksWhatIsPaidFromTheReserves() {
         ReserveResponse response = calculator.outlook(
-                List.of(series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
-                        series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-11-15", null),
-                        series(3, "Kfz", "-90.50", RecurringInterval.QUARTERLY, "2026-11-01", null)),
+                List.of(series(1, "Miete", "-900.00", 1, "2026-01-01", null),
+                        series(2, "Haftpflicht", "-240.00", 12, "2026-11-15", null),
+                        series(3, "Kfz", "-90.50", 3, "2026-11-01", null)),
                 List.of(single(7, "Geschenke", "2026-11-20", "-50.00")),
                 OCTOBER);
 
@@ -349,8 +353,8 @@ class ReserveCalculatorTest {
     @Test
     void forecastIncludesSingleExpensesButNoIncome() {
         ReserveResponse response = calculator.outlook(
-                List.of(series(1, "Streaming", "-15.00", RecurringInterval.MONTHLY, "2026-01-28", null),
-                        series(2, "Gehalt", "3000.00", RecurringInterval.MONTHLY, "2026-01-01", null)),
+                List.of(series(1, "Streaming", "-15.00", 1, "2026-01-28", null),
+                        series(2, "Gehalt", "3000.00", 1, "2026-01-01", null)),
                 List.of(single(7, "Geschenke", "2026-12-20", "-50.00"),
                         single(8, "Erstattung", "2026-12-21", "30.00"),
                         single(9, "Zu spät", "2027-10-01", "-80.00")),
@@ -360,14 +364,14 @@ class ReserveCalculatorTest {
         assertThat(response.forecast().get(2).entries()).containsExactly(
                 new ForecastEntry(Kind.SINGLE, 7L, null, "Geschenke", LocalDate.parse("2026-12-20"), money("50.00"),
                         false),
-                new ForecastEntry(Kind.RECURRING, null, 1L, "Streaming", LocalDate.parse("2026-12-28"), money("15.00"),
+                new ForecastEntry(Kind.PLANNED, null, 1L, "Streaming", LocalDate.parse("2026-12-28"), money("15.00"),
                         false));
     }
 
     @Test
     void forecastLeavesOutSuspendedOccurrencesAndStopsAtTheEndDate() {
         ReserveResponse response = onlySeries(OCTOBER,
-                series(1, "Fitness", "-15.00", RecurringInterval.MONTHLY, "2026-01-05", "2026-12-05", "2026-11-05"));
+                series(1, "Fitness", "-15.00", 1, "2026-01-05", "2026-12-05", "2026-11-05"));
 
         assertThat(totals(response).subList(0, 4)).containsExactly("15.00", "0.00", "15.00", "0.00");
     }
@@ -424,9 +428,9 @@ class ReserveCalculatorTest {
                 single(10, "Sparplan", "2026-10-15", "-640.00"),
                 single(11, "Geschenk", "2026-10-20", "-20.00"));
         List<SeriesData> series = List.of(
-                series(1, "Miete", "-900.00", RecurringInterval.MONTHLY, "2026-01-01", null),
-                series(2, "Haftpflicht", "-240.00", RecurringInterval.YEARLY, "2026-10-15", null),
-                series(3, "Fitness", "-15.00", RecurringInterval.MONTHLY, "2026-01-05", null, "2026-10-05"));
+                series(1, "Miete", "-900.00", 1, "2026-01-01", null),
+                series(2, "Haftpflicht", "-240.00", 12, "2026-10-15", null),
+                series(3, "Fitness", "-15.00", 1, "2026-01-05", null, "2026-10-05"));
 
         ReserveResponse response = calculator.outlook(series, singles, OCTOBER);
 

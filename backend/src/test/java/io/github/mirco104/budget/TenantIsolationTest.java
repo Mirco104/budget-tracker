@@ -76,12 +76,9 @@ class TenantIsolationTest {
 
         categoryOfB = categoryRepository.findAllByOwner(b).stream().min(CategoryOrder.ALPHABETICAL).orElseThrow().getId();
         accountOfB = bankAccountRepository.findAllOrdered(b).getFirst().getId();
-        asB.perform(put("/api/categories/{id}/target", categoryOfB).param("month", MONTH)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"targetAmount\": 500}"))
-                .andExpect(status().isOk());
         transactionOfB = idOf(asB.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON)
                 .content(transaction(categoryOfB))));
-        seriesOfB = idOf(asB.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON)
+        seriesOfB = idOf(asB.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON)
                 .content(series(categoryOfB))));
     }
 
@@ -89,13 +86,12 @@ class TenantIsolationTest {
     void listsAndCalculationsShowOnlyOwnData() throws Exception {
         asC.perform(get("/api/categories").param("month", MONTH))
                 .andExpect(jsonPath("$.length()").value(20))
-                .andExpect(jsonPath("$[*].id", not(hasItem((int) categoryOfB))))
-                .andExpect(jsonPath("$[*].targetAmount", not(hasItem(500.0))));
+                .andExpect(jsonPath("$[*].id", not(hasItem((int) categoryOfB))));
         asC.perform(get("/api/transactions").param("month", MONTH))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", empty()));
-        asC.perform(get("/api/recurring-transactions").param("month", MONTH))
-                .andExpect(jsonPath("$", empty()));
+        asC.perform(get("/api/plan").param("month", MONTH))
+                .andExpect(jsonPath("$.items", empty()));
         asC.perform(get("/api/dashboard").param("month", MONTH))
                 .andExpect(jsonPath("$.incomeTotal").value(0))
                 .andExpect(jsonPath("$.categories", empty()));
@@ -105,21 +101,21 @@ class TenantIsolationTest {
                 .andExpect(jsonPath("$.months").value(0))
                 .andExpect(jsonPath("$.history", empty()));
 
-        // Person B still sees all of it
+        // Person B still sees all of it; planned items are no bookings (P1)
         asB.perform(get("/api/transactions").param("month", MONTH))
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(1));
+        asB.perform(get("/api/plan").param("month", MONTH))
+                .andExpect(jsonPath("$.items.length()").value(1));
     }
 
     static Stream<Arguments> urlsWithResourceOfB() {
         return Stream.of(
                 Arguments.of("PUT category", "category"),
-                Arguments.of("PUT target", "target"),
                 Arguments.of("DELETE category", "deleteCategory"),
                 Arguments.of("PUT transaction", "transaction"),
                 Arguments.of("DELETE transaction", "deleteTransaction"),
-                Arguments.of("PUT occurrence THIS", "occurrenceThis"),
-                Arguments.of("PUT occurrence FOLLOWING", "occurrenceFollowing"),
-                Arguments.of("DELETE occurrence", "deleteOccurrence"),
+                Arguments.of("PUT planned item", "item"),
+                Arguments.of("DELETE planned item", "deleteItem"),
                 Arguments.of("PUT bank account", "bankAccount"),
                 Arguments.of("DELETE bank account", "deleteBankAccount"));
     }
@@ -131,17 +127,11 @@ class TenantIsolationTest {
         MockHttpServletRequestBuilder builder = switch (request) {
             case "category" -> put("/api/categories/{id}", categoryOfB)
                     .content("{\"name\": \"Neu\", \"sortOrder\": 10, \"archived\": false}");
-            case "target" -> put("/api/categories/{id}/target", categoryOfB).param("month", MONTH)
-                    .content("{\"targetAmount\": 1}");
             case "deleteCategory" -> delete("/api/categories/{id}", categoryOfB);
             case "transaction" -> put("/api/transactions/{id}", transactionOfB).content(transaction(ownCategory));
             case "deleteTransaction" -> delete("/api/transactions/{id}", transactionOfB);
-            case "occurrenceThis" -> put("/api/recurring-transactions/{id}/occurrences/{date}", seriesOfB, OCCURRENCE)
-                    .param("scope", "THIS").content(transaction(ownCategory));
-            case "occurrenceFollowing" -> put("/api/recurring-transactions/{id}/occurrences/{date}", seriesOfB,
-                    OCCURRENCE).param("scope", "FOLLOWING").content(series(ownCategory));
-            case "deleteOccurrence" -> delete("/api/recurring-transactions/{id}/occurrences/{date}", seriesOfB,
-                    OCCURRENCE).param("scope", "THIS");
+            case "item" -> put("/api/planned-items/{id}", seriesOfB).content(series(ownCategory));
+            case "deleteItem" -> delete("/api/planned-items/{id}", seriesOfB);
             case "bankAccount" -> put("/api/bank-accounts/{id}", accountOfB)
                     .content("{\"name\": \"Neu\", \"archived\": false, \"defaultAccount\": true}");
             case "deleteBankAccount" -> delete("/api/bank-accounts/{id}", accountOfB);
@@ -153,10 +143,11 @@ class TenantIsolationTest {
 
         // Nothing of B changed
         asB.perform(get("/api/transactions").param("month", MONTH))
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(1));
         asB.perform(get("/api/categories").param("month", MONTH))
-                .andExpect(jsonPath("$[0].id").value(categoryOfB))
-                .andExpect(jsonPath("$[0].targetAmount").value(500.0));
+                .andExpect(jsonPath("$[0].id").value(categoryOfB));
+        asB.perform(get("/api/plan").param("month", MONTH))
+                .andExpect(jsonPath("$.items[0].name").value("Abo"));
     }
 
     @Test
@@ -165,7 +156,7 @@ class TenantIsolationTest {
                         .content(transaction(categoryOfB)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
-        asC.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON)
+        asC.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON)
                         .content(series(categoryOfB)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
@@ -179,7 +170,7 @@ class TenantIsolationTest {
                         .content(transaction(ownCategory).replace("}", ", \"accountId\": " + accountOfB + "}")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("accountId"));
-        asC.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON)
+        asC.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON)
                         .content(series(ownCategory).replace("}", ", \"accountId\": " + accountOfB + "}")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("accountId"));
@@ -200,7 +191,7 @@ class TenantIsolationTest {
     void everyApiCallWithoutSessionIsUnauthorized() throws Exception {
         MockMvc anonymous = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
 
-        for (String url : new String[] {"/api/categories", "/api/transactions", "/api/recurring-transactions",
+        for (String url : new String[] {"/api/categories", "/api/transactions", "/api/plan",
                 "/api/dashboard", "/api/reserves", "/api/history", "/api/auth/me", "/api/bank-accounts", "/api/booking-suggestion", "/api/imports"}) {
             anonymous.perform(get(url).param("month", MONTH))
                     .andExpect(status().isUnauthorized())
@@ -233,8 +224,8 @@ class TenantIsolationTest {
 
     private static String series(long categoryId) {
         return """
-                {"amount": -50, "description": "Abo", "categoryId": %d, "interval": "MONTHLY",
-                 "startDate": "2026-10-01"}
+                {"name": "Abo", "amount": -50, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                 "anchorDate": "2026-10-01", "validFrom": "2026-10"}
                 """.formatted(categoryId);
     }
 

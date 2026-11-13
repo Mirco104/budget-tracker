@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.category.CategoryService;
-import io.github.mirco104.budget.recurring.RecurringTransactionService;
 import io.github.mirco104.budget.transaction.Transaction;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.transaction.TransactionService;
@@ -57,10 +56,19 @@ class SampleDataSeederTest {
     private TransactionService transactionService;
 
     @Autowired
-    private RecurringTransactionService recurringTransactionService;
+    private TransactionRepository transactionRepository;
 
     @Autowired
-    private TransactionRepository transactionRepository;
+    private io.github.mirco104.budget.plan.PlanService planService;
+
+    @Autowired
+    private io.github.mirco104.budget.plan.PlannedItemRepository itemRepository;
+
+    @Autowired
+    private io.github.mirco104.budget.plan.TermService termService;
+
+    @Autowired
+    private io.github.mirco104.budget.bankaccount.BankAccountService bankAccountService;
 
     @Autowired
     private WebApplicationContext context;
@@ -69,8 +77,8 @@ class SampleDataSeederTest {
 
     @BeforeEach
     void seed() {
-        seeder = new SampleDataSeeder(userRepository, userService, categoryService, transactionService,
-                recurringTransactionService, "sample-only-password");
+        seeder = new SampleDataSeeder(userRepository, userService, categoryService, transactionService, planService,
+                itemRepository, termService, transactionRepository, bankAccountService, "sample-only-password");
         seeder.run(new DefaultApplicationArguments());
     }
 
@@ -121,10 +129,13 @@ class SampleDataSeederTest {
         mockMvc.perform(get("/api/dashboard").param("month", "2025-11"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.incomeTotal").value(3850.00));
-        // Rent 950, utilities 120, streaming 12.99 and the savings plan 200; the yearly and half-yearly series
-        // start later
+        // Rent 950, utilities 120, streaming 12.99 and the savings plan 200 are automatic entries linked to their
+        // terms, so they are fix (P5); the yearly and half-yearly items start later
         mockMvc.perform(get("/api/dashboard").param("month", "2025-01"))
                 .andExpect(jsonPath("$.expenses.recurring").value(1282.99));
+        // The plan of a category is the sum of its items (P3): 400 for Lebensmittel in 2025, 450 from 2026
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-03"))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Lebensmittel')].target").value(450.0));
         // The new salary series from 2026
         mockMvc.perform(get("/api/dashboard").param("month", "2026-03"))
                 .andExpect(jsonPath("$.incomeTotal").value(3000.00));

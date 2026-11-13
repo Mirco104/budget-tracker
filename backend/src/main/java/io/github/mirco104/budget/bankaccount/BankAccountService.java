@@ -3,7 +3,7 @@ package io.github.mirco104.budget.bankaccount;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
-import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
+import io.github.mirco104.budget.plan.PlannedItemRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
 import io.github.mirco104.budget.user.User;
@@ -17,18 +17,18 @@ public class BankAccountService {
 
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
-    private final RecurringTransactionRepository recurringRepository;
+    private final PlannedItemRepository itemRepository;
     private final BankAccountSourceRepository sourceRepository;
     private final CurrentUser currentUser;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
-            RecurringTransactionRepository recurringRepository, BankAccountSourceRepository sourceRepository,
+            PlannedItemRepository itemRepository, BankAccountSourceRepository sourceRepository,
             CurrentUser currentUser) {
         this.sourceRepository = sourceRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.transactionRepository = transactionRepository;
-        this.recurringRepository = recurringRepository;
+        this.itemRepository = itemRepository;
         this.currentUser = currentUser;
     }
 
@@ -86,7 +86,7 @@ public class BankAccountService {
         return BankAccountResponse.from(account, isUsed(account));
     }
 
-    /** R26: only an account without transactions and series can be deleted, never the default account. */
+    /** R26: only an account without transactions and planned items can be deleted, never the default account. */
     @Transactional
     public void delete(long id) {
         BankAccount account = find(id);
@@ -124,7 +124,7 @@ public class BankAccountService {
 
     private boolean isUsed(BankAccount account) {
         return transactionRepository.existsByAccountId(account.getId())
-                || recurringRepository.existsByAccountId(account.getId());
+                || itemRepository.existsByAccountId(account.getId());
     }
 
     private void checkName(String name, Long id) {

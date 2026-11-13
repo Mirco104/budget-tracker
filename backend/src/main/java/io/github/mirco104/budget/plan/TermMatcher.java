@@ -1,4 +1,4 @@
-package io.github.mirco104.budget.recurring;
+package io.github.mirco104.budget.plan;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,17 +12,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Which planned occurrence a new booking replaces, rule R28 from docs/spezifikation.md, section 2. No Spring
+ * Which term of a planned item a booking fulfils, rule P5 (with the match of R28) from docs/spezifikation.md,
+ * section 19. The date may differ by the tolerance of the term, at most 5 days and half the spacing. No Spring
  * dependencies.
  */
-public final class OccurrenceMatcher {
-
-    /** Days between the booking and the occurrence (R28). */
-    static final int MAX_DAYS = 5;
-    /** Largest difference of the amounts as a share of the amount of the series (R28). */
+public final class TermMatcher {
+    /** Largest difference of the amounts as a share of the planned amount (R28). */
     static final BigDecimal MAX_SHARE = new BigDecimal("0.20");
     /** A shared word needs at least this many letters (R28). */
     static final int MIN_WORD = 4;
@@ -31,14 +30,19 @@ public final class OccurrenceMatcher {
     public record Booking(int index, LocalDate date, BigDecimal amount, String text, Long suggestedCategoryId) {
     }
 
-    /** An occurrence that still counts (no exception), with the values of its series. */
-    public record Planned(long recurringId, LocalDate date, BigDecimal amount, String description, long categoryId) {
+    /**
+     * An open term with the values of its item version: date is the planned date (the key of the term), dueDate the
+     * date after the working-day shift, toleranceDays from {@link TermSchedule#toleranceDays}.
+     */
+    public record Planned(
+            long itemId, UUID itemKey, LocalDate date, LocalDate dueDate, BigDecimal amount, String description,
+            Long categoryId, int toleranceDays) {
     }
 
-    private OccurrenceMatcher() {
+    private TermMatcher() {
     }
 
-    /** R28: per booking index the occurrence it replaces; each booking and each occurrence at most once. */
+    /** P5: per booking index the term it fulfils; each booking and each term at most once. */
     public static Map<Integer, Planned> match(List<Booking> bookings, List<Planned> planned) {
         Map<Integer, Planned> result = new LinkedHashMap<>();
         Set<Planned> used = new HashSet<>();
@@ -51,9 +55,9 @@ public final class OccurrenceMatcher {
                     .filter(occurrence -> !used.contains(occurrence) && matches(booking, words, occurrence))
                     // A shared word first, so two subscriptions with the same price are not mixed up
                     .min(Comparator.<Planned, Boolean>comparing(occurrence -> !sharesWord(words, occurrence))
-                            .thenComparingLong(occurrence -> days(booking.date(), occurrence.date()))
+                            .thenComparingLong(occurrence -> days(booking.date(), occurrence.dueDate()))
                             .thenComparing(occurrence -> booking.amount().subtract(occurrence.amount()).abs())
-                            .thenComparingLong(Planned::recurringId))
+                            .thenComparingLong(Planned::itemId))
                     .ifPresent(occurrence -> {
                         result.put(booking.index(), occurrence);
                         used.add(occurrence);
@@ -64,7 +68,7 @@ public final class OccurrenceMatcher {
 
     private static boolean matches(Booking booking, Set<String> words, Planned occurrence) {
         if (booking.amount().signum() != occurrence.amount().signum()
-                || days(booking.date(), occurrence.date()) > MAX_DAYS) {
+                || days(booking.date(), occurrence.dueDate()) > occurrence.toleranceDays()) {
             return false;
         }
         BigDecimal difference = booking.amount().subtract(occurrence.amount()).abs();
@@ -73,6 +77,7 @@ public final class OccurrenceMatcher {
         }
         boolean sharedWord = sharesWord(words, occurrence);
         boolean sameAmountAndCategory = difference.signum() == 0
+                && occurrence.categoryId() != null
                 && Objects.equals(booking.suggestedCategoryId(), occurrence.categoryId());
         return sharedWord || sameAmountAndCategory;
     }

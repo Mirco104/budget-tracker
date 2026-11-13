@@ -2,20 +2,18 @@ package io.github.mirco104.budget.transaction;
 
 import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.plan.ItemTermRepository;
+import io.github.mirco104.budget.plan.TermService;
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
-import io.github.mirco104.budget.recurring.OccurrenceService;
-import io.github.mirco104.budget.recurring.RecurringTransaction;
-import io.github.mirco104.budget.recurring.ReplacementService;
 import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,28 +22,27 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryService categoryService;
-    private final OccurrenceService occurrenceService;
     private final BankAccountService bankAccountService;
-    private final ReplacementService replacementService;
+    private final ItemTermRepository termRepository;
+    private final TermService termService;
     private final CurrentUser currentUser;
 
     public TransactionService(
             TransactionRepository transactionRepository, CategoryService categoryService,
-            OccurrenceService occurrenceService, BankAccountService bankAccountService,
-            ReplacementService replacementService, CurrentUser currentUser) {
-        this.replacementService = replacementService;
+            BankAccountService bankAccountService, ItemTermRepository termRepository, TermService termService,
+            CurrentUser currentUser) {
         this.transactionRepository = transactionRepository;
         this.categoryService = categoryService;
         this.bankAccountService = bankAccountService;
-        this.occurrenceService = occurrenceService;
+        this.termRepository = termRepository;
+        this.termService = termService;
         this.currentUser = currentUser;
     }
 
     /** The longest period of the list (US26): to must lie before from + 10 years. */
     static final int MAX_PERIOD_YEARS = 10;
 
-    // Transactions with their date in the period, both days included, and the occurrences of series in it (R1, R12).
-    // Newest first; on the same date occurrences come after single transactions.
+    // Bookings with their date in the period, both days included, newest first. Planned items are no bookings (P1).
     @Transactional(readOnly = true)
     public List<TransactionResponse> findBetween(LocalDate from, LocalDate to) {
         if (to.isBefore(from)) {
@@ -56,27 +53,17 @@ public class TransactionService {
         }
         List<Transaction> transactions = transactionRepository
                 .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from, to);
-        Map<Long, OccurrenceRef> replaced = replacementService.replacedBy(
-                transactions.stream().map(Transaction::getId).toList());
-        Stream<TransactionResponse> singles = transactions.stream()
-                .map(transaction -> TransactionResponse.from(transaction, replaced.get(transaction.getId())));
-        Stream<TransactionResponse> occurrences = occurrenceService.occurrencesBetween(from, to).stream()
-                .map(TransactionResponse::from);
-        return Stream.concat(singles, occurrences)
-                .sorted(Comparator.comparing(TransactionResponse::date).reversed())
+        Set<Long> fix = fixIds(transactions);
+        return transactions.stream()
+                .map(transaction -> TransactionResponse.from(transaction, fix.contains(transaction.getId())))
                 .toList();
     }
 
-    /** R28: with replaces the transaction counts instead of that occurrence of a series. */
     @Transactional
     public TransactionResponse create(TransactionRequest request) {
         checkAmount(request.amount());
-        RecurringTransaction replaced = null;
-        if (request.replaces() != null) {
-            if (Boolean.TRUE.equals(request.transfer())) {
-                throw new InvalidFieldException("replaces", "Eine Umbuchung kann kein Vorkommen ersetzen.");
-            }
-            replaced = replacementService.countingOccurrence(request.replaces(), "replaces");
+        if (request.replaces() != null && Boolean.TRUE.equals(request.transfer())) {
+            throw new InvalidFieldException("replaces", "Eine Umbuchung erfüllt keinen Termin.");
         }
         Transaction transaction = new Transaction(
                 currentUser.get(),
@@ -86,11 +73,10 @@ public class TransactionService {
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
         Transaction saved = transactionRepository.save(transaction);
-        if (replaced != null) {
-            replacementService.replace(replaced, request.replaces().date(), saved);
-            return TransactionResponse.from(saved, request.replaces());
+        if (request.replaces() != null) {
+            termService.link(request.replaces().itemId(), request.replaces().date(), saved, "replaces");
         }
-        return TransactionResponse.from(saved);
+        return TransactionResponse.from(saved, request.replaces() != null && saved.getAmount().signum() < 0);
     }
 
     @Transactional
@@ -103,20 +89,38 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
-        // R28: a transfer replaces no occurrence; otherwise the link stays as it is
+        // R27: a transfer fulfils no term
         if (transaction.isTransfer()) {
-            replacementService.unlink(transaction);
+            termRepository.findByTransaction(transaction).ifPresent(termRepository::delete);
         }
-        return TransactionResponse.from(transaction,
-                replacementService.replacedBy(List.of(transaction.getId())).get(transaction.getId()));
+        return TransactionResponse.from(transaction, fixIds(List.of(transaction)).contains(id));
     }
 
-    /** R28: an occurrence the transaction replaced counts again. */
+    /**
+     * Deletes the booking. A term it was linked to keeps its row without a booking, so a deleted automatic entry is
+     * not entered again (P6, section 19.6).
+     */
     @Transactional
     public void delete(long id) {
         Transaction transaction = findTransaction(id);
-        replacementService.unlink(transaction);
+        termRepository.findByTransaction(transaction).ifPresent(term -> term.link(null));
         transactionRepository.delete(transaction);
+    }
+
+    // P5: an expense linked to a term is fix
+    private Set<Long> fixIds(List<Transaction> transactions) {
+        if (transactions.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> linked = new HashSet<>(termRepository.findLinkedTransactionIds(
+                transactions.stream().map(Transaction::getId).toList()));
+        Set<Long> fix = new HashSet<>();
+        for (Transaction transaction : transactions) {
+            if (transaction.getAmount().signum() < 0 && linked.contains(transaction.getId())) {
+                fix.add(transaction.getId());
+            }
+        }
+        return fix;
     }
 
     // R27: a transfer has no category (400 if one is sent), every other booking needs one

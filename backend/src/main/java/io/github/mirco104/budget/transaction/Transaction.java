@@ -43,6 +43,10 @@ public class Transaction {
     @Column(nullable = false)
     private boolean transfer;
 
+    // P6: entered by the app from the plan ("automatisch")
+    @Column(nullable = false)
+    private boolean auto;
+
     // R30: set for a transaction from an import; the fingerprint keeps a row from being imported twice
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "import_batch_id")
@@ -163,5 +167,14 @@ public class Transaction {
 
     public BankAccount getAccount() {
         return account;
+    }
+
+    /** P6: a booking the app entered from the plan; a CSV import may replace it. */
+    public boolean isAuto() {
+        return auto;
+    }
+
+    public void markAuto() {
+        this.auto = true;
     }
 }

@@ -299,29 +299,13 @@ class CategoryManagementControllerTest {
     }
 
     @Test
-    void rejectsDeletingCategoryWithSeries() throws Exception {
+    void rejectsDeletingCategoryWithAPlannedItem() throws Exception {
         long id = category("Spenden").getId();
-        mockMvc.perform(post("/api/recurring-transactions")
+        mockMvc.perform(post("/api/planned-items")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amount": -10, "description": "Spende", "categoryId": %d,
-                                 "interval": "MONTHLY", "startDate": "2026-10-01"}
-                                """.formatted(id)))
+                        .content("{\"name\": \"Spende\", \"amount\": -10, \"categoryId\": " + id
+                                + ", \"validFrom\": \"" + MONTH + "\"}"))
                 .andExpect(status().isCreated());
-
-        mockMvc.perform(delete("/api/categories/{id}", id))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(IN_USE));
-    }
-
-    @Test
-    void rejectsDeletingCategoryWithTarget() throws Exception {
-        long id = category("Spenden").getId();
-        mockMvc.perform(put("/api/categories/{id}/target", id)
-                        .param("month", MONTH)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetAmount\": 10}"))
-                .andExpect(status().isOk());
 
         mockMvc.perform(delete("/api/categories/{id}", id))
                 .andExpect(status().isConflict())

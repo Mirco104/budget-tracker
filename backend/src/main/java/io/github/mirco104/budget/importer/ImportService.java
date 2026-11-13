@@ -14,16 +14,14 @@ import io.github.mirco104.budget.importer.BankCsv.Line;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.DuplicateOf;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Entry;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Replaces;
-import io.github.mirco104.budget.recurring.OccurrenceMatcher;
-import io.github.mirco104.budget.recurring.OccurrenceMatcher.Planned;
-import io.github.mirco104.budget.recurring.RecurringExceptionRepository;
-import io.github.mirco104.budget.recurring.RecurringInterval;
-import io.github.mirco104.budget.recurring.RecurringTransaction;
-import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
-import io.github.mirco104.budget.recurring.RecurringTransactionRequest;
-import io.github.mirco104.budget.recurring.RecurringTransactionService;
-import io.github.mirco104.budget.recurring.ReplacementService;
-import io.github.mirco104.budget.transaction.OccurrenceRef;
+import io.github.mirco104.budget.plan.ItemTermRepository;
+import io.github.mirco104.budget.plan.PlanService;
+import io.github.mirco104.budget.plan.PlannedItem;
+import io.github.mirco104.budget.plan.PlannedItemRepository;
+import io.github.mirco104.budget.plan.TermMatcher;
+import io.github.mirco104.budget.plan.TermMatcher.Planned;
+import io.github.mirco104.budget.plan.TermRef;
+import io.github.mirco104.budget.plan.TermService;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Source;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Status;
 import io.github.mirco104.budget.suggestion.BookingSuggestionService;
@@ -63,10 +61,10 @@ public class ImportService {
     private final BankAccountSourceRepository sourceRepository;
     private final CategoryService categoryService;
     private final BookingSuggestionService suggestionService;
-    private final ReplacementService replacementService;
-    private final RecurringExceptionRepository exceptionRepository;
-    private final RecurringTransactionService recurringService;
-    private final RecurringTransactionRepository recurringRepository;
+    private final TermService termService;
+    private final PlanService planService;
+    private final PlannedItemRepository itemRepository;
+    private final ItemTermRepository termRepository;
     private final CurrentUser currentUser;
     private final Clock clock;
 
@@ -74,13 +72,12 @@ public class ImportService {
             TransactionRepository transactionRepository, ImportBatchRepository batchRepository,
             BankAccountService bankAccountService, BankAccountSourceRepository sourceRepository,
             CategoryService categoryService, BookingSuggestionService suggestionService,
-            ReplacementService replacementService, RecurringExceptionRepository exceptionRepository,
-            RecurringTransactionService recurringService, RecurringTransactionRepository recurringRepository,
-            CurrentUser currentUser, Clock clock) {
-        this.recurringService = recurringService;
-        this.recurringRepository = recurringRepository;
-        this.replacementService = replacementService;
-        this.exceptionRepository = exceptionRepository;
+            TermService termService, PlanService planService, PlannedItemRepository itemRepository,
+            ItemTermRepository termRepository, CurrentUser currentUser, Clock clock) {
+        this.termService = termService;
+        this.planService = planService;
+        this.itemRepository = itemRepository;
+        this.termRepository = termRepository;
         this.transactionRepository = transactionRepository;
         this.batchRepository = batchRepository;
         this.bankAccountService = bankAccountService;
@@ -157,9 +154,9 @@ public class ImportService {
         List<Candidate> fresh = candidates.stream().filter(c -> !imported.contains(c.fingerprint())).toList();
 
         // R27 and R30 against the stored single transactions around the dates of the file
-        // A transaction that replaces an occurrence (R28) is no counterpart of a transfer, but still a possible duplicate
-        Set<Long> replacing = replacementService.replacingIds();
+        // A booking that fulfils a term (P5) is no counterpart of a transfer, but still a possible duplicate
         List<Transaction> stored = storedAround(owner, fresh);
+        Set<Long> replacing = termService.linkedIds(stored.stream().map(Transaction::getId).toList());
         // A stored transfer without its other side is a counterpart too (a transfer booked by hand, R27)
         List<Transaction> storedTransfers = transfersAround(owner, fresh);
         Map<Long, Transaction> storedById = new HashMap<>();
@@ -200,7 +197,7 @@ public class ImportService {
             Long duplicateId = duplicates.get(c.index());
             Status status = duplicateId != null ? Status.POSSIBLE_DUPLICATE : Status.NEW;
             Planned match = matches.get(c.index());
-            // R28: a match goes before the suggestion, with the category of its series
+            // P5: a matching term goes before the suggestion, with the category of its item
             Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
             entries.put(c.line().number(), entry(c, status, null, suggestion, transfer,
@@ -268,7 +265,7 @@ public class ImportService {
                 t.getImportBatch() != null);
     }
 
-    // R31: monthly series among the new rows that are no transfer and replace no occurrence of an existing series
+    // R31: monthly series among the new rows that are no transfer and fulfil no term of a planned item
     private static List<ImportPreviewResponse.SeriesSuggestion> seriesSuggestions(List<Candidate> fresh,
             Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Planned> matches,
             Map<Integer, Suggestion> suggestions) {
@@ -295,21 +292,23 @@ public class ImportService {
         }).toList();
     }
 
-    // R28: occurrences around the dates of the file that the rows (no transfers) replace
+    // P5: open terms around the dates of the file that the rows (no transfers) fulfil; saving items have no category
     private Map<Integer, Planned> occurrenceMatches(
             List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Suggestion> suggestions) {
-        List<OccurrenceMatcher.Booking> bookings = fresh.stream()
+        List<TermMatcher.Booking> bookings = fresh.stream()
                 .filter(c -> !transfers.containsKey(c.index()))
-                .map(c -> new OccurrenceMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(), c.text(),
+                .map(c -> new TermMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(), c.text(),
                         suggestions.containsKey(c.index()) ? suggestions.get(c.index()).categoryId() : null))
                 .toList();
         if (bookings.isEmpty()) {
             return Map.of();
         }
-        LocalDate from = bookings.stream().map(OccurrenceMatcher.Booking::date).min(Comparator.naturalOrder()).orElseThrow();
-        LocalDate to = bookings.stream().map(OccurrenceMatcher.Booking::date).max(Comparator.naturalOrder()).orElseThrow();
-        List<Planned> planned = replacementService.plannedBetween(from.minusDays(5), to.plusDays(5));
-        return OccurrenceMatcher.match(bookings, planned);
+        LocalDate from = bookings.stream().map(TermMatcher.Booking::date).min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate to = bookings.stream().map(TermMatcher.Booking::date).max(Comparator.naturalOrder()).orElseThrow();
+        List<Planned> planned = termService.openBetween(from.minusDays(7), to.plusDays(7)).stream()
+                .filter(term -> term.categoryId() != null)
+                .toList();
+        return TermMatcher.match(bookings, planned);
     }
 
     // R27: the counterpart of a transfer for the hint of the preview; a row of the file with the name of its source
@@ -339,7 +338,7 @@ public class ImportService {
                 transfer != null, transfer != null && transfer.certain(),
                 transfer == null ? null : transfer.peerTransactionId(), transferPeer,
                 match == null ? null
-                        : new Replaces(match.recurringId(), match.date(), match.description(), match.amount().abs(),
+                        : new Replaces(match.itemId(), match.date(), match.description(), match.amount().abs(),
                                 match.categoryId()),
                 duplicateOf);
     }
@@ -360,10 +359,10 @@ public class ImportService {
 
     /**
      * A checked row (index in the request): its category (null for a transfer), the stored counterpart that becomes a
-     * transfer, the occurrence of an existing series it replaces (R28) or the new series it belongs to (R31).
+     * transfer, the term of a planned item it fulfils (P5) or the new item it belongs to (R31).
      */
     private record Checked(int index, ImportRequest.Row row, Category category, Transaction peer,
-            RecurringTransaction replaced, Integer series) {
+            TermRef replaced, Integer series) {
     }
 
     /**
@@ -420,7 +419,7 @@ public class ImportService {
         Set<String> imported = new HashSet<>(transactionRepository.findImportedFingerprints(owner,
                 request.rows().stream().map(ImportRequest.Row::fingerprint).toList()));
         List<Checked> checked = new ArrayList<>();
-        Set<OccurrenceRef> replacedOccurrences = new HashSet<>();
+        Set<TermRef> replacedOccurrences = new HashSet<>();
         int skipped = 0;
         for (int i = 0; i < request.rows().size(); i++) {
             ImportRequest.Row row = request.rows().get(i);
@@ -433,12 +432,12 @@ public class ImportService {
             }
             Category category = categoryOf(row, field);
             Transaction peer = row.transferPeerId() == null ? null : peerOf(owner, row, field);
-            RecurringTransaction replaced = null;
+            TermRef replaced = null;
             if (row.replaces() != null) {
                 if (Boolean.TRUE.equals(row.transfer())) {
-                    throw new InvalidFieldException(field + ".replaces", "Eine Umbuchung kann kein Vorkommen ersetzen.");
+                    throw new InvalidFieldException(field + ".replaces", "Eine Umbuchung erfüllt keinen Termin.");
                 }
-                replaced = replacementService.countingOccurrence(row.replaces(), field + ".replaces");
+                replaced = row.replaces();
                 if (!replacedOccurrences.add(row.replaces())) {
                     throw new InvalidFieldException(field + ".replaces", "Dieses Vorkommen ersetzt schon eine andere Zeile.");
                 }
@@ -492,20 +491,20 @@ public class ImportService {
             }
         }
         transactionRepository.saveAll(created);
-        Map<Integer, RecurringTransaction> createdSeries = new HashMap<>();
+        Map<Integer, PlannedItem> createdSeries = new HashMap<>();
         for (int i = 0; i < checked.size(); i++) {
             Checked c = checked.get(i);
             if (c.replaced() != null) {
-                replacementService.replace(c.replaced(), c.row().replaces().date(), created.get(i));
+                termService.link(c.replaced().itemId(), c.replaced().date(), created.get(i),
+                        "rows[" + c.index() + "].replaces");
             }
             if (c.series() != null) {
-                RecurringTransaction recurring = createdSeries.computeIfAbsent(c.series(), index -> {
+                PlannedItem item = createdSeries.computeIfAbsent(c.series(), index -> {
                     ImportRequest.NewSeries series = newSeries.get(index);
-                    return recurringService.createForImport(new RecurringTransactionRequest(series.amount(),
-                            series.description(), series.categoryId(), RecurringInterval.MONTHLY, series.startDate(),
-                            null, accounts.get(series.source()).getId()), batch);
+                    return planService.createMonthlyForImport(series.description(), series.amount(),
+                            series.categoryId(), accounts.get(series.source()), series.startDate(), batch);
                 });
-                replacementService.replace(recurring, seriesOccurrences.get(c.index()), created.get(i));
+                termService.link(item.getItemKey(), seriesOccurrences.get(c.index()), created.get(i));
             }
         }
         return new ImportResultResponse(ImportBatchResponse.from(batch), created.size(), skipped);
@@ -579,11 +578,14 @@ public class ImportService {
                 .orElseThrow(() -> new NotFoundException("Import " + id + " wurde nicht gefunden."));
         // R27: stored counterparts the import made transfers get their category back
         transactionRepository.findByTransferBatch(batch).forEach(Transaction::undoTransfer);
-        // R28: replaced occurrences count again
-        exceptionRepository.deleteByImportBatch(batch);
-        // R31: the series the import created go
-        exceptionRepository.deleteOfSeriesCreatedBy(batch);
-        recurringRepository.deleteByImportBatch(batch);
+        // P5: terms the import fulfilled are open again
+        termRepository.deleteLinkedToBatch(batch);
+        // R31: the planned items the import created go
+        List<java.util.UUID> createdKeys = itemRepository.findKeysByImportBatch(batch);
+        if (!createdKeys.isEmpty()) {
+            termRepository.deleteByItemKeys(createdKeys);
+        }
+        itemRepository.deleteByImportBatch(batch);
         transactionRepository.deleteByImportBatch(batch);
         batchRepository.deleteById(id);
     }

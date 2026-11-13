@@ -396,9 +396,9 @@ class ImportControllerTest {
     @Test
     void aBookingByHandThatReplacesAnOccurrenceIsAPossibleDuplicate() throws Exception {
         long freizeit = category(user, "Freizeit");
-        String series = mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"amount": -24, "description": "Kino-Abo", "categoryId": %d, "interval": "MONTHLY",
-                         "startDate": "2025-12-15"}""".formatted(freizeit)))
+        String series = mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Kino-Abo", "amount": -24, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "2025-12-15", "validFrom": "2025-12"}""".formatted(freizeit)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         long recurringId = ((Number) JsonPath.read(series, "$.id")).longValue();
         long id = idOf(mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
@@ -435,9 +435,10 @@ class ImportControllerTest {
         assertThat(JsonPath.<String>read(preview, "$.series[0].source")).isEqualTo("N26:Hauptkonto");
         assertThat(JsonPath.<List<Object>>read(preview, "$.series")).hasSize(1);
 
-        mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"amount": 2500, "description": "Firma Beispiel · Lohn", "categoryId": %d, "interval": "MONTHLY",
-                         "startDate": "2026-08-01"}""".formatted(category(user, "Gehalt/Lohn (netto)"))))
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Firma Beispiel · Lohn", "amount": 2500, "categoryId": %d, "rhythmUnit": "MONTH",
+                         "rhythmCount": 1, "anchorDate": "2026-08-01", "validFrom": "2026-08"}"""
+                        .formatted(category(user, "Gehalt/Lohn (netto)"))))
                 .andExpect(status().isCreated());
 
         String again = previewJson(mockMvc, file);
@@ -467,10 +468,11 @@ class ImportControllerTest {
                 .andReturn().getResponse().getContentAsString();
         long batch = ((Number) JsonPath.read(result, "$.batch.id")).longValue();
 
-        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09"))
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].description").value("Firma Beispiel · Lohn"))
-                .andExpect(jsonPath("$[0].accountName").value("N26 Hauptkonto"));
+        mockMvc.perform(get("/api/plan").param("month", "2026-09"))
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].name").value("Firma Beispiel · Lohn"))
+                .andExpect(jsonPath("$.items[0].accountName").value("N26 Hauptkonto"))
+                .andExpect(jsonPath("$.items[0].entryMode").value("AUTO"));
         // Every occurrence is replaced: September counts the salary of 31 August once, as recurring
         mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
                 .andExpect(jsonPath("$.incomeTotal").value(0.00));
@@ -484,7 +486,7 @@ class ImportControllerTest {
                 .containsExactly("2026-12-01");
 
         mockMvc.perform(delete("/api/imports/{id}", batch)).andExpect(status().isNoContent());
-        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/plan").param("month", "2026-09")).andExpect(jsonPath("$.items", hasSize(0)));
         mockMvc.perform(get("/api/dashboard").param("month", "2026-08")).andExpect(jsonPath("$.incomeTotal").value(0.00));
     }
 
@@ -497,7 +499,7 @@ class ImportControllerTest {
         mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("rows[0].series"));
-        mockMvc.perform(get("/api/recurring-transactions").param("month", "2026-09")).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/plan").param("month", "2026-09")).andExpect(jsonPath("$.items", hasSize(0)));
         mockMvc.perform(get("/api/imports")).andExpect(jsonPath("$", hasSize(0)));
         mockMvc.perform(get("/api/bank-accounts")).andExpect(jsonPath("$", hasSize(1)));
     }

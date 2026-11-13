@@ -1,20 +1,15 @@
 package io.github.mirco104.budget.transaction;
 
 import io.github.mirco104.budget.category.Category;
-import io.github.mirco104.budget.recurring.Occurrence;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
- * recurring transaction (kind RECURRING, recurringId and occurrenceDate). Fields of the other kind are null. A transfer
- * (R27) has no category.
+ * A booking of the transaction list. Only real bookings appear (P1). A transfer (R27) has no category; auto marks an
+ * entry the app made from the plan (P6); fix marks an expense that fulfils a term (P5).
  */
 public record TransactionResponse(
-        Kind kind,
         Long id,
-        Long recurringId,
-        LocalDate occurrenceDate,
         BigDecimal amount,
         String description,
         LocalDate date,
@@ -23,22 +18,13 @@ public record TransactionResponse(
         Long accountId,
         String accountName,
         boolean transfer,
-        OccurrenceRef replaces) {
+        boolean auto,
+        boolean fix) {
 
-    public enum Kind { SINGLE, RECURRING }
-
-    static TransactionResponse from(Transaction transaction) {
-        return from(transaction, null);
-    }
-
-    /** replaces is the occurrence the transaction replaces (R28), null when it replaces none. */
-    static TransactionResponse from(Transaction transaction, OccurrenceRef replaces) {
+    public static TransactionResponse from(Transaction transaction, boolean fix) {
         Category category = transaction.getCategory();
         return new TransactionResponse(
-                Kind.SINGLE,
                 transaction.getId(),
-                null,
-                null,
                 transaction.getAmount(),
                 transaction.getDescription(),
                 transaction.getDate(),
@@ -47,23 +33,7 @@ public record TransactionResponse(
                 transaction.getAccount().getId(),
                 transaction.getAccount().getName(),
                 transaction.isTransfer(),
-                replaces);
-    }
-
-    static TransactionResponse from(Occurrence occurrence) {
-        return new TransactionResponse(
-                Kind.RECURRING,
-                null,
-                occurrence.recurringId(),
-                occurrence.date(),
-                occurrence.amount(),
-                occurrence.description(),
-                occurrence.date(),
-                occurrence.categoryId(),
-                occurrence.categoryName(),
-                occurrence.accountId(),
-                occurrence.accountName(),
-                false,
-                null);
+                transaction.isAuto(),
+                fix);
     }
 }

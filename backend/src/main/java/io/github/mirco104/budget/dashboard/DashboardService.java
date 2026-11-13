@@ -1,12 +1,10 @@
 package io.github.mirco104.budget.dashboard;
 
 import io.github.mirco104.budget.category.CategoryService;
-import io.github.mirco104.budget.category.TargetResolver.TargetEntry;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
+import io.github.mirco104.budget.plan.ItemTermRepository;
+import io.github.mirco104.budget.plan.PlanService;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
-import io.github.mirco104.budget.recurring.OccurrenceService;
-import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
-import io.github.mirco104.budget.recurring.ReplacementService;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
@@ -15,8 +13,9 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,22 +24,19 @@ public class DashboardService {
 
     private final CategoryService categoryService;
     private final TransactionRepository transactionRepository;
-    private final RecurringTransactionRepository recurringRepository;
-    private final OccurrenceService occurrenceService;
-    private final ReplacementService replacementService;
+    private final PlanService planService;
+    private final ItemTermRepository termRepository;
     private final CurrentUser currentUser;
     private final Clock clock;
     private final DashboardCalculator calculator = new DashboardCalculator();
 
     public DashboardService(
-            CategoryService categoryService, TransactionRepository transactionRepository,
-            RecurringTransactionRepository recurringRepository, OccurrenceService occurrenceService,
-            ReplacementService replacementService, CurrentUser currentUser, Clock clock) {
-        this.replacementService = replacementService;
+            CategoryService categoryService, TransactionRepository transactionRepository, PlanService planService,
+            ItemTermRepository termRepository, CurrentUser currentUser, Clock clock) {
         this.categoryService = categoryService;
         this.transactionRepository = transactionRepository;
-        this.recurringRepository = recurringRepository;
-        this.occurrenceService = occurrenceService;
+        this.planService = planService;
+        this.termRepository = termRepository;
         this.currentUser = currentUser;
         this.clock = clock;
     }
@@ -52,38 +48,34 @@ public class DashboardService {
         return calculate(month, averages.income(), averages.expenses(), currentMonth);
     }
 
+    /** Ē(M) and Emin(M) (R23), for orientation on the planning page (P4). */
+    @Transactional(readOnly = true)
+    public IncomeAverage.Result incomeAverage(YearMonth month) {
+        return averages(month, YearMonth.now(clock)).income();
+    }
+
     /**
-     * Income, expenses and actuals of a month without Ē(M) and Ā(M) (R23), for the analysis (R14): it needs no
-     * targets, and the averages would cost twelve more months per month.
+     * Income, expenses and actuals of a month without Ē(M) and Ā(M) (R23), for the analysis (R14): the averages
+     * would cost twelve more months per month.
      */
     @Transactional(readOnly = true)
     public DashboardResponse actuals(YearMonth month) {
         return calculate(month, IncomeAverage.Result.EMPTY, null, YearMonth.now(clock));
     }
 
-    /** Month of the earliest transaction or series start, null without any entry (R14, R23). */
+    /** Month of the earliest booking, null without any (R14, R23); planned items are no actuals (P1). */
     @Transactional(readOnly = true)
     public YearMonth firstEntryMonth() {
-        return Stream.of(
-                        transactionRepository.findMinDate(currentUser.get()),
-                        recurringRepository.findMinStartDate(currentUser.get()))
-                .filter(date -> date != null)
-                .min(LocalDate::compareTo)
-                .map(YearMonth::from)
-                .orElse(null);
+        LocalDate first = transactionRepository.findMinDate(currentUser.get());
+        return first == null ? null : YearMonth.from(first);
     }
 
+    // P3: the plan of a category is the target of the dashboard line (R5, R6)
     private DashboardResponse calculate(
             YearMonth month, IncomeAverage.Result average, BigDecimal averageExpenses, YearMonth currentMonth) {
-        Map<Long, TargetEntry> targets = categoryService.targetsInEffect(month);
+        Map<Long, BigDecimal> plan = planService.calculate(month).planByCategory();
         List<CategoryData> categories = categoryService.findAllOrdered().stream()
-                .map(category -> {
-                    TargetEntry target = targets.get(category.getId());
-                    return new CategoryData(
-                            category.getId(),
-                            category.getName(),
-                            target == null ? null : target.targetAmount());
-                })
+                .map(category -> new CategoryData(category.getId(), category.getName(), plan.get(category.getId())))
                 .toList();
         return calculator.calculate(categories, entries(month, month), month, average, averageExpenses, currentMonth);
     }
@@ -91,7 +83,7 @@ public class DashboardService {
     private record Averages(IncomeAverage.Result income, BigDecimal expenses) {
     }
 
-    // R23: E and A of every month that counts, from one query for the single transactions
+    // R23: E and A of every month that counts, from one query
     private Averages averages(YearMonth month, YearMonth currentMonth) {
         YearMonth firstEntryMonth = firstEntryMonth();
         IncomeAverage.Result window = IncomeAverage.window(firstEntryMonth, month, currentMonth);
@@ -110,21 +102,17 @@ public class DashboardService {
                 IncomeAverage.of(expenses, firstEntryMonth, month, currentMonth).average());
     }
 
-    // R1: an occurrence of a recurring transaction counts with its full amount, like a single transaction; R27: no
-    // transfers
+    // P1: only real bookings count; R27: no transfers. A booking linked to a term is fix (P5); the flag "recurring"
+    // of the calculator carries it
     private List<TransactionData> entries(YearMonth from, YearMonth to) {
-        // R28: a transaction that replaces an occurrence counts as recurring
-        java.util.Set<Long> replacing = replacementService.replacingIds();
-        Stream<TransactionData> singles = transactionRepository
-                .findCountedBetween(currentUser.get(), from.atDay(1), to.atEndOfMonth())
-                .stream()
+        List<io.github.mirco104.budget.transaction.Transaction> bookings = transactionRepository
+                .findCountedBetween(currentUser.get(), from.atDay(1), to.atEndOfMonth());
+        Set<Long> fix = bookings.isEmpty() ? Set.of() : new HashSet<>(termRepository.findLinkedTransactionIds(
+                bookings.stream().map(io.github.mirco104.budget.transaction.Transaction::getId).toList()));
+        return bookings.stream()
                 .map(transaction -> new TransactionData(
                         transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(),
-                        replacing.contains(transaction.getId())));
-        Stream<TransactionData> occurrences = Stream.iterate(from, m -> !m.isAfter(to), m -> m.plusMonths(1))
-                .flatMap(m -> occurrenceService.occurrencesIn(m).stream())
-                .map(occurrence -> new TransactionData(
-                        occurrence.categoryId(), occurrence.amount(), occurrence.date(), true));
-        return Stream.concat(singles, occurrences).toList();
+                        fix.contains(transaction.getId())))
+                .toList();
     }
 }

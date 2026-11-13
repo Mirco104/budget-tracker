@@ -45,7 +45,8 @@ class BankAccountMigrationTest {
                 select random_uuid(), -900.00, 'Miete', c.id, c.owner_id, 'MONTHLY', date '2026-01-01'
                 from category c""");
 
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        // Up to V12: V15 drops the series after V14 converted them (section 19.3)
+        Flyway.configure().dataSource(dataSource).target("12").load().migrate();
 
         List<String> accounts = jdbc.queryForList("""
                 select u.display_name || ':' || b.name || ':' || b.default_account from bank_accounts b

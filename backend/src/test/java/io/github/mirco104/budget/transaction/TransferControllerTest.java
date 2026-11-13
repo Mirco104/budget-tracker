@@ -150,21 +150,23 @@ class TransferControllerTest {
     }
 
     @Test
-    void aTransferCannotReplaceAnOccurrence() throws Exception {
+    void aTransferCannotFulfilATerm() throws Exception {
         String json = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
-                                {"amount": -500, "description": "Sparen", "categoryId": %d, "interval": "MONTHLY",
-                                 "startDate": "2026-10-01"}""".formatted(wohnen)))
+                        .post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                                {"name": "Sparen", "amount": -500, "categoryId": %d, "rhythmUnit": "MONTH",
+                                 "rhythmCount": 1, "anchorDate": "2026-10-01", "validFrom": "2026-10"}"""
+                                .formatted(wohnen)))
                 .andReturn().getResponse().getContentAsString();
-        long series = ((Number) JsonPath.read(json, "$.id")).longValue();
+        long item = ((Number) JsonPath.read(json, "$.id")).longValue();
 
-        mockMvc.perform(put("/api/recurring-transactions/{id}/occurrences/{date}", series, "2026-10-01")
-                        .param("scope", "THIS").contentType(MediaType.APPLICATION_JSON).content("""
-                                {"amount": -500, "description": "Sparen", "date": "2026-10-01", "transfer": true}"""))
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                                {"amount": -500, "description": "Sparen", "date": "2026-10-01", "transfer": true,
+                                 "replaces": {"itemId": %d, "date": "2026-10-01"}}""".formatted(item)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("transfer"));
+                .andExpect(jsonPath("$.errors[0].field").value("replaces"));
         mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
-                .andExpect(jsonPath("$[?(@.kind == 'SINGLE')]", empty()));
+                .andExpect(jsonPath("$", empty()));
     }
 
     @Test

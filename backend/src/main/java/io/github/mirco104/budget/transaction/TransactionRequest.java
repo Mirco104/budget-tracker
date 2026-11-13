@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import io.github.mirco104.budget.plan.TermRef;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -33,7 +34,9 @@ public record TransactionRequest(
         // R27: optional, false without it
         Boolean transfer,
 
-        // R28: optional, the occurrence of a series this transaction replaces (only when it is created)
+
+
+        // P5: optional, the term of a planned item this booking fulfils (only when it is created)
         @Valid
-        OccurrenceRef replaces) {
+        TermRef replaces) {
 }

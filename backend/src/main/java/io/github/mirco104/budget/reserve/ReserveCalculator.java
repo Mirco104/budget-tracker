@@ -1,14 +1,14 @@
 package io.github.mirco104.budget.reserve;
 
-import io.github.mirco104.budget.recurring.RecurrenceSchedule;
-import io.github.mirco104.budget.recurring.RecurringInterval;
+import io.github.mirco104.budget.plan.RhythmUnit;
+import io.github.mirco104.budget.plan.TermSchedule;
 import io.github.mirco104.budget.reserve.HistoryResponse.CategoryAmount;
 import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.HistoryResponse.Total;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastMonth;
 import io.github.mirco104.budget.reserve.ReserveResponse.ReserveLine;
-import io.github.mirco104.budget.transaction.TransactionResponse.Kind;
+import io.github.mirco104.budget.reserve.ReserveResponse.Kind;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -36,10 +36,18 @@ public class ReserveCalculator {
 
     private static final int MONEY_SCALE = 2;
 
-    /** One series (R12); endDate is inclusive and may be null, exceptions are suspended occurrences (R13). */
+    /**
+     * One planned item version with a rhythm (P5); handled are its term dates that already have a booking or are
+     * skipped, so they are not forecast twice (P1).
+     */
     public record SeriesData(
-            long id, String description, String categoryName, BigDecimal amount, RecurringInterval interval,
-            LocalDate startDate, LocalDate endDate, Set<LocalDate> exceptions) {
+            long id, String description, String categoryName, BigDecimal amount, RhythmUnit unit, int count,
+            TermSchedule schedule, Set<LocalDate> handled) {
+
+        /** P8: a rare item has a spacing over one month. */
+        boolean rare() {
+            return unit == RhythmUnit.MONTH && count > 1;
+        }
     }
 
     /** A single transaction; amount is signed (R11). */
@@ -92,9 +100,10 @@ public class ReserveCalculator {
         BigDecimal monthlyReserve = BigDecimal.ZERO;
         BigDecimal reserveBalance = BigDecimal.ZERO;
         for (SeriesData s : expenseSeries) {
-            int interval = s.interval().months();
-            Optional<LocalDate> next = interval > 1
-                    ? schedule(s).occurrencesBetween(month.atDay(1), forecastEnd).stream().findFirst()
+            int interval = s.count();
+            Optional<LocalDate> next = s.rare()
+                    ? s.schedule().termsBetween(month.atDay(1), forecastEnd).stream()
+                            .filter(date -> !s.handled().contains(date)).findFirst()
                     : Optional.empty();
             if (next.isEmpty()) {
                 continue;
@@ -106,10 +115,10 @@ public class ReserveCalculator {
             monthlyReserve = monthlyReserve.add(monthly);
             reserveBalance = reserveBalance.add(saved);
             reserves.add(new ReserveLine(
-                    s.id(), s.description(), s.categoryName(), cost, s.interval(), next.get(),
+                    s.id(), s.description(), s.categoryName(), cost, s.unit(), s.count(), next.get(),
                     money(monthly), money(saved), (int) Math.min(interval, monthsUntilDue)));
         }
-        reserves.sort(Comparator.comparing(ReserveLine::nextDate).thenComparing(ReserveLine::recurringId));
+        reserves.sort(Comparator.comparing(ReserveLine::nextDate).thenComparing(ReserveLine::itemId));
 
         List<ForecastMonth> forecast = IntStream.range(0, FORECAST_MONTHS)
                 .mapToObj(i -> forecastMonth(expenseSeries, singles, month.plusMonths(i)))
@@ -147,10 +156,6 @@ public class ReserveCalculator {
         return money(values.reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
-    private static RecurrenceSchedule schedule(SeriesData s) {
-        return new RecurrenceSchedule(s.startDate(), s.endDate(), s.interval(), s.exceptions());
-    }
-
     private static BigDecimal money(BigDecimal value) {
         return value.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }
@@ -158,10 +163,10 @@ public class ReserveCalculator {
     private static ForecastMonth forecastMonth(List<SeriesData> expenseSeries, List<SingleData> singles,
             YearMonth month) {
         Stream<ForecastEntry> occurrences = expenseSeries.stream()
-                .flatMap(s -> schedule(s).occurrencesBetween(month.atDay(1), month.atEndOfMonth()).stream()
+                .flatMap(s -> s.schedule().termsBetween(month.atDay(1), month.atEndOfMonth()).stream()
+                        .filter(date -> !s.handled().contains(date))
                         .map(date -> new ForecastEntry(
-                                Kind.RECURRING, null, s.id(), s.description(), date, s.amount().abs(),
-                                s.interval().months() > 1)));
+                                Kind.PLANNED, null, s.id(), s.description(), date, s.amount().abs(), s.rare())));
         Stream<ForecastEntry> singleExpenses = singles.stream()
                 .filter(t -> t.amount().signum() < 0 && YearMonth.from(t.date()).equals(month))
                 .map(t -> new ForecastEntry(
