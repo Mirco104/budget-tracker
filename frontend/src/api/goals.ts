@@ -18,3 +18,22 @@ export function useCreateSavingGoal() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saving-goals'] }),
   })
 }
+
+/** 27f4: saving goals are managed on the page Konten. */
+export function useUpdateSavingGoal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: SavingGoalInput }) =>
+      request<SavingGoal>(`/saving-goals/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saving-goals'] }),
+  })
+}
+
+/** A goal with saving items or bookings cannot be deleted (409). */
+export function useDeleteSavingGoal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => request<unknown>(`/saving-goals/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saving-goals'] }),
+  })
+}

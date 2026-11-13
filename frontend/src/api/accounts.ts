@@ -38,3 +38,16 @@ export function useLinkReserve() {
       Promise.all(['plan', 'dashboard', 'accounts'].map((key) => queryClient.invalidateQueries({ queryKey: [key] }))),
   })
 }
+
+/** 27f4: sets the comfort amount of an account; null removes it. */
+export function useSetComfortAmount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ accountId, amount }: { accountId: number; amount: number | null }) =>
+      request<unknown>(`/bank-accounts/${accountId}/comfort-amount`, {
+        method: 'PUT',
+        body: JSON.stringify({ amount }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] }),
+  })
+}

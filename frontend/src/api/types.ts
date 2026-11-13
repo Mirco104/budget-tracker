@@ -322,6 +322,9 @@ export interface AccountLine {
   balance: number
   statementDate: string | null
   statementAmount: number | null
+  /** 27f4: optional; belowComfort is true when the balance lies below it */
+  comfortAmount: number | null
+  belowComfort: boolean
 }
 
 export interface AccountGroup {

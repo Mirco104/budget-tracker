@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { useAccounts, useLinkReserve, useReconcile, useReservesByAccount } from '../api/accounts'
+import { useAccounts, useLinkReserve, useReconcile, useReservesByAccount, useSetComfortAmount } from '../api/accounts'
+import { useSavingGoals } from '../api/goals'
 import { useUpdateBankAccount } from '../api/bankAccounts'
 import { errorText } from '../api/client'
 import { usePlan } from '../api/plan'
-import type { AccountLine, AccountRole, ReserveGroup } from '../api/types'
+import type { AccountLine, AccountRole, ReserveGroup, SavingGoal } from '../api/types'
 import { BankAccountSettings } from '../components/BankAccountSettings'
+import { SavingGoalDialog } from '../components/SavingGoalDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { Loading } from '../components/ui/Loading'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -24,7 +26,10 @@ export function AccountsPage() {
   const updateAccount = useUpdateBankAccount()
   const linkReserve = useLinkReserve()
   const reserves = useReservesByAccount()
+  const goals = useSavingGoals()
   const [reconciling, setReconciling] = useState<AccountLine | null>(null)
+  // 27f4: the goal in the dialog; 'new' for a new one
+  const [editGoal, setEditGoal] = useState<SavingGoal | 'new' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   if (accounts.isPending) {
@@ -72,6 +77,12 @@ export function AccountsPage() {
                       {account.statementDate
                         ? `Bank am ${formatDate(account.statementDate)}: ${formatEuro(account.statementAmount)}`
                         : 'noch kein Kontostand eingetragen'}
+                      {account.comfortAmount !== null && (
+                        <span className={account.belowComfort ? 'below-comfort' : undefined}>
+                          {' '}
+                          · {account.belowComfort ? 'unter ' : ''}Wohlfühlbetrag {formatEuro(account.comfortAmount)}
+                        </span>
+                      )}
                     </span>
                   </span>
                   <select
@@ -87,7 +98,7 @@ export function AccountsPage() {
                   </select>
                   <button
                     type="button"
-                    className="link-button item-amount"
+                    className={account.belowComfort ? 'link-button item-amount below-comfort' : 'link-button item-amount'}
                     aria-label={`Kontostand von ${account.name} laut Bank eintragen`}
                     onClick={() => setReconciling(account)}
                   >
@@ -116,11 +127,50 @@ export function AccountsPage() {
         </section>
       )}
 
+      {/* 27f4: the saving goals are managed here */}
+      <section className="card account-group" aria-label="Sparziele">
+        <div className="plan-group-head">
+          <h2>Sparziele</h2>
+          <button type="button" className="link-button" onClick={() => setEditGoal('new')}>
+            + Neues Sparziel
+          </button>
+        </div>
+        {(goals.data ?? []).length === 0 ? (
+          <p className="hint">Noch keine Sparziele.</p>
+        ) : (
+          <ul className="budget-list">
+            {(goals.data ?? []).map((goal) => (
+              <li key={goal.id} className="budget-item">
+                <button type="button" className="budget-head budget-toggle" onClick={() => setEditGoal(goal)}>
+                  <span className="budget-name">
+                    {goal.name}
+                    {goal.targetDate && <span className="tx-meta"> · bis {formatDate(goal.targetDate)}</span>}
+                  </span>
+                  <span className="budget-amount">
+                    <span className="saving">
+                      {formatEuro(goal.saved)}
+                      {goal.targetAmount !== null && ` / ${formatEuro(goal.targetAmount)}`}
+                    </span>
+                    {goal.monthly > 0 && <span className="budget-left">{formatEuro(goal.monthly)} im Monat</span>}
+                  </span>
+                </button>
+                {goal.targetAmount !== null && goal.targetAmount > 0 && (
+                  <div className="saving-progress">
+                    <ProgressBar value={goal.saved / goal.targetAmount} />
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <div className="card">
         <BankAccountSettings />
       </div>
 
       {reconciling && <ReconcileDialog account={reconciling} onClose={() => setReconciling(null)} />}
+      {editGoal && <SavingGoalDialog goal={editGoal === 'new' ? null : editGoal} onClose={() => setEditGoal(null)} />}
     </section>
   )
 }
@@ -197,22 +247,44 @@ function ReserveGroupRow({
 /** P11: the balance from the bank on a day; shows the difference to the app balance and books nothing. */
 function ReconcileDialog({ account, onClose }: { account: AccountLine; onClose: () => void }) {
   const reconcile = useReconcile()
+  const setComfort = useSetComfortAmount()
   const [date, setDate] = useState(todayIso())
   const [amount, setAmount] = useState('')
+  const initialComfort = account.comfortAmount === null ? '' : account.comfortAmount.toFixed(2).replace('.', ',')
+  const [comfort, setComfortText] = useState(initialComfort)
   const [error, setError] = useState<string | null>(null)
+  const [comfortSaved, setComfortSaved] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const comfortChanged = comfort.trim() !== initialComfort
+    const comfortValue = comfort.trim() === '' ? null : parseAmountInput(comfort.trim())
+    if (comfortChanged && comfort.trim() !== '' && comfortValue === null) {
+      setError('Bitte einen Wohlfühlbetrag wie 500,00 eingeben.')
+      return
+    }
+    if (amount.trim() === '' && !comfortChanged) {
+      setError('Bitte einen Betrag wie 1.234,56 eingeben.')
+      return
+    }
     // Negative balances are allowed: "-12,50"
     const negative = amount.trim().startsWith('-')
-    const parsed = parseAmountInput(amount.trim().replace(/^-/, ''))
-    if (parsed === null) {
+    const parsed = amount.trim() === '' ? null : parseAmountInput(amount.trim().replace(/^-/, ''))
+    if (amount.trim() !== '' && parsed === null) {
       setError('Bitte einen Betrag wie 1.234,56 eingeben.')
       return
     }
     setError(null)
     try {
-      await reconcile.mutateAsync({ accountId: account.id, date, amount: negative ? -parsed : parsed })
+      if (comfortChanged) {
+        await setComfort.mutateAsync({ accountId: account.id, amount: comfortValue })
+        setComfortSaved(true)
+      }
+      if (parsed !== null) {
+        await reconcile.mutateAsync({ accountId: account.id, date, amount: negative ? -parsed : parsed })
+      } else {
+        onClose()
+      }
     } catch (e) {
       setError(errorText(e, 'Der Kontostand konnte nicht gespeichert werden.'))
     }
@@ -232,6 +304,24 @@ function ReconcileDialog({ account, onClose }: { account: AccountLine; onClose: 
             <input inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </label>
         </div>
+        {/* 27f4: below it the balance turns orange */}
+        <label className="field">
+          Wohlfühlbetrag (optional)
+          <input
+            inputMode="decimal"
+            placeholder="z. B. 500,00"
+            value={comfort}
+            onChange={(e) => {
+              setComfortText(e.target.value)
+              setComfortSaved(false)
+            }}
+          />
+        </label>
+        {comfortSaved && (
+          <p className="hint" role="status">
+            Wohlfühlbetrag gespeichert.
+          </p>
+        )}
         {error && <p className="error">{error}</p>}
         {result && (
           <p className={result.difference === 0 ? 'plan-done' : 'hint'} role="status">
