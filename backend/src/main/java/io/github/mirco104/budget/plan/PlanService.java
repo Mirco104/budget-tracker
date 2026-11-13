@@ -224,7 +224,7 @@ public class PlanService {
                         .orElseThrow(() -> new InvalidFieldException("savingGoalId", "Das Sparziel gibt es nicht.")));
     }
 
-    /** P8: links the pot of a rare item (all versions) to a savings or depot account, or unlinks it. */
+    /** P8: links the pot of a rare item (all versions) to an account (27f4: of any role), or unlinks it. */
     @Transactional
     public PlannedItemResponse linkReserve(long id, Long accountId) {
         PlannedItem item = find(id);
@@ -233,10 +233,8 @@ public class PlanService {
         }
         BankAccount account = null;
         if (accountId != null) {
+            // 27f4 (decision 60): any account, also an everyday one, may hold a reserve
             account = bankAccountService.findBookable(accountId);
-            if (account.getRole() == io.github.mirco104.budget.bankaccount.AccountRole.EVERYDAY) {
-                throw new InvalidFieldException("accountId", "Eine Rücklage liegt auf einem Spar- oder Depotkonto.");
-            }
         }
         for (PlannedItem version : itemRepository.findByItemKeyAndOwner(item.getItemKey(), currentUser.get())) {
             version.setReserveAccount(account);

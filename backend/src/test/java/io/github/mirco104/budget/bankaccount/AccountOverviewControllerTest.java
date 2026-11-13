@@ -117,7 +117,9 @@ class AccountOverviewControllerTest {
 
         mockMvc.perform(put("/api/planned-items/{id}/reserve-account", itemId).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountId\": %d}".formatted(girokonto)))
-                .andExpect(status().isBadRequest());
+                // 27f4 (decision 60): an everyday account may hold a reserve too
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reserveAccountId").value(girokonto));
         mockMvc.perform(put("/api/planned-items/{id}/reserve-account", itemId).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountId\": %d}".formatted(tagesgeld)))
                 .andExpect(status().isOk())
