@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
+import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { ApiError } from '../api/client'
 import { useCreatePlannedItem, useDeletePlannedItem, useUpdatePlannedItem } from '../api/plan'
 import type { Category, EntryMode, PlanGroup, PlannedItem, PlannedItemInput, RhythmUnit } from '../api/types'
@@ -7,6 +8,7 @@ import { formatEuro, formatMonth, parseAmountInput, shiftMonth } from '../format
 import { RHYTHM_PRESETS } from '../labels'
 import { anchorFromDay, dayOfAnchor } from '../planning'
 import { Dialog } from './ui/Dialog'
+import { InlineCreate } from './ui/InlineCreate'
 import { Segmented } from './ui/Segmented'
 
 type Kind = 'income' | 'expense' | 'saving'
@@ -56,7 +58,7 @@ interface Props {
   /** The group of a new item (from the "+" of a group). */
   group?: PlanGroup
   /** Prefilled values of a new item, e.g. "Zum Sparen" with the unplanned rest. */
-  preset?: { name?: string; amount?: number; categoryId?: number }
+  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number }
   onClose: () => void
   onDone: (message: string) => void
 }
@@ -71,6 +73,8 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const update = useUpdatePlannedItem()
   const remove = useDeletePlannedItem()
   const bankAccounts = useBankAccounts().data ?? []
+  const goals = useSavingGoals().data ?? []
+  const createGoal = useCreateSavingGoal()
 
   const initialRhythm = item
     ? item.rhythmUnit === null
@@ -89,6 +93,10 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
     item?.categoryId ? String(item.categoryId) : preset?.categoryId ? String(preset.categoryId) : '',
   )
   const [accountId, setAccountId] = useState(item ? String(item.accountId) : '')
+  const [goalId, setGoalId] = useState(
+    item?.savingGoalId ? String(item.savingGoalId) : preset?.savingGoalId ? String(preset.savingGoalId) : '',
+  )
+  const [creatingGoal, setCreatingGoal] = useState(false)
   const [rhythm, setRhythm] = useState(initialRhythm)
   const [day, setDay] = useState(anchor ? String(anchor.day) : '1')
   const [dueMonth, setDueMonth] = useState(anchor ? anchor.month : Number(month.slice(5, 7)))
@@ -176,6 +184,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
       entryMode,
       workdaysOnly: unit !== null && workdaysOnly,
       validFrom,
+      savingGoalId: kind === 'saving' && goalId !== '' ? Number(goalId) : null,
     }
   }
 
@@ -309,6 +318,37 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
         )}
         {item && item.rhythmUnit !== null && (item.rhythmUnit === 'WEEK' || (item.rhythmCount ?? 1) > 1) && (
           <p className="hint">Monatsanteil: {formatEuro(item.monthlyShare)} (gespeicherter Stand)</p>
+        )}
+
+        {kind === 'saving' && (
+          <div className="field">
+            <span id="item-goal-label">Sparziel (optional)</span>
+            <select
+              aria-labelledby="item-goal-label"
+              value={goalId}
+              onChange={(e) => (e.target.value === 'new' ? setCreatingGoal(true) : setGoalId(e.target.value))}
+            >
+              <option value="">ohne Sparziel</option>
+              {goals.map((goal) => (
+                <option key={goal.id} value={goal.id}>
+                  {goal.name}
+                </option>
+              ))}
+              <option value="new">+ Neues Sparziel …</option>
+            </select>
+            {creatingGoal && (
+              <InlineCreate
+                label="Neues Sparziel"
+                placeholder="z. B. Notgroschen"
+                onCreate={async (goalName) => {
+                  const goal = await createGoal.mutateAsync({ name: goalName })
+                  setGoalId(String(goal.id))
+                  setCreatingGoal(false)
+                }}
+                onCancel={() => setCreatingGoal(false)}
+              />
+            )}
+          </div>
         )}
 
         <label className="field">

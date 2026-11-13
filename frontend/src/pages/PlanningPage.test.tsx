@@ -165,6 +165,7 @@ describe('PlanningPage', () => {
       entryMode: 'AUTO',
       workdaysOnly: false,
       validFrom: month,
+      savingGoalId: null,
     })
   })
 

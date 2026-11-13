@@ -2988,3 +2988,16 @@ button.tick.done {
 .summary dd a:hover {
   text-decoration: underline;
 }
+
+/* --- Reserve pots under a budget row (P8, AP 27e) --- */
+.reserve-line {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--saving);
+  color: var(--saving);
+  font-size: 0.875rem;
+}
+.reserve-line.short {
+  border-left-color: var(--warn);
+  color: var(--warn);
+}

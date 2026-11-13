@@ -222,4 +222,26 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('In diesem Monat gibt es keine Einnahmen.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Erste Schritte' })).not.toBeInTheDocument()
   })
+
+  // P8, AP 27e: a green line under the budget row for a rare item, orange when the pot was too small
+  it('shows what a rare item put aside and what its pot paid', async () => {
+    const pot = {
+      itemId: 5, name: 'Kfz-Versicherung', categoryId: 1, amount: 1200, monthly: 100, balance: 1000, due: false,
+      nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0,
+    }
+    renderPage({ ...dashboard, reserves: [pot] })
+    expect(
+      await screen.findByText('100,00 € zurückgelegt für Kfz-Versicherung · Rücklage 1.000,00 € von 1.200,00 €'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows in orange what was missing in the pot', async () => {
+    const pot = {
+      itemId: 5, name: 'Kfz-Versicherung', categoryId: 1, amount: 1200, monthly: 100, balance: 1000, due: true,
+      nextDue: '2026-10-15', paid: 1200, fromPot: 1000, shortfall: 200,
+    }
+    renderPage({ ...dashboard, reserves: [pot] })
+    const line = await screen.findByText('1.000,00 € aus der Rücklage, 200,00 € fehlten darin')
+    expect(line).toHaveClass('short')
+  })
 })

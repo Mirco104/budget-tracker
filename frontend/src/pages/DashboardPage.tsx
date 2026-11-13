@@ -4,7 +4,7 @@ import { EXPECTED_ROUTE } from '../router'
 import { useCategories } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
 import { useTransactions } from '../api/transactions'
-import type { CategoryLine, DashboardData } from '../api/types'
+import type { CategoryLine, DashboardData, ReservePot } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { useBookingDialog } from '../components/useBookingDialog'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
@@ -143,12 +143,18 @@ function DashboardContent({ month }: { month: string }) {
       ) : (
         <ul className="budget-list">
           {data.categories.map((line) => (
-            <BudgetItem key={line.id} line={line} icon={iconOf(line.id)} month={month} />
+            <BudgetItem
+              key={line.id}
+              line={line}
+              icon={iconOf(line.id)}
+              month={month}
+              pots={(data.reserves ?? []).filter((pot) => pot.categoryId === line.id)}
+            />
           ))}
           <li className="budget-item budget-total">
             <div className="budget-head">
               <span className="budget-name">Gesamt</span>
-              <BudgetNumbers line={data.expenses} />
+              <BudgetNumbers line={data.budget ?? data.expenses} />
             </div>
           </li>
         </ul>
@@ -194,14 +200,33 @@ function BudgetNumbers({ line }: { line: Line }) {
   )
 }
 
+/**
+ * P8 (concept 4.1): under a budget row, what a rare item put aside this month; in its due month what the pot paid,
+ * in orange when the pot was too small.
+ */
+function ReserveLine({ pot }: { pot: ReservePot }) {
+  const short = pot.shortfall > 0
+  let text: string
+  if (pot.paid > 0 && short) {
+    text = `${formatEuro(pot.fromPot)} aus der Rücklage, ${formatEuro(pot.shortfall)} fehlten darin`
+  } else if (pot.paid > 0) {
+    text = `${pot.name} ${formatEuro(pot.paid)} aus der Rücklage bezahlt`
+  } else {
+    text = `${formatEuro(pot.monthly)} zurückgelegt für ${pot.name} · Rücklage ${formatEuro(pot.balance)} von ${formatEuro(pot.amount)}`
+  }
+  return <p className={short ? 'reserve-line short' : 'reserve-line'}>{text}</p>
+}
+
 function BudgetItem({
   line,
   icon,
   month,
+  pots,
 }: {
   line: CategoryLine
   icon: string
   month: string
+  pots: ReservePot[]
 }) {
   const [open, setOpen] = useState(false)
   const over = line.difference !== null && line.difference < 0
@@ -221,6 +246,9 @@ function BudgetItem({
         <BudgetNumbers line={line} />
       </button>
       {line.target !== null && <ProgressBar value={used} over={over} />}
+      {pots.map((pot) => (
+        <ReserveLine key={pot.itemId} pot={pot} />
+      ))}
       {open && <CategoryBookings month={month} categoryId={line.id} />}
     </li>
   )

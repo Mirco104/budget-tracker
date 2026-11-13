@@ -43,6 +43,9 @@ export interface Transaction {
   auto: boolean
   /** An expense that fulfils a term of a planned item (P5). */
   fix: boolean
+  /** P8: paid explicitly from the reserve pot of the rare item with this key, or from a saving goal. */
+  reserveItemKey?: string | null
+  savingGoalId?: number | null
 }
 
 /** A term of a planned item: the id of the item version and the planned date (P5). */
@@ -62,6 +65,43 @@ export interface TransactionInput {
   transfer?: boolean
   /** Only when created: the term of a planned item the booking fulfils (P5, P7). */
   replaces?: TermRef
+  /** P8: "aus Rücklage / Ersparnissen bezahlen": the pot of a rare item or a saving goal. */
+  reserveItemKey?: string | null
+  savingGoalId?: number | null
+}
+
+/** A saving goal (concept 3.6): saved is what its saving bookings brought minus what was paid from it. */
+export interface SavingGoal {
+  id: number
+  name: string
+  targetAmount: number | null
+  targetDate: string | null
+  saved: number
+  monthly: number
+}
+
+export interface SavingGoalInput {
+  name: string
+  targetAmount?: number | null
+  targetDate?: string | null
+}
+
+/**
+ * P8: the reserve pot of a rare item in a month. balance is what is in it before the payment, fromPot what it pays,
+ * shortfall what is missing and counts into the budget.
+ */
+export interface ReservePot {
+  itemId: number
+  name: string
+  categoryId: number
+  amount: number
+  monthly: number
+  balance: number
+  due: boolean
+  nextDue: string | null
+  paid: number
+  fromPot: number
+  shortfall: number
 }
 
 /** Rhythm of a planned item (section 19.3): unit and count; no unit means "ohne festen Termin". */
@@ -96,6 +136,8 @@ export interface PlannedItem {
   validTo: string | null
   group: PlanGroup
   monthlyShare: number
+  savingGoalId?: number | null
+  savingGoalName?: string | null
 }
 
 /** Create or change a planned item; validFrom is the month from which the item or the change applies. */
@@ -111,6 +153,7 @@ export interface PlannedItemInput {
   entryMode?: EntryMode
   workdaysOnly?: boolean
   validFrom: string
+  savingGoalId?: number | null
 }
 
 /** Status of a term (P5). */
@@ -227,6 +270,10 @@ export interface DashboardData {
   saving: { planned: number; rate: number | null; items: { name: string; monthly: number }[] } | null
   /** P5: terms of the month without a booking yet and their sum with sign. */
   expected: { count: number; total: number } | null
+  /** P8: the totals of the budget lines with the reserve pots; null when no pot or saving payment changes them. */
+  budget?: Totals | null
+  /** P8: the reserve pots of the rare items valid in the month. */
+  reserves?: ReservePot[]
 }
 
 /** A bank account (R26); used means that entries are booked on it, so it can only be archived. */

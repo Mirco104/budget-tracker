@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
 import { useCreateCategory } from '../api/categories'
 import { ApiError } from '../api/client'
+import { useSavingGoals } from '../api/goals'
+import { usePlan } from '../api/plan'
 import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
 import type { Category, TermRef, Transaction } from '../api/types'
@@ -91,6 +93,11 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
   const bankAccounts = useBankAccounts().data ?? []
+  // P8: the pots of the rare items of the current month and the saving goals offer "aus Rücklage bezahlen"
+  const pots = (usePlan(defaultDate.slice(0, 7)).data?.items ?? []).filter(
+    (item) => item.rhythmUnit === 'MONTH' && (item.rhythmCount ?? 1) > 1 && item.group === 'FIXED',
+  )
+  const goals = useSavingGoals().data ?? []
   const createCategory = useCreateCategory()
   const createAccount = useCreateBankAccount()
   // A category created here, until the categories of the page contain it
@@ -111,6 +118,11 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   // '' is the default account (R26)
   const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : term ? String(term.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? term?.date ?? defaultDate)
+  // "pot:<item key>" or "goal:<id>"; '' pays from the monthly budget
+  const [paidFrom, setPaidFrom] = useState(
+    entry?.reserveItemKey ? `pot:${entry.reserveItemKey}` : entry?.savingGoalId ? `goal:${entry.savingGoalId}` : '',
+  )
+  const [fromReserve, setFromReserve] = useState(paidFrom !== '')
   const [errors, setErrors] = useState<Errors>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -188,9 +200,15 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
       ...(accountId === '' ? {} : { accountId: Number(accountId) }),
     }
     const linked = term && !entry && !transfer ? { replaces: { itemId: term.itemId, date: term.date } } : {}
+    const reserve =
+      fromReserve && kind === 'expense' && paidFrom.startsWith('pot:')
+        ? { reserveItemKey: paidFrom.slice(4) }
+        : fromReserve && kind === 'expense' && paidFrom.startsWith('goal:')
+          ? { savingGoalId: Number(paidFrom.slice(5)) }
+          : {}
     const single = transfer
       ? { ...common, date, transfer: true }
-      : { ...common, categoryId: Number(categoryId), date, ...linked }
+      : { ...common, categoryId: Number(categoryId), date, ...linked, ...reserve }
     if (entry?.id != null) {
       return updateTransaction.mutateAsync({ id: entry.id, input: single })
     }
@@ -336,6 +354,39 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           />
           {errors.date && <span className="error">{errors.date}</span>}
         </label>
+
+        {!transfer && kind === 'expense' && (pots.length > 0 || goals.length > 0) && (
+          <div className="field">
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={fromReserve}
+                onChange={(e) => {
+                  setFromReserve(e.target.checked)
+                  if (e.target.checked && paidFrom === '') {
+                    setPaidFrom(pots[0] ? `pot:${pots[0].itemKey}` : `goal:${goals[0].id}`)
+                  }
+                }}
+              />
+              aus Rücklage / Ersparnissen bezahlen
+            </label>
+            {fromReserve && (
+              <select aria-label="Bezahlt aus" value={paidFrom} onChange={(e) => setPaidFrom(e.target.value)}>
+                {pots.map((pot) => (
+                  <option key={pot.itemKey} value={`pot:${pot.itemKey}`}>
+                    Rücklage: {pot.name}
+                  </option>
+                ))}
+                {goals.map((goal) => (
+                  <option key={goal.id} value={`goal:${goal.id}`}>
+                    Sparziel: {goal.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {fromReserve && <span className="hint">Die Ausgabe belastet nicht das Monatsbudget.</span>}
+          </div>
+        )}
 
         {term && (
           <p className="hint">
