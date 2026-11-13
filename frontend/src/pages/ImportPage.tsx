@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ChangeEvent } from 'react'
+import { useDeleteTransaction } from '../api/transactions'
 import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
 import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
@@ -13,6 +14,7 @@ import {
   type ImportRequest,
   type ImportSeries,
   type ImportSource,
+  type MissingAuto,
 } from '../api/imports'
 import type { BankAccount, Category } from '../api/types'
 import { TransactionFilters } from '../components/TransactionFilters'
@@ -194,7 +196,9 @@ function PreviewRow({
                 disabled={!choice.selected}
                 onChange={(e) => onChange({ ...choice, replace: e.target.checked })}
               />
-              ersetzt „{entry.replaces.description}“ vom {formatDate(entry.replaces.date)}
+              {entry.replaces.autoEntryId
+                ? `ersetzt den automatischen Eintrag „${entry.replaces.description}“ vom ${formatDate(entry.replaces.date)}`
+                : `erfüllt „${entry.replaces.description}“ vom ${formatDate(entry.replaces.date)}`}
             </label>
           )}
           {entry.duplicateOf && (
@@ -495,7 +499,7 @@ function Preview({
   preview: ImportPreview
   accounts: BankAccount[]
   categories: Category[]
-  onDone: (message: string, batch: ImportBatch | null) => void
+  onDone: (message: string, batch: ImportBatch | null, missing: MissingAuto[]) => void
   /** "Fertige übernehmen": the rows with these fingerprints are stored, the rest stays in the preview. */
   onPartlyDone: (fingerprints: string[]) => void
   /** A part was taken over with a new series: the file is read again, so the rest meets the series (R28). */
@@ -787,11 +791,16 @@ function Preview({
     setError(null)
     try {
       const result = await commit.mutateAsync(request(selected))
+      const replaced = result.replacedAuto ?? 0
       const message =
         result.created === 0
           ? 'Nichts Neues: alle gewählten Zeilen waren schon importiert.'
-          : `${bookings(result.created)} übernommen.`
-      onDone(message, result.batch)
+          : `${bookings(result.created)} übernommen${
+              replaced > 0
+                ? `, ${replaced === 1 ? '1 automatischer Eintrag' : `${replaced} automatische Einträge`} durch die echte Buchung ersetzt`
+                : ''
+            }.`
+      onDone(message, result.batch, result.missingAuto ?? [])
     } catch (e) {
       setError(errorText(e, 'Übernehmen fehlgeschlagen.'))
     }
@@ -1087,6 +1096,9 @@ export function ImportPage() {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ message: string; batch: ImportBatch | null } | null>(null)
+  // P6: automatic entries the file did not contain; the user deletes or keeps each one
+  const [missing, setMissing] = useState<MissingAuto[]>([])
+  const deleteTransaction = useDeleteTransaction()
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -1179,6 +1191,38 @@ export function ImportPage() {
               )}
             </p>
           )}
+          {missing.length > 0 && (
+            <div className="card import-missing" aria-label="Nicht in der Datei">
+              <h3>Automatisch eingetragen, aber nicht in der Datei</h3>
+              <ul className="item-list">
+                {missing.map((entry) => (
+                  <li key={entry.id} className="account-row">
+                    <span className="item-main">
+                      <span className="item-name">{entry.description}</span>
+                      <span className="tx-meta">
+                        {formatDate(entry.date)} · {entry.accountName}
+                      </span>
+                    </span>
+                    <span className="item-amount">{formatSigned(entry.amount)}</span>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() =>
+                        void deleteTransaction
+                          .mutateAsync(entry.id)
+                          .then(() => setMissing((current) => current.filter((m) => m.id !== entry.id)))
+                      }
+                    >
+                      Eintrag löschen
+                    </button>
+                    <button type="button" onClick={() => setMissing((current) => current.filter((m) => m.id !== entry.id))}>
+                      Behalten
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -1188,9 +1232,10 @@ export function ImportPage() {
           preview={preview}
           accounts={accounts.data}
           categories={activeCategories}
-          onDone={(message, batch) => {
+          onDone={(message, batch, missingAuto) => {
             setPreview(null)
             setDone({ message, batch })
+            setMissing(missingAuto)
           }}
           onPartlyDone={markImported}
           onReload={() => void reload()}

@@ -213,17 +213,59 @@ public class TermService {
         return open;
     }
 
+    /** A term the import can fulfil: open, or entered automatically (autoEntryId, P6). */
+    public record ImportTerm(TermMatcher.Planned planned, Long autoEntryId) {
+    }
+
+    /** P6: open terms and terms with an automatic entry, planned date from and to, for the import. */
+    @Transactional(readOnly = true)
+    public List<ImportTerm> importTerms(LocalDate from, LocalDate to) {
+        Map<String, ItemTerm> rows = new HashMap<>();
+        termRepository.findBetween(currentUser.get(), from, to)
+                .forEach(row -> rows.put(key(row.getItemKey(), row.getTermDate()), row));
+        List<ImportTerm> terms = new ArrayList<>();
+        for (PlannedItem item : itemRepository.findAllOf(currentUser.get())) {
+            TermSchedule schedule = item.schedule();
+            if (schedule == null) {
+                continue;
+            }
+            for (LocalDate date : schedule.termsBetween(from, to)) {
+                ItemTerm row = rows.get(key(item.getItemKey(), date));
+                Long auto = row != null && row.getTransaction() != null && row.getTransaction().isAuto()
+                        ? row.getTransaction().getId() : null;
+                if (row == null || auto != null) {
+                    Fulfillment.Term term = term(item, date, null, false);
+                    terms.add(new ImportTerm(new TermMatcher.Planned(item.getId(), item.getItemKey(), date,
+                            term.dueDate(), item.getAmount(), item.getName(), term.categoryId(), term.toleranceDays()),
+                            auto));
+                }
+            }
+        }
+        return terms;
+    }
+
     /**
-     * Links the booking to the term of the item version on the planned date; 400 on the field when the item is
-     * unknown or another user's (R15), the date is no term of it, or the term is handled already.
+     * Links the booking to the term of the item version on the planned date; an automatic entry of the term is
+     * replaced: deleted, and the booking takes its place (P6). 400 on the field when the item is unknown or another
+     * user's (R15), the date is no term of it, or the term is handled otherwise. Returns true for a replacement.
      */
     @Transactional
-    public void link(long itemId, LocalDate date, Transaction transaction, String field) {
+    public boolean link(long itemId, LocalDate date, Transaction transaction, String field) {
         PlannedItem item = termItem(itemId, date, field);
-        if (termRepository.findByOwnerAndItemKeyAndTermDate(currentUser.get(), item.getItemKey(), date).isPresent()) {
+        ItemTerm row = termRepository.findByOwnerAndItemKeyAndTermDate(currentUser.get(), item.getItemKey(), date)
+                .orElse(null);
+        if (row == null) {
+            link(item.getItemKey(), date, transaction);
+            return false;
+        }
+        Transaction previous = row.getTransaction();
+        if (previous == null || !previous.isAuto()) {
             throw new InvalidFieldException(field, "Dieser Termin ist schon erledigt.");
         }
-        link(item.getItemKey(), date, transaction);
+        row.link(transaction);
+        termRepository.flush();
+        transactionRepository.delete(previous);
+        return true;
     }
 
     /** Links without checks, for terms just calculated by the caller. */

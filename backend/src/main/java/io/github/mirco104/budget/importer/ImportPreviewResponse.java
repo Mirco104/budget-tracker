@@ -21,9 +21,11 @@ public record ImportPreviewResponse(
 
     /**
      * P5: the term of a planned item the row fulfils, with the values of the item; recurringId is the id of the item
-     * version (name kept from R28 for the import page).
+     * version (name kept from R28 for the import page). autoEntryId is the automatic entry the row replaces (P6).
      */
-    public record Replaces(long recurringId, LocalDate date, String description, BigDecimal amount, Long categoryId) {
+    public record Replaces(
+            long recurringId, LocalDate date, String description, BigDecimal amount, Long categoryId,
+            Long autoEntryId) {
     }
 
     /**

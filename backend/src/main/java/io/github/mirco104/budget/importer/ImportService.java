@@ -185,23 +185,29 @@ public class ImportService {
                         .ifPresent(suggestion -> suggestions.put(c.index(), suggestion));
             }
         }
-        Map<Integer, Planned> matches = occurrenceMatches(fresh, transfers, suggestions);
+        Map<Long, Long> autoEntries = new HashMap<>();
+        Map<Integer, Planned> matches = occurrenceMatches(fresh, transfers, suggestions, autoEntries);
 
         Map<Integer, Entry> entries = new HashMap<>();
         for (Candidate c : candidates) {
             if (imported.contains(c.fingerprint())) {
-                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null));
+                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null, null));
                 continue;
             }
             ImportMatcher.Transfer transfer = transfers.get(c.index());
-            Long duplicateId = duplicates.get(c.index());
-            Status status = duplicateId != null ? Status.POSSIBLE_DUPLICATE : Status.NEW;
             Planned match = matches.get(c.index());
+            Long autoEntry = match == null ? null : autoEntries.get(autoKey(match));
+            Long duplicateId = duplicates.get(c.index());
+            // P6: the automatic entry the row replaces is no duplicate
+            if (duplicateId != null && duplicateId.equals(autoEntry)) {
+                duplicateId = null;
+            }
+            Status status = duplicateId != null ? Status.POSSIBLE_DUPLICATE : Status.NEW;
             // P5: a matching term goes before the suggestion, with the category of its item
             Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
             entries.put(c.line().number(), entry(c, status, null, suggestion, transfer,
-                    transferPeer(transfer, candidates, storedById, sources), match, duplicateOf));
+                    transferPeer(transfer, candidates, storedById, sources), match, autoEntry, duplicateOf));
         }
         List<Entry> ordered = file.lines().stream()
                 .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason())
@@ -294,7 +300,8 @@ public class ImportService {
 
     // P5: open terms around the dates of the file that the rows (no transfers) fulfil; saving items have no category
     private Map<Integer, Planned> occurrenceMatches(
-            List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Suggestion> suggestions) {
+            List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Suggestion> suggestions,
+            Map<Long, Long> autoEntries) {
         List<TermMatcher.Booking> bookings = fresh.stream()
                 .filter(c -> !transfers.containsKey(c.index()))
                 .map(c -> new TermMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(), c.text(),
@@ -305,10 +312,21 @@ public class ImportService {
         }
         LocalDate from = bookings.stream().map(TermMatcher.Booking::date).min(Comparator.naturalOrder()).orElseThrow();
         LocalDate to = bookings.stream().map(TermMatcher.Booking::date).max(Comparator.naturalOrder()).orElseThrow();
-        List<Planned> planned = termService.openBetween(from.minusDays(7), to.plusDays(7)).stream()
-                .filter(term -> term.categoryId() != null)
-                .toList();
+        List<Planned> planned = new ArrayList<>();
+        for (TermService.ImportTerm term : termService.importTerms(from.minusDays(7), to.plusDays(7))) {
+            if (term.planned().categoryId() != null) {
+                planned.add(term.planned());
+                if (term.autoEntryId() != null) {
+                    autoEntries.put(autoKey(term.planned()), term.autoEntryId());
+                }
+            }
+        }
         return TermMatcher.match(bookings, planned);
+    }
+
+    // A term by item version and planned date, for the automatic entries of the preview
+    private static long autoKey(Planned planned) {
+        return planned.itemId() * 100_000L + planned.date().toEpochDay();
     }
 
     // R27: the counterpart of a transfer for the hint of the preview; a row of the file with the name of its source
@@ -330,7 +348,7 @@ public class ImportService {
 
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,
             ImportMatcher.Transfer transfer, ImportPreviewResponse.TransferPeer transferPeer, Planned match,
-            DuplicateOf duplicateOf) {
+            Long autoEntry, DuplicateOf duplicateOf) {
         BankTransaction row = c.line().row();
         return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.bookingDate(), row.amount(),
                 c.description(), c.counterparty(), c.bankCategory(), CategorySuggester.key(c.text()),
@@ -339,7 +357,7 @@ public class ImportService {
                 transfer == null ? null : transfer.peerTransactionId(), transferPeer,
                 match == null ? null
                         : new Replaces(match.itemId(), match.date(), match.description(), match.amount().abs(),
-                                match.categoryId()),
+                                match.categoryId(), autoEntry),
                 duplicateOf);
     }
 
@@ -471,7 +489,7 @@ public class ImportService {
                 source -> source.moveTo(account),
                 () -> sourceRepository.save(new BankAccountSource(owner, account, key))));
         if (checked.isEmpty()) {
-            return new ImportResultResponse(null, 0, skipped);
+            return new ImportResultResponse(null, 0, skipped, 0, List.of());
         }
 
         LocalDate first = checked.stream().map(c -> c.row().date()).min(Comparator.naturalOrder()).orElseThrow();
@@ -492,11 +510,12 @@ public class ImportService {
         }
         transactionRepository.saveAll(created);
         Map<Integer, PlannedItem> createdSeries = new HashMap<>();
+        int replacedAuto = 0;
         for (int i = 0; i < checked.size(); i++) {
             Checked c = checked.get(i);
-            if (c.replaced() != null) {
-                termService.link(c.replaced().itemId(), c.replaced().date(), created.get(i),
-                        "rows[" + c.index() + "].replaces");
+            if (c.replaced() != null && termService.link(c.replaced().itemId(), c.replaced().date(), created.get(i),
+                    "rows[" + c.index() + "].replaces")) {
+                replacedAuto++;
             }
             if (c.series() != null) {
                 PlannedItem item = createdSeries.computeIfAbsent(c.series(), index -> {
@@ -507,7 +526,17 @@ public class ImportService {
                 termService.link(item.getItemKey(), seriesOccurrences.get(c.index()), created.get(i));
             }
         }
-        return new ImportResultResponse(ImportBatchResponse.from(batch), created.size(), skipped);
+        // P6: automatic entries of the accounts of the file within its dates that no row replaced
+        transactionRepository.flush();
+        java.util.Set<Long> accountIds = new java.util.HashSet<>();
+        accounts.values().forEach(account -> accountIds.add(account.getId()));
+        List<ImportResultResponse.MissingAuto> missing = transactionRepository
+                .findByOwnerAndDateBetweenOrderByDateDescIdDesc(owner, first, last).stream()
+                .filter(t -> t.isAuto() && accountIds.contains(t.getAccount().getId()))
+                .map(t -> new ImportResultResponse.MissingAuto(t.getId(), t.getDate(), t.getDescription(),
+                        t.getAmount(), t.getAccount().getName()))
+                .toList();
+        return new ImportResultResponse(ImportBatchResponse.from(batch), created.size(), skipped, replacedAuto, missing);
     }
 
     // R31: per row index the occurrence of its new series it replaces; 400 for a row without one at most 5 days away.
