@@ -3414,11 +3414,14 @@ button.account-open:hover {
 }
 
 /* --- Planung: average and weakest month as tiles (AP 27f4) --- */
+.income-stats-block {
+  margin: 8px 0 12px;
+}
 .income-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
-  margin: 8px 0 12px;
+  margin-bottom: 6px;
 }
 .income-stat {
   display: grid;
