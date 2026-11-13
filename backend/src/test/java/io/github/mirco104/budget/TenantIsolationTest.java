@@ -225,7 +225,7 @@ class TenantIsolationTest {
     private static String series(long categoryId) {
         return """
                 {"name": "Abo", "amount": -50, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
-                 "anchorDate": "2026-10-01", "validFrom": "2026-10"}
+                 "anchorDate": "2026-10-01", "entryMode": "MANUAL", "validFrom": "2026-10"}
                 """.formatted(categoryId);
     }
 

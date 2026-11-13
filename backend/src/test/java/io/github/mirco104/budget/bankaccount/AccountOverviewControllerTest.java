@@ -105,7 +105,7 @@ class AccountOverviewControllerTest {
     }
 
     @Test
-    void aPotLinkedToTheSavingsAccountHasItsBalance() throws Exception {
+    void aPotLinkedToTheSavingsAccountIsCoveredByIt() throws Exception {
         String item = mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
                         {"name": "Kfz-Versicherung", "amount": -1200, "categoryId": %d, "rhythmUnit": "MONTH",
                          "rhythmCount": 12, "anchorDate": "%s", "entryMode": "MANUAL", "validFrom": "%s"}"""
@@ -123,8 +123,16 @@ class AccountOverviewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reserveAccountId").value(tagesgeld));
 
+        // 27f2: the pot keeps its calculated balance (one month of 100 €); the account covers it
         mockMvc.perform(get("/api/dashboard").param("month", YearMonth.from(today).toString()))
-                .andExpect(jsonPath("$.reserves[0].balance").value(700.00));
+                .andExpect(jsonPath("$.reserves[0].balance").value(100.00));
+        mockMvc.perform(get("/api/reserves/by-account"))
+                .andExpect(jsonPath("$[0].accountName").value("Tagesgeld"))
+                .andExpect(jsonPath("$[0].saved").value(100.00))
+                .andExpect(jsonPath("$[0].target").value(1200.00))
+                .andExpect(jsonPath("$[0].accountBalance").value(700.00))
+                .andExpect(jsonPath("$[0].missing").value(0.00))
+                .andExpect(jsonPath("$[0].pots[0].name").value("Kfz-Versicherung"));
     }
 
     private void book(String json) throws Exception {

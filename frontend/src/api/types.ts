@@ -321,6 +321,20 @@ export interface AccountGroup {
   accounts: AccountLine[]
 }
 
+/**
+ * 27f2: the reserves of one savings account (accountId null: without account). saved and target sum the pots,
+ * missing is what the account balance lacks to cover saved (0 when covered, null without account).
+ */
+export interface ReserveGroup {
+  accountId: number | null
+  accountName: string | null
+  saved: number
+  target: number
+  accountBalance: number | null
+  missing: number | null
+  pots: ReservePot[]
+}
+
 /** P11: the app balance on the day of the bank balance and the difference (not booked). */
 export interface ReconcileResult {
   appBalance: number

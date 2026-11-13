@@ -3094,3 +3094,11 @@ a.expected-card {
   margin-top: 6px;
   padding-left: 32px;
 }
+.saving-progress .progress-fill,
+.saving-progress [data-testid='progress'] > * {
+  background: var(--saving);
+}
+.budget-left.covered {
+  color: var(--saving);
+  font-weight: 700;
+}

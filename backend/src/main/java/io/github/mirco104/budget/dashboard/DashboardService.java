@@ -29,16 +29,13 @@ public class DashboardService {
     private final TransactionRepository transactionRepository;
     private final PlanService planService;
     private final TermService termService;
-    private final io.github.mirco104.budget.bankaccount.AccountOverviewService accountOverviewService;
     private final CurrentUser currentUser;
     private final Clock clock;
     private final DashboardCalculator calculator = new DashboardCalculator();
 
     public DashboardService(
             CategoryService categoryService, TransactionRepository transactionRepository, PlanService planService,
-            TermService termService, CurrentUser currentUser, Clock clock,
-            io.github.mirco104.budget.bankaccount.AccountOverviewService accountOverviewService) {
-        this.accountOverviewService = accountOverviewService;
+            TermService termService, CurrentUser currentUser, Clock clock) {
         this.categoryService = categoryService;
         this.transactionRepository = transactionRepository;
         this.planService = planService;
@@ -110,9 +107,7 @@ public class DashboardService {
                     new ReserveCalculator.PotItem(item.getId(), item.getName(), item.getCategory().getId(),
                             item.getAmount().abs(), item.getRhythmCount(), item.schedule(),
                             firstMonth.get(item.getItemKey())),
-                    month, paid.getOrDefault(item.getItemKey(), BigDecimal.ZERO),
-                    item.getReserveAccount() == null ? null
-                            : accountOverviewService.balance(item.getReserveAccount(), month.atDay(1).minusDays(1)));
+                    month, paid.getOrDefault(item.getItemKey(), BigDecimal.ZERO), null);
             pots.add(pot);
             entries.add(new TransactionData(pot.categoryId(), pot.monthly().negate(), month.atDay(1), true));
             if (pot.shortfall().signum() > 0) {

@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { useAccounts, useLinkReserve, useReconcile } from '../api/accounts'
+import { useAccounts, useLinkReserve, useReconcile, useReservesByAccount } from '../api/accounts'
 import { useUpdateBankAccount } from '../api/bankAccounts'
 import { errorText } from '../api/client'
-import { useDashboard } from '../api/dashboard'
 import { usePlan } from '../api/plan'
-import type { AccountLine, AccountRole } from '../api/types'
+import type { AccountLine, AccountRole, ReserveGroup } from '../api/types'
 import { BankAccountSettings } from '../components/BankAccountSettings'
 import { Dialog } from '../components/ui/Dialog'
 import { Loading } from '../components/ui/Loading'
 import { PageHeader } from '../components/ui/PageHeader'
+import { ProgressBar } from '../components/ui/ProgressBar'
 import { currentMonth, formatDate, formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
 
 const ROLE_NAMES: Record<AccountRole, string> = { EVERYDAY: 'Alltag', SAVINGS: 'Sparen', DEPOT: 'Depot' }
@@ -20,10 +20,10 @@ const ROLE_NAMES: Record<AccountRole, string> = { EVERYDAY: 'Alltag', SAVINGS: '
 export function AccountsPage() {
   const accounts = useAccounts()
   const month = currentMonth()
-  const dashboard = useDashboard(month)
   const plan = usePlan(month)
   const updateAccount = useUpdateBankAccount()
   const linkReserve = useLinkReserve()
+  const reserves = useReservesByAccount()
   const [reconciling, setReconciling] = useState<AccountLine | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,7 +34,6 @@ export function AccountsPage() {
     return <p className="error">Konten konnten nicht geladen werden: {accounts.error.message}</p>
   }
   const savingsAccounts = accounts.data.filter((g) => g.role !== 'EVERYDAY').flatMap((g) => g.accounts)
-  const pots = dashboard.data?.reserves ?? []
 
   async function changeRole(account: AccountLine, role: AccountRole) {
     setError(null)
@@ -100,38 +99,19 @@ export function AccountsPage() {
           </section>
         ))}
 
-      {pots.length > 0 && (
+      {(reserves.data ?? []).length > 0 && (
         <section className="card account-group" aria-label="Rücklagen">
           <h2>Rücklagen</h2>
-          <ul className="item-list">
-            {pots.map((pot) => {
-              const item = plan.data?.items.find((i) => i.id === pot.itemId)
-              return (
-                <li key={pot.itemId} className="account-row">
-                  <span className="item-main">
-                    <span className="item-name">{pot.name}</span>
-                    <span className="tx-meta">
-                      {formatEuro(pot.balance)} von {formatEuro(pot.amount)} · monatlich {formatEuro(pot.monthly)}
-                      {pot.nextDue && ` · fällig am ${formatDate(pot.nextDue)}`}
-                    </span>
-                  </span>
-                  <select
-                    aria-label={`Konto der Rücklage ${pot.name}`}
-                    value={item?.reserveAccountId ?? ''}
-                    onChange={(e) =>
-                      linkReserve.mutate({ itemId: pot.itemId, accountId: e.target.value === '' ? null : Number(e.target.value) })
-                    }
-                  >
-                    <option value="">ohne Konto (gerechnet)</option>
-                    {savingsAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
-                </li>
-              )
-            })}
+          <ul className="budget-list">
+            {(reserves.data ?? []).map((group) => (
+              <ReserveGroupRow
+                key={group.accountId ?? 'none'}
+                group={group}
+                accountOf={(itemId) => plan.data?.items.find((i) => i.id === itemId)?.reserveAccountId ?? null}
+                savingsAccounts={savingsAccounts}
+                onLink={(itemId, accountId) => linkReserve.mutate({ itemId, accountId })}
+              />
+            ))}
           </ul>
         </section>
       )}
@@ -142,6 +122,75 @@ export function AccountsPage() {
 
       {reconciling && <ReconcileDialog account={reconciling} onClose={() => setReconciling(null)} />}
     </section>
+  )
+}
+
+/**
+ * 27f2: the reserves of one savings account (or without account) at a glance: saved of target with a bar, and on the
+ * right ✓ when the account balance covers them, otherwise what is missing. Open it shows the single reserves.
+ */
+function ReserveGroupRow({
+  group,
+  accountOf,
+  savingsAccounts,
+  onLink,
+}: {
+  group: ReserveGroup
+  accountOf: (itemId: number) => number | null
+  savingsAccounts: AccountLine[]
+  onLink: (itemId: number, accountId: number | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const missing = group.missing ?? 0
+  return (
+    <li className="budget-item">
+      <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="budget-name">{group.accountName ?? 'Ohne Konto'}</span>
+        <span className="budget-amount">
+          <span>
+            {formatEuro(group.saved)} / {formatEuro(group.target)}
+          </span>
+          {group.accountId !== null &&
+            (missing > 0 ? (
+              <span className="budget-left over">−{formatEuro(missing)}</span>
+            ) : (
+              <span className="budget-left covered" aria-label="gedeckt">
+                ✓
+              </span>
+            ))}
+        </span>
+      </button>
+      <div className="saving-progress">
+        <ProgressBar value={group.target > 0 ? group.saved / group.target : 0} />
+      </div>
+      {open && (
+        <ul className="item-list">
+          {group.pots.map((pot) => (
+            <li key={pot.itemId} className="account-row">
+              <span className="item-main">
+                <span className="item-name">{pot.name}</span>
+                <span className="tx-meta">
+                  {formatEuro(pot.balance)} / {formatEuro(pot.amount)}
+                  {pot.nextDue && ` · fällig ${formatDate(pot.nextDue)}`}
+                </span>
+              </span>
+              <select
+                aria-label={`Konto der Rücklage ${pot.name}`}
+                value={accountOf(pot.itemId) ?? ''}
+                onChange={(e) => onLink(pot.itemId, e.target.value === '' ? null : Number(e.target.value))}
+              >
+                <option value="">ohne Konto</option>
+                {savingsAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   )
 }
 

@@ -30,8 +30,14 @@ function renderPage() {
       ? groups
       : url.startsWith('/api/bank-accounts/1/balances')
         ? { appBalance: 1250, bankBalance: 1200, difference: -50 }
-        : url.startsWith('/api/dashboard')
-          ? { reserves: [] }
+        : url === '/api/reserves/by-account'
+          ? [
+              {
+                accountId: 2, accountName: 'Tagesgeld', saved: 1340, target: 2400, accountBalance: 1040, missing: 300,
+                pots: [{ itemId: 5, name: 'Kfz-Versicherung', categoryId: 3, amount: 1200, monthly: 100, balance: 1000,
+                  due: false, nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0 }],
+              },
+            ]
           : url.startsWith('/api/plan')
             ? { items: [] }
             : []
@@ -71,5 +77,17 @@ describe('AccountsPage', () => {
 
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Differenz −50,00 €: fehlt eine Buchung?')
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/1/balances')).toBe(true))
+  })
+
+  // 27f2: the reserves of an account at a glance, the single ones when opened
+  it('shows the reserves per account with what is missing on the account', async () => {
+    renderPage()
+    const reserves = await screen.findByRole('region', { name: 'Rücklagen' })
+    const row = await within(reserves).findByRole('button', { name: /Tagesgeld/ })
+    expect(row).toHaveTextContent('1.340,00 € / 2.400,00 €')
+    expect(row).toHaveTextContent('−300,00 €')
+    expect(within(reserves).queryByText('Kfz-Versicherung')).not.toBeInTheDocument()
+    fireEvent.click(row)
+    expect(within(reserves).getByText('Kfz-Versicherung')).toBeInTheDocument()
   })
 })

@@ -154,7 +154,7 @@ class TransferControllerTest {
         String json = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
                                 {"name": "Sparen", "amount": -500, "categoryId": %d, "rhythmUnit": "MONTH",
-                                 "rhythmCount": 1, "anchorDate": "2026-10-01", "validFrom": "2026-10"}"""
+                                 "rhythmCount": 1, "anchorDate": "2026-10-01", "entryMode": "MANUAL", "validFrom": "2026-10"}"""
                                 .formatted(wohnen)))
                 .andReturn().getResponse().getContentAsString();
         long item = ((Number) JsonPath.read(json, "$.id")).longValue();

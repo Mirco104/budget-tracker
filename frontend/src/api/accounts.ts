@@ -1,10 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
-import type { AccountGroup, ReconcileResult } from './types'
+import type { AccountGroup, ReconcileResult, ReserveGroup } from './types'
 
 /** Accounts by role with their app balance (P11). */
 export function useAccounts() {
   return useQuery({ queryKey: ['accounts'], queryFn: () => request<AccountGroup[]>('/accounts') })
+}
+
+/** 27f2: the reserve pots by their savings account, with the coverage by the account. */
+export function useReservesByAccount() {
+  return useQuery({ queryKey: ['accounts', 'reserves'], queryFn: () => request<ReserveGroup[]>('/reserves/by-account') })
 }
 
 /** P11: stores the balance from the bank and returns the difference to the app balance (not booked). */
