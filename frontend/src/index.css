@@ -3078,3 +3078,19 @@ a.expected-card {
 .reserve-row.short .tx-meta {
   color: var(--warn);
 }
+
+/* --- Planning after the first test (AP 27f2) --- */
+.unplanned-question {
+  display: grid;
+  gap: 8px;
+}
+.unplanned-question p {
+  margin: 0;
+}
+.plan-group .budget-list {
+  margin-top: 8px;
+}
+.plan-group .budget-item .item-list {
+  margin-top: 6px;
+  padding-left: 32px;
+}

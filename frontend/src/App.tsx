@@ -119,7 +119,7 @@ function SignedOut({ children }: { children: ReactNode }) {
 function SignedIn({ me }: { me: Me }) {
   const logout = useLogout()
   const page = usePage()
-  // The month of the overview; it stays when switching pages (decision 28: the other pages have their own time)
+  // The month of overview and planning (27f2); it stays when switching pages. Transaktionen has its own period.
   const [month, setMonth] = useState(currentMonth)
 
   return (
@@ -153,7 +153,7 @@ function SignedIn({ me }: { me: Me }) {
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
         {page === 'transactions' && <TransactionsRoute />}
-        {page === 'planning' && <PlanningPage />}
+        {page === 'planning' && <PlanningPage month={month} onMonthChange={setMonth} />}
         {page === 'evaluation' && (
           <Suspense fallback={<Loading text="Lade Auswertung …" />}>
             <EvaluationPage />

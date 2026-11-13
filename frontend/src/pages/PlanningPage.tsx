@@ -3,6 +3,7 @@ import { useCategories, useCreateCategory } from '../api/categories'
 import { useCreatePlannedItem, usePlan, useUpdatePlannedItem } from '../api/plan'
 import type { Category, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
+import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { InfoTip } from '../components/ui/InfoTip'
 import { Loading } from '../components/ui/Loading'
 import { MonthNav } from '../components/ui/MonthNav'
@@ -27,9 +28,14 @@ const GROUPS: { group: PlanGroup; title: string; hint: string }[] = [
 
 type DialogState = { item: PlannedItem | null; group?: PlanGroup; preset?: { name?: string; amount?: number; categoryId?: number } }
 
-/** The page owns its month: the normal month shown and the default of "Gilt ab" (section 19, decision 49). */
-export function PlanningPage() {
-  const [month, setMonth] = useState(currentMonth)
+/**
+ * The normal month shown and the default of "Gilt ab" (section 19, decision 49). The month is shared with the
+ * overview (27f2); without props the page keeps its own, starting at the current month.
+ */
+export function PlanningPage({ month: shared, onMonthChange }: { month?: string; onMonthChange?: (month: string) => void }) {
+  const [own, setOwn] = useState(currentMonth)
+  const month = shared ?? own
+  const setMonth = onMonthChange ?? setOwn
   return (
     <section>
       <PageHeader title="Planung">
@@ -132,13 +138,18 @@ function PlanHead({
         </div>
       </dl>
       {plan.unplanned > 0 ? (
-        <div className="plan-actions">
-          <button type="button" className="saving-button" onClick={onToSaving} disabled={busy}>
-            Zum Sparen
-          </button>
-          <button type="button" onClick={onToOther} disabled={busy}>
-            Zu Sonstiges
-          </button>
+        <div className="unplanned-question">
+          <p>
+            <strong>{formatEuro(plan.unplanned)} sind noch nicht verplant.</strong> Was soll damit passieren?
+          </p>
+          <div className="plan-actions">
+            <button type="button" className="saving-button" onClick={onToSaving} disabled={busy}>
+              Monatlich sparen
+            </button>
+            <button type="button" onClick={onToOther} disabled={busy}>
+              Als Puffer in „Sonstiges“
+            </button>
+          </div>
         </div>
       ) : (
         plan.unplanned === 0 &&
@@ -152,6 +163,42 @@ function PlanHead({
   )
 }
 
+/** 27f2: a category of fixed costs or budgets like a budget row of the overview; open it shows its items. */
+function CategoryRow({
+  name,
+  icon,
+  total,
+  items,
+  onEdit,
+}: {
+  name: string
+  icon: string
+  total: number
+  items: PlannedItem[]
+  onEdit: (item: PlannedItem) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <li className="budget-item">
+      <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <CategoryIcon icon={icon} />
+        <span className="budget-name">{name}</span>
+        <span className="budget-amount">
+          <span>{formatEuro(total)}</span>
+          <span className="budget-left">{items.length === 1 ? '1 Posten' : `${items.length} Posten`}</span>
+        </span>
+      </button>
+      {open && (
+        <ul className="item-list">
+          {items.map((item) => (
+            <ItemRow key={item.id} item={item} onEdit={() => onEdit(item)} />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 function GroupSection({
   title,
   hint,
@@ -159,6 +206,7 @@ function GroupSection({
   plan,
   onEdit,
   onAdd,
+  iconOf,
 }: {
   title: string
   hint: string
@@ -166,6 +214,7 @@ function GroupSection({
   plan: Plan
   onEdit: (item: PlannedItem) => void
   onAdd: () => void
+  iconOf: (categoryId: number) => string
 }) {
   const items = plan.items.filter((item) => item.group === group)
   const total = { INCOME: plan.income, FIXED: plan.fixed, BUDGET: plan.budgets, SAVING: plan.saving }[group]
@@ -182,27 +231,24 @@ function GroupSection({
       </div>
       {group === 'INCOME' && plan.averageIncome !== null && plan.minimumIncome !== null && (
         <p className="hint">
-          Zur Orientierung: Ø {formatEuro(plan.averageIncome)}, mindestens {formatEuro(plan.minimumIncome)} in den
-          letzten {plan.averageMonths === 1 ? 'Monat' : `${plan.averageMonths} Monaten`}.
+          Ø {formatEuro(plan.averageIncome)}, mindestens {formatEuro(plan.minimumIncome)} in den letzten{' '}
+          {plan.averageMonths === 1 ? 'Monat' : `${plan.averageMonths} Monaten`}.
         </p>
       )}
       {items.length === 0 && <p className="hint">Noch keine Posten.</p>}
       {byCategory ? (
-        categories.map((line) => (
-          <div key={line.categoryId} className="plan-category-block">
-            <div className="plan-category-head">
-              <span>{line.categoryName}</span>
-              <span>{formatEuro(line.total)}</span>
-            </div>
-            <ul className="item-list">
-              {items
-                .filter((item) => item.categoryId === line.categoryId)
-                .map((item) => (
-                  <ItemRow key={item.id} item={item} onEdit={() => onEdit(item)} />
-                ))}
-            </ul>
-          </div>
-        ))
+        <ul className="budget-list">
+          {categories.map((line) => (
+            <CategoryRow
+              key={line.categoryId}
+              name={line.categoryName}
+              icon={iconOf(line.categoryId)}
+              total={line.total}
+              items={items.filter((item) => item.categoryId === line.categoryId)}
+              onEdit={onEdit}
+            />
+          ))}
+        </ul>
       ) : (
         <ul className="item-list">
           {items.map((item) => (
@@ -311,6 +357,7 @@ function PlanningContent({ month }: { month: string }) {
           plan={data}
           onEdit={(item) => setDialog({ item })}
           onAdd={() => setDialog({ item: null, group })}
+          iconOf={(id) => categories.data?.find((c) => c.id === id)?.icon ?? 'tag'}
         />
       ))}
       {dialog && (

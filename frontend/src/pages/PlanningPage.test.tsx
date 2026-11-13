@@ -104,31 +104,36 @@ describe('PlanningPage', () => {
 
     const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
     expect(within(fixed).getByText('Wohnen')).toBeInTheDocument()
+    // 27f2: categories open like the budget rows of the overview
+    expect(within(fixed).queryByRole('button', { name: /Kfz-Versicherung/ })).not.toBeInTheDocument()
+    fireEvent.click(within(fixed).getByRole('button', { name: /Mobilität/ }))
+    fireEvent.click(within(fixed).getByRole('button', { name: /Wohnen/ }))
     expect(within(fixed).getByRole('button', { name: /Kfz-Versicherung/ })).toHaveTextContent('1.200,00 € jährlich')
     expect(within(fixed).getByRole('button', { name: /Kfz-Versicherung/ })).toHaveTextContent('100,00 €')
     expect(within(fixed).getByRole('button', { name: /Miete/ })).toHaveTextContent('automatisch')
     expect(screen.getByRole('region', { name: 'Budgets (variable Kosten)' })).toHaveTextContent('Lebensmittel')
     expect(screen.getByRole('region', { name: 'Sparen' })).toHaveTextContent('Notgroschen')
     expect(screen.getByRole('region', { name: 'Einkommen' })).toHaveTextContent('Ø 2.450,00 €')
+    expect(screen.getByRole('region', { name: 'Einkommen' })).not.toHaveTextContent('Zur Orientierung')
   })
 
-  it('shows what is not planned with the actions Zum Sparen and Zu Sonstiges', async () => {
+  it('asks what to do with the part not planned', async () => {
     renderPage()
 
-    expect(await screen.findByText('Nicht verplant')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Zum Sparen' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Zu Sonstiges' })).toBeInTheDocument()
+    expect(await screen.findByText('800,00 € sind noch nicht verplant.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monatlich sparen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Als Puffer in „Sonstiges“' })).toBeInTheDocument()
   })
 
   it('says when everything is planned and warns when overplanned', async () => {
     renderPage({ ...plan, unplanned: 0 })
     expect(await screen.findByText(/Alles verplant/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Zum Sparen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Monatlich sparen' })).not.toBeInTheDocument()
   })
 
   it('creates a budget for the rest under Sonstiges, creating the category first', async () => {
     const fetchMock = renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Zu Sonstiges' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Als Puffer in „Sonstiges“' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/planned-items')).toBe(true))
     const category = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
@@ -171,6 +176,7 @@ describe('PlanningPage', () => {
 
   it('changes an item from the month the page shows', async () => {
     const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /Wohnen/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Miete/ }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Posten bearbeiten' })

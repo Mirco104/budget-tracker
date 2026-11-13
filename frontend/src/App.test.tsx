@@ -146,13 +146,14 @@ describe('App', () => {
   })
 
   // Decision 28: the planning page has its own month, starting at the current month
-  it('starts the planning at the current month', async () => {
+  // 27f2: overview and planning share their month
+  it('opens the planning at the month chosen on the overview', async () => {
     await renderApp()
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
 
     goTo('#/planung')
 
-    expect(await screen.findByLabelText('Monat wählen', { selector: 'input' })).toHaveValue(currentMonth())
+    expect(await screen.findByLabelText('Monat wählen', { selector: 'input' })).toHaveValue(shiftMonth(currentMonth(), 1))
   })
 
   // The analysis page is loaded on first use, because of the chart library
