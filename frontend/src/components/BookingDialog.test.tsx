@@ -308,6 +308,7 @@ describe('BookingDialog', () => {
     expect(options).toEqual([
       'Kategorie wählen …',
       'Umbuchung zwischen eigenen Konten (zählt nicht)',
+      'Sparen (auf ein Spar- oder Depotkonto)',
       'Wohnen',
       'Freizeit',
       'Lebensmittel',

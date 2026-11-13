@@ -71,7 +71,7 @@ export function BookingList({ entries, categories, today, showAccount = false, o
                       <span className="tx-main">
                         <span className="tx-description">{entry.description}</span>
                         <span className="tx-meta">
-                          {entry.transfer ? 'Umbuchung' : entry.categoryName}
+                          {entry.saving ? 'Sparen' : entry.transfer ? 'Umbuchung' : entry.categoryName}
                           {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
                           {entry.fix && (
                             <span className="badge" title="Fix sind Ausgaben, die zu einem geplanten Posten passen, z. B. Miete, Versicherungen, Abos.">

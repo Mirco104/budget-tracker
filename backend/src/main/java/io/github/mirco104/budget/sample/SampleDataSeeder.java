@@ -65,6 +65,7 @@ public class SampleDataSeeder implements ApplicationRunner {
     private final TransactionRepository transactionRepository;
     private final BankAccountService bankAccountService;
     private final io.github.mirco104.budget.goal.SavingGoalService goalService;
+    private final io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository;
     private final String password;
 
     public SampleDataSeeder(
@@ -72,8 +73,10 @@ public class SampleDataSeeder implements ApplicationRunner {
             TransactionService transactionService, PlanService planService, PlannedItemRepository itemRepository,
             TermService termService, TransactionRepository transactionRepository, BankAccountService bankAccountService,
             io.github.mirco104.budget.goal.SavingGoalService goalService,
+            io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository,
             @Value("${app.sample.password}") String password) {
         this.goalService = goalService;
+        this.statementRepository = statementRepository;
         this.userRepository = userRepository;
         this.userService = userService;
         this.categoryService = categoryService;
@@ -109,6 +112,8 @@ public class SampleDataSeeder implements ApplicationRunner {
         d.fixed("-200", "ETF-Sparplan", "Investitionen", 1, "2025-01-15", null);
         d.fixed("-85", "Haftpflicht", "Versicherungen", 12, "2025-03-15", null);
         d.fixed("-240", "Kfz-Versicherung", "Versicherungen", 6, "2025-04-01", null);
+        // Concept 3.4, P8: a savings account that holds the reserve of the car insurance
+        d.savingsAccountFor("Tagesgeld", "Kfz-Versicherung", "500");
 
         d.budget("20", "Gesundheit", FIRST_MONTH);
         d.budget("400", "Lebensmittel", FIRST_MONTH);
@@ -239,6 +244,28 @@ public class SampleDataSeeder implements ApplicationRunner {
                 item = itemRepository.findById(item.getId()).orElseThrow();
             }
             enterPastTerms(item);
+        }
+
+        /**
+         * A savings account (role Sparen) with a fictional balance from the bank on the last sample day, linked to the
+         * reserve pot of the rare item with the given name (P8, P11).
+         */
+        void savingsAccountFor(String accountName, String itemName, String balance) {
+            io.github.mirco104.budget.bankaccount.BankAccount account = bankAccountService.create(accountName, null);
+            account.setRole(io.github.mirco104.budget.bankaccount.AccountRole.SAVINGS);
+            statementRepository.save(statement(account, LAST_MONTH.atEndOfMonth(), new BigDecimal(balance)));
+            itemRepository.findAllOf(currentOwner()).stream()
+                    .filter(item -> item.getName().equals(itemName))
+                    .findFirst()
+                    .ifPresent(item -> planService.linkReserve(item.getId(), account.getId()));
+        }
+
+        private io.github.mirco104.budget.bankaccount.BankStatement statement(
+                io.github.mirco104.budget.bankaccount.BankAccount account, LocalDate date, BigDecimal amount) {
+            io.github.mirco104.budget.bankaccount.BankStatement statement =
+                    new io.github.mirco104.budget.bankaccount.BankStatement(currentOwner(), account, date);
+            statement.setAmount(amount);
+            return statement;
         }
 
         /** An automatic weekly item (decision 50). */

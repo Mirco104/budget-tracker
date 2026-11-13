@@ -6,6 +6,7 @@ export const ROUTES = {
   transactions: '#/transaktionen',
   planning: '#/planung',
   evaluation: '#/auswertung',
+  accounts: '#/konten',
   settings: '#/einstellungen',
 } as const
 

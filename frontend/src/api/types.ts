@@ -46,6 +46,8 @@ export interface Transaction {
   /** P8: paid explicitly from the reserve pot of the rare item with this key, or from a saving goal. */
   reserveItemKey?: string | null
   savingGoalId?: number | null
+  /** P1: the kind Sparen. */
+  saving?: boolean
 }
 
 /** A term of a planned item: the id of the item version and the planned date (P5). */
@@ -68,6 +70,8 @@ export interface TransactionInput {
   /** P8: "aus Rücklage / Ersparnissen bezahlen": the pot of a rare item or a saving goal. */
   reserveItemKey?: string | null
   savingGoalId?: number | null
+  /** P1: the kind Sparen, a transfer to a savings or depot account without category. */
+  saving?: boolean
 }
 
 /** A saving goal (concept 3.6): saved is what its saving bookings brought minus what was paid from it. */
@@ -138,6 +142,8 @@ export interface PlannedItem {
   monthlyShare: number
   savingGoalId?: number | null
   savingGoalName?: string | null
+  /** P8: the savings account of the reserve pot; null for a calculated pot. */
+  reserveAccountId?: number | null
 }
 
 /** Create or change a planned item; validFrom is the month from which the item or the change applies. */
@@ -267,7 +273,13 @@ export interface DashboardData {
   categories: CategoryLine[]
   income: IncomeLine[]
   /** P9: planned saving of the month (monthly shares) and the saving rate in percent, with the saving items. */
-  saving: { planned: number; rate: number | null; items: { name: string; monthly: number }[] } | null
+  saving: {
+    planned: number
+    rate: number | null
+    items: { name: string; monthly: number }[]
+    /** P1: what was saved in the month (bookings of the kind Sparen). */
+    actual?: number
+  } | null
   /** P5: terms of the month without a booking yet and their sum with sign. */
   expected: { count: number; total: number } | null
   /** P8: the totals of the budget lines with the reserve pots; null when no pot or saving payment changes them. */
@@ -284,6 +296,36 @@ export interface BankAccount {
   defaultAccount: boolean
   archived: boolean
   used: boolean
+  /** Concept 3.4: only Alltag counts in income and expenses (P1). */
+  role?: AccountRole
+}
+
+export type AccountRole = 'EVERYDAY' | 'SAVINGS' | 'DEPOT'
+
+/** One account on the page Konten: app balance today (P11) and the last balance from the bank. */
+export interface AccountLine {
+  id: number
+  name: string
+  iban: string | null
+  role: AccountRole
+  defaultAccount: boolean
+  archived: boolean
+  balance: number
+  statementDate: string | null
+  statementAmount: number | null
+}
+
+export interface AccountGroup {
+  role: AccountRole
+  total: number
+  accounts: AccountLine[]
+}
+
+/** P11: the app balance on the day of the bank balance and the difference (not booked). */
+export interface ReconcileResult {
+  appBalance: number
+  bankBalance: number
+  difference: number
 }
 
 export interface BankAccountInput {
@@ -297,6 +339,7 @@ export interface BankAccountUpdate {
   iban: string | null
   archived: boolean
   defaultAccount: boolean
+  role?: AccountRole
 }
 
 export interface FieldError {

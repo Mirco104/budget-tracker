@@ -9,6 +9,7 @@ const PATHS = {
     </>
   ),
   evaluation: <path d="M5 20V11M11 20V5M17 20v-6M3 20h18" />,
+  accounts: <path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3 3 8h18z" />,
   settings: (
     <>
       <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />

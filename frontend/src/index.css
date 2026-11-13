@@ -3001,3 +3001,25 @@ button.tick.done {
   border-left-color: var(--warn);
   color: var(--warn);
 }
+
+/* --- Konten (concept 4.4, AP 27f) --- */
+.account-group {
+  margin-bottom: 16px;
+}
+.account-group h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.account-row .item-main {
+  flex: 1;
+}
+.account-row select {
+  max-width: 45%;
+}

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
 import type { Me } from './api/types'
 import { AccountMenu } from './components/ui/AccountMenu'
@@ -26,6 +27,7 @@ const TABS: { page: Page; label: string; icon: IconName }[] = [
   { page: 'transactions', label: 'Transaktionen', icon: 'transactions' },
   { page: 'planning', label: 'Planung', icon: 'planning' },
   { page: 'evaluation', label: 'Auswertung', icon: 'evaluation' },
+  { page: 'accounts', label: 'Konten', icon: 'accounts' },
 ]
 
 // US15: an invitation link opens the app with ?einladung=<token>
@@ -158,6 +160,7 @@ function SignedIn({ me }: { me: Me }) {
           </Suspense>
         )}
         {page === 'settings' && <SettingsPage me={me} />}
+        {page === 'accounts' && <AccountsPage />}
         <LegalLinks />
       </main>
     </>

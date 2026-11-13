@@ -110,6 +110,7 @@ function DashboardContent({ month }: { month: string }) {
             <dd>{formatEuro(data.saving.planned)}</dd>
             <dd className="tile-note">
               {data.saving.rate !== null ? `Sparquote ${data.saving.rate.toLocaleString('de-DE')} %` : 'geplant'}
+              {data.saving.actual ? ` · gespart ${formatEuro(data.saving.actual)}` : ''}
               {data.saving.items.length > 0 && (
                 <>
                   {' '}

@@ -74,6 +74,9 @@ class SampleDataSeederTest {
     private io.github.mirco104.budget.goal.SavingGoalService goalService;
 
     @Autowired
+    private io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository;
+
+    @Autowired
     private WebApplicationContext context;
 
     private SampleDataSeeder seeder;
@@ -81,7 +84,8 @@ class SampleDataSeederTest {
     @BeforeEach
     void seed() {
         seeder = new SampleDataSeeder(userRepository, userService, categoryService, transactionService, planService,
-                itemRepository, termService, transactionRepository, bankAccountService, goalService, "sample-only-password");
+                itemRepository, termService, transactionRepository, bankAccountService, goalService, statementRepository,
+                "sample-only-password");
         seeder.run(new DefaultApplicationArguments());
     }
 

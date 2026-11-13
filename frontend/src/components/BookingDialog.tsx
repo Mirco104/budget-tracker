@@ -45,6 +45,8 @@ const QUICK_PICKS = 4
 
 /** The value of the category field for a transfer (R27). */
 const TRANSFER = 'transfer'
+/** The value of the category field for the kind Sparen (P1): a transfer to a savings or depot account. */
+const SAVING = 'saving'
 /** The value of a field that opens the name field for a new category or account (08.11.2026). */
 const NEW = 'new'
 
@@ -113,7 +115,15 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const [description, setDescription] = useState(entry?.description ?? term?.name ?? '')
   // TRANSFER stands for a transfer between own accounts, which has no category (R27)
   const [categoryId, setCategoryId] = useState(
-    entry ? (entry.transfer ? TRANSFER : String(entry.categoryId)) : term?.categoryId ? String(term.categoryId) : '',
+    entry
+      ? entry.saving
+        ? SAVING
+        : entry.transfer
+          ? TRANSFER
+          : String(entry.categoryId)
+      : term?.categoryId
+        ? String(term.categoryId)
+        : '',
   )
   // '' is the default account (R26)
   const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : term ? String(term.accountId) : '')
@@ -137,7 +147,8 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const suggested =
     categoryId === '' && suggestedId != null ? categories.find((c) => c.id === suggestedId && !c.archived) : undefined
 
-  const transfer = categoryId === TRANSFER
+  const saving = categoryId === SAVING
+  const transfer = categoryId === TRANSFER || saving
 
   function chooseCategory(value: string) {
     if (value === NEW) {
@@ -207,7 +218,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           ? { savingGoalId: Number(paidFrom.slice(5)) }
           : {}
     const single = transfer
-      ? { ...common, date, transfer: true }
+      ? { ...common, date, transfer: true, ...(saving ? { saving: true } : {}) }
       : { ...common, categoryId: Number(categoryId), date, ...linked, ...reserve }
     if (entry?.id != null) {
       return updateTransaction.mutateAsync({ id: entry.id, input: single })
@@ -320,6 +331,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           >
             <option value="">Kategorie wählen …</option>
             {!term && <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>}
+            {!term && <option value={SAVING}>Sparen (auf ein Spar- oder Depotkonto)</option>}
             {options.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
