@@ -247,7 +247,7 @@ describe('ImportPage', () => {
   it('replaces the found occurrence unless the user unticks it', async () => {
     const fetchMock = renderPage()
     await upload()
-    const replace = within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“ vom 03.11.2026/ })
+    const replace = within(row('Kino Nord')[0]).getByRole('checkbox', { name: /erfüllt „Kino-Abo“ vom 03.11.2026/ })
     expect(replace).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
@@ -258,7 +258,7 @@ describe('ImportPage', () => {
 
     fetchMock.mockClear()
     await upload()
-    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“/ }))
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: /erfüllt „Kino-Abo“/ }))
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
@@ -336,7 +336,7 @@ describe('ImportPage', () => {
 
     for (const name of ['Miete 2026-01-01', 'Miete 2026-02-01', 'Miete 2026-03-01']) {
       expect(within(row(name)[0]).getByRole('combobox', { name: `Kategorie für ${name}` })).toHaveValue('')
-      expect(within(row(name)[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+      expect(within(row(name)[0]).getByRole('checkbox', { name: /erfüllt „Miete“/ })).toBeChecked()
     }
     expect(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' })).toBeInTheDocument()
     expect(within(matchCard()).queryByRole('button', { name: 'Zurücknehmen' })).not.toBeInTheDocument()
@@ -349,10 +349,10 @@ describe('ImportPage', () => {
     fireEvent.change(within(row('Miete 2026-01-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-01-01' }), {
       target: { value: '1' },
     })
-    fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ }))
+    fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /erfüllt „Miete“/ }))
 
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (2)' }))
-    expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+    expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /erfüllt „Miete“/ })).toBeChecked()
     expect(within(row('Miete 2026-03-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-03-01' })).toHaveValue('1')
   })
 
