@@ -21,7 +21,8 @@ public record TransactionResponse(
         boolean auto,
         boolean fix,
         java.util.UUID reserveItemKey,
-        Long savingGoalId) {
+        Long savingGoalId,
+        boolean saving) {
 
     public static TransactionResponse from(Transaction transaction, boolean fix) {
         Category category = transaction.getCategory();
@@ -38,6 +39,7 @@ public record TransactionResponse(
                 transaction.isAuto(),
                 fix,
                 transaction.getReserveItemKey(),
-                transaction.getSavingGoal() == null ? null : transaction.getSavingGoal().getId());
+                transaction.getSavingGoal() == null ? null : transaction.getSavingGoal().getId(),
+                transaction.isSaving());
     }
 }

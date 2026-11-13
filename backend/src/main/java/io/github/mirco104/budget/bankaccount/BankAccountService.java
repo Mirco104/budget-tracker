@@ -18,17 +18,19 @@ public class BankAccountService {
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
     private final PlannedItemRepository itemRepository;
+    private final BankStatementRepository statementRepository;
     private final BankAccountSourceRepository sourceRepository;
     private final CurrentUser currentUser;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
-            PlannedItemRepository itemRepository, BankAccountSourceRepository sourceRepository,
+            PlannedItemRepository itemRepository, BankStatementRepository statementRepository, BankAccountSourceRepository sourceRepository,
             CurrentUser currentUser) {
         this.sourceRepository = sourceRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.transactionRepository = transactionRepository;
         this.itemRepository = itemRepository;
+        this.statementRepository = statementRepository;
         this.currentUser = currentUser;
     }
 
@@ -83,6 +85,9 @@ public class BankAccountService {
             account.setDefaultAccount(true);
         }
         account.update(name, iban, request.archived());
+        if (request.role() != null) {
+            account.setRole(request.role());
+        }
         return BankAccountResponse.from(account, isUsed(account));
     }
 
@@ -124,7 +129,8 @@ public class BankAccountService {
 
     private boolean isUsed(BankAccount account) {
         return transactionRepository.existsByAccountId(account.getId())
-                || itemRepository.existsByAccountId(account.getId());
+                || itemRepository.existsByAccountId(account.getId())
+                || statementRepository.existsByAccountId(account.getId());
     }
 
     private void checkName(String name, Long id) {

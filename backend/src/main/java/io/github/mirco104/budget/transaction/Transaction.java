@@ -43,6 +43,10 @@ public class Transaction {
     @Column(nullable = false)
     private boolean transfer;
 
+    // P1: a transfer to a savings or depot account, the kind Sparen
+    @Column(nullable = false)
+    private boolean saving;
+
     // P6: entered by the app from the plan ("automatisch")
     @Column(nullable = false)
     private boolean auto;
@@ -197,5 +201,14 @@ public class Transaction {
 
     public io.github.mirco104.budget.goal.SavingGoal getSavingGoal() {
         return savingGoal;
+    }
+
+    /** P1: the kind Sparen, a transfer without category that counts as saving. */
+    public boolean isSaving() {
+        return saving;
+    }
+
+    public void markSaving(boolean saving) {
+        this.saving = saving && transfer;
     }
 }

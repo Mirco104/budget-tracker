@@ -77,6 +77,7 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
+        transaction.markSaving(Boolean.TRUE.equals(request.saving()));
         payFrom(transaction, request);
         Transaction saved = transactionRepository.save(transaction);
         if (request.replaces() != null) {
@@ -95,6 +96,7 @@ public class TransactionService {
                 request.date(),
                 categoryOf(request),
                 bankAccountService.findBookable(request.accountId()));
+        transaction.markSaving(Boolean.TRUE.equals(request.saving()));
         payFrom(transaction, request);
         // R27: a transfer fulfils no term
         if (transaction.isTransfer()) {
@@ -141,7 +143,7 @@ public class TransactionService {
 
     // R27: a transfer has no category (400 if one is sent), every other booking needs one
     private Category categoryOf(TransactionRequest request) {
-        if (Boolean.TRUE.equals(request.transfer())) {
+        if (Boolean.TRUE.equals(request.transfer()) || Boolean.TRUE.equals(request.saving())) {
             if (request.categoryId() != null) {
                 throw new InvalidFieldException("categoryId", "Eine Umbuchung hat keine Kategorie.");
             }

@@ -29,13 +29,16 @@ public class DashboardService {
     private final TransactionRepository transactionRepository;
     private final PlanService planService;
     private final TermService termService;
+    private final io.github.mirco104.budget.bankaccount.AccountOverviewService accountOverviewService;
     private final CurrentUser currentUser;
     private final Clock clock;
     private final DashboardCalculator calculator = new DashboardCalculator();
 
     public DashboardService(
             CategoryService categoryService, TransactionRepository transactionRepository, PlanService planService,
-            TermService termService, CurrentUser currentUser, Clock clock) {
+            TermService termService, CurrentUser currentUser, Clock clock,
+            io.github.mirco104.budget.bankaccount.AccountOverviewService accountOverviewService) {
+        this.accountOverviewService = accountOverviewService;
         this.categoryService = categoryService;
         this.transactionRepository = transactionRepository;
         this.planService = planService;
@@ -107,7 +110,9 @@ public class DashboardService {
                     new ReserveCalculator.PotItem(item.getId(), item.getName(), item.getCategory().getId(),
                             item.getAmount().abs(), item.getRhythmCount(), item.schedule(),
                             firstMonth.get(item.getItemKey())),
-                    month, paid.getOrDefault(item.getItemKey(), BigDecimal.ZERO), null);
+                    month, paid.getOrDefault(item.getItemKey(), BigDecimal.ZERO),
+                    item.getReserveAccount() == null ? null
+                            : accountOverviewService.balance(item.getReserveAccount(), month.atDay(1).minusDays(1)));
             pots.add(pot);
             entries.add(new TransactionData(pot.categoryId(), pot.monthly().negate(), month.atDay(1), true));
             if (pot.shortfall().signum() > 0) {
@@ -130,7 +135,11 @@ public class DashboardService {
                 .map(item -> new DashboardResponse.SavingLine(item.getName(),
                         PlanCalculator.monthlyShare(item.getAmount(), item.getRhythmUnit(), item.getRhythmCount())))
                 .toList();
-        return new DashboardResponse.SavingCard(plan.saving(), plan.savingRate(), items);
+        // P1: what was saved in the month, the bookings of the kind Sparen from everyday accounts
+        BigDecimal actual = transactionRepository.findSavingBetween(currentUser.get(), month.atDay(1), month.atEndOfMonth())
+                .stream().map(t -> t.getAmount().negate()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new DashboardResponse.SavingCard(plan.saving(), plan.savingRate(), items,
+                actual.setScale(2, java.math.RoundingMode.HALF_UP));
     }
 
     // P5: the terms of the month that are still expected or missed

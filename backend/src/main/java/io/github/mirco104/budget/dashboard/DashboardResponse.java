@@ -58,7 +58,7 @@ public record DashboardResponse(
     }
 
     /** P9: planned saving of the month (monthly shares), saving rate in percent (null without planned income). */
-    public record SavingCard(BigDecimal planned, BigDecimal rate, List<SavingLine> items) {
+    public record SavingCard(BigDecimal planned, BigDecimal rate, List<SavingLine> items, BigDecimal actual) {
     }
 
     public record SavingLine(String name, BigDecimal monthly) {

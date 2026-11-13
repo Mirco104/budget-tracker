@@ -47,6 +47,7 @@ public class AccountService {
     private final PlannedItemRepository itemRepository;
     private final ItemTermRepository termRepository;
     private final io.github.mirco104.budget.goal.SavingGoalRepository goalRepository;
+    private final io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository;
     private final InvitationRepository invitationRepository;
     private final PasswordResetRepository passwordResetRepository;
     private final BankAccountRepository bankAccountRepository;
@@ -59,6 +60,7 @@ public class AccountService {
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository, PlannedItemRepository itemRepository,
             ItemTermRepository termRepository, io.github.mirco104.budget.goal.SavingGoalRepository goalRepository,
+            io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository,
             InvitationRepository invitationRepository,
             BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
             ImportBatchRepository importBatchRepository, PasswordResetRepository passwordResetRepository,
@@ -75,6 +77,7 @@ public class AccountService {
         this.itemRepository = itemRepository;
         this.termRepository = termRepository;
         this.goalRepository = goalRepository;
+        this.statementRepository = statementRepository;
         this.invitationRepository = invitationRepository;
         this.clock = clock;
     }
@@ -165,6 +168,7 @@ public class AccountService {
         itemRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);
         goalRepository.deleteByOwner(user);
+        statementRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);
         importBatchRepository.deleteByOwner(user);
         categoryRepository.deleteByOwner(user);

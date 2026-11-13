@@ -20,9 +20,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("""
             select t from Transaction t
             where t.owner = :owner and t.transfer = false and t.date between :from and :to
+            and t.account.role = io.github.mirco104.budget.bankaccount.AccountRole.EVERYDAY
             order by t.date desc, t.id desc
             """)
     List<Transaction> findCountedBetween(User owner, LocalDate from, LocalDate to);
+
+    /** P1: the bookings of the kind Sparen on everyday accounts in the period. */
+    @Query("""
+            select t from Transaction t
+            where t.owner = :owner and t.saving = true and t.date between :from and :to
+            and t.account.role = io.github.mirco104.budget.bankaccount.AccountRole.EVERYDAY
+            """)
+    List<Transaction> findSavingBetween(User owner, LocalDate from, LocalDate to);
+
+    /** P11: every booking of the user with its account, transfers included. */
+    @EntityGraph(attributePaths = "account")
+    @Query("select t from Transaction t where t.owner = :owner")
+    List<Transaction> findAllWithAccount(User owner);
 
     /** R27: the transfers of the period, for the counterparts of an import. */
     @EntityGraph(attributePaths = {"account"})

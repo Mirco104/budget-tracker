@@ -29,7 +29,8 @@ public record PlannedItemResponse(
         PlanCalculator.Group group,
         BigDecimal monthlyShare,
         Long savingGoalId,
-        String savingGoalName) {
+        String savingGoalName,
+        Long reserveAccountId) {
 
     static PlannedItemResponse from(PlannedItem item) {
         return new PlannedItemResponse(
@@ -52,6 +53,7 @@ public record PlannedItemResponse(
                 PlanCalculator.groupOf(item.data()),
                 PlanCalculator.monthlyShare(item.getAmount(), item.getRhythmUnit(), item.getRhythmCount()),
                 item.getSavingGoal() == null ? null : item.getSavingGoal().getId(),
-                item.getSavingGoal() == null ? null : item.getSavingGoal().getName());
+                item.getSavingGoal() == null ? null : item.getSavingGoal().getName(),
+                item.getReserveAccount() == null ? null : item.getReserveAccount().getId());
     }
 }

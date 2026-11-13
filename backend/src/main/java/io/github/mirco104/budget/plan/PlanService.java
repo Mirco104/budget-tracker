@@ -215,6 +215,26 @@ public class PlanService {
                         .orElseThrow(() -> new InvalidFieldException("savingGoalId", "Das Sparziel gibt es nicht.")));
     }
 
+    /** P8: links the pot of a rare item (all versions) to a savings or depot account, or unlinks it. */
+    @Transactional
+    public PlannedItemResponse linkReserve(long id, Long accountId) {
+        PlannedItem item = find(id);
+        if (item.getRhythmUnit() != RhythmUnit.MONTH || item.getRhythmCount() < 2 || item.isSaving()) {
+            throw new InvalidFieldException("accountId", "Nur ein seltener Posten hat eine Rücklage.");
+        }
+        BankAccount account = null;
+        if (accountId != null) {
+            account = bankAccountService.findBookable(accountId);
+            if (account.getRole() == io.github.mirco104.budget.bankaccount.AccountRole.EVERYDAY) {
+                throw new InvalidFieldException("accountId", "Eine Rücklage liegt auf einem Spar- oder Depotkonto.");
+            }
+        }
+        for (PlannedItem version : itemRepository.findByItemKeyAndOwner(item.getItemKey(), currentUser.get())) {
+            version.setReserveAccount(account);
+        }
+        return PlannedItemResponse.from(item);
+    }
+
     // Decision 51: income and fixed costs automatically, saving when ticked off, budgets by the user
     static EntryMode defaultMode(boolean saving, BigDecimal amount, RhythmUnit unit) {
         return switch (PlanCalculator.groupOf(saving, amount, unit)) {

@@ -84,6 +84,11 @@ public class PlannedItem {
     @Column(nullable = false)
     private LocalDate autoFrom;
 
+    // P8: the savings account of the reserve pot of a rare item; null for a calculated pot
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reserve_account_id")
+    private BankAccount reserveAccount;
+
     // Concept 3.6: the saving goal of a saving item
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "saving_goal_id")
@@ -212,5 +217,13 @@ public class PlannedItem {
 
     public YearMonth getValidTo() {
         return validTo == null ? null : YearMonth.from(validTo);
+    }
+
+    public BankAccount getReserveAccount() {
+        return reserveAccount;
+    }
+
+    public void setReserveAccount(BankAccount reserveAccount) {
+        this.reserveAccount = reserveAccount;
     }
 }

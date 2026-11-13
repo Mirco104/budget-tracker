@@ -45,6 +45,15 @@ public class PlanController {
         return planService.update(id, request);
     }
 
+    /** P8: the savings account of the reserve pot of a rare item; null makes it a calculated pot again. */
+    public record ReserveAccountRequest(Long accountId) {
+    }
+
+    @PutMapping("/planned-items/{id}/reserve-account")
+    public PlannedItemResponse linkReserve(@PathVariable long id, @RequestBody ReserveAccountRequest request) {
+        return planService.linkReserve(id, request.accountId());
+    }
+
     @DeleteMapping("/planned-items/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(

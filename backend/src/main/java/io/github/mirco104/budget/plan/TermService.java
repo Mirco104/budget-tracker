@@ -243,10 +243,13 @@ public class TermService {
         return item;
     }
 
-    // A saving item has no category: its booking is a transfer until the kind Sparen exists (AP 27f)
+    // A saving item has no category: its booking is the kind Sparen, a transfer that counts as saving (P1)
     private Transaction book(PlannedItem item, BigDecimal amount, LocalDate date) {
-        return transactionRepository.save(new Transaction(
-                currentUser.get(), amount, item.getName(), date, item.getCategory(), item.getAccount()));
+        Transaction booking = new Transaction(
+                currentUser.get(), amount, item.getName(), date, item.getCategory(), item.getAccount());
+        // P1: a saving item is booked as the kind Sparen
+        booking.markSaving(item.isSaving());
+        return transactionRepository.save(booking);
     }
 
     static Fulfillment.Term term(PlannedItem item, LocalDate date, Long linked, boolean skipped) {

@@ -226,7 +226,7 @@ public class SampleDataSeeder implements ApplicationRunner {
         void book(long cents, String description, LocalDate date, String category) {
             transactionService.create(
                     new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null, null,
-                            null, null));
+                            null, null, null));
         }
 
         /** An automatic item with a month rhythm (decision 51); its terms up to October 2026 become bookings. */

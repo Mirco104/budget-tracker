@@ -44,5 +44,8 @@ public record TransactionRequest(
         java.util.UUID reserveItemKey,
 
         // P8: optional, "aus Ersparnissen bezahlen": the saving goal that pays
-        Long savingGoalId) {
+        Long savingGoalId,
+
+        // P1: optional, the kind Sparen: a transfer to a savings or depot account, without category
+        Boolean saving) {
 }

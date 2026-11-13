@@ -38,6 +38,11 @@ public class BankAccount {
     @Column(name = "default_account", nullable = false)
     private boolean defaultAccount;
 
+    // Concept 3.4: only Alltag counts in income and expenses (P1)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false, length = 8)
+    private AccountRole role = AccountRole.EVERYDAY;
+
     @Column(nullable = false)
     private boolean archived;
 
@@ -83,5 +88,13 @@ public class BankAccount {
 
     public void setDefaultAccount(boolean defaultAccount) {
         this.defaultAccount = defaultAccount;
+    }
+
+    public AccountRole getRole() {
+        return role;
+    }
+
+    public void setRole(AccountRole role) {
+        this.role = role;
     }
 }
