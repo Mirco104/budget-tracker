@@ -58,7 +58,8 @@ public class TermSchedule {
 
     /** The term date before the given one, regardless of validity; empty for the first term. */
     public LocalDate previousTerm(LocalDate date) {
-        long k = firstIndexFrom(date);
+        // firstIndexFrom may lie one or two terms before the date; step up first, then back
+        long k = firstIndexFrom(date) + 2;
         while (k > 0 && !scheduled(k).isBefore(date)) {
             k--;
         }

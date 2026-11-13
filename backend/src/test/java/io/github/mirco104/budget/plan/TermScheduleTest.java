@@ -81,4 +81,15 @@ class TermScheduleTest {
         assertThat(TermSchedule.toleranceDays(RhythmUnit.MONTH, 1)).isEqualTo(5);
         assertThat(TermSchedule.toleranceDays(RhythmUnit.MONTH, 12)).isEqualTo(5);
     }
+
+    @Test
+    void previousTermIsTheLatestBeforeTheDate() {
+        TermSchedule halfYearly = new TermSchedule(RhythmUnit.MONTH, 6, d("2025-04-01"), YearMonth.of(2025, 4), null);
+        TermSchedule yearly = new TermSchedule(RhythmUnit.MONTH, 12, d("2025-03-15"), YearMonth.of(2025, 1), null);
+
+        assertThat(halfYearly.previousTerm(d("2026-11-01"))).isEqualTo(d("2026-10-01"));
+        assertThat(halfYearly.previousTerm(d("2026-10-01"))).isEqualTo(d("2026-04-01"));
+        assertThat(yearly.previousTerm(d("2026-11-01"))).isEqualTo(d("2026-03-15"));
+        assertThat(yearly.previousTerm(d("2025-03-15"))).isNull();
+    }
 }

@@ -70,4 +70,15 @@ class ReservePotTest {
 
         assertThat(first.balance()).isEqualByComparingTo("100.00");
     }
+
+    // Found in the first test: a pot a year and a half after its first term counts only since the last term
+    @Test
+    void theBalanceCountsOnlySinceTheLastTerm() {
+        PotItem halfYearly = new PotItem(2, "Kfz", 2L, new BigDecimal("240.00"), 6,
+                new TermSchedule(RhythmUnit.MONTH, 6, LocalDate.parse("2025-04-01"), YearMonth.of(2025, 4), null),
+                YearMonth.of(2025, 4));
+
+        assertThat(ReserveCalculator.pot(halfYearly, YearMonth.of(2026, 11), BigDecimal.ZERO, null).balance())
+                .isEqualByComparingTo("40.00");
+    }
 }
