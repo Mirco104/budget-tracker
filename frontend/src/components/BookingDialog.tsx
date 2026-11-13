@@ -133,6 +133,8 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
     entry?.reserveItemKey ? `pot:${entry.reserveItemKey}` : entry?.savingGoalId ? `goal:${entry.savingGoalId}` : '',
   )
   const [fromReserve, setFromReserve] = useState(paidFrom !== '')
+  // 27f3: the target account of a new transfer; '' = not in the app (only one booking)
+  const [targetAccountId, setTargetAccountId] = useState('')
   const [errors, setErrors] = useState<Errors>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -217,8 +219,9 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
         : fromReserve && kind === 'expense' && paidFrom.startsWith('goal:')
           ? { savingGoalId: Number(paidFrom.slice(5)) }
           : {}
+    const target = !entry && targetAccountId !== '' ? { targetAccountId: Number(targetAccountId) } : {}
     const single = transfer
-      ? { ...common, date, transfer: true, ...(saving ? { saving: true } : {}) }
+      ? { ...common, date, transfer: true, ...(saving ? { saving: true } : {}), ...target }
       : { ...common, categoryId: Number(categoryId), date, ...linked, ...reserve }
     if (entry?.id != null) {
       return updateTransaction.mutateAsync({ id: entry.id, input: single })
@@ -408,7 +411,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
 
         {accountOptions.length > 0 && (
           <div className="field">
-            <span id="booking-account-label">Konto</span>
+            <span id="booking-account-label">{transfer && !entry ? 'Von Konto' : 'Konto'}</span>
             <select
               aria-labelledby="booking-account-label"
               value={accountId === '' ? String(defaultAccount?.id ?? '') : accountId}
@@ -432,6 +435,28 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
             )}
             {errors.accountId && <span className="error">{errors.accountId}</span>}
           </div>
+        )}
+
+        {/* 27f3: a new transfer names its target; then both bookings are made, edited and deleted together */}
+        {transfer && !entry && accountOptions.length > 1 && (
+          <label className="field">
+            Auf Konto
+            <select value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)}>
+              <option value="">nicht in der App</option>
+              {accountOptions
+                .filter((a) => String(a.id) !== (accountId === '' ? String(defaultAccount?.id ?? '') : accountId))
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        {entry?.transferPeerAccountName && (
+          <p className="hint">
+            Gegenbuchung auf {entry.transferPeerAccountName}: Betrag, Beschreibung und Löschen gelten für beide.
+          </p>
         )}
 
         {generalError && (

@@ -48,6 +48,9 @@ export interface Transaction {
   savingGoalId?: number | null
   /** P1: the kind Sparen. */
   saving?: boolean
+  /** 27f3: the other side of a transfer pair. */
+  transferPeerId?: number | null
+  transferPeerAccountName?: string | null
 }
 
 /** A term of a planned item: the id of the item version and the planned date (P5). */
@@ -72,6 +75,8 @@ export interface TransactionInput {
   savingGoalId?: number | null
   /** P1: the kind Sparen, a transfer to a savings or depot account without category. */
   saving?: boolean
+  /** 27f3: for a transfer the target account; both bookings are made. */
+  targetAccountId?: number
 }
 
 /** A saving goal (concept 3.6): saved is what its saving bookings brought minus what was paid from it. */
@@ -347,6 +352,8 @@ export interface ReconcileResult {
 export interface BankAccountInput {
   name: string
   iban?: string | null
+  /** 27f3: Alltag without it */
+  role?: AccountRole
 }
 
 /** defaultAccount true makes this the default account; the previous one becomes a normal account. */

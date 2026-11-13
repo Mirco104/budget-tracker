@@ -6,7 +6,7 @@ import {
   useUpdateBankAccount,
 } from '../api/bankAccounts'
 import { errorText } from '../api/client'
-import type { BankAccount, BankAccountUpdate } from '../api/types'
+import type { BankAccount, BankAccountUpdate, AccountRole } from '../api/types'
 import { formatIban } from '../format'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Icon } from './ui/Icon'
@@ -20,15 +20,19 @@ function AccountForm({
   busy,
   onSubmit,
   onCancel,
+  withRole = false,
 }: {
   title: string
   initial: { name: string; iban: string }
   busy: boolean
-  onSubmit: (name: string, iban: string) => Promise<string | null>
+  onSubmit: (name: string, iban: string, role: AccountRole) => Promise<string | null>
   onCancel: () => void
+  /** 27f3: a new account asks for its Kontoart; editing changes it on the page Konten */
+  withRole?: boolean
 }) {
   const [name, setName] = useState(initial.name)
   const [iban, setIban] = useState(initial.iban)
+  const [role, setRole] = useState<AccountRole>('EVERYDAY')
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -37,7 +41,7 @@ function AccountForm({
       setError('Der Name ist Pflicht.')
       return
     }
-    setError(await onSubmit(name.trim(), iban.trim()))
+    setError(await onSubmit(name.trim(), iban.trim(), role))
   }
 
   return (
@@ -67,6 +71,16 @@ function AccountForm({
           />
         </label>
       </div>
+      {withRole && (
+        <label className="field">
+          Kontoart
+          <select value={role} onChange={(e) => setRole(e.target.value as AccountRole)}>
+            <option value="EVERYDAY">Alltag</option>
+            <option value="SAVINGS">Sparen</option>
+            <option value="DEPOT">Depot</option>
+          </select>
+        </label>
+      )}
       <p className="hint">Mit IBAN erkennt der Import Umbuchungen auf dieses Konto.</p>
       <div className="dialog-buttons">
         <button type="button" onClick={onCancel}>
@@ -90,9 +104,9 @@ function NewAccount() {
   const create = useCreateBankAccount()
   const [open, setOpen] = useState(false)
 
-  async function submit(name: string, iban: string): Promise<string | null> {
+  async function submit(name: string, iban: string, role: AccountRole): Promise<string | null> {
     try {
-      await create.mutateAsync({ name, iban: iban === '' ? null : iban })
+      await create.mutateAsync({ name, iban: iban === '' ? null : iban, role })
       setOpen(false)
       return null
     } catch (e) {
@@ -111,6 +125,7 @@ function NewAccount() {
   return (
     <AccountForm
       title="Neues Konto"
+      withRole
       initial={{ name: '', iban: '' }}
       busy={create.isPending}
       onSubmit={submit}

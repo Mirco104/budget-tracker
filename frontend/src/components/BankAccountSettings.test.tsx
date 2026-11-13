@@ -56,7 +56,7 @@ describe('BankAccountSettings', () => {
     await waitFor(() =>
       expect(sent(fetchMock, 'POST')).toEqual({
         url: '/api/bank-accounts',
-        body: { name: 'Tagesgeld 2', iban: 'de89 3704 0044 0532 0130 00' },
+        body: { name: 'Tagesgeld 2', iban: 'de89 3704 0044 0532 0130 00', role: 'EVERYDAY' },
       }),
     )
   })

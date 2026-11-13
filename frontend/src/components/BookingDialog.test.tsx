@@ -370,4 +370,20 @@ describe('BookingDialog', () => {
 
     expect(onClose).toHaveBeenCalledTimes(3)
   })
+
+  // 27f3: Sparen with source and target account makes both bookings
+  it('books Sparen from one account to another', async () => {
+    const { fetchMock } = renderDialog(null, () => json({}, 201), twoAccounts)
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '200' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Auf Tagesgeld' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'saving' } })
+    const target = await screen.findByLabelText('Auf Konto')
+    fireEvent.change(target, { target: { value: String(twoAccounts[1].id) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(sent(fetchMock, 'POST')).toBeDefined())
+    expect(sent(fetchMock, 'POST')!.body).toMatchObject({
+      amount: -200, transfer: true, saving: true, targetAccountId: twoAccounts[1].id,
+    })
+  })
 })
