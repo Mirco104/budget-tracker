@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
+import { AccountSelect } from './AccountSelect'
+import { CategorySelect } from './CategorySelect'
 import { ApiError } from '../api/client'
 import { useCreatePlannedItem, useDeletePlannedItem, usePastTerms, useUpdatePlannedItem } from '../api/plan'
 import type { Category, EntryMode, PlanGroup, PlannedItem, PlannedItemInput, RhythmUnit } from '../api/types'
@@ -243,9 +245,6 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
     }
   }
 
-  const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
-  const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
-  const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
   const title = item ? 'Posten bearbeiten' : 'Neuer Posten'
 
   return (
@@ -370,37 +369,24 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
           </div>
         )}
 
-        <label className="field">
-          Kategorie{kind === 'saving' ? ' (optional)' : ''}
-          <select
+        <div className="field">
+          <span id="item-category-label">Kategorie{kind === 'saving' ? ' (optional)' : ''}</span>
+          <CategorySelect
+            labelledBy="item-category-label"
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            aria-invalid={errors.categoryId ? true : undefined}
-          >
-            <option value="">{kind === 'saving' ? 'ohne Kategorie' : 'Kategorie wählen …'}</option>
-            {options.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            onChange={setCategoryId}
+            categories={categories}
+            placeholder={kind === 'saving' ? 'ohne Kategorie' : 'Kategorie wählen …'}
+            invalid={errors.categoryId !== undefined}
+          />
           {errors.categoryId && <span className="error">{errors.categoryId}</span>}
-        </label>
+        </div>
 
-        {accountOptions.length > 1 && (
-          <label className="field">
-            Konto
-            <select
-              value={accountId === '' ? String(defaultAccount?.id ?? '') : accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-            >
-              {accountOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        {bankAccounts.length > 0 && (
+          <div className="field">
+            <span id="item-account-label">Konto</span>
+            <AccountSelect labelledBy="item-account-label" value={accountId} onChange={setAccountId} />
+          </div>
         )}
 
         <div className="field-row">

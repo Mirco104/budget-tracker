@@ -511,7 +511,7 @@ describe('ImportPage', () => {
     await upload()
     const [first, second] = row('Spiele Shop')
 
-    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new-category' } })
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new' } })
     fireEvent.change(within(first).getByLabelText('Neue Kategorie für Spiele Shop'), { target: { value: 'Spiele' } })
     fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
 
@@ -528,7 +528,7 @@ describe('ImportPage', () => {
     await upload()
     const [first] = row('Spiele Shop')
 
-    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new-category' } })
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new' } })
     fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
     expect(within(first).getByRole('alert')).toHaveTextContent('Der Name ist Pflicht.')
 
@@ -721,7 +721,7 @@ describe('ImportPage', () => {
     const select = within(card).getByLabelText('Kategorie für Serie „Spiele Shop“')
     expect(within(select).getAllByRole('option').at(-1)).toHaveTextContent('+ Neue Kategorie …')
 
-    fireEvent.change(select, { target: { value: 'new-category' } })
+    fireEvent.change(select, { target: { value: 'new' } })
     fireEvent.change(within(card).getByLabelText('Neue Kategorie für Serie „Spiele Shop“'), { target: { value: 'Spiele' } })
     fireEvent.click(within(card).getByRole('button', { name: 'Anlegen' }))
 

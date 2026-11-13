@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ChangeEvent } from 'react'
 import { useDeleteTransaction } from '../api/transactions'
 import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
-import { useCategories, useCreateCategory } from '../api/categories'
+import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import {
   useCommitImport,
@@ -21,6 +21,7 @@ import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { InlineCreate } from '../components/ui/InlineCreate'
+import { CategorySelect } from '../components/CategorySelect'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
@@ -35,7 +36,6 @@ const NEW_ACCOUNT = 'new'
 /** The value of the account field that opens the field for a new account with an own name (08.11.2026). */
 const NEW_NAMED_ACCOUNT = 'new-named'
 /** The value of the category field that opens the field for a new category. */
-const NEW_CATEGORY = 'new-category'
 
 /**
  * What the user chose for one row: import it or not, its category ('' while open, TRANSFER for a transfer) and whether
@@ -139,15 +139,6 @@ function PreviewRow({
 }) {
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
-  const createCategory = useCreateCategory()
-  const [creating, setCreating] = useState(false)
-
-  // A category that is missing is created right here and chosen for the row (after the first test, 07.11.2026)
-  async function handleCreate(name: string) {
-    const created = await createCategory.mutateAsync({ name })
-    setCreating(false)
-    onChange({ ...choice, category: String(created.id) })
-  }
 
   return (
     <li
@@ -212,36 +203,17 @@ function PreviewRow({
         {entry.amount !== null && formatSigned(entry.amount)}
       </span>
       <span className="import-category">
-        <select
-          aria-label={`Kategorie für ${description}`}
+        <CategorySelect
+          ariaLabel={`Kategorie für ${description}`}
           value={choice.category}
           disabled={!choice.selected}
-          aria-invalid={open ? true : undefined}
-          onChange={(e) => {
-            if (e.target.value === NEW_CATEGORY) {
-              setCreating(true)
-            } else {
-              onChange({ ...choice, category: e.target.value })
-            }
-          }}
-        >
-          <option value="">Kategorie wählen …</option>
-          <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-          <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
-        </select>
-        {creating && (
-          <InlineCreate
-            label={`Neue Kategorie für ${description}`}
-            placeholder="Name der Kategorie"
-            onCreate={handleCreate}
-            onCancel={() => setCreating(false)}
-          />
-        )}
+          invalid={open}
+          onChange={(value) => onChange({ ...choice, category: value })}
+          categories={categories}
+          placeholder="Kategorie wählen …"
+          leading={<option value={TRANSFER}>Umbuchung (zählt nicht)</option>}
+          createLabel={`Neue Kategorie für ${description}`}
+        />
         {suggested && open && (
           <button type="button" className="chip" onClick={() => onChange({ ...choice, category: suggested.value })}>
             {suggested.icon && <CategoryIcon icon={suggested.icon} size={14} />}
@@ -286,15 +258,7 @@ function SeriesCard({
   onIgnore: () => void
 }) {
   const [categoryId, setCategoryId] = useState('')
-  const createCategory = useCreateCategory()
-  const [creating, setCreating] = useState(false)
   const suggested = categories.find((c) => c.id === series.categoryId)
-
-  async function handleCreate(name: string) {
-    const created = await createCategory.mutateAsync({ name })
-    setCreating(false)
-    setCategoryId(String(created.id))
-  }
   const plannedName = categories.find((c) => String(c.id) === planned)?.name
 
   const label = `Serie „${series.description}“`
@@ -313,27 +277,14 @@ function SeriesCard({
         </div>
       ) : (
         <div className="import-series-actions">
-          <select
-            aria-label={`Kategorie für ${label}`}
+          <CategorySelect
+            ariaLabel={`Kategorie für ${label}`}
             value={categoryId}
-            onChange={(e) => (e.target.value === NEW_CATEGORY ? setCreating(true) : setCategoryId(e.target.value))}
-          >
-            <option value="">Kategorie wählen …</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-            <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
-          </select>
-          {creating && (
-            <InlineCreate
-              label={`Neue Kategorie für ${label}`}
-              placeholder="Name der Kategorie"
-              onCreate={handleCreate}
-              onCancel={() => setCreating(false)}
-            />
-          )}
+            onChange={setCategoryId}
+            categories={categories}
+            placeholder="Kategorie wählen …"
+            createLabel={`Neue Kategorie für ${label}`}
+          />
           {suggested && categoryId === '' && (
             <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />

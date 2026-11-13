@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
-import { useCreateCategory } from '../api/categories'
+import { useBankAccounts } from '../api/bankAccounts'
 import { ApiError } from '../api/client'
 import { useSavingGoals } from '../api/goals'
+import { AccountSelect } from './AccountSelect'
+import { CategorySelect } from './CategorySelect'
 import { usePlan } from '../api/plan'
 import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
@@ -10,7 +11,6 @@ import type { Category, TermRef, Transaction } from '../api/types'
 import { formatDate, formatEuro, parseAmountInput } from '../format'
 import { CategoryIcon } from './ui/CategoryIcon'
 import { Dialog } from './ui/Dialog'
-import { InlineCreate } from './ui/InlineCreate'
 import { Segmented } from './ui/Segmented'
 
 type Kind = 'expense' | 'income'
@@ -48,7 +48,6 @@ const TRANSFER = 'transfer'
 /** The value of the category field for the kind Sparen (P1): a transfer to a savings or depot account. */
 const SAVING = 'saving'
 /** The value of a field that opens the name field for a new category or account (08.11.2026). */
-const NEW = 'new'
 
 function toAmountText(amount: number): string {
   return Math.abs(amount).toFixed(2).replace('.', ',')
@@ -100,13 +99,9 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
     (item) => item.rhythmUnit === 'MONTH' && (item.rhythmCount ?? 1) > 1 && item.group === 'FIXED',
   )
   const goals = useSavingGoals().data ?? []
-  const createCategory = useCreateCategory()
-  const createAccount = useCreateBankAccount()
-  // A category created here, until the categories of the page contain it
+  // A category created here, until the categories of the page contain it (for the quick chips)
   const [created, setCreated] = useState<Category[]>([])
   const categories = [...loaded, ...created.filter((c) => !loaded.some((l) => l.id === c.id))]
-  const [creatingCategory, setCreatingCategory] = useState(false)
-  const [creatingAccount, setCreatingAccount] = useState(false)
 
   // The amount is entered positive; the switch sets the sign (R11).
   const initialAmount = entry?.amount ?? term?.amount
@@ -153,33 +148,12 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   const transfer = categoryId === TRANSFER || saving
 
   function chooseCategory(value: string) {
-    if (value === NEW) {
-      setCreatingCategory(true)
-      return
-    }
-    setCreatingCategory(false)
     setCategoryId(value)
   }
 
-  // 08.11.2026: a missing category or account is created right in the dialog and chosen
-  async function handleCreateCategory(name: string) {
-    const category = await createCategory.mutateAsync({ name })
-    setCreated((current) => [...current, category])
-    setCreatingCategory(false)
-    setCategoryId(String(category.id))
-  }
-
-  async function handleCreateAccount(name: string) {
-    const account = await createAccount.mutateAsync({ name })
-    setCreatingAccount(false)
-    setAccountId(String(account.id))
-  }
-
-  const options = categories.filter((c) => !c.archived || String(c.id) === categoryId)
-  // An archived account only when it is already chosen; the field shows once the accounts are loaded, so a second
-  // account can be created here (08.11.2026)
-  const accountOptions = bankAccounts.filter((a) => !a.archived || String(a.id) === accountId)
+  // The field shows once the accounts are loaded, so a second account can be created here (08.11.2026)
   const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
+  const sourceAccount = accountId === '' ? String(defaultAccount?.id ?? '') : accountId
 
   function validate(): Errors {
     const found: Errors = {}
@@ -326,30 +300,23 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
               ))}
             </div>
           )}
-          <select
-            aria-labelledby="booking-category-label"
+          <CategorySelect
+            labelledBy="booking-category-label"
             value={categoryId}
-            onChange={(e) => chooseCategory(e.target.value)}
-            aria-invalid={errors.categoryId ? true : undefined}
-          >
-            <option value="">Kategorie wählen …</option>
-            {!term && <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>}
-            {!term && <option value={SAVING}>Sparen (auf ein Spar- oder Depotkonto)</option>}
-            {options.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value={NEW}>+ Neue Kategorie …</option>
-          </select>
-          {creatingCategory && (
-            <InlineCreate
-              label="Neue Kategorie"
-              placeholder="Name der Kategorie"
-              onCreate={handleCreateCategory}
-              onCancel={() => setCreatingCategory(false)}
-            />
-          )}
+            onChange={chooseCategory}
+            categories={categories}
+            placeholder="Kategorie wählen …"
+            invalid={errors.categoryId !== undefined}
+            onCreated={(category) => setCreated((current) => [...current, category])}
+            leading={
+              !term && (
+                <>
+                  <option value={TRANSFER}>Umbuchung zwischen eigenen Konten (zählt nicht)</option>
+                  <option value={SAVING}>Sparen (auf ein Spar- oder Depotkonto)</option>
+                </>
+              )
+            }
+          />
           {suggested && (
             <button type="button" className="chip suggestion-chip" onClick={() => chooseCategory(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
@@ -409,49 +376,31 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           </p>
         )}
 
-        {accountOptions.length > 0 && (
+        {bankAccounts.length > 0 && (
           <div className="field">
             <span id="booking-account-label">{transfer && !entry ? 'Von Konto' : 'Konto'}</span>
-            <select
-              aria-labelledby="booking-account-label"
-              value={accountId === '' ? String(defaultAccount?.id ?? '') : accountId}
-              onChange={(e) => (e.target.value === NEW ? setCreatingAccount(true) : setAccountId(e.target.value))}
-              aria-invalid={errors.accountId ? true : undefined}
-            >
-              {accountOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-              <option value={NEW}>+ Neues Konto …</option>
-            </select>
-            {creatingAccount && (
-              <InlineCreate
-                label="Neues Konto"
-                placeholder="Name des Kontos"
-                onCreate={handleCreateAccount}
-                onCancel={() => setCreatingAccount(false)}
-              />
-            )}
+            <AccountSelect
+              labelledBy="booking-account-label"
+              value={accountId}
+              onChange={setAccountId}
+              invalid={errors.accountId !== undefined}
+            />
             {errors.accountId && <span className="error">{errors.accountId}</span>}
           </div>
         )}
 
         {/* 27f3: a new transfer names its target; then both bookings are made, edited and deleted together */}
-        {transfer && !entry && accountOptions.length > 1 && (
-          <label className="field">
-            Auf Konto
-            <select value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)}>
-              <option value="">nicht in der App</option>
-              {accountOptions
-                .filter((a) => String(a.id) !== (accountId === '' ? String(defaultAccount?.id ?? '') : accountId))
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </select>
-          </label>
+        {transfer && !entry && bankAccounts.length > 0 && (
+          <div className="field">
+            <span id="booking-target-label">Auf Konto</span>
+            <AccountSelect
+              labelledBy="booking-target-label"
+              value={targetAccountId}
+              onChange={setTargetAccountId}
+              empty="nicht in der App"
+              exclude={sourceAccount}
+            />
+          </div>
         )}
         {entry?.transferPeerAccountName && (
           <p className="hint">
