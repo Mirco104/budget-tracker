@@ -79,6 +79,8 @@ export function BookingList({ entries, categories, today, showAccount = false, o
                               fix
                             </span>
                           )}
+                          {entry.reserveItemKey && <span className="badge">aus Rücklage</span>}
+                          {entry.savingGoalId != null && <span className="badge">aus Sparziel</span>}
                           {entry.auto && <span className="badge auto">automatisch</span>}
                           {entry.date > today && <span className="badge planned">geplant</span>}
                         </span>

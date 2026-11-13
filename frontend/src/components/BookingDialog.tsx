@@ -123,11 +123,17 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
   // '' is the default account (R26)
   const [accountId, setAccountId] = useState(entry ? String(entry.accountId) : term ? String(term.accountId) : '')
   const [date, setDate] = useState(entry?.date ?? term?.date ?? defaultDate)
-  // "pot:<item key>" or "goal:<id>"; '' pays from the monthly budget
-  const [paidFrom, setPaidFrom] = useState(
-    entry?.reserveItemKey ? `pot:${entry.reserveItemKey}` : entry?.savingGoalId ? `goal:${entry.savingGoalId}` : '',
+  // 27f4 (decision 60): a new booking for the term of a rare item is paid from its reserve unless unticked
+  const termPot = term && !entry ? pots.find((pot) => pot.id === term.itemId) : undefined
+  // "pot:<item key>" or "goal:<id>"; '' pays from the monthly budget. reserveItemKey of an entry is also set when it
+  // only fulfils the term of the rare item; null until the user chooses, then the term decides
+  const [chosenPaidFrom, setPaidFrom] = useState<string | null>(
+    entry?.reserveItemKey ? `pot:${entry.reserveItemKey}` : entry?.savingGoalId ? `goal:${entry.savingGoalId}` : null,
   )
-  const [fromReserve, setFromReserve] = useState(paidFrom !== '')
+  const paidFrom = chosenPaidFrom ?? (termPot ? `pot:${termPot.itemKey}` : '')
+  const [chosenFromReserve, setFromReserve] = useState<boolean | null>(entry ? chosenPaidFrom !== null : null)
+  const fromReserve = chosenFromReserve ?? termPot !== undefined
+  const wasFromReserve = entry ? entry.reserveItemKey != null || entry.savingGoalId != null : termPot !== undefined
   // 27f3: the target account of a new transfer; '' = not in the app (only one booking)
   const [targetAccountId, setTargetAccountId] = useState('')
   const [errors, setErrors] = useState<Errors>({})
@@ -151,9 +157,20 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
     setCategoryId(value)
   }
 
+  // 27f4: choosing a reserve suggests its linked account; the user may set the everyday account back
+  function choosePaidFrom(value: string) {
+    setPaidFrom(value)
+    const linked = pots.find((pot) => `pot:${pot.itemKey}` === value)?.reserveAccountId
+    if (linked != null) {
+      setAccountId(String(linked))
+    }
+  }
+
   // The field shows once the accounts are loaded, so a second account can be created here (08.11.2026)
   const defaultAccount = bankAccounts.find((a) => a.defaultAccount)
   const sourceAccount = accountId === '' ? String(defaultAccount?.id ?? '') : accountId
+  const reserveAccountId = pots.find((pot) => `pot:${pot.itemKey}` === paidFrom)?.reserveAccountId
+  const reserveAccount = bankAccounts.find((a) => a.id === reserveAccountId)
 
   function validate(): Errors {
     const found: Errors = {}
@@ -192,7 +209,10 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
         ? { reserveItemKey: paidFrom.slice(4) }
         : fromReserve && kind === 'expense' && paidFrom.startsWith('goal:')
           ? { savingGoalId: Number(paidFrom.slice(5)) }
-          : {}
+          : // 27f4: unticked, an expense that fulfils the term of a rare item counts fully in the budget
+            !fromReserve && kind === 'expense' && wasFromReserve
+            ? { noReserve: true }
+            : {}
     const target = !entry && targetAccountId !== '' ? { targetAccountId: Number(targetAccountId) } : {}
     const single = transfer
       ? { ...common, date, transfer: true, ...(saving ? { saving: true } : {}), ...target }
@@ -346,14 +366,14 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
                 onChange={(e) => {
                   setFromReserve(e.target.checked)
                   if (e.target.checked && paidFrom === '') {
-                    setPaidFrom(pots[0] ? `pot:${pots[0].itemKey}` : `goal:${goals[0].id}`)
+                    choosePaidFrom(pots[0] ? `pot:${pots[0].itemKey}` : `goal:${goals[0].id}`)
                   }
                 }}
               />
               aus Rücklage / Ersparnissen bezahlen
             </label>
             {fromReserve && (
-              <select aria-label="Bezahlt aus" value={paidFrom} onChange={(e) => setPaidFrom(e.target.value)}>
+              <select aria-label="Bezahlt aus" value={paidFrom} onChange={(e) => choosePaidFrom(e.target.value)}>
                 {pots.map((pot) => (
                   <option key={pot.itemKey} value={`pot:${pot.itemKey}`}>
                     Rücklage: {pot.name}
@@ -367,6 +387,12 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
               </select>
             )}
             {fromReserve && <span className="hint">Die Ausgabe belastet nicht das Monatsbudget.</span>}
+            {fromReserve && reserveAccount && String(reserveAccount.id) !== sourceAccount && (
+              <span className="hint">
+                Die Rücklage liegt auf {reserveAccount.name}. Damit die Kontostände stimmen, trage die Umbuchung von{' '}
+                {reserveAccount.name} auf dieses Konto extra ein.
+              </span>
+            )}
           </div>
         )}
 

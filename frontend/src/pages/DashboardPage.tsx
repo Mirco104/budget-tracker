@@ -196,16 +196,11 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
             </div>
           )}
         </section>
+        {data.saving && <SavingCard saving={data.saving} onOpenItem={openItem} />}
       </div>
 
       {showOnboarding && <Onboarding />}
 
-      {data.saving && (
-        <>
-          <h3>Sparen</h3>
-          <SavingSection saving={data.saving} onOpenItem={openItem} />
-        </>
-      )}
 
       {data.expected && (
         <a className="link-card" href={EXPECTED_ROUTE}>
@@ -236,10 +231,10 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
 }
 
 /**
- * P9, 27f3: a section like the budget: collapsed one row with saved of planned; open one row per saving item with
- * what its bookings brought this month and a bar. A row opens the saving item.
+ * P9, 27f3: what was saved in the month. 27f4: a card like Einnahmen and Ausgaben; its head shows saved of planned,
+ * open one row per saving item with what its bookings brought this month and a bar. A row opens the saving item.
  */
-function SavingSection({
+function SavingCard({
   saving,
   onOpenItem,
 }: {
@@ -249,44 +244,44 @@ function SavingSection({
   const [open, setOpen] = useState(false)
   const actual = saving.actual ?? 0
   return (
-    <ul className="budget-list">
-      {open && saving.items.length === 0 && <li className="budget-item hint">Noch keine Sparposten in der Planung.</li>}
-      {open &&
-        saving.items.map((item) => (
-          <li key={item.itemId} className="budget-item">
-            <button type="button" className="budget-head budget-toggle" onClick={() => onOpenItem(item.itemId)}>
-              <span className="budget-name">{item.name}</span>
-              <span className="budget-amount">
-                <span className="saving">
-                  {formatEuro(item.actual ?? 0)} von {formatEuro(item.monthly)}
-                </span>
-              </span>
-            </button>
-            <div className="saving-progress">
-              <ProgressBar value={item.monthly > 0 ? (item.actual ?? 0) / item.monthly : 0} />
-            </div>
-          </li>
-        ))}
-      {/* 27f4: the total row looks like the total of the budget; it opens the saving items above it */}
-      <li className="budget-item budget-total">
-        <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          <span className="budget-name">
-            Gesamt <span className="summary-chevron-inline" aria-hidden="true">{open ? '▴' : '▾'}</span>
-          </span>
-          <span className="budget-amount">
-            <span className="saving">
-              {formatEuro(actual)} von {formatEuro(saving.planned)}
-            </span>
-            {saving.rate !== null && (
-              <span className="budget-left">Sparquote {saving.rate.toLocaleString('de-DE')} %</span>
-            )}
-          </span>
-        </button>
-        <div className="saving-progress">
-          <ProgressBar value={saving.planned > 0 ? actual / saving.planned : 0} />
+    <section className={open ? 'summary-row open' : 'summary-row'} aria-label="Sparen">
+      <button type="button" className="summary-head" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="summary-label">Sparen</span>
+        <span className="summary-value saving">{formatEuro(actual)}</span>
+        <span className="summary-note">
+          von {formatEuro(saving.planned)} geplant
+          {saving.rate !== null && ` · Sparquote ${saving.rate.toLocaleString('de-DE')} %`}
+        </span>
+        <span className="summary-chevron" aria-hidden="true">
+          {open ? '▴' : '▾'}
+        </span>
+      </button>
+      {open && (
+        <div className="summary-body">
+          {saving.items.length === 0 ? (
+            <p className="hint">Noch keine Sparposten in der Planung.</p>
+          ) : (
+            <ul className="budget-list">
+              {saving.items.map((item) => (
+                <li key={item.itemId} className="budget-item">
+                  <button type="button" className="budget-head budget-toggle" onClick={() => onOpenItem(item.itemId)}>
+                    <span className="budget-name">{item.name}</span>
+                    <span className="budget-amount">
+                      <span className="saving">
+                        {formatEuro(item.actual ?? 0)} von {formatEuro(item.monthly)}
+                      </span>
+                    </span>
+                  </button>
+                  <div className="saving-progress">
+                    <ProgressBar value={item.monthly > 0 ? (item.actual ?? 0) / item.monthly : 0} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      </li>
-    </ul>
+      )}
+    </section>
   )
 }
 
@@ -394,6 +389,9 @@ function CategoryBookings({
           <span className="booking-description">
             {entry.description}
             {entry.fix && <span className="badge">fix</span>}
+            {/* 27f4 (decision 60): the payment itself says where its money came from */}
+            {entry.reserveItemKey && <span className="badge">aus Rücklage</span>}
+            {entry.savingGoalId != null && <span className="badge">aus Sparziel</span>}
           </span>
           <span className={`booking-amount${entry.amount < 0 ? '' : ' positive'}`}>{formatEuro(entry.amount)}</span>
           </button>
@@ -404,13 +402,14 @@ function CategoryBookings({
 }
 
 /**
- * P8, 27f2: the reserve of a rare item in the open budget row, shown like a transfer: put aside this month, or in
- * the due month paid from the pot (orange when the pot was too small). It is no booking.
+ * P8, 27f2: the reserve of a rare item in the open budget row, shown like a transfer. 27f4 (decision 60): it always
+ * shows the monthly share that counts in the budget; the payment is its own booking marked "aus Rücklage" (orange
+ * when the pot was too small).
  */
 function ReserveRow({ pot, onOpen }: { pot: ReservePot; onOpen: () => void }) {
   const short = pot.shortfall > 0
   const paid = pot.paid > 0
-  const due = pot.nextDue ? ` · fällig im ${formatMonthName(pot.nextDue.slice(0, 7))}` : ''
+  const due = pot.nextDue && !paid ? ` · fällig im ${formatMonthName(pot.nextDue.slice(0, 7))}` : ''
   return (
     <li className={short ? 'reserve-row short' : 'reserve-row'}>
       <button type="button" className="booking-row" onClick={onOpen}>
@@ -420,21 +419,19 @@ function ReserveRow({ pot, onOpen }: { pot: ReservePot; onOpen: () => void }) {
         <span className="booking-description">
           Rücklage {pot.name}
           <span className="tx-meta">
-            {paid
-              ? short
-                ? `${formatEuro(pot.shortfall)} fehlten in der Rücklage`
-                : 'aus der Rücklage bezahlt'
-              : `zurückgelegt · für ${formatEuro(pot.amount)} ${rhythmLabel('MONTH', pot.months)}${due}`}{' '}
-            · keine Buchung
+            zurückgelegt für {formatEuro(pot.amount)} {rhythmLabel('MONTH', pot.months)}
+            {due}
+            {paid && ` · Zahlung ${formatEuro(pot.paid)} aus der Rücklage`}
+            {short && ` · ${formatEuro(pot.shortfall)} fehlten darin`}
           </span>
         </span>
         {/* 27f4: grey like a transfer; green would read as income */}
-        <span className="booking-amount transfer">{formatEuro(paid ? pot.fromPot : pot.monthly)}</span>
+        <span className="booking-amount transfer">{formatEuro(pot.monthly)}</span>
       </button>
       <InfoTip label="Wie rechnet die Rücklage?">
-        Monatsrate = Betrag ÷ Monate des Rhythmus (1.200 € jährlich ÷ 12 = 100 €). Jeden Monat wird eine Rate
-        zurückgelegt. Im Fälligkeitsmonat zahlt die Rücklage den Betrag; fehlt darin etwas, zählt der Rest als Ausgabe
-        des Monats.
+        Monatsrate = Betrag ÷ Monate des Rhythmus ({formatEuro(pot.amount)} ÷ {pot.months} = {formatEuro(pot.monthly)}).
+        Im Budget zählt jeden Monat nur diese Rate. Die Zahlung selbst steht als Buchung mit „aus Rücklage“ darunter
+        und zählt nicht noch einmal im Budget; fehlt in der Rücklage etwas, zählt der Rest als Ausgabe des Monats.
       </InfoTip>
     </li>
   )

@@ -8,6 +8,7 @@ import type { AccountLine, AccountRole, ReserveGroup, SavingGoal } from '../api/
 import { BankAccountSettings } from '../components/BankAccountSettings'
 import { SavingGoalDialog } from '../components/SavingGoalDialog'
 import { Dialog } from '../components/ui/Dialog'
+import { InfoTip } from '../components/ui/InfoTip'
 import { Loading } from '../components/ui/Loading'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
@@ -213,6 +214,22 @@ function ReserveGroupRow({
       <div className="saving-progress">
         <ProgressBar value={group.target > 0 ? group.saved / group.target : 0} />
       </div>
+      {/* 27f4: what the orange amount or the tick means, with the formula and the numbers */}
+      {group.accountId !== null && group.accountBalance !== null && (
+        <p className="breakdown reserve-cover">
+          <span>
+            {missing > 0
+              ? `Auf ${group.accountName} fehlen ${formatEuro(missing)}`
+              : `${group.accountName} deckt die Rücklagen`}
+          </span>{' '}
+          <InfoTip label="Wie wird das gerechnet?">
+            Fehlt = Summe der Rücklagen − Kontostand in der App = {formatEuro(group.saved)} −{' '}
+            {formatEuro(group.accountBalance)}
+            {missing > 0 ? ` = ${formatEuro(missing)}.` : ' ≤ 0, also gedeckt.'} Eine Rücklage zählt mit dem, was
+            nach den Zahlungen dieses Monats noch in ihr liegt; die Monatsraten legst du per Umbuchung auf dieses Konto.
+          </InfoTip>
+        </p>
+      )}
       {open && (
         <ul className="item-list">
           {group.pots.map((pot) => (

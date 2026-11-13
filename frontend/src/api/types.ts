@@ -43,7 +43,10 @@ export interface Transaction {
   auto: boolean
   /** An expense that fulfils a term of a planned item (P5). */
   fix: boolean
-  /** P8: paid explicitly from the reserve pot of the rare item with this key, or from a saving goal. */
+  /**
+   * P8: the reserve pot that pays the booking (chosen, or by the term of the rare item it fulfils, decision 60), or the
+   * saving goal.
+   */
   reserveItemKey?: string | null
   savingGoalId?: number | null
   /** P1: the kind Sparen. */
@@ -77,6 +80,8 @@ export interface TransactionInput {
   saving?: boolean
   /** 27f3: for a transfer the target account; both bookings are made. */
   targetAccountId?: number
+  /** 27f4: takes an expense that fulfils the term of a rare item out of its reserve (decision 60). */
+  noReserve?: boolean
 }
 
 /** A saving goal (concept 3.6): saved is what its saving bookings brought minus what was paid from it. */

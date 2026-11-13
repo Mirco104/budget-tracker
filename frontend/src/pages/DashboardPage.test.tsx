@@ -120,7 +120,7 @@ describe('DashboardPage', () => {
   it('requests the selected month and shows income, expenses, saving and expected payments', async () => {
     const fetchMock = renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Sparen' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Sparen/ })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-10', expect.anything())
     expect(tile('Einnahmen')).toHaveTextContent('2.000,00 €')
     expect(screen.getByText(/^Ø 2\.000,00 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
@@ -130,8 +130,7 @@ describe('DashboardPage', () => {
     // R23, decision 34: Ā over the same months as the Ø income
     expect(screen.getByText(/^Ø 912,50 €/)).toHaveTextContent('Oktober 2025 – September 2026, 12 Monate')
     // AP 27d: Sparen and Erwartet instead of the surplus tile
-    expect(screen.getByRole('button', { name: /^Gesamt/ })).toHaveTextContent('0,00 € von 300,00 €')
-    expect(screen.getByText(/Sparquote 12 %/)).toBeInTheDocument()
+    expect(tile('Sparen')).toHaveTextContent('0,00 €von 300,00 € geplant · Sparquote 12 %')
     expect(screen.getByRole('link', { name: /3 Zahlungen im Oktober/ })).toHaveAttribute('href', '#/transaktionen/erwartet')
     expect(screen.queryByText('Monatlicher Überschuss')).not.toBeInTheDocument()
     expect(screen.getByText('Abgeschlossener Monat.')).toBeInTheDocument()
@@ -141,7 +140,7 @@ describe('DashboardPage', () => {
   // US27: booking also starts on the overview, with the last used categories of the month
   it('opens the booking dialog with "+ Buchung" and the round button', async () => {
     renderPage()
-    await screen.findByRole('heading', { name: 'Sparen' })
+    await screen.findByRole('button', { name: /^Sparen/ })
 
     fireEvent.click(screen.getByRole('button', { name: 'Buchung' }))
 
@@ -162,7 +161,7 @@ describe('DashboardPage', () => {
   it('has no switch between euros and percent', async () => {
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Sparen' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Sparen/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '%' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Anzeige' })).not.toBeInTheDocument()
   })
@@ -177,7 +176,7 @@ describe('DashboardPage', () => {
       averageIncomeTo: null,
     })
 
-    expect(await screen.findByRole('heading', { name: 'Sparen' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Sparen/ })).toBeInTheDocument()
     expect(screen.queryByText(/^Ø /)).not.toBeInTheDocument()
   })
 
@@ -239,7 +238,7 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Rücklage Kfz-Versicherung', { exact: false })).not.toBeInTheDocument()
     fireEvent.click(within(item('Wohnen')).getByRole('button'))
     const row = (await screen.findByText(/Rücklage Kfz-Versicherung/)).closest('li') as HTMLElement
-    expect(row).toHaveTextContent('zurückgelegt · für 1.200,00 € jährlich · fällig im März · keine Buchung')
+    expect(row).toHaveTextContent('zurückgelegt für 1.200,00 € jährlich · fällig im März')
     expect(row).not.toHaveTextContent('1.000,00')
     expect(row).toHaveTextContent('100,00 €')
   })
@@ -274,14 +273,14 @@ describe('DashboardPage', () => {
     expect(tile('Ausgaben')).toHaveTextContent('895,00 €')
   })
 
-  // 27f4: the total of Sparen looks like the total of the budget and opens the saving items above it
-  it('shows the saving total like the budget total', async () => {
+  // 27f4: Sparen is a card like Einnahmen and Ausgaben; open it shows the saving items
+  it('shows Sparen as a card like Einnahmen and Ausgaben', async () => {
     renderPage()
-    const total = await screen.findByRole('button', { name: /^Gesamt/ })
-    expect(total.closest('li')).toHaveClass('budget-total')
+    const head = await screen.findByRole('button', { name: /^Sparen/ })
+    expect(head).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Notgroschen')).not.toBeInTheDocument()
-    fireEvent.click(total)
-    expect(screen.getByText('Notgroschen')).toBeInTheDocument()
+    fireEvent.click(head)
+    expect(within(tile('Sparen')).getByText('Notgroschen')).toBeInTheDocument()
   })
 
   it('shows in orange what was missing in the pot', async () => {
@@ -293,14 +292,16 @@ describe('DashboardPage', () => {
     await screen.findByRole('button', { name: /^Einnahmen/ })
     fireEvent.click(within(item('Wohnen')).getByRole('button'))
     const row = (await screen.findByText(/Rücklage Kfz-Versicherung/)).closest('li') as HTMLElement
-    expect(row).toHaveTextContent('200,00 € fehlten in der Rücklage')
+    // 27f4 (decision 60): the row keeps the monthly share; the payment is its own booking
+    expect(row).toHaveTextContent('Zahlung 1.200,00 € aus der Rücklage · 200,00 € fehlten darin')
+    expect(row).toHaveTextContent('100,00 €')
     expect(row).toHaveClass('short')
   })
 
   // 27f3: a booking in an open category opens the booking dialog
   it('edits a booking right from the open category', async () => {
     renderPage()
-    await screen.findByRole('heading', { name: 'Sparen' })
+    await screen.findByRole('button', { name: /^Sparen/ })
     fireEvent.click(within(item('Wohnen')).getByRole('button'))
     fireEvent.click(await screen.findByRole('button', { name: /Miete/ }))
     expect(await screen.findByRole('dialog', { name: 'Buchung bearbeiten' })).toBeInTheDocument()

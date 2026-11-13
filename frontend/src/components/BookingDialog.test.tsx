@@ -22,6 +22,16 @@ const recent: Transaction[] = [
   { id: 3, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
 ]
 
+// The plan of the month; a rare item has a reserve pot (P8)
+let plan: unknown = []
+const kfz = {
+  id: 9, itemKey: 'kfz-key', name: 'Kfz-Versicherung', amount: -1200, rhythmUnit: 'MONTH', rhythmCount: 12,
+  group: 'FIXED', reserveAccountId: 4,
+}
+const withSavings: BankAccount[] = [
+  { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
+  { id: 4, name: 'Tagesgeld', iban: null, defaultAccount: false, archived: false, used: true },
+]
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -48,6 +58,9 @@ function renderDialog(
     }
     if (url.startsWith('/api/booking-suggestion')) {
       return json(suggestion)
+    }
+    if (url.startsWith('/api/plan')) {
+      return json(plan)
     }
     return json([])
   })
@@ -385,5 +398,35 @@ describe('BookingDialog', () => {
     expect(sent(fetchMock, 'POST')!.body).toMatchObject({
       amount: -200, transfer: true, saving: true, targetAccountId: twoAccounts[1].id,
     })
+  })
+
+  // 27f4 (decision 60): the payment of the term of a rare item shows its reserve and can be taken out of it
+  it('shows the tick of the reserve and sends noReserve when it is unticked', async () => {
+    plan = { items: [kfz] }
+    const payment: Transaction = {
+      id: 12, amount: -1200, description: 'Kfz-Versicherung', date: '2026-10-01', categoryId: 1, categoryName: 'Wohnen',
+      accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: true, reserveItemKey: 'kfz-key',
+    }
+    const { fetchMock } = renderDialog(payment, () => json(payment), withSavings)
+    const tick = await screen.findByRole('checkbox', { name: 'aus Rücklage / Ersparnissen bezahlen' })
+    expect(tick).toBeChecked()
+    await waitFor(() => expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key'))
+    expect(screen.getByText(/Die Rücklage liegt auf Tagesgeld/)).toBeInTheDocument()
+
+    fireEvent.click(tick)
+    save()
+    await waitFor(() => expect(sent(fetchMock, 'PUT')).toBeDefined())
+    expect(sent(fetchMock, 'PUT')?.body).toMatchObject({ noReserve: true })
+    expect(sent(fetchMock, 'PUT')?.body.reserveItemKey).toBeUndefined()
+    plan = []
+  })
+
+  it('suggests the linked account when a reserve is chosen', async () => {
+    plan = { items: [kfz] }
+    renderDialog(null, () => json({}), withSavings)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'aus Rücklage / Ersparnissen bezahlen' }))
+    expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key')
+    expect(screen.getByLabelText('Konto')).toHaveValue('4')
+    plan = []
   })
 })

@@ -3258,3 +3258,16 @@ a.summary-link:hover {
 .plan-income .income {
   color: var(--income);
 }
+
+/* --- Reserves and saving after the fourth test (AP 27f4, decision 60) --- */
+.summary-value.saving {
+  color: var(--saving);
+}
+.reserve-cover {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
