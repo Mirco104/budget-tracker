@@ -51,7 +51,7 @@ const plan: Plan = {
   averageMonths: 12,
   averageFrom: '2025-11',
   averageTo: '2026-10',
-  incomeAboveMinimum: true,
+  incomeOverMinimum: 150,
   categories: [
     { group: 'INCOME', categoryId: 4, categoryName: 'Gehalt/Lohn (netto)', total: 2500 },
     { group: 'FIXED', categoryId: 2, categoryName: 'Mobilität', total: 100 },
@@ -121,7 +121,10 @@ describe('PlanningPage', () => {
     expect(income).toHaveTextContent('Durchschnitt2.450,00 €pro Monat')
     expect(income).toHaveTextContent('Mindestens2.300,00 €im schwächsten Monat')
     expect(income).toHaveTextContent('November 2025 – Oktober 2026 · 12 Monate')
-    expect(income).toHaveTextContent('Geplant ist mehr als deine Mindesteinnahmen.')
+    // 27f4: the tile Geplant warns only when the plan lies above the minimum income
+    const planned = within(income).getByText('Geplant').closest('.income-stat') as HTMLElement
+    expect(planned).toHaveClass('over')
+    expect(planned).toHaveTextContent('150,00 € über Mindesteinnahmen')
     expect(screen.getByRole('region', { name: 'Einkommen' })).not.toHaveTextContent('Zur Orientierung')
   })
 

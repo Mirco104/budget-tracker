@@ -247,6 +247,14 @@ function GroupSection({
       {/* 27f4: average and weakest month of the past months as two tiles, for orientation (R23) */}
       {group === 'INCOME' && plan.averageIncome !== null && plan.minimumIncome !== null && (
         <div className="income-stats">
+          {/* 27f4: orange with the amount only when the plan lies above the minimum income */}
+          <div className={plan.incomeOverMinimum != null ? 'income-stat over' : 'income-stat'}>
+            <span className="income-stat-label">Geplant</span>
+            <span className="income-stat-value">{formatEuro(plan.income)}</span>
+            {plan.incomeOverMinimum != null && (
+              <span className="income-stat-note">{formatEuro(plan.incomeOverMinimum)} über Mindesteinnahmen</span>
+            )}
+          </div>
           <div className="income-stat">
             <span className="income-stat-label">Durchschnitt</span>
             <span className="income-stat-value">{formatEuro(plan.averageIncome)}</span>
@@ -265,9 +273,6 @@ function GroupSection({
                 : ''}
             {plan.averageMonths === 1 ? '1 Monat' : `${plan.averageMonths} Monate`}
           </p>
-          {plan.incomeAboveMinimum && (
-            <p className="hint income-stats-warn">Geplant ist mehr als deine Mindesteinnahmen.</p>
-          )}
         </div>
       )}
       {items.length === 0 && <p className="hint">Noch keine Posten.</p>}

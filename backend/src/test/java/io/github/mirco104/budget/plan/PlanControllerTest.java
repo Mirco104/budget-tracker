@@ -97,7 +97,7 @@ class PlanControllerTest {
                 .andExpect(jsonPath("$.minimumIncome").value(2000.00))
                 .andExpect(jsonPath("$.averageFrom").value("2026-10"))
                 .andExpect(jsonPath("$.averageTo").value("2026-10"))
-                .andExpect(jsonPath("$.incomeAboveMinimum").value(true));
+                .andExpect(jsonPath("$.incomeOverMinimum").value(500.00));
     }
 
     @Test

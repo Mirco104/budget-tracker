@@ -3416,7 +3416,7 @@ button.account-open:hover {
 /* --- Planung: average and weakest month as tiles (AP 27f4) --- */
 .income-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin: 8px 0 12px;
 }
@@ -3442,12 +3442,14 @@ button.account-open:hover {
   color: var(--muted);
   font-size: 0.8rem;
 }
-.income-stats-period,
-.income-stats-warn {
+.income-stats-period {
   grid-column: 1 / -1;
   margin: 0;
 }
-.income-stats-warn {
+.income-stat.over {
+  border-color: var(--warn);
+}
+.income-stat.over .income-stat-note {
   color: var(--warn);
 }
 /* 27f4: all filters in one row next to each other */
