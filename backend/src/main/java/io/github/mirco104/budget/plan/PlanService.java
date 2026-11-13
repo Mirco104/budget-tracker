@@ -13,6 +13,8 @@ import io.github.mirco104.budget.plan.PlanCalculator.ItemData;
 import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,10 +33,12 @@ public class PlanService {
     private final CategoryService categoryService;
     private final BankAccountService bankAccountService;
     private final CurrentUser currentUser;
+    private final Clock clock;
 
     public PlanService(
             PlannedItemRepository itemRepository, ItemTermRepository termRepository, CategoryService categoryService,
-            BankAccountService bankAccountService, CurrentUser currentUser) {
+            BankAccountService bankAccountService, CurrentUser currentUser, Clock clock) {
+        this.clock = clock;
         this.itemRepository = itemRepository;
         this.termRepository = termRepository;
         this.categoryService = categoryService;
@@ -94,7 +98,7 @@ public class PlanService {
 
     @Transactional
     public PlannedItemResponse create(PlannedItemRequest request) {
-        PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID());
+        PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID(), LocalDate.now(clock));
         apply(item, request, request.validFrom());
         return PlannedItemResponse.from(itemRepository.save(item));
     }
@@ -102,9 +106,9 @@ public class PlanService {
     /** R31: a monthly item from a series found in an import, entered automatically from its first occurrence. */
     @Transactional
     public PlannedItem createMonthlyForImport(
-            String name, BigDecimal amount, long categoryId, BankAccount account, java.time.LocalDate anchor,
+            String name, BigDecimal amount, long categoryId, BankAccount account, LocalDate anchor,
             ImportBatch batch) {
-        PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID());
+        PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID(), LocalDate.now(clock));
         item.update(name.trim(), amount.setScale(2, RoundingMode.HALF_UP), false, categoryService.findBookable(categoryId),
                 account, RhythmUnit.MONTH, 1, anchor, EntryMode.AUTO, false, YearMonth.from(anchor));
         item.markImported(batch);
@@ -139,7 +143,7 @@ public class PlanService {
         }
         YearMonth end = item.getValidTo();
         item.endWith(from.minusMonths(1));
-        PlannedItem next = new PlannedItem(currentUser.get(), item.getItemKey());
+        PlannedItem next = new PlannedItem(currentUser.get(), item.getItemKey(), item.getAutoFrom());
         apply(next, request, from);
         next.endWith(end);
         return PlannedItemResponse.from(itemRepository.save(next));

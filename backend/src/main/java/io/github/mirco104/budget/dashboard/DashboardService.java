@@ -2,7 +2,7 @@ package io.github.mirco104.budget.dashboard;
 
 import io.github.mirco104.budget.category.CategoryService;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.CategoryData;
-import io.github.mirco104.budget.plan.ItemTermRepository;
+import io.github.mirco104.budget.plan.TermService;
 import io.github.mirco104.budget.plan.PlanService;
 import io.github.mirco104.budget.dashboard.DashboardCalculator.TransactionData;
 import io.github.mirco104.budget.transaction.TransactionRepository;
@@ -14,7 +14,6 @@ import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,18 +24,18 @@ public class DashboardService {
     private final CategoryService categoryService;
     private final TransactionRepository transactionRepository;
     private final PlanService planService;
-    private final ItemTermRepository termRepository;
+    private final TermService termService;
     private final CurrentUser currentUser;
     private final Clock clock;
     private final DashboardCalculator calculator = new DashboardCalculator();
 
     public DashboardService(
             CategoryService categoryService, TransactionRepository transactionRepository, PlanService planService,
-            ItemTermRepository termRepository, CurrentUser currentUser, Clock clock) {
+            TermService termService, CurrentUser currentUser, Clock clock) {
         this.categoryService = categoryService;
         this.transactionRepository = transactionRepository;
         this.planService = planService;
-        this.termRepository = termRepository;
+        this.termService = termService;
         this.currentUser = currentUser;
         this.clock = clock;
     }
@@ -102,13 +101,12 @@ public class DashboardService {
                 IncomeAverage.of(expenses, firstEntryMonth, month, currentMonth).average());
     }
 
-    // P1: only real bookings count; R27: no transfers. A booking linked to a term is fix (P5); the flag "recurring"
-    // of the calculator carries it
+    // P1: only real bookings count; R27: no transfers. A booking that fulfils a term is fix (P5); the flag
+    // "recurring" of the calculator carries it
     private List<TransactionData> entries(YearMonth from, YearMonth to) {
         List<io.github.mirco104.budget.transaction.Transaction> bookings = transactionRepository
                 .findCountedBetween(currentUser.get(), from.atDay(1), to.atEndOfMonth());
-        Set<Long> fix = bookings.isEmpty() ? Set.of() : new HashSet<>(termRepository.findLinkedTransactionIds(
-                bookings.stream().map(io.github.mirco104.budget.transaction.Transaction::getId).toList()));
+        Set<Long> fix = bookings.isEmpty() ? Set.of() : termService.fixIds(from.atDay(1), to.atEndOfMonth());
         return bookings.stream()
                 .map(transaction -> new TransactionData(
                         transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(),

@@ -11,7 +11,6 @@ import io.github.mirco104.budget.user.CurrentUser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -53,7 +52,8 @@ public class TransactionService {
         }
         List<Transaction> transactions = transactionRepository
                 .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from, to);
-        Set<Long> fix = fixIds(transactions);
+        // P5: an expense that fulfils a term is fix
+        Set<Long> fix = termService.fixIds(from, to);
         return transactions.stream()
                 .map(transaction -> TransactionResponse.from(transaction, fix.contains(transaction.getId())))
                 .toList();
@@ -93,7 +93,7 @@ public class TransactionService {
         if (transaction.isTransfer()) {
             termRepository.findByTransaction(transaction).ifPresent(termRepository::delete);
         }
-        return TransactionResponse.from(transaction, fixIds(List.of(transaction)).contains(id));
+        return TransactionResponse.from(transaction, termService.fixIds(transaction.getDate(), transaction.getDate()).contains(id));
     }
 
     /**
@@ -105,22 +105,6 @@ public class TransactionService {
         Transaction transaction = findTransaction(id);
         termRepository.findByTransaction(transaction).ifPresent(term -> term.link(null));
         transactionRepository.delete(transaction);
-    }
-
-    // P5: an expense linked to a term is fix
-    private Set<Long> fixIds(List<Transaction> transactions) {
-        if (transactions.isEmpty()) {
-            return Set.of();
-        }
-        Set<Long> linked = new HashSet<>(termRepository.findLinkedTransactionIds(
-                transactions.stream().map(Transaction::getId).toList()));
-        Set<Long> fix = new HashSet<>();
-        for (Transaction transaction : transactions) {
-            if (transaction.getAmount().signum() < 0 && linked.contains(transaction.getId())) {
-                fix.add(transaction.getId());
-            }
-        }
-        return fix;
     }
 
     // R27: a transfer has no category (400 if one is sent), every other booking needs one

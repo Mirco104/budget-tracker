@@ -80,6 +80,10 @@ public class PlannedItem {
     // Last day of the last month, null = open-ended
     private LocalDate validTo;
 
+    // P6: terms from this day on are entered automatically; a new version keeps the day of the item
+    @Column(nullable = false)
+    private LocalDate autoFrom;
+
     // R31: the import that created the item, null for one created by hand
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "import_batch_id")
@@ -88,9 +92,10 @@ public class PlannedItem {
     protected PlannedItem() {
     }
 
-    public PlannedItem(User owner, UUID itemKey) {
+    public PlannedItem(User owner, UUID itemKey, LocalDate autoFrom) {
         this.owner = owner;
         this.itemKey = itemKey;
+        this.autoFrom = autoFrom;
     }
 
     public void update(
@@ -134,6 +139,10 @@ public class PlannedItem {
 
     public Long getId() {
         return id;
+    }
+
+    public LocalDate getAutoFrom() {
+        return autoFrom;
     }
 
     public User getOwner() {
