@@ -65,17 +65,17 @@ class AccountOverviewControllerTest {
     }
 
     @Test
-    void savingCountsAsSavingAndBookingsOnSavingsAccountsCountNowhere() throws Exception {
+    void savingCountsAsSavingAndBookingsOnSavingsAccountsCountByTheirKind() throws Exception {
         book("{\"amount\": 2000, \"description\": \"Gehalt\", \"date\": \"%s\", \"categoryId\": %d}"
                 .formatted(today, category("Gehalt/Lohn (netto)")));
         // Sparen: a transfer from the everyday account
         book("{\"amount\": -300, \"description\": \"Auf Tagesgeld\", \"date\": \"%s\", \"saving\": true}".formatted(today));
-        // Interest on the savings account counts in no tile (P1)
+        // 27f4 (decision 60, P1): interest on the savings account is income like on every account
         book("{\"amount\": 5, \"description\": \"Zinsen\", \"date\": \"%s\", \"categoryId\": %d, \"accountId\": %d}"
                 .formatted(today, category("Kapitalerträge"), tagesgeld));
 
         mockMvc.perform(get("/api/dashboard").param("month", YearMonth.from(today).toString()))
-                .andExpect(jsonPath("$.incomeTotal").value(2000.00))
+                .andExpect(jsonPath("$.incomeTotal").value(2005.00))
                 .andExpect(jsonPath("$.expenses.actual").value(0.00))
                 .andExpect(jsonPath("$.saving.actual").value(300.00));
         mockMvc.perform(get("/api/accounts"))
@@ -133,6 +133,34 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$[0].accountBalance").value(700.00))
                 .andExpect(jsonPath("$[0].missing").value(0.00))
                 .andExpect(jsonPath("$[0].pots[0].name").value("Kfz-Versicherung"));
+    }
+
+    @Test
+    void aPaymentFromTheLinkedSavingsAccountIsPaidFromTheReserveAndEmptiesIt() throws Exception {
+        String item = mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Kfz-Versicherung", "amount": -1200, "categoryId": %d, "rhythmUnit": "MONTH",
+                         "rhythmCount": 12, "anchorDate": "%s", "entryMode": "MANUAL", "validFrom": "%s"}"""
+                        .formatted(category("Mobilität"), today, YearMonth.from(today).minusMonths(11))))
+                .andReturn().getResponse().getContentAsString();
+        long itemId = ((Number) JsonPath.read(item, "$.id")).longValue();
+        mockMvc.perform(put("/api/planned-items/{id}/reserve-account", itemId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\": %d}".formatted(tagesgeld)))
+                .andExpect(status().isOk());
+        book("{\"amount\": 1300, \"description\": \"Einzahlung\", \"date\": \"%s\", \"accountId\": %d, \"transfer\": true}"
+                .formatted(today.minusMonths(1), tagesgeld));
+        // 27f4 (decision 60): the expense from the savings account counts (P1) and is paid from the reserve (P8)
+        book("{\"amount\": -1200, \"description\": \"Kfz-Versicherung\", \"date\": \"%s\", \"categoryId\": %d, \"accountId\": %d}"
+                .formatted(today, category("Mobilität"), tagesgeld));
+
+        mockMvc.perform(get("/api/dashboard").param("month", YearMonth.from(today).toString()))
+                .andExpect(jsonPath("$.expenses.actual").value(1200.00))
+                .andExpect(jsonPath("$.fromReserves").value(1200.00))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Mobilität')].actual").value(100.00));
+        // After the payment the pot is empty: the account has to hold nothing for it any more
+        mockMvc.perform(get("/api/reserves/by-account"))
+                .andExpect(jsonPath("$[0].saved").value(0.00))
+                .andExpect(jsonPath("$[0].accountBalance").value(100.00))
+                .andExpect(jsonPath("$[0].missing").value(0.00));
     }
 
     @Test

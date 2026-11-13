@@ -55,7 +55,8 @@ public class ReserveAccountService {
         Map<Long, List<ReserveCalculator.Pot>> byAccount = new LinkedHashMap<>();
         Map<Long, io.github.mirco104.budget.bankaccount.BankAccount> accounts = new HashMap<>();
         List<ReserveCalculator.Pot> withoutAccount = new ArrayList<>();
-        for (ReserveCalculator.Pot pot : dashboardService.calculate(month).reserves()) {
+        for (ReserveCalculator.Pot before : dashboardService.calculate(month).reserves()) {
+            ReserveCalculator.Pot pot = afterPayment(before);
             PlannedItem item = itemById.get(pot.itemId());
             if (item == null || item.getReserveAccount() == null) {
                 withoutAccount.add(pot);
@@ -78,6 +79,13 @@ public class ReserveAccountService {
                     withoutAccount));
         }
         return groups;
+    }
+
+    // 27f4 (decision 60): on Konten a pot shows what is left in it after the payments of the month
+    private static ReserveCalculator.Pot afterPayment(ReserveCalculator.Pot pot) {
+        return new ReserveCalculator.Pot(pot.itemId(), pot.name(), pot.categoryId(), pot.amount(), pot.monthly(),
+                pot.balance().subtract(pot.fromPot()), pot.due(), pot.nextDue(), pot.paid(), pot.fromPot(),
+                pot.shortfall(), pot.months());
     }
 
     private static BigDecimal sum(List<ReserveCalculator.Pot> pots, boolean saved) {

@@ -60,6 +60,10 @@ public class Transaction {
     // P8: paid explicitly from the reserve pot of the rare item with this key, or from a saving goal
     private java.util.UUID reserveItemKey;
 
+    // 27f4 (decision 60): the user took the booking out of the reserve whose term it fulfils
+    @Column(name = "no_reserve", nullable = false)
+    private boolean noReserve;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "saving_goal_id")
     private io.github.mirco104.budget.goal.SavingGoal savingGoal;
@@ -199,6 +203,26 @@ public class Transaction {
     public void payFrom(java.util.UUID reserveItemKey, io.github.mirco104.budget.goal.SavingGoal savingGoal) {
         this.reserveItemKey = reserveItemKey;
         this.savingGoal = savingGoal;
+    }
+
+    /** 27f4: true when the user took the booking out of the reserve whose term it fulfils (decision 60). */
+    public boolean isNoReserve() {
+        return noReserve;
+    }
+
+    public void setNoReserve(boolean noReserve) {
+        this.noReserve = noReserve;
+    }
+
+    /**
+     * 27f4 (decision 60): the reserve that pays this booking: the one chosen explicitly, else the rare item whose term
+     * it fulfils (termItemKey, may be null), unless the user took it out; null for a booking from the monthly budget.
+     */
+    public java.util.UUID reserveOf(java.util.UUID termItemKey) {
+        if (reserveItemKey != null) {
+            return reserveItemKey;
+        }
+        return noReserve || savingGoal != null || amount.signum() >= 0 ? null : termItemKey;
     }
 
     public java.util.UUID getReserveItemKey() {

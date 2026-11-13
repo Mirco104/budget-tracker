@@ -73,14 +73,19 @@ public class DashboardService {
         java.util.Set<java.util.UUID> rareKeys = new java.util.HashSet<>();
         rare.forEach(item -> rareKeys.add(item.getItemKey()));
 
-        // Which booking each pot pays: the fulfilling one of a term of the item, or one chosen explicitly
-        Map<Long, java.util.UUID> potOf = new HashMap<>();
+        // Which booking each pot pays: one chosen explicitly, or the fulfilling one of a term of the item unless the
+        // user took it out (27f4, decision 60)
+        Map<Long, java.util.UUID> termOf = new HashMap<>();
         termService.terms(month.atDay(1), month.atEndOfMonth()).stream()
                 .filter(e -> e.transactionId() != null && rareKeys.contains(e.item().getItemKey()))
-                .forEach(e -> potOf.put(e.transactionId(), e.item().getItemKey()));
-        bookings.stream()
-                .filter(t -> t.getReserveItemKey() != null && rareKeys.contains(t.getReserveItemKey()))
-                .forEach(t -> potOf.put(t.getId(), t.getReserveItemKey()));
+                .forEach(e -> termOf.put(e.transactionId(), e.item().getItemKey()));
+        Map<Long, java.util.UUID> potOf = new HashMap<>();
+        for (io.github.mirco104.budget.transaction.Transaction t : bookings) {
+            java.util.UUID key = t.reserveOf(termOf.get(t.getId()));
+            if (key != null && rareKeys.contains(key)) {
+                potOf.put(t.getId(), key);
+            }
+        }
         Map<java.util.UUID, BigDecimal> paid = new HashMap<>();
         java.util.Set<Long> excluded = new java.util.HashSet<>();
         BigDecimal fromGoals = BigDecimal.ZERO;

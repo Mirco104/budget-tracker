@@ -2,6 +2,7 @@ package io.github.mirco104.budget.reserve;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -86,6 +87,27 @@ class ReservePotControllerTest {
                 .andExpect(jsonPath("$.reserves[0].fromPot").value(1200.00))
                 .andExpect(jsonPath("$.reserves[0].shortfall").value(50.00))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Mobilität')].actual").value(150.00));
+    }
+
+    @Test
+    void thePaymentOfTheTermShowsItsReserveAndUntickedItCountsFullyInTheBudget() throws Exception {
+        String itemKey = yearlyKfz();
+        book("-1200", "Kfz-Versicherung", null, null);
+        String list = mockMvc.perform(get("/api/transactions").param("from", today.toString()).param("to", today.toString()))
+                .andExpect(jsonPath("$[0].reserveItemKey").value(itemKey))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(list, "$[0].id")).longValue();
+
+        // 27f4 (decision 60): the user takes it out of the reserve
+        mockMvc.perform(put("/api/transactions/{id}", id).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -1200, "description": "Kfz-Versicherung", "date": "%s", "categoryId": %d,
+                         "noReserve": true}""".formatted(today, category("Mobilität"))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/transactions").param("from", today.toString()).param("to", today.toString()))
+                .andExpect(jsonPath("$[0].reserveItemKey").doesNotExist());
+        mockMvc.perform(get("/api/dashboard").param("month", month))
+                .andExpect(jsonPath("$.fromReserves").doesNotExist())
+                .andExpect(jsonPath("$.categories[?(@.name == 'Mobilität')].actual").value(1300.00));
     }
 
     @Test

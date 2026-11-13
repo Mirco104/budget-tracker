@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,8 +60,10 @@ public class TransactionService {
                 .findByOwnerAndDateBetweenOrderByDateDescIdDesc(currentUser.get(), from, to);
         // P5: an expense that fulfils a term is fix
         Set<Long> fix = termService.fixIds(from, to);
+        Map<Long, java.util.UUID> reserves = termService.reserveTerms(from, to);
         return transactions.stream()
-                .map(transaction -> TransactionResponse.from(transaction, fix.contains(transaction.getId())))
+                .map(transaction -> TransactionResponse.from(transaction, fix.contains(transaction.getId()),
+                        reserves.get(transaction.getId())))
                 .toList();
     }
 
@@ -137,8 +140,10 @@ public class TransactionService {
     private void payFrom(Transaction transaction, TransactionRequest request) {
         if (request.reserveItemKey() == null && request.savingGoalId() == null) {
             transaction.payFrom(null, null);
+            transaction.setNoReserve(Boolean.TRUE.equals(request.noReserve()));
             return;
         }
+        transaction.setNoReserve(false);
         if (transaction.isTransfer() || transaction.getAmount().signum() > 0) {
             throw new InvalidFieldException("reserveItemKey", "Nur eine Ausgabe kann aus einer Rücklage bezahlt werden.");
         }

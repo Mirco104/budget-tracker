@@ -51,5 +51,9 @@ public record TransactionRequest(
 
         // 27f3: optional for a transfer or Sparen: the target account; then both bookings are made (amount leaves
         // accountId and arrives on targetAccountId)
-        Long targetAccountId) {
+        Long targetAccountId,
+
+        // 27f4 (decision 60): optional, true takes an expense that fulfils the term of a rare item out of its reserve;
+        // it then counts fully in the budget
+        Boolean noReserve) {
 }

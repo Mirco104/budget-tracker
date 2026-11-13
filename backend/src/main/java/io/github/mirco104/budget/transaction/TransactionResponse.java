@@ -27,6 +27,14 @@ public record TransactionResponse(
         String transferPeerAccountName) {
 
     public static TransactionResponse from(Transaction transaction, boolean fix) {
+        return from(transaction, fix, null);
+    }
+
+    /**
+     * 27f4 (decision 60): reserveItemKey is the reserve that pays the booking, also when it only fulfils the term of
+     * the rare item (termItemKey), so the dialog shows the tick.
+     */
+    public static TransactionResponse from(Transaction transaction, boolean fix, java.util.UUID termItemKey) {
         Category category = transaction.getCategory();
         return new TransactionResponse(
                 transaction.getId(),
@@ -40,7 +48,7 @@ public record TransactionResponse(
                 transaction.isTransfer(),
                 transaction.isAuto(),
                 fix,
-                transaction.getReserveItemKey(),
+                transaction.reserveOf(termItemKey),
                 transaction.getSavingGoal() == null ? null : transaction.getSavingGoal().getId(),
                 transaction.isSaving(),
                 transaction.getTransferPeer() == null ? null : transaction.getTransferPeer().getId(),

@@ -66,6 +66,25 @@ public class TermService {
         return evaluate(from.minusDays(MATCH_WINDOW_DAYS), to.plusDays(MATCH_WINDOW_DAYS)).fixIds();
     }
 
+    /**
+     * 27f4 (decision 60): per booking from and to inclusive that fulfils a term of a rare item (P8) the key of that
+     * item; its reserve pays the booking unless the user took it out.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, java.util.UUID> reserveTerms(LocalDate from, LocalDate to) {
+        Map<Long, java.util.UUID> result = new HashMap<>();
+        evaluate(from.minusDays(MATCH_WINDOW_DAYS), to.plusDays(MATCH_WINDOW_DAYS)).terms().stream()
+                .filter(e -> e.transactionId() != null && rare(e.item()))
+                .forEach(e -> result.put(e.transactionId(), e.item().getItemKey()));
+        return result;
+    }
+
+    /** P8: an expense item with a spacing over one month has a reserve pot. */
+    public static boolean rare(PlannedItem item) {
+        return item.getRhythmUnit() == RhythmUnit.MONTH && item.getRhythmCount() > 1 && !item.isSaving()
+                && item.getAmount().signum() < 0;
+    }
+
     private Evaluation evaluate(LocalDate from, LocalDate to) {
         Map<String, ItemTerm> rows = new HashMap<>();
         termRepository.findBetween(currentUser.get(), from, to)
