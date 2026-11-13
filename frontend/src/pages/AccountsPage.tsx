@@ -1,20 +1,16 @@
-import { useState, type FormEvent } from 'react'
-import { useAccounts, useLinkReserve, useReconcile, useReservesByAccount, useSetComfortAmount } from '../api/accounts'
+import { useState } from 'react'
+import { useAccounts, useLinkReserve, useReservesByAccount } from '../api/accounts'
 import { useSavingGoals } from '../api/goals'
-import { useUpdateBankAccount } from '../api/bankAccounts'
-import { errorText } from '../api/client'
 import { usePlan } from '../api/plan'
-import type { AccountLine, AccountRole, ReserveGroup, SavingGoal } from '../api/types'
-import { BankAccountSettings } from '../components/BankAccountSettings'
+import type { AccountLine, ReserveGroup, SavingGoal } from '../api/types'
+import { ROLE_NAMES } from '../accountRoles'
+import { AccountDialog } from '../components/AccountDialog'
 import { SavingGoalDialog } from '../components/SavingGoalDialog'
-import { Dialog } from '../components/ui/Dialog'
 import { InfoTip } from '../components/ui/InfoTip'
 import { Loading } from '../components/ui/Loading'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { currentMonth, formatDate, formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
-
-const ROLE_NAMES: Record<AccountRole, string> = { EVERYDAY: 'Alltag', SAVINGS: 'Sparen', DEPOT: 'Depot' }
+import { currentMonth, formatDate, formatEuro } from '../format'
 
 /**
  * Konten (concept 4.4, replaces Einstellungen › Bankkonten): accounts by role with their app balance (P11), the
@@ -24,14 +20,14 @@ export function AccountsPage() {
   const accounts = useAccounts()
   const month = currentMonth()
   const plan = usePlan(month)
-  const updateAccount = useUpdateBankAccount()
   const linkReserve = useLinkReserve()
   const reserves = useReservesByAccount()
   const goals = useSavingGoals()
-  const [reconciling, setReconciling] = useState<AccountLine | null>(null)
+  // 27f4 (decision 60): the account in the window; 'new' for a new one
+  const [editAccount, setEditAccount] = useState<AccountLine | 'new' | null>(null)
+  const [archivedOpen, setArchivedOpen] = useState(false)
   // 27f4: the goal in the dialog; 'new' for a new one
   const [editGoal, setEditGoal] = useState<SavingGoal | 'new' | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   if (accounts.isPending) {
     return <Loading text="Lade Konten …" />
@@ -39,77 +35,58 @@ export function AccountsPage() {
   if (accounts.error) {
     return <p className="error">Konten konnten nicht geladen werden: {accounts.error.message}</p>
   }
-  const savingsAccounts = accounts.data.filter((g) => g.role !== 'EVERYDAY').flatMap((g) => g.accounts)
-
-  async function changeRole(account: AccountLine, role: AccountRole) {
-    setError(null)
-    try {
-      await updateAccount.mutateAsync({
-        id: account.id,
-        input: { name: account.name, iban: account.iban, archived: account.archived, defaultAccount: account.defaultAccount, role },
-      })
-    } catch (e) {
-      setError(errorText(e, 'Die Rolle konnte nicht geändert werden.'))
-    }
-  }
+  // 27f4 (decision 60): any active account may hold a reserve
+  const all = accounts.data.flatMap((g) => g.accounts)
+  const reserveAccounts = all.filter((a) => !a.archived)
+  const archived = all.filter((a) => a.archived)
 
   return (
     <section>
       <PageHeader title="Konten" />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {accounts.data
-        .filter((group) => group.accounts.length > 0)
-        .map((group) => (
-          <section key={group.role} className="card account-group" aria-label={ROLE_NAMES[group.role]}>
-            <div className="plan-group-head">
-              <h2>{ROLE_NAMES[group.role]}</h2>
-              <span className="plan-group-total">{formatEuro(group.total)}</span>
+      {/* 27f4 (decision 60): one card with the accounts by Kontoart; a row opens the window of the account */}
+      <section className="card account-group" aria-label="Konten">
+        <div className="plan-group-head">
+          <h2>Konten</h2>
+          <button type="button" className="link-button" onClick={() => setEditAccount('new')}>
+            + Neues Konto
+          </button>
+        </div>
+        {accounts.data
+          .map((group) => ({ ...group, accounts: group.accounts.filter((a) => !a.archived) }))
+          .filter((group) => group.accounts.length > 0)
+          .map((group) => (
+            <div key={group.role} className="account-role" role="group" aria-label={ROLE_NAMES[group.role]}>
+              <div className="account-role-head">
+                <h3>{ROLE_NAMES[group.role]}</h3>
+                <span>{formatEuro(group.total)}</span>
+              </div>
+              <ul className="item-list">
+                {group.accounts.map((account) => (
+                  <AccountRow key={account.id} account={account} onOpen={() => setEditAccount(account)} />
+                ))}
+              </ul>
             </div>
-            <ul className="item-list">
-              {group.accounts.map((account) => (
-                <li key={account.id} className="account-row">
-                  <span className="item-main">
-                    <span className="item-name">{account.name}</span>
-                    <span className="tx-meta">
-                      {account.statementDate
-                        ? `Bank am ${formatDate(account.statementDate)}: ${formatEuro(account.statementAmount)}`
-                        : 'noch kein Kontostand eingetragen'}
-                      {account.comfortAmount !== null && (
-                        <span className={account.belowComfort ? 'below-comfort' : undefined}>
-                          {' '}
-                          · {account.belowComfort ? 'unter ' : ''}Wohlfühlbetrag {formatEuro(account.comfortAmount)}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                  <select
-                    aria-label={`Kontoart von ${account.name}`}
-                    value={account.role}
-                    onChange={(e) => void changeRole(account, e.target.value as AccountRole)}
-                  >
-                    {(Object.keys(ROLE_NAMES) as AccountRole[]).map((role) => (
-                      <option key={role} value={role}>
-                        {ROLE_NAMES[role]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className={account.belowComfort ? 'link-button item-amount below-comfort' : 'link-button item-amount'}
-                    aria-label={`Kontostand von ${account.name} laut Bank eintragen`}
-                    onClick={() => setReconciling(account)}
-                  >
-                    {formatEuro(account.balance)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+          ))}
+        {archived.length > 0 && (
+          <div className="account-role">
+            <button
+              type="button"
+              className="link-button"
+              aria-expanded={archivedOpen}
+              onClick={() => setArchivedOpen((v) => !v)}
+            >
+              Archiviert ({archived.length}) {archivedOpen ? '▴' : '▾'}
+            </button>
+            {archivedOpen && (
+              <ul className="item-list">
+                {archived.map((account) => (
+                  <AccountRow key={account.id} account={account} onOpen={() => setEditAccount(account)} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
 
       {(reserves.data ?? []).length > 0 && (
         <section className="card account-group" aria-label="Rücklagen">
@@ -120,7 +97,7 @@ export function AccountsPage() {
                 key={group.accountId ?? 'none'}
                 group={group}
                 accountOf={(itemId) => plan.data?.items.find((i) => i.id === itemId)?.reserveAccountId ?? null}
-                savingsAccounts={savingsAccounts}
+                reserveAccounts={reserveAccounts}
                 onLink={(itemId, accountId) => linkReserve.mutate({ itemId, accountId })}
               />
             ))}
@@ -166,29 +143,28 @@ export function AccountsPage() {
         )}
       </section>
 
-      <div className="card">
-        <BankAccountSettings />
-      </div>
-
-      {reconciling && <ReconcileDialog account={reconciling} onClose={() => setReconciling(null)} />}
+      {editAccount && (
+        <AccountDialog account={editAccount === 'new' ? null : editAccount} onClose={() => setEditAccount(null)} />
+      )}
       {editGoal && <SavingGoalDialog goal={editGoal === 'new' ? null : editGoal} onClose={() => setEditGoal(null)} />}
     </section>
   )
 }
 
 /**
- * 27f2: the reserves of one savings account (or without account) at a glance: saved of target with a bar, and on the
- * right ✓ when the account balance covers them, otherwise what is missing. Open it shows the single reserves.
+ * 27f2: the reserves of one account (or without account) at a glance: saved of target with a bar and below it whether
+ * the account covers them (27f4: the tick stands in that line). Open it shows the single reserves as a table with
+ * the account each one lies on.
  */
 function ReserveGroupRow({
   group,
   accountOf,
-  savingsAccounts,
+  reserveAccounts,
   onLink,
 }: {
   group: ReserveGroup
   accountOf: (itemId: number) => number | null
-  savingsAccounts: AccountLine[]
+  reserveAccounts: AccountLine[]
   onLink: (itemId: number, accountId: number | null) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -196,169 +172,106 @@ function ReserveGroupRow({
   return (
     <li className="budget-item">
       <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        <span className="budget-name">{group.accountName ?? 'Ohne Konto'}</span>
+        <span className="budget-name">
+          {group.accountName ?? 'Ohne Konto'}{' '}
+          <span className="summary-chevron-inline" aria-hidden="true">
+            {open ? '▴' : '▾'}
+          </span>
+        </span>
         <span className="budget-amount">
           <span>
             {formatEuro(group.saved)} / {formatEuro(group.target)}
           </span>
-          {group.accountId !== null &&
-            (missing > 0 ? (
-              <span className="budget-left over">−{formatEuro(missing)}</span>
-            ) : (
-              <span className="budget-left covered" aria-label="gedeckt">
-                ✓
-              </span>
-            ))}
         </span>
       </button>
       <div className="saving-progress">
         <ProgressBar value={group.target > 0 ? group.saved / group.target : 0} />
       </div>
-      {/* 27f4: what the orange amount or the tick means, with the formula and the numbers */}
+      {/* 27f4: whether the account covers its reserves, in words everyone understands */}
       {group.accountId !== null && group.accountBalance !== null && (
-        <p className="breakdown reserve-cover">
+        <p className={missing > 0 ? 'breakdown reserve-cover short' : 'breakdown reserve-cover'}>
           <span>
             {missing > 0
               ? `Auf ${group.accountName} fehlen ${formatEuro(missing)}`
-              : `${group.accountName} deckt die Rücklagen`}
+              : `✓ ${group.accountName} deckt die Rücklagen`}
           </span>{' '}
-          <InfoTip label="Wie wird das gerechnet?">
-            Fehlt = Summe der Rücklagen − Kontostand in der App = {formatEuro(group.saved)} −{' '}
-            {formatEuro(group.accountBalance)}
-            {missing > 0 ? ` = ${formatEuro(missing)}.` : ' ≤ 0, also gedeckt.'} Eine Rücklage zählt mit dem, was
-            nach den Zahlungen dieses Monats noch in ihr liegt; die Monatsraten legst du per Umbuchung auf dieses Konto.
+          <InfoTip label="Was heißt das?">
+            Für deine Rücklagen sollten auf {group.accountName} {formatEuro(group.saved)} liegen. Laut App liegen dort{' '}
+            {formatEuro(group.accountBalance)}. {missing > 0 ? `Es fehlen ${formatEuro(missing)}.` : 'Das reicht.'}
           </InfoTip>
         </p>
       )}
       {open && (
-        <ul className="item-list">
-          {group.pots.map((pot) => (
-            <li key={pot.itemId} className="account-row">
-              <span className="item-main">
-                <span className="item-name">{pot.name}</span>
-                <span className="tx-meta">
+        <table className="reserve-table">
+          <thead>
+            <tr>
+              <th scope="col">Rücklage</th>
+              <th scope="col">Angespart / Betrag</th>
+              <th scope="col">Liegt auf</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.pots.map((pot) => (
+              <tr key={pot.itemId}>
+                <td>
+                  <span className="item-name">{pot.name}</span>
+                  {pot.nextDue && <span className="tx-meta"> fällig {formatDate(pot.nextDue)}</span>}
+                </td>
+                <td className="reserve-amount">
                   {formatEuro(pot.balance)} / {formatEuro(pot.amount)}
-                  {pot.nextDue && ` · fällig ${formatDate(pot.nextDue)}`}
-                </span>
-              </span>
-              <select
-                aria-label={`Konto der Rücklage ${pot.name}`}
-                value={accountOf(pot.itemId) ?? ''}
-                onChange={(e) => onLink(pot.itemId, e.target.value === '' ? null : Number(e.target.value))}
-              >
-                <option value="">ohne Konto</option>
-                {savingsAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </li>
-          ))}
-        </ul>
+                </td>
+                <td>
+                  <label className="reserve-account">
+                    <span className="mobile-label">Liegt auf</span>
+                    <select
+                      aria-label={`Konto der Rücklage ${pot.name}`}
+                      value={accountOf(pot.itemId) ?? ''}
+                      onChange={(e) => onLink(pot.itemId, e.target.value === '' ? null : Number(e.target.value))}
+                    >
+                      <option value="">ohne Konto</option>
+                      {reserveAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </li>
   )
 }
 
-/** P11: the balance from the bank on a day; shows the difference to the app balance and books nothing. */
-function ReconcileDialog({ account, onClose }: { account: AccountLine; onClose: () => void }) {
-  const reconcile = useReconcile()
-  const setComfort = useSetComfortAmount()
-  const [date, setDate] = useState(todayIso())
-  const [amount, setAmount] = useState('')
-  const initialComfort = account.comfortAmount === null ? '' : account.comfortAmount.toFixed(2).replace('.', ',')
-  const [comfort, setComfortText] = useState(initialComfort)
-  const [error, setError] = useState<string | null>(null)
-  const [comfortSaved, setComfortSaved] = useState(false)
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const comfortChanged = comfort.trim() !== initialComfort
-    const comfortValue = comfort.trim() === '' ? null : parseAmountInput(comfort.trim())
-    if (comfortChanged && comfort.trim() !== '' && comfortValue === null) {
-      setError('Bitte einen Wohlfühlbetrag wie 500,00 eingeben.')
-      return
-    }
-    if (amount.trim() === '' && !comfortChanged) {
-      setError('Bitte einen Betrag wie 1.234,56 eingeben.')
-      return
-    }
-    // Negative balances are allowed: "-12,50"
-    const negative = amount.trim().startsWith('-')
-    const parsed = amount.trim() === '' ? null : parseAmountInput(amount.trim().replace(/^-/, ''))
-    if (amount.trim() !== '' && parsed === null) {
-      setError('Bitte einen Betrag wie 1.234,56 eingeben.')
-      return
-    }
-    setError(null)
-    try {
-      if (comfortChanged) {
-        await setComfort.mutateAsync({ accountId: account.id, amount: comfortValue })
-        setComfortSaved(true)
-      }
-      if (parsed !== null) {
-        await reconcile.mutateAsync({ accountId: account.id, date, amount: negative ? -parsed : parsed })
-      } else {
-        onClose()
-      }
-    } catch (e) {
-      setError(errorText(e, 'Der Kontostand konnte nicht gespeichert werden.'))
-    }
-  }
-
-  const result = reconcile.data
+/** 27f4 (decision 60): name, hint and the app balance (P11); the whole row opens the window of the account. */
+function AccountRow({ account, onOpen }: { account: AccountLine; onOpen: () => void }) {
   return (
-    <Dialog title={`Kontostand ${account.name}`} onClose={onClose}>
-      <form className="booking-form" noValidate onSubmit={(e) => void handleSubmit(e)}>
-        <div className="field-row">
-          <label className="field">
-            Stichtag
-            <input type="date" value={date} max={todayIso()} onChange={(e) => setDate(e.target.value)} />
-          </label>
-          <label className="field">
-            Kontostand laut Bank
-            <input inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </label>
-        </div>
-        {/* 27f4: below it the balance turns orange */}
-        <label className="field">
-          Wohlfühlbetrag (optional)
-          <input
-            inputMode="decimal"
-            placeholder="z. B. 500,00"
-            value={comfort}
-            onChange={(e) => {
-              setComfortText(e.target.value)
-              setComfortSaved(false)
-            }}
-          />
-        </label>
-        {comfortSaved && (
-          <p className="hint" role="status">
-            Wohlfühlbetrag gespeichert.
-          </p>
-        )}
-        {error && <p className="error">{error}</p>}
-        {result && (
-          <p className={result.difference === 0 ? 'plan-done' : 'hint'} role="status">
-            {result.difference === 0
-              ? '✓ Stimmt mit der App überein.'
-              : `Die App hatte ${formatEuro(result.appBalance)}. Differenz ${formatSigned(result.difference)}: fehlt eine Buchung?`}
-          </p>
-        )}
-        <div className="dialog-actions">
-          <div />
-          <div className="dialog-buttons">
-            <button type="button" onClick={onClose}>
-              Schließen
-            </button>
-            <button type="submit" disabled={reconcile.isPending}>
-              Speichern
-            </button>
-          </div>
-        </div>
-      </form>
-    </Dialog>
+    <li>
+      <button type="button" className="account-row account-open" onClick={onOpen} aria-label={`Konto ${account.name} bearbeiten`}>
+        <span className="item-main">
+          <span className="item-name">
+            {account.name}
+            {account.defaultAccount && <span className="badge">Standard</span>}
+          </span>
+          <span className="tx-meta">
+            {account.statementDate
+              ? `Bank am ${formatDate(account.statementDate)}: ${formatEuro(account.statementAmount)}`
+              : 'noch kein Kontostand eingetragen'}
+            {account.comfortAmount !== null && (
+              <span className={account.belowComfort ? 'below-comfort' : undefined}>
+                {' '}
+                · {account.belowComfort ? 'unter ' : ''}Wohlfühlbetrag {formatEuro(account.comfortAmount)}
+              </span>
+            )}
+          </span>
+        </span>
+        <span className={account.belowComfort ? 'item-amount below-comfort' : 'item-amount'}>
+          {formatEuro(account.balance)}
+        </span>
+      </button>
+    </li>
   )
 }

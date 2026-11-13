@@ -10,7 +10,7 @@ import { BookingList } from '../components/BookingList'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
-import { facetCounts, NO_FILTERS, type Filters } from '../filters'
+import { DIRECTIONS, facetCounts, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
@@ -19,12 +19,20 @@ import { ExpectedSection } from '../components/ExpectedSection'
 import { totals } from '../sums'
 import { Loading } from '../components/ui/Loading'
 
-/** For the filter Art: income, or an expense that is fix (fulfils a term, P5) or variable. */
+/** For the filter Art: an expense is fix (fulfils a term, P5) or variable; income and transfers are neither. */
 function kindOf(entry: Transaction): string {
+  if (entry.transfer || entry.amount > 0) {
+    return 'NONE'
+  }
+  return entry.fix ? 'FIX' : 'VARIABLE'
+}
+
+/** 27f4: for the filter Einnahmen / Ausgaben; a transfer (R27) is neither. */
+function directionOf(entry: Transaction): string {
   if (entry.transfer) {
     return 'TRANSFER'
   }
-  return entry.amount > 0 ? 'INCOME' : entry.fix ? 'FIX' : 'VARIABLE'
+  return entry.amount > 0 ? 'INCOME' : 'EXPENSE'
 }
 
 /** The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking. */
@@ -40,6 +48,7 @@ function matchesFilters(entry: Transaction, filters: Filters): boolean {
     (filters.category === '' || categoryOf(entry) === filters.category) &&
     (filters.account === '' || String(entry.accountId) === filters.account) &&
     (filters.kind === '' || kindOf(entry) === filters.kind) &&
+    (filters.direction === '' || directionOf(entry) === filters.direction) &&
     (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search))
   )
 }
@@ -48,6 +57,7 @@ const FACET_KEYS = {
   category: categoryOf,
   account: (entry: Transaction) => String(entry.accountId),
   kind: (entry: Transaction) => kindOf(entry),
+  direction: directionOf,
 }
 
 /**
@@ -91,7 +101,7 @@ export function TransactionsPage({
   const counts = facetCounts(loaded, filters, matchesFilters, FACET_KEYS)
   const sums = totals(shown)
   const filtered =
-    filters.query.trim() !== '' || filters.category !== '' || filters.kind !== '' || filters.account !== ''
+    filters.query.trim() !== '' || filters.category !== '' || filters.kind !== '' || filters.account !== '' || filters.direction !== ''
   const accounts = bankAccounts.data ?? []
 
   return (
@@ -147,6 +157,7 @@ export function TransactionsPage({
           counts={counts}
           categories={categories.data ?? []}
           extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
+          directions={DIRECTIONS}
           accounts={accounts.map((account) => ({
             value: String(account.id),
             label: account.archived ? `${account.name} (archiviert)` : account.name,

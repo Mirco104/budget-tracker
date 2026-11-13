@@ -538,6 +538,7 @@ function Preview({
     category: categoryKey,
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
+    direction: () => '',
   })
   // The shown chosen rows without category, for "Zuordnen"
   const assignable = filterActive

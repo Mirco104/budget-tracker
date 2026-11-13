@@ -8,12 +8,12 @@ export interface FilterOption {
 }
 
 // An Umbuchung is chosen like a category when booking, so it is a category option, not a kind (ticket #84)
-// Transaktionen: fix and variable expenses (P5) and income; the import keeps its own kinds
+// Transaktionen: fix and variable expenses (P5); the import keeps its own kinds
 const KINDS: FilterOption[] = [
   { value: 'FIX', label: 'Fix' },
   { value: 'VARIABLE', label: 'Variabel' },
-  { value: 'INCOME', label: 'Einnahmen' },
 ]
+
 
 /**
  * The same filters for Transaktionen (US26) and the import (US33, ticket #84): description, category, account (only
@@ -28,6 +28,7 @@ export function TransactionFilters({
   extraCategoryOptions = [],
   counts,
   kinds = KINDS,
+  directions,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
@@ -36,6 +37,8 @@ export function TransactionFilters({
   extraCategoryOptions?: FilterOption[]
   counts?: FacetCounts
   kinds?: FilterOption[]
+  /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter (the import) */
+  directions?: FilterOption[]
 }) {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
@@ -79,10 +82,25 @@ export function TransactionFilters({
           {options('account', accounts)}
         </select>
       )}
-      <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
-        <option value="">Alle Arten</option>
-        {options('kind', kinds)}
-      </select>
+      {directions && (
+        <select
+          aria-label="Einnahmen oder Ausgaben filtern"
+          value={filters.direction}
+          // Fix and variable are kinds of expenses; with Einnahmen they do not apply
+          onChange={(e) =>
+            onChange({ ...filters, direction: e.target.value, kind: e.target.value === 'INCOME' ? '' : filters.kind })
+          }
+        >
+          <option value="">Einnahmen und Ausgaben</option>
+          {options('direction', directions)}
+        </select>
+      )}
+      {filters.direction !== 'INCOME' && (
+        <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
+          <option value="">{directions ? 'Fix und variabel' : 'Alle Arten'}</option>
+          {options('kind', kinds)}
+        </select>
+      )}
     </div>
   )
 }

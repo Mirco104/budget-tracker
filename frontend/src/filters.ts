@@ -4,9 +4,11 @@ export interface Filters {
   category: string
   account: string
   kind: string
+  /** 27f4: Einnahmen or Ausgaben, a filter of its own next to fix / variable (only Transaktionen) */
+  direction: string
 }
 
-export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind: '' }
+export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind: '', direction: '' }
 
 /**
  * The start of the import filters (ticket #84, after the test): only one-off rows, the series rows and transfers are
@@ -15,7 +17,7 @@ export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind:
 export const IMPORT_FILTERS: Filters = { ...NO_FILTERS, kind: 'SINGLE' }
 
 /** The fields of the filter bar whose options get a count. */
-export type FacetField = 'category' | 'account' | 'kind'
+export type FacetField = 'category' | 'account' | 'kind' | 'direction'
 
 /** The hits per option value of each field. */
 export type FacetCounts = Record<FacetField, Map<string, number>>
@@ -42,8 +44,19 @@ export function facetCounts<T>(
     }
     return result
   }
-  return { category: count('category'), account: count('account'), kind: count('kind') }
+  return {
+    category: count('category'),
+    account: count('account'),
+    kind: count('kind'),
+    direction: count('direction'),
+  }
 }
+
+/** 27f4: Einnahmen and Ausgaben are a filter of their own on Transaktionen, not a kind (decision 60). */
+export const DIRECTIONS: { value: string; label: string }[] = [
+  { value: 'INCOME', label: 'Einnahmen' },
+  { value: 'EXPENSE', label: 'Ausgaben' },
+]
 
 /** The kinds of the import: a row that fulfils a planned term or belongs to a new item is "Wiederkehrend". */
 export const IMPORT_KINDS: { value: string; label: string }[] = [

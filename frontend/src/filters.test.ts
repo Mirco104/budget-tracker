@@ -29,6 +29,7 @@ const keys = {
   category: (item: Item) => item.category,
   account: (item: Item) => item.account,
   kind: (item: Item) => item.kind,
+  direction: () => '',
 }
 
 describe('facetCounts', () => {

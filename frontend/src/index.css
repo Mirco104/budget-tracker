@@ -3271,3 +3271,102 @@ a.summary-link:hover {
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+/* --- Konten after the fourth test (AP 27f4, decision 60) --- */
+.account-role {
+  margin-top: 12px;
+}
+.account-role-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+.account-role-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.account-role-head span {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+button.account-open {
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.account-open:hover {
+  background: var(--primary-soft);
+}
+.account-open .item-amount {
+  font-variant-numeric: tabular-nums;
+}
+.reserve-cover.short {
+  color: var(--warn);
+}
+.reserve-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.reserve-table th {
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 8px 4px 0;
+}
+.reserve-table td {
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.reserve-table td.reserve-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reserve-table .tx-meta {
+  display: block;
+}
+.reserve-account .mobile-label {
+  display: none;
+}
+@media (max-width: 600px) {
+  .reserve-table thead {
+    display: none;
+  }
+  .reserve-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .reserve-table td {
+    padding: 0;
+    border: 0;
+  }
+  .reserve-table td:last-child {
+    grid-column: 1 / -1;
+  }
+  .reserve-account {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .reserve-account .mobile-label {
+    display: inline;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+}

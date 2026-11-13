@@ -59,50 +59,71 @@ afterEach(() => {
 })
 
 describe('AccountsPage', () => {
+  // 27f4 (decision 60): one card Konten with the accounts by Kontoart
   it('shows the accounts by role with their sums and the last bank balance', async () => {
     renderPage()
 
-    const everyday = await screen.findByRole('region', { name: 'Alltag' })
+    const card = await screen.findByRole('region', { name: 'Konten' })
+    const everyday = within(card).getByRole('group', { name: 'Alltag' })
     expect(everyday).toHaveTextContent('1.250,00 €')
-    const saving = screen.getByRole('region', { name: 'Sparen' })
+    expect(everyday).toHaveTextContent('Standard')
+    const saving = within(card).getByRole('group', { name: 'Sparen' })
     expect(saving).toHaveTextContent('Tagesgeld')
     expect(saving).toHaveTextContent('Bank am 01.11.2026: 690,00 €')
-    expect(screen.queryByRole('region', { name: 'Depot' })).not.toBeInTheDocument()
+    expect(within(card).queryByRole('group', { name: 'Depot' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Kontoart/ })).not.toBeInTheDocument()
   })
 
-  it('enters a bank balance and shows the difference without booking it', async () => {
+  it('enters a bank balance in the window of the account and shows the difference without booking it', async () => {
     const fetchMock = renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Kontostand von Girokonto laut Bank eintragen' }))
-    const dialog = screen.getByRole('dialog', { name: 'Kontostand Girokonto' })
-    fireEvent.change(within(dialog).getByLabelText('Kontostand laut Bank'), { target: { value: '1.200,00' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Girokonto' })
+    fireEvent.change(within(dialog).getByLabelText('Kontostand laut Bank (optional)'), { target: { value: '1.200,00' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
 
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Differenz −50,00 €: fehlt eine Buchung?')
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/1/balances')).toBe(true))
+    expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/bank-accounts/1' && init?.method === 'PUT')).toBe(false)
   })
 
-  // 27f2: the reserves of an account at a glance, the single ones when opened
+  it('changes the Kontoart in the window of the account', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Tagesgeld bearbeiten' }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Tagesgeld' })
+    fireEvent.change(within(dialog).getByLabelText('Kontoart'), { target: { value: 'DEPOT' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/bank-accounts/2' && init?.method === 'PUT')
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Tagesgeld', role: 'DEPOT' })
+  })
+
+  // 27f2: the reserves of an account at a glance, the single ones when opened; 27f4: the coverage in words
   it('shows the reserves per account with what is missing on the account', async () => {
     renderPage()
     const reserves = await screen.findByRole('region', { name: 'Rücklagen' })
     const row = await within(reserves).findByRole('button', { name: /Tagesgeld/ })
     expect(row).toHaveTextContent('1.340,00 € / 2.400,00 €')
-    expect(row).toHaveTextContent('−300,00 €')
+    expect(reserves).toHaveTextContent('Auf Tagesgeld fehlen 300,00 €')
     expect(within(reserves).queryByText('Kfz-Versicherung')).not.toBeInTheDocument()
     fireEvent.click(row)
     expect(within(reserves).getByText('Kfz-Versicherung')).toBeInTheDocument()
+    expect(within(reserves).getByRole('columnheader', { name: 'Liegt auf' })).toBeInTheDocument()
+    // 27f4 (decision 60): the everyday account may hold a reserve too
+    expect(within(reserves).getByRole('option', { name: 'Girokonto' })).toBeInTheDocument()
   })
 
   // 27f4
   it('marks a balance below the comfort amount and changes the comfort amount', async () => {
     const fetchMock = renderPage()
-    const saving = await screen.findByRole('region', { name: 'Sparen' })
+    const card = await screen.findByRole('region', { name: 'Konten' })
+    const saving = within(card).getByRole('group', { name: 'Sparen' })
     expect(saving).toHaveTextContent('unter Wohlfühlbetrag 1.000,00 €')
-    expect(within(saving).getByRole('button', { name: 'Kontostand von Tagesgeld laut Bank eintragen' })).toHaveClass('below-comfort')
-    expect(screen.getByRole('region', { name: 'Alltag' })).not.toHaveTextContent('Wohlfühlbetrag')
+    expect(within(saving).getByText('700,00 €', { selector: '.item-amount' })).toHaveClass('below-comfort')
+    expect(within(card).getByRole('group', { name: 'Alltag' })).not.toHaveTextContent('Wohlfühlbetrag')
 
-    fireEvent.click(within(saving).getByRole('button', { name: 'Kontostand von Tagesgeld laut Bank eintragen' }))
-    const dialog = screen.getByRole('dialog', { name: 'Kontostand Tagesgeld' })
+    fireEvent.click(within(saving).getByRole('button', { name: 'Konto Tagesgeld bearbeiten' }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Tagesgeld' })
     expect(within(dialog).getByLabelText('Wohlfühlbetrag (optional)')).toHaveValue('1000,00')
     fireEvent.change(within(dialog).getByLabelText('Wohlfühlbetrag (optional)'), { target: { value: '500' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
@@ -111,6 +132,20 @@ describe('AccountsPage', () => {
     const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/2/comfort-amount')
     expect(call?.[1]?.body).toBe(JSON.stringify({ amount: 500 }))
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/balances'))).toBe(false)
+  })
+
+  it('creates a new account with its Kontoart', async () => {
+    const fetchMock = renderPage()
+    const card = await screen.findByRole('region', { name: 'Konten' })
+    fireEvent.click(within(card).getByRole('button', { name: '+ Neues Konto' }))
+    const dialog = screen.getByRole('dialog', { name: 'Neues Konto' })
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Depot B' } })
+    fireEvent.change(within(dialog).getByLabelText('Kontoart'), { target: { value: 'DEPOT' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/bank-accounts' && init?.method === 'POST')
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Depot B', iban: null, role: 'DEPOT' })
   })
 
   it('lists the saving goals and creates a new one', async () => {
