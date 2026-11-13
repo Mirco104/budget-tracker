@@ -30,7 +30,7 @@ Budget tracker web app: set target budgets per category, record income and expen
 - From AP 18: every entity belongs to a user (`owner`) and every query is scoped to the signed-in user (R15). Another user's resource in the URL is 404, a reference to it in the body is 400. Never take a user id from the request.
 - From AP 17: the schema comes only from Flyway migrations. Never change a migration that is merged.
 - Frontend: no business rules, only display and formatting (`Intl.NumberFormat('de-DE')`). API calls only in `src/api/`. The backend only knows euro; the percent input of the planning page is gone from AP 27 (decision 49).
-- From AP 19b: build screens from the shared building blocks in `src/components/ui/` and the CSS variables for colors and spacing (light and dark mode); no UI library. Blue for actions and "within budget", orange as the warning color, petrol for income, green for saving and reserves (from AP 27), red only for errors and delete. Icons are inline SVG. Every page has its own address (hash routing).
+- From AP 19b: build screens from the shared building blocks in `src/components/ui/` and the CSS variables for colors and spacing (light and dark mode); no UI library. Blue for actions and "within budget", orange as the warning color, petrol for income, green for saving and reserves (from AP 27; a reserve row on the overview is grey like a transfer, decision 59), red only for errors and delete. Icons are inline SVG. Every page has its own address (hash routing).
 - Keep it simple. No extra layers, patterns or dependencies unless the spec needs them.
 
 ## Workflow
