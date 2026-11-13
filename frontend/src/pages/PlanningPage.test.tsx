@@ -1,92 +1,91 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Category } from '../api/types'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Category, Plan, PlannedItem } from '../api/types'
+import { currentMonth } from '../format'
 import { PlanningPage } from './PlanningPage'
 
-const noFixedCosts = { fixedCosts: null, fixedCostItems: [] }
-
-// Fictional categories, shaped like the backend response.
+// Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  {
-    id: 1, name: 'Wohnen', icon: 'home', targetAmount: 800, targetValidFrom: '2026-09', archived: false,
-    incomeOnly: false,
-    // R25: 900 a month and 600 a year, 950 in total
-    fixedCosts: 950,
-    fixedCostItems: [
-      { recurringId: 11, description: 'Miete', amount: 900, interval: 1, monthly: 900 },
-      { recurringId: 12, description: 'Hausrat', amount: 600, interval: 12, monthly: 50 },
-    ],
-  },
-  { id: 7, name: 'Lebensmittel', icon: 'cart', targetAmount: 480, targetValidFrom: '2026-11', archived: false, incomeOnly: false, ...noFixedCosts },
-  {
-    id: 8, name: 'Freizeit', icon: 'tag', targetAmount: null, targetValidFrom: null, archived: false,
-    incomeOnly: false, fixedCosts: 15,
-    fixedCostItems: [{ recurringId: 13, description: 'Streaming', amount: 15, interval: 1, monthly: 15 }],
-  },
-  // R24: only positive entries and no target, hidden by default
-  { id: 20, name: 'Gehalt/Lohn (netto)', icon: 'wallet', targetAmount: null, targetValidFrom: null, archived: false, incomeOnly: true, ...noFixedCosts },
-  // R24: income only, but with a target in the month, so it stays
-  { id: 21, name: 'Nebenjob', icon: 'tag', targetAmount: 10, targetValidFrom: '2026-11', archived: false, incomeOnly: true, ...noFixedCosts },
-  // US10: archived categories are not planned
-  { id: 30, name: 'Kredite', icon: 'tag', targetAmount: null, targetValidFrom: null, archived: true, incomeOnly: false, ...noFixedCosts },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
+  { id: 2, name: 'Mobilität', icon: 'car', archived: false, incomeOnly: false },
+  { id: 3, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false },
+  { id: 4, name: 'Gehalt/Lohn (netto)', icon: 'wallet', archived: false, incomeOnly: true },
 ]
 
-// Only the fields the planning page uses.
-const average = { averageIncome: 3200, averageIncomeMonths: 9, averageIncomeFrom: '2026-02', averageIncomeTo: '2026-10' }
-const dashboard = {
-  incomeTotal: 1000,
-  ...average,
-  minimumIncome: 2400,
-  expenses: { target: 3000 },
-  unplanned: 200,
-  unplannedLabel: 'Nicht verplant',
-  unplannedMinimum: -600,
-  unplannedMinimumLabel: 'Überplant',
-  categories: [
-    { id: 1, name: 'Wohnen', target: 800, actual: 0, difference: 800 },
-    { id: 7, name: 'Lebensmittel', target: 480, actual: 0, difference: 480 },
-  ],
-  income: [],
-}
-// The month before "Gilt ab": the actuals shown as orientation (US2)
-const previousDashboard = {
-  ...dashboard,
-  categories: [
-    { id: 1, name: 'Wohnen', target: 800, actual: 812.5, difference: -12.5 },
-    { id: 7, name: 'Lebensmittel', target: 480, actual: 0, difference: 480 },
-  ],
-  income: [{ id: 20, name: 'Gehalt/Lohn (netto)', actual: 3200 }],
-}
-const withoutAverage = {
-  ...dashboard,
-  averageIncome: null,
-  minimumIncome: null,
-  averageIncomeMonths: 0,
-  averageIncomeFrom: null,
-  averageIncomeTo: null,
-  unplanned: null,
-  unplannedLabel: null,
-  unplannedMinimum: null,
-  unplannedMinimumLabel: null,
+function item(overrides: Partial<PlannedItem>): PlannedItem {
+  return {
+    id: 1,
+    itemKey: 'k1',
+    name: 'Miete',
+    amount: -900,
+    saving: false,
+    categoryId: 1,
+    categoryName: 'Wohnen',
+    accountId: 1,
+    accountName: 'Girokonto',
+    rhythmUnit: 'MONTH',
+    rhythmCount: 1,
+    anchorDate: '2026-01-01',
+    entryMode: 'AUTO',
+    workdaysOnly: false,
+    validFrom: '2026-01',
+    validTo: null,
+    group: 'FIXED',
+    monthlyShare: 900,
+    ...overrides,
+  }
 }
 
-function json(body: unknown, status = 200) {
-  return Promise.resolve(new Response(JSON.stringify(body), { status }))
+const plan: Plan = {
+  month: '2026-11',
+  income: 2500,
+  fixed: 1000,
+  budgets: 400,
+  saving: 300,
+  unplanned: 800,
+  savingRate: 12,
+  planTotal: 1400,
+  averageIncome: 2450,
+  minimumIncome: 2300,
+  averageMonths: 12,
+  averageFrom: '2025-11',
+  averageTo: '2026-10',
+  categories: [
+    { group: 'INCOME', categoryId: 4, categoryName: 'Gehalt/Lohn (netto)', total: 2500 },
+    { group: 'FIXED', categoryId: 2, categoryName: 'Mobilität', total: 100 },
+    { group: 'FIXED', categoryId: 1, categoryName: 'Wohnen', total: 900 },
+    { group: 'BUDGET', categoryId: 3, categoryName: 'Lebensmittel', total: 400 },
+  ],
+  items: [
+    item({ id: 10, name: 'Gehalt', amount: 2500, categoryId: 4, group: 'INCOME', monthlyShare: 2500 }),
+    item({ id: 1 }),
+    item({
+      id: 2, name: 'Kfz-Versicherung', amount: -1200, categoryId: 2, categoryName: 'Mobilität', rhythmCount: 12,
+      anchorDate: '2026-03-15', monthlyShare: 100,
+    }),
+    item({
+      id: 3, name: 'Lebensmittel', amount: -400, categoryId: 3, categoryName: 'Lebensmittel', rhythmUnit: null,
+      rhythmCount: null, anchorDate: null, entryMode: 'MANUAL', group: 'BUDGET', monthlyShare: 400,
+    }),
+    item({
+      id: 4, name: 'Notgroschen', amount: -300, saving: true, categoryId: null, categoryName: null, entryMode: 'TICK',
+      group: 'SAVING', monthlyShare: 300,
+    }),
+  ],
 }
 
-function renderPage(
-  onPut: () => Promise<Response> = () => json(categories[1]),
-  dashboardData: unknown = dashboard,
-) {
+function renderPage(data: Plan = plan) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-    if (init?.method === 'PUT') {
-      return onPut()
-    }
-    if (url.startsWith('/api/dashboard?month=2026-10')) {
-      return json(previousDashboard)
-    }
-    return url.startsWith('/api/dashboard') ? json(dashboardData) : json(categories)
+    void init
+    const body = url.startsWith('/api/plan')
+      ? data
+      : url.startsWith('/api/categories')
+        ? categories
+        : url.startsWith('/api/planned-items')
+          ? item({ id: 99 })
+          : []
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   })
   vi.stubGlobal('fetch', fetchMock)
   render(
@@ -97,404 +96,148 @@ function renderPage(
   return fetchMock
 }
 
-function putCalls(fetchMock: ReturnType<typeof renderPage>) {
-  return fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')
-}
-
-function putBody(fetchMock: ReturnType<typeof renderPage>, index = 0) {
-  return JSON.parse(putCalls(fetchMock)[index][1]?.body as string)
-}
-
-function rowNames() {
-  return screen.getAllByRole('form').map((form) => form.getAttribute('aria-label'))
-}
-
-/** The tile in the bar whose label is the given text. */
-function tile(label: string) {
-  return screen.getByText(label, { selector: '.tile-label' }).closest('.plan-tile') as HTMLElement
-}
-
-function equivalent(row: HTMLElement) {
-  return row.querySelector('.plan-equivalent')
-}
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('PlanningPage', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date(2026, 10, 15))
-    // Most cases calculate with the Ø income; the default (minimum income) has its own test
-    localStorage.clear()
-    localStorage.setItem('planning-base', 'avg')
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('shows the active categories with their target in euro and a unit switch each', async () => {
+  it('shows the groups with their items, monthly shares and subtotals per category', async () => {
     renderPage()
 
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    expect(rowNames()).toEqual(['Wohnen', 'Lebensmittel', 'Freizeit', 'Nebenjob'])
-    expect(within(wohnen).getByRole('textbox', { name: 'Soll für Wohnen in Euro' })).toHaveValue('800,00')
-    expect(within(wohnen).getByRole('button', { name: '€' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).getByRole('textbox')).toHaveValue('480,00')
-    expect(within(screen.getByRole('form', { name: 'Freizeit' })).getByText('kein Soll')).toBeInTheDocument()
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    expect(within(fixed).getByText('Wohnen')).toBeInTheDocument()
+    // 27f2: categories open like the budget rows of the overview
+    expect(within(fixed).queryByRole('button', { name: /Kfz-Versicherung/ })).not.toBeInTheDocument()
+    fireEvent.click(within(fixed).getByRole('button', { name: /Mobilität/ }))
+    fireEvent.click(within(fixed).getByRole('button', { name: /Wohnen/ }))
+    expect(within(fixed).getByRole('button', { name: /Kfz-Versicherung/ })).toHaveTextContent('1.200,00 € jährlich')
+    expect(within(fixed).getByRole('button', { name: /Kfz-Versicherung/ })).toHaveTextContent('100,00 €')
+    expect(within(fixed).getByRole('button', { name: /Miete/ })).toHaveTextContent('automatisch')
+    expect(screen.getByRole('region', { name: 'Budgets (variable Kosten)' })).toHaveTextContent('Lebensmittel')
+    expect(screen.getByRole('region', { name: 'Sparen' })).toHaveTextContent('Notgroschen')
+    // 27f4: average and weakest month as two tiles with their months
+    const income = screen.getByRole('region', { name: 'Einkommen' })
+    expect(income).toHaveTextContent('Durchschnitt2.450,00 €pro Monat')
+    expect(income).toHaveTextContent('Mindestens2.300,00 €im schwächsten Monat')
+    expect(income).toHaveTextContent('November 2025 – Oktober 2026 · 12 Monate')
+    // Only for orientation (R23): no tile Geplant and no warning
+    expect(within(income).queryByText('Geplant')).not.toBeInTheDocument()
+    expect(income).not.toHaveTextContent('Mindesteinnahmen')
+    expect(screen.getByRole('region', { name: 'Einkommen' })).not.toHaveTextContent('Zur Orientierung')
   })
 
-  // US2, decision 36: the other value is always below the field
-  it('shows the percent of the base below a euro target', async () => {
+  // 27f4: the planned income stands above the bar
+  it('shows the planned income above the bar', async () => {
+    renderPage()
+    const income = (await screen.findByText('Geplante Einnahmen')).closest('p') as HTMLElement
+    expect(income).toHaveTextContent('2.500,00 €')
+  })
+
+  it('asks what to do with the part not planned', async () => {
     renderPage()
 
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    await waitFor(() => expect(equivalent(wohnen)).toHaveTextContent('≙ 25 % der Ø Einnahmen'))
-    expect(equivalent(screen.getByRole('form', { name: 'Lebensmittel' }))).toHaveTextContent('≙ 15 % der Ø Einnahmen')
-    expect(equivalent(screen.getByRole('form', { name: 'Freizeit' }))).toBeNull()
+    expect(await screen.findByText('800,00 € sind noch nicht verplant.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monatlich sparen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Als Puffer in „Sonstiges“' })).toBeInTheDocument()
   })
 
-  it('converts the number when the unit is switched and saves nothing for it', async () => {
+  it('says when everything is planned and warns when overplanned', async () => {
+    renderPage({ ...plan, unplanned: 0 })
+    expect(await screen.findByText(/Alles verplant/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Monatlich sparen' })).not.toBeInTheDocument()
+  })
+
+  it('creates a budget for the rest under Sonstiges, creating the category first', async () => {
     const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Als Puffer in „Sonstiges“' }))
 
-    const row = await screen.findByRole('form', { name: 'Wohnen' })
-    await waitFor(() => expect(equivalent(row)).not.toBeNull())
-    const percent = within(row).getByRole('button', { name: '%' })
-    fireEvent.click(percent)
-
-    expect(percent).toHaveAttribute('aria-pressed', 'true')
-    expect(within(row).getByRole('textbox', { name: 'Soll für Wohnen in Prozent der Ø Einnahmen' })).toHaveValue('25')
-    expect(equivalent(row)).toHaveTextContent('≙ 800,00 €, wird so gespeichert')
-
-    fireEvent.click(within(row).getByRole('button', { name: '€' }))
-    expect(within(row).getByRole('textbox')).toHaveValue('800,00')
-
-    fireEvent.focusOut(within(row).getByRole('textbox'))
-    expect(putCalls(fetchMock)).toHaveLength(0)
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/planned-items')).toBe(true))
+    const category = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
+    expect(JSON.parse(category![1]!.body as string)).toEqual({ name: 'Sonstiges' })
+    const created = fetchMock.mock.calls.find(([url]) => url === '/api/planned-items')
+    expect(JSON.parse(created![1]!.body as string)).toMatchObject({ name: 'Sonstiges', amount: -800, rhythmUnit: null })
   })
 
-  // 950 € are 29,69 % of 3200 €, which would be 950,08 €: switching alone must not change the target
-  it('keeps the exact euro value while the converted percent is not edited', async () => {
-    const fetchMock = renderPage(() => json({ ...categories[1], targetAmount: 950 }))
-
-    const row = await screen.findByRole('form', { name: 'Wohnen' })
-    const input = within(row).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '950' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(putCalls(fetchMock)).toHaveLength(1))
-
-    fireEvent.click(within(row).getByRole('button', { name: '%' }))
-    expect(within(row).getByRole('textbox')).toHaveValue('29,69')
-    expect(equivalent(row)).toHaveTextContent('≙ 950,00 €')
-    fireEvent.click(screen.getByRole('button', { name: /^Mindesteinnahmen/ }))
-    expect(equivalent(row)).toHaveTextContent('≙ 950,00 €')
-    fireEvent.focusOut(within(row).getByRole('textbox'))
-    fireEvent.click(within(row).getByRole('button', { name: '€' }))
-
-    expect(within(row).getByRole('textbox')).toHaveValue('950,00')
-    expect(putCalls(fetchMock)).toHaveLength(1)
-  })
-
-  it('saves a percent input as euro of the base', async () => {
-    const fetchMock = renderPage()
-
-    const row = await screen.findByRole('form', { name: 'Lebensmittel' })
-    await waitFor(() => expect(equivalent(row)).not.toBeNull())
-    fireEvent.click(within(row).getByRole('button', { name: '%' }))
-    const input = within(row).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '33,33' } })
-    fireEvent.focusOut(input)
-
-    expect(await within(row).findByText('Gespeichert ab November 2026.')).toBeInTheDocument()
-    const [url] = putCalls(fetchMock)[0]
-    expect(url).toBe('/api/categories/7/target?month=2026-11')
-    // 33.33 % of 3200.00
-    expect(putBody(fetchMock)).toEqual({ targetAmount: 1066.56 })
-    expect(equivalent(row)).toHaveTextContent('≙ 1.066,56 €')
-  })
-
-  // Regression: the equivalent stays after saving (it used to appear only after a change of the month)
-  it('keeps the equivalent next to the saved note', async () => {
-    const fetchMock = renderPage()
-
-    const row = await screen.findByRole('form', { name: 'Wohnen' })
-    const input = within(row).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '850' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    expect(await within(row).findByText('Gespeichert ab November 2026.')).toBeInTheDocument()
-    expect(putBody(fetchMock)).toEqual({ targetAmount: 850 })
-    // 850 / 3200 = 26.5625 %
-    expect(equivalent(row)).toHaveTextContent('≙ 26,56 % der Ø Einnahmen')
-  })
-
-  // US7a, decision 36: a click on a tile makes it the base
-  it('uses the minimum income as base when its tile is clicked', async () => {
+  // 27f4: the item dialog uses the shared selection with "+ Neue Kategorie …"
+  it('offers a new category right in the item dialog', async () => {
     renderPage()
-
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    const average = await screen.findByRole('button', { name: /^Ø Einnahmen/ })
-    const minimum = screen.getByRole('button', { name: /^Mindesteinnahmen/ })
-    expect(average).toHaveAttribute('aria-pressed', 'true')
-    expect(minimum).toHaveAttribute('aria-pressed', 'false')
-    expect(within(average).getByText('Basis')).toBeInTheDocument()
-    expect(within(minimum).getByText('als Basis wählen')).toBeInTheDocument()
-    expect(tile('Nicht verplant')).toHaveTextContent('200,00 €')
-
-    fireEvent.click(minimum)
-
-    expect(minimum).toHaveAttribute('aria-pressed', 'true')
-    expect(tile('Überplant')).toHaveTextContent('600,00 €')
-    expect(tile('Überplant')).toHaveClass('over')
-    expect(screen.getByText('mehr verplant als Mindesteinnahmen')).toBeInTheDocument()
-    expect(tile('Verplant')).toHaveTextContent('125 % der Mindesteinnahmen')
-    // 800 / 2400
-    expect(equivalent(wohnen)).toHaveTextContent('≙ 33,33 % der Mindesteinnahmen')
-    expect(localStorage.getItem('planning-base')).toBe('min')
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: 'new' } })
+    expect(within(dialog).getByRole('textbox', { name: 'Neue Kategorie' })).toBeInTheDocument()
   })
 
-  it('keeps the euro value of a percent input when the base changes', async () => {
-    renderPage()
-
-    const row = await screen.findByRole('form', { name: 'Wohnen' })
-    await waitFor(() => expect(equivalent(row)).not.toBeNull())
-    fireEvent.click(within(row).getByRole('button', { name: '%' }))
-    expect(within(row).getByRole('textbox')).toHaveValue('25')
-
-    fireEvent.click(screen.getByRole('button', { name: /^Mindesteinnahmen/ }))
-
-    expect(within(row).getByRole('textbox')).toHaveValue('33,33')
-    expect(equivalent(row)).toHaveTextContent('≙ 800,00 €')
-  })
-
-  it('preselects the minimum income and shows it first', async () => {
-    localStorage.clear()
-    renderPage()
-
-    const minimum = await screen.findByRole('button', { name: /^Mindesteinnahmen/ })
-    expect(minimum).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /^Ø Einnahmen/ })).toHaveAttribute('aria-pressed', 'false')
-    const labels = [...document.querySelectorAll('.plan-tile .tile-label')].map((label) => label.textContent)
-    expect(labels).toEqual(['Mindesteinnahmen', 'Ø Einnahmen', 'Verplant', 'Überplant'])
-    const wohnen = screen.getByRole('form', { name: 'Wohnen' })
-    expect(equivalent(wohnen)).toHaveTextContent('≙ 33,33 % der Mindesteinnahmen')
-  })
-
-  it('starts with the base chosen before in this browser', async () => {
-    renderPage()
-
-    expect(await screen.findByRole('button', { name: /^Ø Einnahmen/ })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('shows the Ø and minimum income, planned targets and the unplanned rest in the bar', async () => {
+  it('creates a yearly item with its due month and the month "Gilt ab"', async () => {
     const fetchMock = renderPage()
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
 
-    await screen.findByRole('button', { name: /^Ø Einnahmen/ })
-    expect(tile('Ø Einnahmen')).toHaveTextContent('3.200,00 €')
-    expect(tile('Mindesteinnahmen')).toHaveTextContent('2.400,00 €')
-    expect(tile('Verplant')).toHaveTextContent('3.000,00 €')
-    expect(tile('Verplant')).toHaveTextContent('93,8 % der Ø Einnahmen')
-    expect(tile('Nicht verplant')).not.toHaveClass('over')
-    expect(screen.getByText('ohne Budget')).toBeInTheDocument()
-    expect(screen.getAllByText('Februar 2026 – Oktober 2026, 9 Monate')).toHaveLength(2)
-    expect(screen.getByText(/Mindest- und Ø Einnahmen stammen aus Februar 2026 – Oktober 2026/)).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-11', expect.anything())
-    expect(tile('Verplant').closest('.plan-bar')).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Rundfunkbeitrag' } })
+    fireEvent.change(within(dialog).getByLabelText('Wie oft'), { target: { value: 'MONTH:12' } })
+    fireEvent.change(within(dialog).getByLabelText('Betrag pro Zahlung'), { target: { value: '220,32' } })
+    fireEvent.change(within(dialog).getByLabelText('Fällig im'), { target: { value: '3' } })
+    fireEvent.change(within(dialog).getByLabelText('Am Tag'), { target: { value: '15' } })
+    fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: '1' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/planned-items')).toBe(true))
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/planned-items')
+    const month = currentMonth()
+    expect(JSON.parse(call![1]!.body as string)).toEqual({
+      name: 'Rundfunkbeitrag',
+      amount: -220.32,
+      saving: false,
+      categoryId: 1,
+      rhythmUnit: 'MONTH',
+      rhythmCount: 12,
+      anchorDate: `${month.slice(0, 4)}-03-15`,
+      entryMode: 'AUTO',
+      workdaysOnly: false,
+      validFrom: month,
+      savingGoalId: null,
+    })
   })
 
-  it('says so and allows only euro when no earlier month counts yet', async () => {
-    renderPage(undefined, withoutAverage)
-
-    expect(await screen.findByText(/Noch kein abgeschlossener Monat mit Einträgen/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Ø Einnahmen/ })).not.toBeInTheDocument()
-    const wohnen = screen.getByRole('form', { name: 'Wohnen' })
-    expect(within(wohnen).getByRole('button', { name: '%' })).toBeDisabled()
-    expect(equivalent(wohnen)).toHaveTextContent('≙ – %')
-  })
-
-  // R25, US2: fixed costs below the name, expandable, with "übernehmen"
-  it('shows the fixed costs of a category and lists its recurring expenses on request', async () => {
-    renderPage()
-
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    const toggle = within(wohnen).getByRole('button', { name: /fix 950,00\s€/ })
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(within(wohnen).queryByText('Miete')).not.toBeInTheDocument()
-
-    fireEvent.click(toggle)
-
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    const items = within(wohnen).getAllByRole('listitem')
-    expect(items[0]).toHaveTextContent('Miete900,00 € / Monat')
-    expect(items[1]).toHaveTextContent('Hausrat50,00 € / Monat600,00 € jährlich')
-    expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).queryByRole('button', { name: /fix/ }))
-      .not.toBeInTheDocument()
-  })
-
-  it('warns when the target is below the fixed costs and takes them over on request', async () => {
+  it('changes an item from the month the page shows', async () => {
     const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /Wohnen/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Miete/ }))
 
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    expect(wohnen).toHaveClass('short')
-    expect(within(wohnen).getByText('unter den fixen Kosten von 950,00 €')).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Posten bearbeiten' })
+    fireEvent.change(within(dialog).getByLabelText('Betrag pro Zahlung'), { target: { value: '950' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
 
-    fireEvent.click(within(wohnen).getByRole('button', { name: /^Fixe Kosten 950,00\s€ als Soll für Wohnen übernehmen$/ }))
-
-    await waitFor(() => expect(putCalls(fetchMock)).toHaveLength(1))
-    expect(putBody(fetchMock)).toEqual({ targetAmount: 950 })
-    expect(within(wohnen).getByRole('textbox')).toHaveValue('950,00')
-    expect(wohnen).not.toHaveClass('short')
-    expect(within(wohnen).queryByRole('button', { name: /übernehmen/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(true))
+    const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')
+    expect(call![0]).toBe('/api/planned-items/1')
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({ amount: -950, validFrom: currentMonth() })
   })
 
-  it('offers the fixed costs for a category without target', async () => {
-    renderPage()
-
-    const freizeit = await screen.findByRole('form', { name: 'Freizeit' })
-    expect(freizeit).not.toHaveClass('short')
-    expect(within(freizeit).getByRole('button', { name: /übernehmen/ })).toBeInTheDocument()
-  })
-
-  it('shows the actual of each category in the month before "Gilt ab"', async () => {
+  // 27f3: "Monatlich sparen" splits the rest onto the saving items that exist
+  it('splits the part not planned onto the saving items', async () => {
     const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Monatlich sparen' }))
 
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    await waitFor(() => expect(wohnen.querySelector('.plan-previous')).toHaveTextContent('812,50 €'))
-    expect(wohnen.querySelector('.plan-previous')).toHaveTextContent('Ist im Vormonat (Oktober): 812,50 €')
-    expect(wohnen.querySelector('.plan-previous-mobile')).toHaveTextContent(/^Vormonat \(Okt\.?\): 812,50\s€$/)
-    expect(screen.getByText('Ist im Vormonat (Oktober)', { selector: '.plan-head span' })).toBeInTheDocument()
-    expect(screen.getByRole('form', { name: 'Freizeit' }).querySelector('.plan-previous')).toHaveTextContent('0,00 €')
-    expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-10', expect.anything())
+    const dialog = await screen.findByRole('dialog', { name: /800,00.€ aufteilen/ })
+    expect(within(dialog).getByRole('status')).toHaveTextContent('noch 800,00 € offen')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rest' }))
+    expect(within(dialog).getByLabelText('Mehr für Notgroschen')).toHaveValue('800,00')
+    expect(within(dialog).getByRole('status')).toHaveTextContent('noch 0,00 € offen')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/planned-items/4' && init?.method === 'PUT')).toBe(true))
+    const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/planned-items/4' && init?.method === 'PUT')
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({ amount: -1100, saving: true, validFrom: currentMonth() })
   })
 
-  // R24, decision 33
-  it('hides categories with only income and shows them on request', async () => {
-    renderPage()
-
-    await screen.findByRole('form', { name: 'Wohnen' })
-    expect(screen.queryByRole('form', { name: 'Gehalt/Lohn (netto)' })).not.toBeInTheDocument()
-    expect(screen.getByText('1 Kategorie mit ausschließlich Einnahmen ausgeblendet: Gehalt/Lohn (netto)')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Einblenden' }))
-
-    const gehalt = screen.getByRole('form', { name: 'Gehalt/Lohn (netto)' })
-    expect(rowNames()).toEqual(['Wohnen', 'Lebensmittel', 'Freizeit', 'Gehalt/Lohn (netto)', 'Nebenjob'])
-    // Income of the month before is shown as income
-    expect((await within(gehalt).findAllByText('+3.200,00 €'))[0]).toHaveClass('positive')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Ausblenden' }))
-    expect(screen.queryByRole('form', { name: 'Gehalt/Lohn (netto)' })).not.toBeInTheDocument()
-  })
-
-  it('has no switch for hidden categories when there are none', async () => {
-    const fetchMock = vi.fn((url: string) =>
-      url.startsWith('/api/dashboard') ? json(dashboard) : json(categories.filter((c) => !c.incomeOnly)),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <PlanningPage />
-      </QueryClientProvider>,
-    )
-
-    await screen.findByRole('form', { name: 'Wohnen' })
-    expect(screen.queryByRole('button', { name: 'Einblenden' })).not.toBeInTheDocument()
-  })
-
-  // US2: "Gilt ab", default the current month
-  it('starts at the current month and loads the targets of the month chosen in "Gilt ab"', async () => {
-    const fetchMock = renderPage()
-
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/categories?month=2026-11')
-    expect(screen.getByLabelText('Gilt ab', { selector: 'input' })).toHaveValue('2026-11')
-    expect(screen.getByText(/für alle folgenden Monate/)).toHaveTextContent('Er gilt ab November 2026 für alle folgenden Monate')
-    // Set in an earlier month: say so. Set in the chosen month: nothing extra.
-    expect(within(wohnen).getByText('gesetzt ab September 2026')).toBeInTheDocument()
-    expect(within(screen.getByRole('form', { name: 'Lebensmittel' })).queryByText(/gesetzt ab/)).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/categories?month=2026-12', expect.anything()))
-    expect(fetchMock).toHaveBeenCalledWith('/api/dashboard?month=2026-12', expect.anything())
-    expect(await screen.findByText('Ist im Vormonat (November)', { selector: '.plan-head span' })).toBeInTheDocument()
-  })
-
-  it('has no save button', async () => {
-    renderPage()
-
-    await screen.findByRole('form', { name: 'Wohnen' })
-    expect(screen.queryByRole('button', { name: 'Speichern' })).not.toBeInTheDocument()
-  })
-
-  it('rejects a negative euro target without sending a request', async () => {
-    const fetchMock = renderPage()
-
-    const wohnen = await screen.findByRole('form', { name: 'Wohnen' })
-    const input = within(wohnen).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '-5' } })
-    fireEvent.focusOut(input)
-
-    expect(await within(wohnen).findByText('Der Soll-Betrag darf nicht negativ sein.')).toBeInTheDocument()
-    expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(putCalls(fetchMock)).toHaveLength(0)
-  })
-
-  it('rejects a percent above 100 without sending a request', async () => {
-    const fetchMock = renderPage()
-
-    const row = await screen.findByRole('form', { name: 'Lebensmittel' })
-    await waitFor(() => expect(equivalent(row)).not.toBeNull())
-    fireEvent.click(within(row).getByRole('button', { name: '%' }))
-    const input = within(row).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '120' } })
-    fireEvent.focusOut(input)
-
-    expect(await within(row).findByText('Der Prozentwert muss zwischen 0 und 100 % liegen.')).toBeInTheDocument()
-    expect(putCalls(fetchMock)).toHaveLength(0)
-  })
-
-  // US2: an empty field means "no target from this month"
-  it('clears the target when the field is emptied', async () => {
-    const fetchMock = renderPage()
-
-    const row = await screen.findByRole('form', { name: 'Wohnen' })
-    const input = within(row).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '' } })
-    fireEvent.focusOut(input)
-
-    await waitFor(() => expect(putCalls(fetchMock)).toHaveLength(1))
-    expect(putBody(fetchMock)).toEqual({ targetAmount: null })
-  })
-
-  it('does not save when nothing changed', async () => {
-    const fetchMock = renderPage()
-
-    const row = await screen.findByRole('form', { name: 'Wohnen' })
-    const input = within(row).getByRole('textbox')
-    fireEvent.focusOut(input)
-    fireEvent.change(input, { target: { value: '800,00 ' } })
-    fireEvent.focusOut(input)
-
-    expect(putCalls(fetchMock)).toHaveLength(0)
-  })
-
-  it('shows a server field error at the field', async () => {
-    renderPage(() =>
-      json(
-        {
-          status: 400,
-          detail: 'Die Eingaben sind ungültig.',
-          errors: [{ field: 'targetAmount', message: 'Der Soll-Betrag darf höchstens 2 Nachkommastellen haben.' }],
-        },
-        400,
-      ),
-    )
-
-    const row = await screen.findByRole('form', { name: 'Lebensmittel' })
-    const input = within(row).getByRole('textbox')
-    fireEvent.change(input, { target: { value: '20' } })
-    fireEvent.focusOut(input)
-
-    await waitFor(() => expect(within(row).getByRole('textbox')).toHaveAttribute('aria-invalid', 'true'))
-    expect(within(row).getByText('Der Soll-Betrag darf höchstens 2 Nachkommastellen haben.')).toBeInTheDocument()
+  // 27f3: the budget of "Sonstiges" is named in the head
+  it('names the budget of Sonstiges in the head', async () => {
+    renderPage({
+      ...plan,
+      categories: [...plan.categories, { group: 'BUDGET', categoryId: 9, categoryName: 'Sonstiges', total: 120 }],
+    })
+    expect(await screen.findByText('davon Sonstiges 120,00 €')).toBeInTheDocument()
   })
 })

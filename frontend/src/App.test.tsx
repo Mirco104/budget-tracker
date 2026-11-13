@@ -145,14 +145,15 @@ describe('App', () => {
     expect(screen.queryByLabelText('Monat wählen')).not.toBeInTheDocument()
   })
 
-  // Decision 28: the planning page has its own month "Gilt ab", starting at the current month
-  it('starts the planning at the current month', async () => {
+  // Decision 28: the planning page has its own month, starting at the current month
+  // 27f2: overview and planning share their month
+  it('opens the planning at the month chosen on the overview', async () => {
     await renderApp()
     fireEvent.click(screen.getByRole('button', { name: 'Nächster Monat' }))
 
     goTo('#/planung')
 
-    expect(await screen.findByLabelText('Gilt ab', { selector: 'input' })).toHaveValue(currentMonth())
+    expect(await screen.findByLabelText('Monat wählen', { selector: 'input' })).toHaveValue(shiftMonth(currentMonth(), 1))
   })
 
   // The analysis page is loaded on first use, because of the chart library
@@ -166,9 +167,10 @@ describe('App', () => {
     // Transforming Recharts for the first import takes a while in the test environment
     await waitFor(
       () => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/history\?from=.*&to=.*$/), expect.anything()),
-      { timeout: 5000 },
+      { timeout: 15000 },
     )
-  })
+    // The first import of Recharts can take longer than 5 s when the whole suite runs in parallel
+  }, 20000)
 
   it('opens the account menu with name, settings and sign-out', async () => {
     await renderApp()

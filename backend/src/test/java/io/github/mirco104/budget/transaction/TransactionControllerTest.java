@@ -3,6 +3,7 @@ package io.github.mirco104.budget.transaction;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -53,23 +54,6 @@ class TransactionControllerTest {
     // --- POST /api/transactions (US3): success ---
 
     @Test
-    void createsTransactionWithLocationAndScaledAmount() throws Exception {
-        long categoryId = categoryId("Lebensmittel");
-
-        postTransaction(body("12.5", "Wocheneinkauf", "2026-10-05", categoryId))
-                .andExpect(status().isCreated())
-                .andExpect(header().string("Location", matchesPattern(".*/api/transactions/\\d+$")))
-                .andExpect(jsonPath("$.kind").value("SINGLE"))
-                .andExpect(jsonPath("$.id").isNumber())
-                .andExpect(jsonPath("$.recurringId").doesNotExist())
-                .andExpect(jsonPath("$.amount").value(12.50))
-                .andExpect(jsonPath("$.description").value("Wocheneinkauf"))
-                .andExpect(jsonPath("$.date").value("2026-10-05"))
-                .andExpect(jsonPath("$.categoryId").value(categoryId))
-                .andExpect(jsonPath("$.categoryName").value("Lebensmittel"));
-    }
-
-    @Test
     void storesSignedAmounts() throws Exception {
         postTransaction(body("-45.99", "Tanken", "2026-10-05", categoryId("Mobilität")))
                 .andExpect(status().isCreated())
@@ -77,6 +61,21 @@ class TransactionControllerTest {
         postTransaction(body("30", "Erstattung", "2026-10-06", categoryId("Lebensmittel")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.amount").value(30.00));
+    }
+
+    // 27f4: the quick choice "Gesamt" asks for the first and the last booking day, at most 10 years
+    @Test
+    void theRangeGoesFromTheFirstToTheLastBookingForAtMostTenYears() throws Exception {
+        mockMvc.perform(get("/api/transactions/range"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(nullValue()));
+        postTransaction(body("-10", "Kino", "2026-10-05", categoryId("Freizeit"))).andExpect(status().isCreated());
+        postTransaction(body("-20", "Alt", "2014-03-01", categoryId("Freizeit"))).andExpect(status().isCreated());
+        postTransaction(body("-30", "Später", "2026-12-24", categoryId("Freizeit"))).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/transactions/range"))
+                .andExpect(jsonPath("$.from").value("2016-12-25"))
+                .andExpect(jsonPath("$.to").value("2026-12-24"));
     }
 
     @Test
@@ -178,25 +177,6 @@ class TransactionControllerTest {
     }
 
     @Test
-    void listsOccurrencesOfRecurringTransactionsBetweenSingleOnesByDate() throws Exception {
-        long categoryId = categoryId("Freizeit");
-        create(body("-1", "Anfang", "2026-10-01", categoryId));
-        create(body("-2", "Ende", "2026-10-20", categoryId));
-        mockMvc.perform(post("/api/recurring-transactions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amount": -15, "description": "Streaming", "categoryId": %d, "interval": "MONTHLY",
-                                 "startDate": "2026-01-15"}
-                                """.formatted(categoryId)))
-                .andExpect(status().isCreated());
-
-        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].description", contains("Ende", "Streaming", "Anfang")))
-                .andExpect(jsonPath("$[*].kind", contains("SINGLE", "RECURRING", "SINGLE")));
-    }
-
-    @Test
     void returnsEmptyListForMonthWithoutTransactions() throws Exception {
         mockMvc.perform(get("/api/transactions").param("month", "2030-01"))
                 .andExpect(status().isOk())
@@ -233,25 +213,6 @@ class TransactionControllerTest {
         mockMvc.perform(get("/api/transactions").param("from", "2026-08-15").param("to", "2026-10-10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].description", contains("Letzter Tag", "Mitte", "Erster Tag")));
-    }
-
-    @Test
-    void listsOccurrencesOfSeriesInThePeriodAcrossMonths() throws Exception {
-        long categoryId = categoryId("Freizeit");
-        create(body("-2", "Kino", "2026-10-20", categoryId));
-        mockMvc.perform(post("/api/recurring-transactions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amount": -15, "description": "Streaming", "categoryId": %d, "interval": "MONTHLY",
-                                 "startDate": "2026-01-15"}
-                                """.formatted(categoryId)))
-                .andExpect(status().isCreated());
-
-        mockMvc.perform(get("/api/transactions").param("from", "2026-09-15").param("to", "2026-11-14"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].description", contains("Kino", "Streaming", "Streaming")))
-                .andExpect(jsonPath("$[*].date", contains("2026-10-20", "2026-10-15", "2026-09-15")))
-                .andExpect(jsonPath("$[*].kind", contains("SINGLE", "RECURRING", "RECURRING")));
     }
 
     @Test

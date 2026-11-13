@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import io.github.mirco104.budget.plan.TermRef;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -33,7 +34,26 @@ public record TransactionRequest(
         // R27: optional, false without it
         Boolean transfer,
 
-        // R28: optional, the occurrence of a series this transaction replaces (only when it is created)
+
+
+        // P5: optional, the term of a planned item this booking fulfils (only when it is created)
         @Valid
-        OccurrenceRef replaces) {
+        TermRef replaces,
+
+        // P8: optional, "aus Rücklage bezahlen": the item key of a rare planned item whose reserve pot pays
+        java.util.UUID reserveItemKey,
+
+        // P8: optional, "aus Ersparnissen bezahlen": the saving goal that pays
+        Long savingGoalId,
+
+        // P1: optional, the kind Sparen: a transfer to a savings or depot account, without category
+        Boolean saving,
+
+        // 27f3: optional for a transfer or Sparen: the target account; then both bookings are made (amount leaves
+        // accountId and arrives on targetAccountId)
+        Long targetAccountId,
+
+        // 27f4 (decision 60): optional, true takes an expense that fulfils the term of a rare item out of its reserve;
+        // it then counts fully in the budget
+        Boolean noReserve) {
 }

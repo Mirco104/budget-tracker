@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.account;
 
-import io.github.mirco104.budget.recurring.RecurringInterval;
+import io.github.mirco104.budget.plan.EntryMode;
+import io.github.mirco104.budget.plan.RhythmUnit;
 import io.github.mirco104.budget.user.Role;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -16,7 +17,7 @@ public record AccountExport(
         List<BankAccountExport> bankAccounts,
         List<CategoryExport> categories,
         List<TransactionExport> transactions,
-        List<RecurringExport> recurringTransactions) {
+        List<PlannedItemExport> plannedItems) {
 
     public record Account(String email, String displayName, Role role, Instant createdAt) {
     }
@@ -24,20 +25,21 @@ public record AccountExport(
     public record BankAccountExport(String name, String iban, boolean defaultAccount, boolean archived) {
     }
 
-    public record CategoryExport(String name, boolean archived, List<TargetExport> targets) {
-    }
-
-    public record TargetExport(YearMonth validFrom, BigDecimal targetAmount) {
+    public record CategoryExport(String name, boolean archived) {
     }
 
     public record TransactionExport(
             LocalDate date, BigDecimal amount, String description, String category, String account,
-            boolean transfer, String counterparty, String bankCategory) {
+            boolean transfer, boolean auto, String counterparty, String bankCategory) {
     }
 
-    public record RecurringExport(
-            UUID seriesId, BigDecimal amount, String description, String category, String account,
-            RecurringInterval interval,
-            LocalDate startDate, LocalDate endDate, List<LocalDate> exceptions) {
+    /** One version of a planned item with the handled terms of the item (section 19.3). */
+    public record PlannedItemExport(
+            UUID itemKey, String name, BigDecimal amount, boolean saving, String category, String account,
+            RhythmUnit rhythmUnit, Integer rhythmCount, LocalDate anchorDate, EntryMode entryMode,
+            boolean workdaysOnly, YearMonth validFrom, YearMonth validTo, List<TermExport> terms) {
+    }
+
+    public record TermExport(LocalDate date, boolean linked, boolean skipped) {
     }
 }

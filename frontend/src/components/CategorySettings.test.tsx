@@ -7,10 +7,10 @@ import { categoryIconLabel } from './ui/categoryIcons'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 2, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 4, name: 'Urlaub', icon: 'suitcase', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 3, name: 'Kredite', icon: 'card', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
+  { id: 2, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
+  { id: 4, name: 'Urlaub', icon: 'suitcase', archived: false, incomeOnly: false },
+  { id: 3, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false },
 ]
 
 function json(body: unknown, status = 200) {

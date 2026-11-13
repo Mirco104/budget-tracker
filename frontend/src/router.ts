@@ -6,6 +6,7 @@ export const ROUTES = {
   transactions: '#/transaktionen',
   planning: '#/planung',
   evaluation: '#/auswertung',
+  accounts: '#/konten',
   settings: '#/einstellungen',
 } as const
 
@@ -62,6 +63,9 @@ export function useSettingsPage(): SettingsPage {
 /** The import of bank files below Transaktionen (US33). */
 export const IMPORT_ROUTE = '#/transaktionen/import'
 
+/** The section "Erwartet" of the transaction list (concept 4.2). */
+export const EXPECTED_ROUTE = '#/transaktionen/erwartet'
+
 /** "#/transaktionen?von=2026-11-01&bis=2026-11-30": the transaction list with a period, e.g. after an import. */
 export function transactionsPeriodHref(from: string, to: string): string {
   return `${ROUTES.transactions}?von=${from}&bis=${to}`
@@ -70,20 +74,28 @@ export function transactionsPeriodHref(from: string, to: string): string {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 /** The import page or the transaction list, with the period from the address bar when it has a valid one. */
-export function useTransactionsRoute(): { hash: string; importPage: boolean; period: { from: string; to: string } | null } {
+export function useTransactionsRoute(): {
+  hash: string
+  importPage: boolean
+  expected: boolean
+  period: { from: string; to: string } | null
+} {
   const hash = useHash()
   if (hash === IMPORT_ROUTE) {
-    return { hash, importPage: true, period: null }
+    return { hash, importPage: true, expected: false, period: null }
+  }
+  if (hash === EXPECTED_ROUTE) {
+    return { hash, importPage: false, expected: true, period: null }
   }
   const query = hash.split('?')[1]
   if (!query) {
-    return { hash, importPage: false, period: null }
+    return { hash, importPage: false, expected: false, period: null }
   }
   const params = new URLSearchParams(query)
   const from = params.get('von') ?? ''
   const to = params.get('bis') ?? ''
   const period = ISO_DATE.test(from) && ISO_DATE.test(to) && from <= to ? { from, to } : null
-  return { hash, importPage: false, period }
+  return { hash, importPage: false, expected: false, period }
 }
 
 /** The sub page of the Auswertung in the address bar; the look back unless the outlook is chosen. */

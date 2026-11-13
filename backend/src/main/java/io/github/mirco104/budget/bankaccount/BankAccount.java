@@ -38,8 +38,17 @@ public class BankAccount {
     @Column(name = "default_account", nullable = false)
     private boolean defaultAccount;
 
+    // Concept 3.4: only Alltag counts in income and expenses (P1)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false, length = 8)
+    private AccountRole role = AccountRole.EVERYDAY;
+
     @Column(nullable = false)
     private boolean archived;
+
+    // 27f4: optional; the page Konten marks a balance below it
+    @Column(name = "comfort_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal comfortAmount;
 
     protected BankAccount() {
     }
@@ -83,5 +92,21 @@ public class BankAccount {
 
     public void setDefaultAccount(boolean defaultAccount) {
         this.defaultAccount = defaultAccount;
+    }
+
+    public AccountRole getRole() {
+        return role;
+    }
+
+    public void setRole(AccountRole role) {
+        this.role = role;
+    }
+
+    public java.math.BigDecimal getComfortAmount() {
+        return comfortAmount;
+    }
+
+    public void setComfortAmount(java.math.BigDecimal comfortAmount) {
+        this.comfortAmount = comfortAmount;
     }
 }

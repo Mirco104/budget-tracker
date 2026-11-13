@@ -3,24 +3,37 @@ import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import { useReserves } from '../api/reserves'
-import { useTransactionsBetween } from '../api/transactions'
+import { useTransactionRange, useTransactionsBetween } from '../api/transactions'
 import type { Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { BookingList } from '../components/BookingList'
 import { TransactionFilters } from '../components/TransactionFilters'
+import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
-import { facetCounts, NO_FILTERS, type Filters } from '../filters'
+import { DIRECTIONS, facetCounts, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
 import { ImportPage } from './ImportPage'
+import { ExpectedSection } from '../components/ExpectedSection'
 import { totals } from '../sums'
 import { Loading } from '../components/ui/Loading'
 
-/** For the filter Art: a booking that replaces an occurrence counts as recurring (R28). */
-function kindOf(entry: Transaction): Transaction['kind'] {
-  return entry.replaces ? 'RECURRING' : entry.kind
+/** For the filter Art: an expense is fix (fulfils a term, P5) or variable; income and transfers are neither. */
+function kindOf(entry: Transaction): string {
+  if (entry.transfer || entry.amount > 0) {
+    return 'NONE'
+  }
+  return entry.fix ? 'FIX' : 'VARIABLE'
+}
+
+/** 27f4: for the filter Einnahmen / Ausgaben; a transfer (R27) is neither. */
+function directionOf(entry: Transaction): string {
+  if (entry.transfer) {
+    return 'TRANSFER'
+  }
+  return entry.amount > 0 ? 'INCOME' : 'EXPENSE'
 }
 
 /** The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking. */
@@ -36,6 +49,7 @@ function matchesFilters(entry: Transaction, filters: Filters): boolean {
     (filters.category === '' || categoryOf(entry) === filters.category) &&
     (filters.account === '' || String(entry.accountId) === filters.account) &&
     (filters.kind === '' || kindOf(entry) === filters.kind) &&
+    (filters.direction === '' || directionOf(entry) === filters.direction) &&
     (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search))
   )
 }
@@ -44,23 +58,41 @@ const FACET_KEYS = {
   category: categoryOf,
   account: (entry: Transaction) => String(entry.accountId),
   kind: (entry: Transaction) => kindOf(entry),
+  direction: directionOf,
 }
 
 /**
  * The entries of a period (US26), default this month, grouped by day; search and category filter the loaded
  * entries. Booking is in a dialog (US27, decision 30).
  */
-export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Period | null }) {
+export function TransactionsPage({
+  initialPeriod = null,
+  focusExpected = false,
+}: {
+  initialPeriod?: Period | null
+  focusExpected?: boolean
+}) {
   const today = todayIso()
   // A period in the address bar (e.g. after an import, US33) starts as a custom period
   const [preset, setPreset] = useState<PeriodPreset>(initialPeriod ? 'custom' : 'month')
   const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
-  // Description, category, account (US26, US30: only with more than one) and kind: Wiederkehrend, einmalig (single
-  // transactions that are no transfer) or Umbuchung (R27)
+  // Description, category, account (US26, US30: only with more than one) and kind: fix, variable or income (P5)
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  // 27f4: the filters hide behind a button until it is clicked
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
-  const period = preset === 'custom' ? custom : presetPeriod(preset, today)
-  const complete = isCompleteDate(period.from) && isCompleteDate(period.to)
+  // 27f4: "Gesamt" goes from the first to the last booking; without any booking it shows this month
+  const range = useTransactionRange(preset === 'all')
+  const period =
+    preset === 'custom'
+      ? custom
+      : preset === 'all'
+        ? range.data?.from && range.data.to
+          ? { from: range.data.from, to: range.data.to }
+          : presetPeriod('month', today)
+        : presetPeriod(preset, today)
+  const complete =
+    isCompleteDate(period.from) && isCompleteDate(period.to) && !(preset === 'all' && range.isPending)
   const transactions = useTransactionsBetween(period.from, period.to, complete)
   const categories = useCategories(currentMonth())
   const bankAccounts = useBankAccounts()
@@ -81,8 +113,9 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
   // Ticket #84: the hits of each filter option with the other filters
   const counts = facetCounts(loaded, filters, matchesFilters, FACET_KEYS)
   const sums = totals(shown)
-  const filtered =
-    filters.query.trim() !== '' || filters.category !== '' || filters.kind !== '' || filters.account !== ''
+  // The active filters behind the button "Filter"; the search is always shown
+  const hidden = [filters.category, filters.kind, filters.account, filters.direction].filter((v) => v !== '').length
+  const filtered = hidden > 0 || filters.query.trim() !== ''
   const accounts = bankAccounts.data ?? []
 
   return (
@@ -138,10 +171,31 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
           counts={counts}
           categories={categories.data ?? []}
           extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
+          directions={DIRECTIONS}
           accounts={accounts.map((account) => ({
             value: String(account.id),
             label: account.archived ? `${account.name} (archiviert)` : account.name,
           }))}
+          // 27f4: the search stays; the other filters fold behind the button, which counts the active ones
+          expanded={filtersOpen}
+          toggle={
+            <>
+              <button
+                type="button"
+                className={hidden > 0 ? 'chip plain filter-toggle active' : 'chip plain filter-toggle'}
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((v) => !v)}
+              >
+                <Icon name="filter" size={16} />
+                Filter{hidden > 0 && ` (${hidden})`}
+              </button>
+              {filtered && (
+                <button type="button" className="link-button" onClick={() => setFilters(NO_FILTERS)}>
+                  Filter zurücksetzen
+                </button>
+              )}
+            </>
+          }
         />
 
         {transactions.data && (
@@ -161,7 +215,7 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
         </p>
       )}
 
-      {!complete && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
+      {!complete && preset === 'custom' && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
       {complete && transactions.isPending && <Loading text="Lade Transaktionen …" />}
       {transactions.error && (
         <p className="error">
@@ -183,6 +237,16 @@ export function TransactionsPage({ initialPeriod = null }: { initialPeriod?: Per
         />
       )}
 
+      {/* Concept 4.2: the terms of the current month that are still expected, at the end of the list */}
+      {categories.data && (
+        <ExpectedSection
+          from={presetPeriod('month', today).from}
+          to={presetPeriod('month', today).to}
+          categories={categories.data}
+          focus={focusExpected}
+        />
+      )}
+
       <AddBookingFab onClick={booking.openNew} />
       {booking.element}
     </section>
@@ -195,5 +259,5 @@ export function TransactionsRoute() {
   if (route.importPage) {
     return <ImportPage />
   }
-  return <TransactionsPage key={route.hash} initialPeriod={route.period} />
+  return <TransactionsPage key={route.hash} initialPeriod={route.period} focusExpected={route.expected} />
 }

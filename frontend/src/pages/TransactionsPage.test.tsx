@@ -1,32 +1,29 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BankAccount, Category, RecurringTransaction, ReserveData, Transaction } from '../api/types'
+import type { BankAccount, Category, ReserveData, Transaction } from '../api/types'
 import { TransactionsPage, TransactionsRoute } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 6, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: true },
+  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
+  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true },
 ]
 
 const transactions: Transaction[] = [
-  { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
-  { kind: 'SINGLE', id: 8, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
-  { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
-  { kind: 'SINGLE', id: 9, recurringId: null, occurrenceDate: null, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { id: 3, amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: true, fix: true },
+  { id: 8, amount: 3000, description: 'Lohn', date: '2026-10-20', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
+  { id: 7, amount: -12.1, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
+  { id: 9, amount: -40, description: 'Konzert', date: '2026-10-28', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
 ]
 
-const series: RecurringTransaction[] = [
-  { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', interval: 'MONTHLY', startDate: '2026-01-05', endDate: null, monthlyEquivalent: 15 },
-]
 
 // Only the fields the reserve summary uses.
 const reserves: Pick<ReserveData, 'monthlyReserve' | 'reserveBalance' | 'reserves'> = {
   monthlyReserve: 20,
   reserveBalance: 100,
   reserves: [
-    { recurringId: 4, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 100, ratesLeft: 7 },
+    { itemId: 4, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, rhythmUnit: 'MONTH', rhythmCount: 12, nextDate: '2027-10-15', monthly: 20, saved: 100, ratesLeft: 7 },
   ],
 }
 
@@ -37,7 +34,9 @@ function renderPage(entries: Transaction[] = transactions, bankAccounts: BankAcc
     }
     const body = init?.method
       ? {}
-      : url.startsWith('/api/transactions')
+      : url === '/api/transactions/range'
+        ? { from: '2025-03-01', to: '2026-10-20' }
+        : url.startsWith('/api/transactions')
         ? entries
         : url.startsWith('/api/categories')
           ? categories
@@ -45,7 +44,7 @@ function renderPage(entries: Transaction[] = transactions, bankAccounts: BankAcc
             ? reserves
             : url.startsWith('/api/bank-accounts')
               ? bankAccounts
-              : series
+              : []
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -74,15 +73,16 @@ describe('TransactionsPage', () => {
   // R27, US31: a transfer is marked, counts in no sum and has its own kind in the filter
   it('marks transfers, leaves them out of the sums and filters them as a category', async () => {
     const transfer: Transaction = {
-      kind: 'SINGLE', id: 99, recurringId: null, occurrenceDate: null, amount: -500, description: 'Aufs Tagesgeld',
+      id: 99, amount: -500, description: 'Aufs Tagesgeld',
       date: '2026-10-05', categoryId: null, categoryName: null, accountId: 1, accountName: 'Girokonto', transfer: true,
-      replaces: null,
+      auto: false, fix: false,
     }
     renderPage([...transactions, transfer])
 
     const row = await screen.findByRole('button', { name: /Aufs Tagesgeld/ })
     expect(row).toHaveTextContent('Umbuchung')
     // Umbuchung is chosen like a category when booking, so it is filtered there (ticket #84)
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     expect(screen.getByRole('option', { name: 'Umbuchung (1)' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'transfer' } })
     expect(screen.getByText(/1 Eintrag · Einnahmen 0,00\s€ · Ausgaben 0,00\s€/)).toBeInTheDocument()
@@ -116,23 +116,6 @@ describe('TransactionsPage', () => {
     window.location.hash = ''
   })
 
-  // R28: a booking that replaces an occurrence is marked recurring and found with the kind Wiederkehrend
-  it('marks a booking that replaces an occurrence as recurring', async () => {
-    const replacing: Transaction = {
-      kind: 'SINGLE', id: 98, recurringId: null, occurrenceDate: null, amount: -905, description: 'Miete Bank',
-      date: '2026-10-02', categoryId: 1, categoryName: 'Wohnen', accountId: 1, accountName: 'Girokonto', transfer: false,
-      replaces: { recurringId: 4, date: '2026-10-01' },
-    }
-    renderPage([...transactions, replacing])
-
-    const row = await screen.findByRole('button', { name: /Miete Bank/ })
-    expect(row).toHaveTextContent('wiederkehrend')
-    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'SINGLE' } })
-    expect(screen.queryByRole('button', { name: /Miete Bank/ })).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: 'RECURRING' } })
-    expect(screen.getByRole('button', { name: /Miete Bank/ })).toBeInTheDocument()
-  })
-
   // US30: with more than one account each entry names its account
   it('names the account of each entry when there is more than one account', async () => {
     renderPage(transactions, [
@@ -153,6 +136,7 @@ describe('TransactionsPage', () => {
     ])
     await screen.findByRole('button', { name: /Tankstelle/ })
 
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     fireEvent.change(await screen.findByLabelText('Konto filtern'), { target: { value: '2' } })
 
     expect(screen.getByRole('button', { name: /Tankstelle/ })).toBeInTheDocument()
@@ -188,32 +172,6 @@ describe('TransactionsPage', () => {
       expect.stringContaining('Kino'),
     ])
     expect(within(day('Montag, 5. Oktober 2026')).getByRole('heading')).toHaveTextContent('−15,00 €')
-  })
-
-  it('shows each entry with icon, category, signed amount and its markers', async () => {
-    renderPage()
-
-    const kino = await screen.findByRole('button', { name: /Kino/ })
-    expect(within(kino).getByText('Freizeit')).toBeInTheDocument()
-    // Expenses in the normal text color; orange is reserved for warnings (decision 32)
-    expect(within(kino).getByText('−12,10 €')).not.toHaveClass('negative')
-    expect(within(screen.getByRole('button', { name: /Lohn/ })).getByText('+3.000,00 €')).toHaveClass('positive')
-    expect(kino.querySelector('.category-icon')).toHaveAttribute('data-icon', 'music')
-    expect(within(screen.getByRole('button', { name: /Streaming/ })).getByText('wiederkehrend')).toBeInTheDocument()
-    expect(within(kino).queryByText('wiederkehrend')).not.toBeInTheDocument()
-    // US26: entries after today are planned
-    expect(within(screen.getByRole('button', { name: /Konzert/ })).getByText('geplant')).toBeInTheDocument()
-    expect(within(kino).queryByText('geplant')).not.toBeInTheDocument()
-  })
-
-  it('has no buttons per row and no form above the list', async () => {
-    renderPage()
-
-    await screen.findByText('Kino')
-    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Löschen' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Beschreibung')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Wiederkehrende Transaktionen/)).not.toBeInTheDocument()
   })
 
   it('shows the monthly reserve and what should be saved by now', async () => {
@@ -254,16 +212,6 @@ describe('TransactionsPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Buchung bearbeiten' })
     expect(within(dialog).getByLabelText('Betrag in Euro')).toHaveValue('12,10')
     expect(within(dialog).getByLabelText('Beschreibung')).toHaveValue('Kino')
-  })
-
-  it('opens an occurrence with the question for the scope', async () => {
-    renderPage()
-
-    fireEvent.click(await screen.findByRole('button', { name: /Streaming/ }))
-
-    const dialog = screen.getByRole('dialog', { name: 'Wiederkehrende Buchung bearbeiten' })
-    expect(within(dialog).getByRole('radio', { name: 'Nur dieser Eintrag' })).toBeChecked()
-    expect(within(dialog).getByRole('radio', { name: 'Dieser und alle folgenden' })).toBeInTheDocument()
   })
 
   it('closes the dialog and confirms briefly after saving', async () => {
@@ -313,6 +261,8 @@ describe('TransactionsPage', () => {
   it.each([
     ['Letzte 3 Monate', '/api/transactions?from=2026-08-01&to=2026-10-31', 'August bis Oktober 2026'],
     ['Dieses Jahr', '/api/transactions?from=2026-01-01&to=2026-12-31', '2026 ·'],
+    // 27f4: from the first to the last booking
+    ['Gesamt', '/api/transactions?from=2025-03-01&to=2026-10-20', '01.03.2025 bis 20.10.2026'],
   ])('loads the quick choice %s', async (label, url, text) => {
     const fetchMock = renderPage()
     await screen.findByText('Kino')
@@ -358,6 +308,7 @@ describe('TransactionsPage', () => {
     await screen.findByText('Kino')
     const calls = fetchMock.mock.calls.length
 
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'KIN' } })
 
     expect(screen.getByText('Kino')).toBeInTheDocument()
@@ -367,24 +318,11 @@ describe('TransactionsPage', () => {
     expect(fetchMock.mock.calls.length).toBe(calls)
   })
 
-  it('shows the hits of each filter option with the other filters and hides the options without one', async () => {
-    renderPage()
-    await screen.findByText('Kino')
-    const names = (label: string) =>
-      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
-    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Freizeit (3)', 'Gehalt (1)'])
-    expect(names('Art filtern')).toEqual(['Alle Arten', 'Wiederkehrend (1)', 'Einmalig (3)'])
-
-    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
-
-    expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Freizeit (1)'])
-    expect(names('Art filtern')).toEqual(['Alle Arten', 'Einmalig (1)'])
-  })
-
   it('filters by category and says so when nothing matches', async () => {
     renderPage()
     await screen.findByText('Kino')
 
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
     fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '20' } })
 
     expect(screen.getByText('Lohn')).toBeInTheDocument()
@@ -394,8 +332,25 @@ describe('TransactionsPage', () => {
     expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 
+  // 27f4: the search is always shown; the other filters fold behind a button that counts the active ones
+  it('folds the filters except the search behind a button and resets them', async () => {
+    renderPage()
+    const toggle = await screen.findByRole('button', { name: 'Filter' })
+    expect(screen.getByLabelText('Beschreibung suchen')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Kategorie filtern')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Kino' } })
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
+    fireEvent.click(toggle)
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: '6' } })
+    expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
+    expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('')
+    expect(screen.getByLabelText('Kategorie filtern')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Filter zurücksetzen' })).not.toBeInTheDocument()
+  })
+
   it('separates the months with a heading and the sums of each month, newest month first', async () => {
-    const september: Transaction = { kind: 'SINGLE', id: 11, recurringId: null, occurrenceDate: null, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
+    const september: Transaction = { id: 11, amount: -20.5, description: 'Buch', date: '2026-09-30', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false }
     renderPage([...transactions, september])
 
     await screen.findByText('Buch')
@@ -414,31 +369,5 @@ describe('TransactionsPage', () => {
 
     await screen.findByText('Kino')
     expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
-  })
-
-  it('filters by kind: recurring or one-off entries', async () => {
-    const fetchMock = renderPage()
-    await screen.findByText('Kino')
-    const calls = fetchMock.mock.calls.length
-    const kind = screen.getByLabelText('Art filtern')
-
-    fireEvent.change(kind, { target: { value: 'RECURRING' } })
-
-    expect(screen.getByText('Streaming')).toBeInTheDocument()
-    expect(screen.queryByText('Kino')).not.toBeInTheDocument()
-    expect(screen.queryByText('Lohn')).not.toBeInTheDocument()
-    expect(screen.getByText(/1 Eintrag ·/)).toHaveTextContent('Oktober 2026 · 1 Eintrag · Einnahmen 0,00 € · Ausgaben 15,00 €')
-
-    fireEvent.change(kind, { target: { value: 'SINGLE' } })
-
-    expect(screen.queryByText('Streaming')).not.toBeInTheDocument()
-    expect(screen.getByText('Kino')).toBeInTheDocument()
-    expect(screen.getByText('Lohn')).toBeInTheDocument()
-    expect(screen.getByText(/3 Einträge ·/)).toHaveTextContent('3 Einträge · Einnahmen 3.000,00 € · Ausgaben 52,10 €')
-    // The kind filters what is loaded, it does not ask the server again
-    expect(fetchMock.mock.calls.length).toBe(calls)
-
-    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'Streaming' } })
-    expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 })

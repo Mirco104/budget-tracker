@@ -8,9 +8,9 @@ import { ImportPage } from './ImportPage'
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
   // Alphabetical, as the backend sends them (decision 38)
-  { id: 9, name: 'Alt', icon: 'tag', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
-  { id: 8, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
+  { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false },
+  { id: 8, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
 ]
 const accounts: BankAccount[] = [
   { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
@@ -247,7 +247,7 @@ describe('ImportPage', () => {
   it('replaces the found occurrence unless the user unticks it', async () => {
     const fetchMock = renderPage()
     await upload()
-    const replace = within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“ vom 03.11.2026/ })
+    const replace = within(row('Kino Nord')[0]).getByRole('checkbox', { name: /erfüllt „Kino-Abo“ vom 03.11.2026/ })
     expect(replace).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
@@ -258,7 +258,7 @@ describe('ImportPage', () => {
 
     fetchMock.mockClear()
     await upload()
-    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: /ersetzt „Kino-Abo“/ }))
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: /erfüllt „Kino-Abo“/ }))
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     fireEvent.click(screen.getByRole('button', { name: '4 Buchungen übernehmen' }))
@@ -336,7 +336,7 @@ describe('ImportPage', () => {
 
     for (const name of ['Miete 2026-01-01', 'Miete 2026-02-01', 'Miete 2026-03-01']) {
       expect(within(row(name)[0]).getByRole('combobox', { name: `Kategorie für ${name}` })).toHaveValue('')
-      expect(within(row(name)[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+      expect(within(row(name)[0]).getByRole('checkbox', { name: /erfüllt „Miete“/ })).toBeChecked()
     }
     expect(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' })).toBeInTheDocument()
     expect(within(matchCard()).queryByRole('button', { name: 'Zurücknehmen' })).not.toBeInTheDocument()
@@ -349,10 +349,10 @@ describe('ImportPage', () => {
     fireEvent.change(within(row('Miete 2026-01-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-01-01' }), {
       target: { value: '1' },
     })
-    fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ }))
+    fireEvent.click(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /erfüllt „Miete“/ }))
 
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (2)' }))
-    expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /ersetzt „Miete“/ })).toBeChecked()
+    expect(within(row('Miete 2026-02-01')[0]).getByRole('checkbox', { name: /erfüllt „Miete“/ })).toBeChecked()
     expect(within(row('Miete 2026-03-01')[0]).getByRole('combobox', { name: 'Kategorie für Miete 2026-03-01' })).toHaveValue('1')
   })
 
@@ -511,7 +511,7 @@ describe('ImportPage', () => {
     await upload()
     const [first, second] = row('Spiele Shop')
 
-    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new-category' } })
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new' } })
     fireEvent.change(within(first).getByLabelText('Neue Kategorie für Spiele Shop'), { target: { value: 'Spiele' } })
     fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
 
@@ -528,7 +528,7 @@ describe('ImportPage', () => {
     await upload()
     const [first] = row('Spiele Shop')
 
-    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new-category' } })
+    fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new' } })
     fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
     expect(within(first).getByRole('alert')).toHaveTextContent('Der Name ist Pflicht.')
 
@@ -721,7 +721,7 @@ describe('ImportPage', () => {
     const select = within(card).getByLabelText('Kategorie für Serie „Spiele Shop“')
     expect(within(select).getAllByRole('option').at(-1)).toHaveTextContent('+ Neue Kategorie …')
 
-    fireEvent.change(select, { target: { value: 'new-category' } })
+    fireEvent.change(select, { target: { value: 'new' } })
     fireEvent.change(within(card).getByLabelText('Neue Kategorie für Serie „Spiele Shop“'), { target: { value: 'Spiele' } })
     fireEvent.click(within(card).getByRole('button', { name: 'Anlegen' }))
 

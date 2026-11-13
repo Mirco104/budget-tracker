@@ -5,26 +5,10 @@ export interface Category {
   name: string
   /** Icon key from the fixed list (US28); the frontend draws unknown keys as "tag". */
   icon: string
-  /** The target in euro (R3); percent is only an input helper on the planning page (decision 36). */
-  targetAmount: number | null
-  /** Month ("YYYY-MM") the target in effect was set for; null without a target entry. */
-  targetValidFrom: string | null
   /** Archived categories are hidden in forms and planning (US10). */
   archived: boolean
   /** The category has entries and all of them are positive (R24). */
   incomeOnly: boolean
-  /** Fixed costs F(k, M) of the requested month (R25); null without a recurring expense. */
-  fixedCosts: number | null
-  fixedCostItems: FixedCostItem[]
-}
-
-/** One recurring expense behind the fixed costs: amount without sign, interval in months, monthly share (R25). */
-export interface FixedCostItem {
-  recurringId: number
-  description: string
-  amount: number
-  interval: number
-  monthly: number
 }
 
 /** Without an icon the category gets "tag" (US28). */
@@ -40,21 +24,12 @@ export interface CategoryUpdate {
   icon?: string
 }
 
-/** The target in euro; null means no target from the month on. */
-export interface TargetInput {
-  targetAmount: number | null
-}
-
 /**
- * An entry of the transaction list: a single transaction (kind SINGLE, id) or a calculated occurrence of a
- * recurring transaction (kind RECURRING, recurringId, occurrenceDate). amount is signed: positive is income,
- * negative is expense. A transfer between own accounts (R27) has no category and counts nowhere.
+ * A booking (P1: only real bookings, planned items are not listed). amount is signed: positive is income, negative is
+ * expense. A transfer between own accounts (R27) has no category and counts nowhere.
  */
 export interface Transaction {
-  kind: 'SINGLE' | 'RECURRING'
-  id: number | null
-  recurringId: number | null
-  occurrenceDate: string | null
+  id: number
   amount: number
   description: string
   date: string
@@ -64,13 +39,26 @@ export interface Transaction {
   accountId: number
   accountName: string
   transfer: boolean
-  /** The occurrence of a series this single transaction replaces (R28); it then counts as recurring. */
-  replaces: OccurrenceRef | null
+  /** Entered by the app from the plan (P6). */
+  auto: boolean
+  /** An expense that fulfils a term of a planned item (P5). */
+  fix: boolean
+  /**
+   * P8: the reserve pot that pays the booking (chosen, or by the term of the rare item it fulfils, decision 60), or the
+   * saving goal.
+   */
+  reserveItemKey?: string | null
+  savingGoalId?: number | null
+  /** P1: the kind Sparen. */
+  saving?: boolean
+  /** 27f3: the other side of a transfer pair. */
+  transferPeerId?: number | null
+  transferPeerAccountName?: string | null
 }
 
-/** An occurrence of a series by series and date. */
-export interface OccurrenceRef {
-  recurringId: number
+/** A term of a planned item: the id of the item version and the planned date (P5). */
+export interface TermRef {
+  itemId: number
   date: string
 }
 
@@ -83,55 +71,168 @@ export interface TransactionInput {
   /** Without it the default account (R26). */
   accountId?: number
   transfer?: boolean
-  /** Only when created: the occurrence the transaction replaces (R28). */
-  replaces?: OccurrenceRef
+  /** Only when created: the term of a planned item the booking fulfils (P5, P7). */
+  replaces?: TermRef
+  /** P8: "aus Rücklage / Ersparnissen bezahlen": the pot of a rare item or a saving goal. */
+  reserveItemKey?: string | null
+  savingGoalId?: number | null
+  /** P1: the kind Sparen, a transfer to a savings or depot account without category. */
+  saving?: boolean
+  /** 27f3: for a transfer the target account; both bookings are made. */
+  targetAccountId?: number
+  /** 27f4: takes an expense that fulfils the term of a rare item out of its reserve (decision 60). */
+  noReserve?: boolean
 }
 
-export type RecurringInterval = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
-
-/** One series of a recurring transaction. amount is signed per occurrence; endDate is inclusive. */
-export interface RecurringTransaction {
+/** A saving goal (concept 3.6): saved is what its saving bookings brought minus what was paid from it. */
+export interface SavingGoal {
   id: number
-  seriesId: string
-  amount: number
-  description: string
-  categoryId: number
-  categoryName: string
-  accountId: number
-  accountName: string
-  interval: RecurringInterval
-  startDate: string
-  endDate: string | null
-  /** |amount| per month of the interval, calculated by the backend. */
-  monthlyEquivalent: number
+  name: string
+  targetAmount: number | null
+  targetDate: string | null
+  saved: number
+  monthly: number
 }
 
-export interface RecurringTransactionInput {
-  amount: number
-  description: string
-  categoryId: number
-  interval: RecurringInterval
-  startDate: string
-  endDate: string | null
-  /** Without it the default account (R26). */
-  accountId?: number
+export interface SavingGoalInput {
+  name: string
+  targetAmount?: number | null
+  targetDate?: string | null
 }
-
-/** "Alle Einträge" (ticket #80): the values that change for every part of a series; the dates stay. */
-export interface RecurringValuesInput {
-  amount: number
-  description: string
-  categoryId: number
-  /** Without it the default account (R26). */
-  accountId?: number
-}
-
-/** "Nur dieser Eintrag" (THIS), "Dieser und alle folgenden" (FOLLOWING) or "Alle Einträge" (ALL, ticket #80). */
-export type OccurrenceScope = 'THIS' | 'FOLLOWING' | 'ALL'
 
 /**
- * difference is the deviation from the target (target - actual).
- * recurring is the part of the expenses from recurring transactions, oneOff the rest; together they are actual.
+ * P8: the reserve pot of a rare item in a month. balance is what is in it before the payment, fromPot what it pays,
+ * shortfall what is missing and counts into the budget.
+ */
+export interface ReservePot {
+  itemId: number
+  name: string
+  categoryId: number
+  amount: number
+  monthly: number
+  balance: number
+  due: boolean
+  nextDue: string | null
+  paid: number
+  fromPot: number
+  shortfall: number
+  /** Spacing of the item in months (P8). */
+  months: number
+}
+
+/** Rhythm of a planned item (section 19.3): unit and count; no unit means "ohne festen Termin". */
+export type RhythmUnit = 'WEEK' | 'MONTH'
+
+/** How a term becomes a booking (decision 51). */
+export type EntryMode = 'AUTO' | 'TICK' | 'MANUAL'
+
+/** Group of a planned item (P4). */
+export type PlanGroup = 'INCOME' | 'FIXED' | 'BUDGET' | 'SAVING'
+
+/**
+ * One version of a planned item. amount is the real amount per payment with its sign (saving negative);
+ * monthlyShare its monthly share without sign (P2). validFrom/validTo are months ("YYYY-MM"); validTo null = open.
+ */
+export interface PlannedItem {
+  id: number
+  itemKey: string
+  name: string
+  amount: number
+  saving: boolean
+  categoryId: number | null
+  categoryName: string | null
+  accountId: number
+  accountName: string
+  rhythmUnit: RhythmUnit | null
+  rhythmCount: number | null
+  anchorDate: string | null
+  entryMode: EntryMode
+  workdaysOnly: boolean
+  validFrom: string
+  validTo: string | null
+  group: PlanGroup
+  monthlyShare: number
+  savingGoalId?: number | null
+  savingGoalName?: string | null
+  /** P8: the savings account of the reserve pot; null for a calculated pot. */
+  reserveAccountId?: number | null
+}
+
+/** Create or change a planned item; validFrom is the month from which the item or the change applies. */
+export interface PlannedItemInput {
+  name: string
+  amount: number
+  saving?: boolean
+  categoryId?: number | null
+  accountId?: number
+  rhythmUnit: RhythmUnit | null
+  rhythmCount: number | null
+  anchorDate: string | null
+  entryMode?: EntryMode
+  workdaysOnly?: boolean
+  validFrom: string
+  savingGoalId?: number | null
+}
+
+/** Status of a term (P5). */
+export type TermStatus = 'EXPECTED' | 'FULFILLED' | 'MISSED' | 'SKIPPED'
+
+/**
+ * A term of a planned item: date is the planned date (with itemId the key for tick-off and skip), dueDate the date
+ * after the working-day shift. transactionId is the booking that fulfils it; linked when ticked off or entered.
+ */
+export interface Term {
+  itemId: number
+  itemKey: string
+  name: string
+  date: string
+  dueDate: string
+  amount: number
+  categoryId: number | null
+  categoryName: string | null
+  accountId: number
+  entryMode: EntryMode
+  group: PlanGroup
+  status: TermStatus
+  transactionId: number | null
+  linked: boolean
+}
+
+/** Sum of the items of one category in one group. */
+export interface PlanCategoryTotal {
+  group: PlanGroup
+  categoryId: number
+  categoryName: string
+  total: number
+}
+
+/**
+ * The plan of a month (P2–P4, P9). Sums are monthly shares without sign; unplanned is negative when overplanned.
+ * averageIncome and minimumIncome are only for orientation (R23).
+ */
+export interface Plan {
+  month: string
+  income: number
+  fixed: number
+  budgets: number
+  saving: number
+  unplanned: number
+  /** Percent with one decimal, null without planned income (P9). */
+  savingRate: number | null
+  planTotal: number
+  averageIncome: number | null
+  minimumIncome: number | null
+  averageMonths: number
+  /** 27f4: the months of the average, null without one */
+  averageFrom?: string | null
+  averageTo?: string | null
+  categories: PlanCategoryTotal[]
+  items: PlannedItem[]
+}
+
+/**
+ * difference is the deviation from the plan (target - actual); target is the plan of the category (P3).
+ * recurring is the part of the expenses that fulfils a term ("fix", P5), oneOff the rest ("variabel").
  */
 export interface Totals {
   target: number
@@ -186,6 +287,22 @@ export interface DashboardData {
   surplusLabel: string
   categories: CategoryLine[]
   income: IncomeLine[]
+  /** P9: planned saving of the month (monthly shares) and the saving rate in percent, with the saving items. */
+  saving: {
+    planned: number
+    rate: number | null
+    items: { itemId: number; name: string; monthly: number; actual?: number }[]
+    /** P1: what was saved in the month (bookings of the kind Sparen). */
+    actual?: number
+  } | null
+  /** P5: terms of the month without a booking yet and their sum with sign. */
+  expected: { count: number; total: number } | null
+  /** P8: the totals of the budget lines with the reserve pots; null when no pot or saving payment changes them. */
+  budget?: Totals | null
+  /** P8: the reserve pots of the rare items valid in the month. */
+  reserves?: ReservePot[]
+  /** 27f4: the part of the expenses paid from reserve pots or saving goals; null when nothing. */
+  fromReserves?: number | null
 }
 
 /** A bank account (R26); used means that entries are booked on it, so it can only be archived. */
@@ -196,11 +313,60 @@ export interface BankAccount {
   defaultAccount: boolean
   archived: boolean
   used: boolean
+  /** Concept 3.4: only Alltag counts in income and expenses (P1). */
+  role?: AccountRole
+}
+
+export type AccountRole = 'EVERYDAY' | 'SAVINGS' | 'DEPOT'
+
+/** One account on the page Konten: app balance today (P11) and the last balance from the bank. */
+export interface AccountLine {
+  id: number
+  name: string
+  iban: string | null
+  role: AccountRole
+  defaultAccount: boolean
+  archived: boolean
+  balance: number
+  statementDate: string | null
+  statementAmount: number | null
+  /** 27f4: optional; belowComfort is true when the balance lies below it */
+  comfortAmount: number | null
+  belowComfort: boolean
+}
+
+export interface AccountGroup {
+  role: AccountRole
+  total: number
+  accounts: AccountLine[]
+}
+
+/**
+ * 27f2: the reserves of one savings account (accountId null: without account). saved and target sum the pots,
+ * missing is what the account balance lacks to cover saved (0 when covered, null without account).
+ */
+export interface ReserveGroup {
+  accountId: number | null
+  accountName: string | null
+  saved: number
+  target: number
+  accountBalance: number | null
+  missing: number | null
+  pots: ReservePot[]
+}
+
+/** P11: the app balance on the day of the bank balance and the difference (not booked). */
+export interface ReconcileResult {
+  appBalance: number
+  bankBalance: number
+  difference: number
 }
 
 export interface BankAccountInput {
   name: string
   iban?: string | null
+  /** 27f3: Alltag without it */
+  role?: AccountRole
 }
 
 /** defaultAccount true makes this the default account; the previous one becomes a normal account. */
@@ -209,6 +375,7 @@ export interface BankAccountUpdate {
   iban: string | null
   archived: boolean
   defaultAccount: boolean
+  role?: AccountRole
 }
 
 export interface FieldError {
@@ -223,13 +390,14 @@ export interface ProblemDetail {
   errors?: FieldError[]
 }
 
-/** A rare expense in the reserve pot. amount is the cost (positive); nextDate is its next occurrence. */
+/** A rare expense in the reserve pot. amount is the cost (positive); nextDate is its next term. */
 export interface ReserveLine {
-  recurringId: number
+  itemId: number
   description: string
   categoryName: string
   amount: number
-  interval: RecurringInterval
+  rhythmUnit: RhythmUnit
+  rhythmCount: number
   nextDate: string
   /** To put aside each month. */
   monthly: number
@@ -239,11 +407,11 @@ export interface ReserveLine {
   ratesLeft: number
 }
 
-/** A single expense (kind SINGLE, id) or an occurrence of a series (kind RECURRING, recurringId). amount is positive. */
+/** A booked expense (kind SINGLE, id) or a term of a planned item (kind PLANNED, itemId). amount is positive. */
 export interface ForecastEntry {
-  kind: 'SINGLE' | 'RECURRING'
+  kind: 'SINGLE' | 'PLANNED'
   id: number | null
-  recurringId: number | null
+  itemId: number | null
   description: string
   date: string
   amount: number

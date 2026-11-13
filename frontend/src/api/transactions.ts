@@ -27,6 +27,16 @@ export function useTransactions(month: string) {
   return useQuery({ queryKey: ['transactions', month], queryFn: () => fetchTransactions(month) })
 }
 
+/** 27f4: the first and the last day of the user's bookings (null without one), for the quick choice "Gesamt". */
+export function useTransactionRange(enabled = true) {
+  return useQuery({
+    // Under 'transactions', so every change of a booking refreshes it
+    queryKey: ['transactions', 'range'],
+    queryFn: () => request<{ from: string | null; to: string | null }>('/transactions/range'),
+    enabled,
+  })
+}
+
 export function useTransactionsBetween(from: string, to: string, enabled = true) {
   return useQuery({
     queryKey: ['transactions', 'period', from, to],

@@ -28,7 +28,9 @@ function useInvalidateAfterAccountChange() {
   const queryClient = useQueryClient()
   return () =>
     Promise.all(
-      ['bank-accounts', 'transactions'].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+      ['bank-accounts', 'transactions', 'accounts', 'dashboard'].map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] }),
+      ),
     )
 }
 

@@ -47,22 +47,6 @@ class BookingSuggestionControllerTest {
     }
 
     @Test
-    void suggestsFromTransactionsAndSeries() throws Exception {
-        book(asA, -42.10, "REWE Markt Nord", category(a, "Lebensmittel"));
-        asA.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"amount": -900, "description": "Miete Wohnung", "categoryId": %d, "interval": "MONTHLY",
-                         "startDate": "2026-01-01"}""".formatted(category(a, "Wohnen"))))
-                .andExpect(status().isCreated());
-
-        asA.perform(get("/api/booking-suggestion").param("text", "rewe markt süd").param("amount", "-3"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.categoryId").value(category(a, "Lebensmittel")))
-                .andExpect(jsonPath("$.certain").value(true));
-        asA.perform(get("/api/booking-suggestion").param("text", "Miete Wohnung"))
-                .andExpect(jsonPath("$.categoryId").value(category(a, "Wohnen")));
-    }
-
-    @Test
     void theSignComesFromIncomeOrTheAmount() throws Exception {
         book(asA, 2500, "Firma Lohn", category(a, "Gehalt/Lohn (netto)"));
 

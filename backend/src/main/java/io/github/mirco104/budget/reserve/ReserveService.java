@@ -5,9 +5,8 @@ import io.github.mirco104.budget.category.CategoryRepository;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.dashboard.DashboardResponse;
 import io.github.mirco104.budget.dashboard.DashboardService;
-import io.github.mirco104.budget.recurring.OccurrenceService;
-import io.github.mirco104.budget.recurring.RecurringTransaction;
-import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
+import io.github.mirco104.budget.plan.ItemTermRepository;
+import io.github.mirco104.budget.plan.PlannedItemRepository;
 import io.github.mirco104.budget.reserve.ReserveCalculator.CategoryData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.SeriesData;
@@ -31,23 +30,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ReserveService {
 
-    private final RecurringTransactionRepository recurringRepository;
+    private final PlannedItemRepository itemRepository;
+    private final ItemTermRepository termRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
-    private final OccurrenceService occurrenceService;
     private final DashboardService dashboardService;
     private final CurrentUser currentUser;
     private final Clock clock;
     private final ReserveCalculator calculator = new ReserveCalculator();
 
     public ReserveService(
-            RecurringTransactionRepository recurringRepository, TransactionRepository transactionRepository,
-            CategoryRepository categoryRepository, OccurrenceService occurrenceService,
+            PlannedItemRepository itemRepository, ItemTermRepository termRepository,
+            TransactionRepository transactionRepository, CategoryRepository categoryRepository,
             DashboardService dashboardService, CurrentUser currentUser, Clock clock) {
-        this.recurringRepository = recurringRepository;
+        this.itemRepository = itemRepository;
+        this.termRepository = termRepository;
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
-        this.occurrenceService = occurrenceService;
         this.dashboardService = dashboardService;
         this.currentUser = currentUser;
         this.clock = clock;
@@ -90,22 +89,23 @@ public class ReserveService {
     @Transactional(readOnly = true)
     public ReserveResponse outlook(YearMonth month) {
         YearMonth start = month == null ? YearMonth.now(clock) : month;
-        // Forecast period M..M+11: every series active somewhere in it and every single transaction in it
+        // Forecast period M..M+11: the terms of every planned item without a booking and every booking in it
         LocalDate forecastStart = start.atDay(1);
         LocalDate forecastEnd = start.plusMonths(ReserveCalculator.FORECAST_MONTHS - 1).atEndOfMonth();
-        List<RecurringTransaction> series =
-                recurringRepository.findActiveBetween(currentUser.get(), forecastStart, forecastEnd);
-        Map<Long, Set<LocalDate>> exceptions = occurrenceService.exceptionsBySeries(series);
-        List<SeriesData> seriesData = series.stream()
-                .map(recurring -> new SeriesData(
-                        recurring.getId(),
-                        recurring.getDescription(),
-                        recurring.getCategory().getName(),
-                        recurring.getAmount(),
-                        recurring.getInterval(),
-                        recurring.getStartDate(),
-                        recurring.getEndDate(),
-                        exceptions.getOrDefault(recurring.getId(), Set.of())))
+        Map<java.util.UUID, Set<LocalDate>> handled = new java.util.HashMap<>();
+        termRepository.findBetween(currentUser.get(), forecastStart, forecastEnd).forEach(term ->
+                handled.computeIfAbsent(term.getItemKey(), key -> new java.util.HashSet<>()).add(term.getTermDate()));
+        List<SeriesData> seriesData = itemRepository.findAllOf(currentUser.get()).stream()
+                .filter(item -> item.schedule() != null && !item.isSaving())
+                .map(item -> new SeriesData(
+                        item.getId(),
+                        item.getName(),
+                        item.getCategory() == null ? null : item.getCategory().getName(),
+                        item.getAmount(),
+                        item.getRhythmUnit(),
+                        item.getRhythmCount(),
+                        item.schedule(),
+                        handled.getOrDefault(item.getItemKey(), Set.of())))
                 .toList();
         List<SingleData> singles = transactionRepository
                 .findCountedBetween(currentUser.get(), forecastStart, forecastEnd).stream()

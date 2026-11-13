@@ -150,21 +150,23 @@ class TransferControllerTest {
     }
 
     @Test
-    void aTransferCannotReplaceAnOccurrence() throws Exception {
+    void aTransferCannotFulfilATerm() throws Exception {
         String json = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON).content("""
-                                {"amount": -500, "description": "Sparen", "categoryId": %d, "interval": "MONTHLY",
-                                 "startDate": "2026-10-01"}""".formatted(wohnen)))
+                        .post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                                {"name": "Sparen", "amount": -500, "categoryId": %d, "rhythmUnit": "MONTH",
+                                 "rhythmCount": 1, "anchorDate": "2026-10-01", "entryMode": "MANUAL", "validFrom": "2026-10"}"""
+                                .formatted(wohnen)))
                 .andReturn().getResponse().getContentAsString();
-        long series = ((Number) JsonPath.read(json, "$.id")).longValue();
+        long item = ((Number) JsonPath.read(json, "$.id")).longValue();
 
-        mockMvc.perform(put("/api/recurring-transactions/{id}/occurrences/{date}", series, "2026-10-01")
-                        .param("scope", "THIS").contentType(MediaType.APPLICATION_JSON).content("""
-                                {"amount": -500, "description": "Sparen", "date": "2026-10-01", "transfer": true}"""))
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                                {"amount": -500, "description": "Sparen", "date": "2026-10-01", "transfer": true,
+                                 "replaces": {"itemId": %d, "date": "2026-10-01"}}""".formatted(item)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("transfer"));
+                .andExpect(jsonPath("$.errors[0].field").value("replaces"));
         mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
-                .andExpect(jsonPath("$[?(@.kind == 'SINGLE')]", empty()));
+                .andExpect(jsonPath("$", empty()));
     }
 
     @Test
@@ -195,5 +197,38 @@ class TransferControllerTest {
 
     private static long idOf(ResultActions result) throws Exception {
         return ((Number) JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+    }
+
+    // 27f3: a transfer with source and target account makes both bookings; amount and deletion go together
+    @Test
+    void aTransferWithTargetAccountMakesBothSides() throws Exception {
+        String created = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/bank-accounts").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Tagesgeld\", \"role\": \"SAVINGS\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("SAVINGS"))
+                .andReturn().getResponse().getContentAsString();
+        long tagesgeld = ((Number) JsonPath.read(created, "$.id")).longValue();
+
+        String json = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": 200, "description": "Auf Tagesgeld", "date": "2026-10-05", "saving": true,
+                         "targetAccountId": %d}""".formatted(tagesgeld)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(-200.00))
+                .andExpect(jsonPath("$.transferPeerAccountName").value("Tagesgeld"))
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(json, "$.id")).longValue();
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.amount == 200.0)].accountName").value("Tagesgeld"));
+
+        mockMvc.perform(put("/api/transactions/{id}", id).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"amount": -250, "description": "Auf Tagesgeld", "date": "2026-10-05", "saving": true}"""))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.accountName == 'Tagesgeld')].amount").value(250.00));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/transactions/{id}", id))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10")).andExpect(jsonPath("$", empty()));
     }
 }

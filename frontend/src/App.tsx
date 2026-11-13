@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
 import type { Me } from './api/types'
 import { AccountMenu } from './components/ui/AccountMenu'
@@ -26,6 +27,7 @@ const TABS: { page: Page; label: string; icon: IconName }[] = [
   { page: 'transactions', label: 'Transaktionen', icon: 'transactions' },
   { page: 'planning', label: 'Planung', icon: 'planning' },
   { page: 'evaluation', label: 'Auswertung', icon: 'evaluation' },
+  { page: 'accounts', label: 'Konten', icon: 'accounts' },
 ]
 
 // US15: an invitation link opens the app with ?einladung=<token>
@@ -117,7 +119,7 @@ function SignedOut({ children }: { children: ReactNode }) {
 function SignedIn({ me }: { me: Me }) {
   const logout = useLogout()
   const page = usePage()
-  // The month of the overview; it stays when switching pages (decision 28: the other pages have their own time)
+  // The month of overview and planning (27f2); it stays when switching pages. Transaktionen has its own period.
   const [month, setMonth] = useState(currentMonth)
 
   return (
@@ -151,13 +153,14 @@ function SignedIn({ me }: { me: Me }) {
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
         {page === 'transactions' && <TransactionsRoute />}
-        {page === 'planning' && <PlanningPage />}
+        {page === 'planning' && <PlanningPage month={month} onMonthChange={setMonth} />}
         {page === 'evaluation' && (
           <Suspense fallback={<Loading text="Lade Auswertung …" />}>
             <EvaluationPage />
           </Suspense>
         )}
         {page === 'settings' && <SettingsPage me={me} />}
+        {page === 'accounts' && <AccountsPage />}
         <LegalLinks />
       </main>
     </>

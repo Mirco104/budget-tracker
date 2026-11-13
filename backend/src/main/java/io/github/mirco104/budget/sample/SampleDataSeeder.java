@@ -2,10 +2,16 @@ package io.github.mirco104.budget.sample;
 
 import io.github.mirco104.budget.category.Category;
 import io.github.mirco104.budget.category.CategoryService;
-import io.github.mirco104.budget.category.UpdateTargetRequest;
-import io.github.mirco104.budget.recurring.RecurringInterval;
-import io.github.mirco104.budget.recurring.RecurringTransactionRequest;
-import io.github.mirco104.budget.recurring.RecurringTransactionService;
+import io.github.mirco104.budget.bankaccount.BankAccountService;
+import io.github.mirco104.budget.plan.EntryMode;
+import io.github.mirco104.budget.plan.PlanService;
+import io.github.mirco104.budget.plan.PlannedItem;
+import io.github.mirco104.budget.plan.PlannedItemRequest;
+import io.github.mirco104.budget.plan.PlannedItemRepository;
+import io.github.mirco104.budget.plan.RhythmUnit;
+import io.github.mirco104.budget.plan.TermService;
+import io.github.mirco104.budget.transaction.Transaction;
+import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.transaction.TransactionRequest;
 import io.github.mirco104.budget.transaction.TransactionService;
 import io.github.mirco104.budget.user.AppUserDetails;
@@ -34,7 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Fictional sample data for the local profile "sample" (decision 35): Person A to D with bookings from January 2025
- * to October 2026. Runs only on an empty database and before {@link io.github.mirco104.budget.user.AdminBootstrap},
+ * to October 2026 and a plan of planned items (section 19). The terms of automatic items up to October 2026 are
+ * bookings marked "automatisch", as after the conversion of V14; later ones the app enters itself (P6). Runs only on an empty database and before {@link io.github.mirco104.budget.user.AdminBootstrap},
  * which then adds the system admin. Everything goes through the services, so all rules and validations apply.
  * Amounts vary with the month index instead of random numbers, so every reset gives the same data.
  */
@@ -52,18 +59,33 @@ public class SampleDataSeeder implements ApplicationRunner {
     private final UserService userService;
     private final CategoryService categoryService;
     private final TransactionService transactionService;
-    private final RecurringTransactionService recurringTransactionService;
+    private final PlanService planService;
+    private final PlannedItemRepository itemRepository;
+    private final TermService termService;
+    private final TransactionRepository transactionRepository;
+    private final BankAccountService bankAccountService;
+    private final io.github.mirco104.budget.goal.SavingGoalService goalService;
+    private final io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository;
     private final String password;
 
     public SampleDataSeeder(
             UserRepository userRepository, UserService userService, CategoryService categoryService,
-            TransactionService transactionService, RecurringTransactionService recurringTransactionService,
+            TransactionService transactionService, PlanService planService, PlannedItemRepository itemRepository,
+            TermService termService, TransactionRepository transactionRepository, BankAccountService bankAccountService,
+            io.github.mirco104.budget.goal.SavingGoalService goalService,
+            io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository,
             @Value("${app.sample.password}") String password) {
+        this.goalService = goalService;
+        this.statementRepository = statementRepository;
         this.userRepository = userRepository;
         this.userService = userService;
         this.categoryService = categoryService;
         this.transactionService = transactionService;
-        this.recurringTransactionService = recurringTransactionService;
+        this.planService = planService;
+        this.itemRepository = itemRepository;
+        this.termService = termService;
+        this.transactionRepository = transactionRepository;
+        this.bankAccountService = bankAccountService;
         this.password = password;
     }
 
@@ -80,28 +102,27 @@ public class SampleDataSeeder implements ApplicationRunner {
         log.info("Created the sample data for Person A to D.");
     }
 
-    /** Many bookings in every month, targets with a change in 2026, a salary raise and series for the reserve. */
+    /** Many bookings in every month, budgets with a change in 2026, a salary raise, rare items and a saving item. */
     private void personA(Data d) {
-        d.series("2850", "Gehalt", "Gehalt/Lohn (netto)", RecurringInterval.MONTHLY, "2025-01-01", "2025-12-31");
-        d.series("3000", "Gehalt", "Gehalt/Lohn (netto)", RecurringInterval.MONTHLY, "2026-01-01", null);
-        d.series("-950", "Miete", "Wohnen", RecurringInterval.MONTHLY, "2025-01-01", null);
-        d.series("-120", "Strom und Internet", "Nebenkosten", RecurringInterval.MONTHLY, "2025-01-05", null);
-        d.series("-12.99", "Streaming", "Freizeit", RecurringInterval.MONTHLY, "2025-01-10", null);
-        d.series("-200", "ETF-Sparplan", "Investitionen", RecurringInterval.MONTHLY, "2025-01-15", null);
-        d.series("-85", "Haftpflicht", "Versicherungen", RecurringInterval.YEARLY, "2025-03-15", null);
-        d.series("-240", "Kfz-Versicherung", "Versicherungen", RecurringInterval.HALF_YEARLY, "2025-04-01", null);
+        d.fixed("2850", "Gehalt", "Gehalt/Lohn (netto)", 1, "2025-01-01", "2025-12-31");
+        d.fixed("3000", "Gehalt", "Gehalt/Lohn (netto)", 1, "2026-01-01", null);
+        d.fixed("-950", "Miete", "Wohnen", 1, "2025-01-01", null);
+        d.fixed("-120", "Strom und Internet", "Nebenkosten", 1, "2025-01-05", null);
+        d.fixed("-12.99", "Streaming", "Freizeit", 1, "2025-01-10", null);
+        d.fixed("-200", "ETF-Sparplan", "Investitionen", 1, "2025-01-15", null);
+        d.fixed("-85", "Haftpflicht", "Versicherungen", 12, "2025-03-15", null);
+        d.fixed("-240", "Kfz-Versicherung", "Versicherungen", 6, "2025-04-01", null);
+        // Concept 3.4, P8: a savings account that holds the reserve of the car insurance
+        d.savingsAccountFor("Tagesgeld", "Kfz-Versicherung", "500");
 
-        d.target("Wohnen", FIRST_MONTH, "950");
-        d.target("Nebenkosten", FIRST_MONTH, "130");
-        d.target("Versicherungen", FIRST_MONTH, "60");
-        d.target("Investitionen", FIRST_MONTH, "200");
-        d.target("Gesundheit", FIRST_MONTH, "20");
-        d.target("Lebensmittel", FIRST_MONTH, "400");
-        d.target("Mobilität", FIRST_MONTH, "150");
-        d.target("Freizeit", FIRST_MONTH, "150");
-        d.target("Urlaub", FIRST_MONTH, "100");
-        d.target("Persönlicher Bedarf", FIRST_MONTH, "60");
-        d.target("Lebensmittel", YearMonth.of(2026, 1), "450");
+        d.budget("20", "Gesundheit", FIRST_MONTH);
+        d.budget("400", "Lebensmittel", FIRST_MONTH);
+        d.budget("150", "Mobilität", FIRST_MONTH);
+        d.budget("150", "Freizeit", FIRST_MONTH);
+        d.budget("100", "Urlaub", FIRST_MONTH);
+        d.budget("60", "Persönlicher Bedarf", FIRST_MONTH);
+        d.budget("450", "Lebensmittel", YearMonth.of(2026, 1));
+        d.saving("150", "Notgroschen", "2026-01-28");
 
         int i = 0;
         for (YearMonth month = FIRST_MONTH; !month.isAfter(LAST_MONTH); month = month.plusMonths(1), i++) {
@@ -127,15 +148,13 @@ public class SampleDataSeeder implements ApplicationRunner {
 
     /** Fewer bookings and an irregular income from self-employment. */
     private void personB(Data d) {
-        d.series("1800", "Gehalt (Teilzeit)", "Gehalt/Lohn (netto)", RecurringInterval.MONTHLY, "2025-01-01", null);
-        d.series("-700", "Miete", "Wohnen", RecurringInterval.MONTHLY, "2025-01-01", null);
-        d.series("-45", "Handy und Internet", "Nebenkosten", RecurringInterval.MONTHLY, "2025-01-03", null);
-        d.series("-120", "Software-Abo", "Selbstständigkeit", RecurringInterval.YEARLY, "2025-02-01", null);
+        d.fixed("1800", "Gehalt (Teilzeit)", "Gehalt/Lohn (netto)", 1, "2025-01-01", null);
+        d.fixed("-700", "Miete", "Wohnen", 1, "2025-01-01", null);
+        d.fixed("-45", "Handy und Internet", "Nebenkosten", 1, "2025-01-03", null);
+        d.fixed("-120", "Software-Abo", "Selbstständigkeit", 12, "2025-02-01", null);
 
-        d.target("Wohnen", FIRST_MONTH, "700");
-        d.target("Nebenkosten", FIRST_MONTH, "45");
-        d.target("Lebensmittel", FIRST_MONTH, "250");
-        d.target("Freizeit", FIRST_MONTH, "80");
+        d.budget("250", "Lebensmittel", FIRST_MONTH);
+        d.budget("80", "Freizeit", FIRST_MONTH);
 
         int i = 0;
         for (YearMonth month = FIRST_MONTH; !month.isAfter(LAST_MONTH); month = month.plusMonths(1), i++) {
@@ -151,21 +170,19 @@ public class SampleDataSeeder implements ApplicationRunner {
     }
 
     /**
-     * Starts in July 2025 (average over fewer than 12 months, R23) and has a loan that ends. Lebensmittel and Freizeit
-     * were 12 % and 4 % of the salary before decision 36; now the same amounts in euro.
+     * Starts in July 2025 (average over fewer than 12 months, R23) and has a loan that ends; a weekly item (P2).
      */
     private void personC(Data d) {
         YearMonth start = YearMonth.of(2025, 7);
-        d.series("2400", "Gehalt", "Gehalt/Lohn (netto)", RecurringInterval.MONTHLY, "2025-07-01", null);
-        d.series("-620", "Miete", "Wohnen", RecurringInterval.MONTHLY, "2025-07-01", null);
-        d.series("-180", "Autokredit", "Kredite", RecurringInterval.MONTHLY, "2025-07-01", "2026-06-30");
-        d.series("-35", "Patenschaft", "Spenden", RecurringInterval.MONTHLY, "2025-07-01", null);
+        d.fixed("2400", "Gehalt", "Gehalt/Lohn (netto)", 1, "2025-07-01", null);
+        d.fixed("-620", "Miete", "Wohnen", 1, "2025-07-01", null);
+        d.fixed("-180", "Autokredit", "Kredite", 1, "2025-07-01", "2026-06-30");
+        d.fixed("-35", "Patenschaft", "Spenden", 1, "2025-07-01", null);
 
-        d.target("Wohnen", start, "620");
-        d.target("Kredite", start, "180");
-        d.target("Lebensmittel", start, "288");
-        d.target("Freizeit", start, "96");
-        d.target("Mobilität", start, "60");
+        d.budget("288", "Lebensmittel", start);
+        d.budget("96", "Freizeit", start);
+        d.budget("60", "Mobilität", start);
+        d.weekly("-15", "Wochenmarkt", "Lebensmittel", "2025-07-04");
 
         int i = 0;
         for (YearMonth month = start; !month.isAfter(LAST_MONTH); month = month.plusMonths(1), i++) {
@@ -213,18 +230,100 @@ public class SampleDataSeeder implements ApplicationRunner {
 
         void book(long cents, String description, LocalDate date, String category) {
             transactionService.create(
-                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null, null));
+                    new TransactionRequest(BigDecimal.valueOf(cents, 2), description, date, id(category), null, null, null,
+                            null, null, null, null, null));
         }
 
-        void series(String amount, String description, String category, RecurringInterval interval,
-                String startDate, String endDate) {
-            recurringTransactionService.create(new RecurringTransactionRequest(
-                    new BigDecimal(amount), description, id(category), interval, LocalDate.parse(startDate),
-                    endDate == null ? null : LocalDate.parse(endDate), null));
+        /** An automatic item with a month rhythm (decision 51); its terms up to October 2026 become bookings. */
+        void fixed(String amount, String name, String category, int months, String anchor, String end) {
+            LocalDate anchorDate = LocalDate.parse(anchor);
+            PlannedItem item = create(new PlannedItemRequest(name, new BigDecimal(amount), false, id(category), null,
+                    RhythmUnit.MONTH, months, anchorDate, EntryMode.AUTO, false, YearMonth.from(anchorDate), null));
+            if (end != null) {
+                planService.delete(item.getId(), YearMonth.from(LocalDate.parse(end)).plusMonths(1));
+                item = itemRepository.findById(item.getId()).orElseThrow();
+            }
+            enterPastTerms(item);
         }
 
-        void target(String category, YearMonth from, String amount) {
-            categoryService.updateTarget(id(category), from, new UpdateTargetRequest(new BigDecimal(amount)));
+        /**
+         * A savings account (role Sparen) with a fictional balance from the bank on the last sample day, linked to the
+         * reserve pot of the rare item with the given name (P8, P11).
+         */
+        void savingsAccountFor(String accountName, String itemName, String balance) {
+            io.github.mirco104.budget.bankaccount.BankAccount account = bankAccountService.create(accountName, null);
+            account.setRole(io.github.mirco104.budget.bankaccount.AccountRole.SAVINGS);
+            statementRepository.save(statement(account, LAST_MONTH.atEndOfMonth(), new BigDecimal(balance)));
+            itemRepository.findAllOf(currentOwner()).stream()
+                    .filter(item -> item.getName().equals(itemName))
+                    .findFirst()
+                    .ifPresent(item -> planService.linkReserve(item.getId(), account.getId()));
+        }
+
+        private io.github.mirco104.budget.bankaccount.BankStatement statement(
+                io.github.mirco104.budget.bankaccount.BankAccount account, LocalDate date, BigDecimal amount) {
+            io.github.mirco104.budget.bankaccount.BankStatement statement =
+                    new io.github.mirco104.budget.bankaccount.BankStatement(currentOwner(), account, date);
+            statement.setAmount(amount);
+            return statement;
+        }
+
+        /** An automatic weekly item (decision 50). */
+        void weekly(String amount, String name, String category, String anchor) {
+            LocalDate anchorDate = LocalDate.parse(anchor);
+            enterPastTerms(create(new PlannedItemRequest(name, new BigDecimal(amount), false, id(category), null,
+                    RhythmUnit.WEEK, 1, anchorDate, EntryMode.AUTO, false, YearMonth.from(anchorDate), null)));
+        }
+
+        /** A budget for variable costs, without a fixed date (P4). A later month starts a new version. */
+        void budget(String amount, String category, YearMonth from) {
+            String name = categoryName(category);
+            itemRepository.findAllOf(currentOwner()).stream()
+                    .filter(i -> i.getRhythmUnit() == null && i.getName().equals(name) && i.getValidTo() == null)
+                    .findFirst()
+                    .ifPresentOrElse(
+                            existing -> planService.update(existing.getId(), new PlannedItemRequest(name,
+                                    new BigDecimal(amount).negate(), false, id(category), null, null, null, null,
+                                    EntryMode.MANUAL, false, from, null)),
+                            () -> planService.create(new PlannedItemRequest(name, new BigDecimal(amount).negate(),
+                                    false, id(category), null, null, null, null, EntryMode.MANUAL, false, from, null)));
+        }
+
+        /**
+         * A saving item for a saving goal of the same name, ticked off by the user (decision 51, concept 3.6); no
+         * bookings, they are ticked off in the app.
+         */
+        void saving(String amount, String name, String anchor) {
+            LocalDate anchorDate = LocalDate.parse(anchor);
+            long goal = goalService.create(new io.github.mirco104.budget.goal.SavingGoalService.GoalRequest(
+                    name, new BigDecimal("3000"), null)).id();
+            planService.create(new PlannedItemRequest(name, new BigDecimal(amount), true, null, null,
+                    RhythmUnit.MONTH, 1, anchorDate, EntryMode.TICK, false, YearMonth.from(anchorDate), goal));
+        }
+
+        private PlannedItem create(PlannedItemRequest request) {
+            return itemRepository.findById(planService.create(request).id()).orElseThrow();
+        }
+
+        // Like V14: every term up to the last sample month is a booking marked "automatisch"
+        private void enterPastTerms(PlannedItem item) {
+            for (LocalDate date : item.schedule().termsBetween(item.getValidFrom().atDay(1), LAST_MONTH.atEndOfMonth())) {
+                Transaction booking = new Transaction(currentOwner(), item.getAmount(), item.getName(), date,
+                        item.getCategory(), bankAccountService.findBookable(null));
+                booking.markAuto();
+                termService.link(item.getItemKey(), date, transactionRepository.save(booking));
+            }
+        }
+
+        private User currentOwner() {
+            return userRepository.findByEmail(
+                    ((AppUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUsername())
+                    .orElseThrow();
+        }
+
+        private String categoryName(String category) {
+            id(category);
+            return category;
         }
 
         private long id(String category) {

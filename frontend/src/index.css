@@ -2735,3 +2735,725 @@ button.tx:hover:not(:disabled) {
 .auth-page .link-button {
   margin-top: 8px;
 }
+
+/* --- Planning (section 19, AP 27b) --- */
+:root {
+  --saving: #2e7d4f;
+  --saving-soft: #e8f5ed;
+  --plan-fixed: #2f5bd3;
+  --plan-budget: #7b9cf2;
+  --plan-rest: #c4cbd4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --saving: #6cc493;
+    --saving-soft: #17301f;
+    --plan-fixed: #7b9cf2;
+    --plan-budget: #3e5aa8;
+    --plan-rest: #4a5563;
+  }
+}
+:root[data-theme="dark"] {
+  --saving: #6cc493;
+  --saving-soft: #17301f;
+  --plan-fixed: #7b9cf2;
+  --plan-budget: #3e5aa8;
+  --plan-rest: #4a5563;
+}
+.plan-summary {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.plan-stack {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--line);
+}
+.plan-stack span {
+  display: block;
+  height: 100%;
+}
+.stack-fixed {
+  background: var(--plan-fixed);
+}
+.stack-budget {
+  background: var(--plan-budget);
+}
+.stack-saving {
+  background: var(--saving);
+}
+.stack-rest {
+  background: var(--plan-rest);
+}
+.plan-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+.plan-legend dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.plan-legend dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.plan-legend .over dt,
+.plan-legend .over dd {
+  color: var(--warn);
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+button.saving-button {
+  background: var(--saving);
+  border-color: var(--saving);
+  color: var(--surface);
+}
+.plan-done {
+  margin: 0;
+  color: var(--saving);
+  font-weight: 600;
+}
+.plan-onboarding {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+.plan-group {
+  margin-bottom: 16px;
+}
+.plan-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.plan-group-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plan-group-total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.plan-category-block {
+  margin-top: 10px;
+}
+.plan-category-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 2px;
+}
+.item-list {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+}
+button.item-row {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  min-width: 0;
+}
+.item-main {
+  display: grid;
+  min-width: 0;
+}
+.item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.badge.auto {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Erwartet (concept 4.2, AP 27c) --- */
+.expected {
+  margin-top: 16px;
+}
+.expected h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.expected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.expected-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.expected-row.missed .tx-meta {
+  color: var(--warn);
+}
+.expected-row.skipped .tx-description {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+button.expected-main {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+button.tick {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--surface);
+  font-weight: 700;
+  line-height: 1;
+}
+button.tick.done {
+  border-color: var(--saving);
+  background: var(--saving);
+}
+.term-choices {
+  display: grid;
+  gap: 8px;
+}
+.undo-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+/* --- Overview cards (AP 27d) --- */
+.summary .saving-tile dd:not(.tile-note) {
+  color: var(--saving);
+}
+.summary dd a {
+  color: inherit;
+  text-decoration: none;
+}
+.summary dd a:hover {
+  text-decoration: underline;
+}
+
+/* --- Reserve pots under a budget row (P8, AP 27e) --- */
+.reserve-line {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--saving);
+  color: var(--saving);
+  font-size: 0.875rem;
+}
+.reserve-line.short {
+  border-left-color: var(--warn);
+  color: var(--warn);
+}
+
+/* --- Konten (concept 4.4, AP 27f) --- */
+.account-group {
+  margin-bottom: 16px;
+}
+.account-group h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.account-row .item-main {
+  flex: 1;
+}
+.account-row select {
+  max-width: 45%;
+}
+
+/* --- Overview after the first test (AP 27f2) --- */
+button.tile-toggle {
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.summary dd.tile-list {
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+.tile-list ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.tile-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+.tile-list .income {
+  color: var(--income);
+  font-variant-numeric: tabular-nums;
+}
+.saving-card,
+a.expected-card {
+  display: block;
+  margin-top: 12px;
+}
+a.expected-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.saving-card .budget-amount > span:first-child,
+.booking-amount.saving {
+  color: var(--saving);
+}
+.reserve-row .booking-description {
+  display: grid;
+  text-align: left;
+}
+.reserve-row.short .booking-amount,
+.reserve-row.short .tx-meta {
+  color: var(--warn);
+}
+
+/* --- Planning after the first test (AP 27f2) --- */
+.unplanned-question {
+  display: grid;
+  gap: 8px;
+}
+.unplanned-question p {
+  margin: 0;
+}
+.plan-group .budget-list {
+  margin-top: 8px;
+}
+.plan-group .budget-item .item-list {
+  margin-top: 6px;
+  padding-left: 32px;
+}
+.saving-progress .progress-fill,
+.saving-progress [data-testid='progress'] > * {
+  background: var(--saving);
+}
+.budget-left.covered {
+  color: var(--saving);
+  font-weight: 700;
+}
+
+/* --- Overview after the second test (AP 27f3) --- */
+.summary-rows {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+}
+.summary-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.summary-head {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  width: 100%;
+  padding: 16px 20px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.summary-head:hover {
+  background: var(--primary-soft);
+}
+.summary-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.summary-value {
+  grid-column: 1;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.summary-value.income {
+  color: var(--income);
+}
+.summary-note {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.summary-chevron {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  color: var(--muted);
+  font-size: 1.2rem;
+}
+.summary-row .tile-list,
+.summary-row .breakdown {
+  margin: 0;
+  padding: 0 20px 16px;
+}
+a.link-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+a.link-card:hover {
+  background: var(--primary-soft);
+}
+a.link-card .budget-amount {
+  margin-left: auto;
+}
+.budget-amount .saving {
+  color: var(--saving);
+}
+button.booking-row {
+  display: contents;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bookings li:has(> button.booking-row) {
+  cursor: pointer;
+}
+.reserve-row {
+  align-items: center;
+}
+.split-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.split-input input {
+  width: 6.5em;
+}
+
+/* --- Overview after the third test (AP 27f4) --- */
+.summary-body .budget-list {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+.summary-body > .hint {
+  margin: 0;
+  padding: 0 20px 16px;
+}
+a.summary-link {
+  display: block;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+a.summary-link:hover {
+  background: var(--primary-soft);
+}
+.booking-amount.transfer {
+  color: var(--muted);
+}
+.summary-chevron-inline {
+  color: var(--muted);
+  font-weight: 400;
+}
+.below-comfort,
+.link-button.below-comfort {
+  color: var(--warn);
+  font-weight: 600;
+}
+.plan-income {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 8px;
+}
+.plan-income strong {
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.plan-income .income {
+  color: var(--income);
+}
+
+/* --- Reserves and saving after the fourth test (AP 27f4, decision 60) --- */
+.summary-value.saving {
+  color: var(--saving);
+}
+.reserve-cover {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* --- Konten after the fourth test (AP 27f4, decision 60) --- */
+.account-role {
+  margin-top: 20px;
+}
+/* 27f4: the Kontoart is a heading of its own, not a row like an account */
+.account-role-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: 6px;
+}
+.account-role-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.account-role-head span {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.account-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-variant-numeric: tabular-nums;
+}
+button.account-open {
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.account-open:hover {
+  background: var(--primary-soft);
+}
+.account-open .item-amount {
+  font-variant-numeric: tabular-nums;
+}
+.reserve-cover.short {
+  color: var(--warn);
+}
+.reserve-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.reserve-table th {
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 8px 4px 0;
+}
+.reserve-table td {
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.reserve-table td.reserve-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reserve-table .tx-meta {
+  display: block;
+}
+.reserve-account .mobile-label {
+  display: none;
+}
+@media (max-width: 600px) {
+  .reserve-table thead {
+    display: none;
+  }
+  .reserve-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .reserve-table td {
+    padding: 0;
+    border: 0;
+  }
+  .reserve-table td:last-child {
+    grid-column: 1 / -1;
+  }
+  .reserve-account {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .reserve-account .mobile-label {
+    display: inline;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+}
+
+/* --- Transaktionen: filters behind a button (AP 27f4) --- */
+.filter-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-toggle.active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+/* 27f4: the search stays; the other filters fold below it */
+.filter-contents {
+  display: contents;
+}
+.filter-more {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.filter-row .filter-toggle {
+  align-self: center;
+}
+
+/* --- Planung: average and weakest month as tiles (AP 27f4) --- */
+.income-stats-block {
+  margin: 8px 0 12px;
+}
+.income-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.income-stat {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-3);
+}
+.income-stat-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.income-stat-value {
+  color: var(--income);
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.income-stat-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.income-stats-period {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+/* 27f4: all filters in one row next to each other */
+.filter-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.filter-more select {
+  width: 100%;
+}

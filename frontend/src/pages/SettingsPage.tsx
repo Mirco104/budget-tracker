@@ -1,6 +1,5 @@
 import type { Me } from '../api/types'
 import { AccountSettings } from '../components/AccountSettings'
-import { BankAccountSettings } from '../components/BankAccountSettings'
 import { CategorySettings } from '../components/CategorySettings'
 import { InvitationSettings } from '../components/InvitationSettings'
 import { UserSettings } from '../components/UserSettings'
@@ -25,8 +24,8 @@ export function SettingsPage({ me }: { me: Me }) {
   // Display only; the backend checks the role on every call
   const admin = me.role !== 'USER'
   const pages: Page[] = admin
-    ? ['categories', 'bankAccounts', 'account', 'invitations', 'users']
-    : ['categories', 'bankAccounts', 'account']
+    ? ['categories', 'account', 'invitations', 'users']
+    : ['categories', 'account']
   const page = pages.includes(chosen) ? chosen : 'categories'
 
   return (
@@ -40,7 +39,11 @@ export function SettingsPage({ me }: { me: Me }) {
         ))}
       </nav>
       {page === 'categories' && <CategorySettings />}
-      {page === 'bankAccounts' && <BankAccountSettings />}
+      {page === 'bankAccounts' && (
+        <p className="hint">
+          Die Bankkonten stehen jetzt im Reiter <a href="#/konten">Konten</a>.
+        </p>
+      )}
       {page !== 'categories' && page !== 'bankAccounts' && (
         <div className="card settings-card">
           {page === 'account' && <AccountSettings me={me} />}

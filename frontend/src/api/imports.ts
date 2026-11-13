@@ -43,8 +43,18 @@ export interface ImportEntry {
     amount: number | null
     accountName: string | null
   } | null
-  /** R28: the planned occurrence the row replaces; categoryId is then the category of its series. */
-  replaces: { recurringId: number; date: string; description: string; amount: number; categoryId: number } | null
+  /**
+   * P5: the term of a planned item the row fulfils (recurringId is the id of the item version); categoryId is then the
+   * category of the item. autoEntryId: the automatic entry of the term the row replaces (P6).
+   */
+  replaces: {
+    recurringId: number
+    date: string
+    description: string
+    amount: number
+    categoryId: number
+    autoEntryId?: number | null
+  } | null
   duplicateOf: { id: number; date: string; description: string } | null
 }
 
@@ -106,6 +116,10 @@ export interface ImportResult {
   batch: ImportBatch | null
   created: number
   skippedDuplicates: number
+  /** P6: automatic entries the rows replaced. */
+  replacedAuto?: number
+  /** P6: automatic entries of the accounts of the file within its dates that the file does not contain. */
+  missingAuto?: MissingAuto[]
 }
 
 /** Reads the file in the backend; nothing is stored (decision 44). */
@@ -154,4 +168,13 @@ export function useCommitImport() {
 export function useDeleteImport() {
   const onSuccess = useInvalidateAfterImport()
   return useMutation({ mutationFn: deleteImport, onSuccess })
+}
+
+/** P6: an automatic entry the import did not find in the file. */
+export interface MissingAuto {
+  id: number
+  date: string
+  description: string
+  amount: number
+  accountName: string
 }

@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.transaction;
 
+import io.github.mirco104.budget.plan.TermService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import io.github.mirco104.budget.common.BadRequestException;
@@ -27,9 +28,17 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final TermService termService;
 
-    public TransactionController(TransactionService transactionService) {
+    public TransactionController(TransactionService transactionService, TermService termService) {
+        this.termService = termService;
         this.transactionService = transactionService;
+    }
+
+    /** 27f4: the first and the last day of the user's bookings, for the quick choice "Gesamt" (US26). */
+    @GetMapping("/range")
+    public TransactionService.Range range() {
+        return transactionService.range();
     }
 
     /**
@@ -42,6 +51,8 @@ public class TransactionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to)
             throws MissingServletRequestParameterException {
+        // P6: due automatic entries are made before the list is read
+        termService.enterDue();
         if (month != null) {
             if (from != null || to != null) {
                 throw new BadRequestException("Entweder 'month' oder 'from' und 'to' angeben.");
