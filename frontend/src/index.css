@@ -3658,3 +3658,40 @@ button.account-open:hover {
   gap: 12px;
   padding: 12px 20px 16px;
 }
+
+/* --- Planung: suggestions from the bookings (AP 27i) --- */
+.plan-suggestions {
+  margin: 12px 0 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+.plan-suggestions h3 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.suggestion-row:last-child {
+  border-bottom: 0;
+}
+.suggestion-row .item-main {
+  flex: 1 1 200px;
+}
+.suggestion-actions {
+  display: flex;
+  gap: 12px;
+}
+.link-button.muted {
+  color: var(--muted);
+}
+.item-amount.income {
+  color: var(--income);
+}
