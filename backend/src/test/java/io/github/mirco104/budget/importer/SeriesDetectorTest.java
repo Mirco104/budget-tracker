@@ -28,9 +28,55 @@ class SeriesDetectorTest {
         Suggestion salary = suggestions.getFirst();
         assertThat(salary.indices()).containsExactly(0, 1, 2, 3);
         assertThat(salary.startDate()).isEqualTo(LocalDate.of(2026, 8, 1));
-        // The amount and the description of the latest row
-        assertThat(salary.amount()).isEqualByComparingTo("2550");
+        // Issue #119: the median amount, the smallest and the largest amount, the description of the latest row
+        assertThat(salary.amount()).isEqualByComparingTo("2500");
+        assertThat(salary.lowest()).isEqualByComparingTo("2500");
+        assertThat(salary.highest()).isEqualByComparingTo("2550");
         assertThat(salary.description()).isEqualTo("Firma Beispiel GmbH · Lohn Nov");
+    }
+
+    // Issue #119: a salary that varies a little; a higher latest row does not raise the planned amount
+    @Test
+    void theAmountIsTheMedianOfTheRows() {
+        List<Row> rows = List.of(
+                row(0, "2026-08-01", "2410", "firma beispiel", "Firma Beispiel GmbH · Lohn"),
+                row(1, "2026-09-01", "2480", "firma beispiel", "Firma Beispiel GmbH · Lohn"),
+                row(2, "2026-10-01", "2450", "firma beispiel", "Firma Beispiel GmbH · Lohn"),
+                row(3, "2026-11-02", "2530", "firma beispiel", "Firma Beispiel GmbH · Lohn"));
+
+        Suggestion salary = SeriesDetector.detect(rows).getFirst();
+
+        // An even number of rows: the mean of the two middle amounts, 2450 and 2480
+        assertThat(salary.amount()).isEqualByComparingTo("2465.00");
+        assertThat(salary.lowest()).isEqualByComparingTo("2410");
+        assertThat(salary.highest()).isEqualByComparingTo("2530");
+    }
+
+    // Issue #119: for an expense lowest and highest go by the size of the amount
+    @Test
+    void anExpenseHasItsMedianAndItsRangeBySize() {
+        List<Row> rows = List.of(
+                row(0, "2026-08-15", "-60.15", "stadtwerke", "Stadtwerke"),
+                row(1, "2026-09-15", "-55.00", "stadtwerke", "Stadtwerke"),
+                row(2, "2026-10-15", "-58.33", "stadtwerke", "Stadtwerke"));
+
+        Suggestion power = SeriesDetector.detect(rows).getFirst();
+
+        assertThat(power.amount()).isEqualByComparingTo("-58.33");
+        assertThat(power.lowest()).isEqualByComparingTo("-55.00");
+        assertThat(power.highest()).isEqualByComparingTo("-60.15");
+    }
+
+    @Test
+    void theMeanOfTheTwoMiddleAmountsIsRoundedHalfUp() {
+        List<Row> rows = List.of(
+                row(0, "2026-08-15", "-10.00", "verein", "Verein"),
+                row(1, "2026-09-15", "-10.01", "verein", "Verein"),
+                row(2, "2026-10-15", "-10.00", "verein", "Verein"),
+                row(3, "2026-11-15", "-10.01", "verein", "Verein"));
+
+        // -10.005 rounds away from zero
+        assertThat(SeriesDetector.detect(rows).getFirst().amount()).isEqualByComparingTo("-10.01");
     }
 
     // Code review 08.11.2026: a series created with the import replaces the nearest free occurrence per row
