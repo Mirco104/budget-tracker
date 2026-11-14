@@ -3,6 +3,8 @@ import { errorText } from '../api/client'
 import { useSavingGoals } from '../api/goals'
 import { useCloseMonth, useMonthView, useUndoClosing } from '../api/notifications'
 import { formatMonthName, formatSigned } from '../format'
+import { goalOrFirst } from './goalChoice'
+import { SavingGoalSelect } from './SavingGoalSelect'
 
 /**
  * Decision 59 (27h): a past month shows its surplus or shortfall (P10) like the other cards; open it shows per account
@@ -22,7 +24,7 @@ export function ClosedMonthCard({ month }: { month: string }) {
   }
   const data = view.data
   const surplus = data.leftover >= 0
-  const chosen = goalId !== '' ? goalId : goals[0] ? String(goals[0].id) : ''
+  const chosen = goalOrFirst(goalId, goals)
 
   async function run(action: () => Promise<unknown>) {
     setError(null)
@@ -75,23 +77,16 @@ export function ClosedMonthCard({ month }: { month: string }) {
             ) : (
               data.leftover > 0 && (
                 <>
-                  {goals.length > 0 && (
-                    <>
-                      <select aria-label="Sparziel" value={chosen} onChange={(e) => setGoalId(e.target.value)}>
-                        {goals.map((goal) => (
-                          <option key={goal.id} value={goal.id}>
-                            {goal.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={close.isPending}
-                        onClick={() => void run(() => close.mutateAsync({ month, savingGoalId: Number(chosen) }))}
-                      >
-                        Zuordnen
-                      </button>
-                    </>
+                  <SavingGoalSelect value={chosen} onChange={setGoalId} />
+                  {chosen !== '' && (
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={close.isPending}
+                      onClick={() => void run(() => close.mutateAsync({ month, savingGoalId: Number(chosen) }))}
+                    >
+                      Zuordnen
+                    </button>
                   )}
                   <button
                     type="button"
