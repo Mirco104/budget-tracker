@@ -46,9 +46,102 @@ und ohne Caddy starten: `docker compose up -d --build`. Die App ist dann unter `
 scripts/backup.sh
 git pull
 docker compose --profile https up -d --build
+git tag -f produktiv
 ```
 
-Die Flyway-Migrationen laufen beim Start der App automatisch.
+Die Flyway-Migrationen laufen beim Start der App automatisch. Der Tag `produktiv` markiert den Commit, aus dem das laufende Image gebaut wurde. Er bleibt nur auf dem Server und wird nicht gepusht; erst setzen, wenn der Build durchgelaufen ist.
+
+## Stand prüfen
+
+Wie weit liegt die Produktivumgebung hinter `main` oder einem anderen Branch zurück? Alle Befehle auf dem Server im Verzeichnis des Checkouts (z. B. `/opt/budget-tracker`). Sie ändern nichts am laufenden Betrieb.
+
+Zuerst den Stand von GitHub holen, ohne den Checkout zu ändern:
+
+```bash
+git fetch origin
+```
+
+**Welcher Commit läuft?**
+
+```bash
+git log -1 --format='%h %ci %s' produktiv
+```
+
+Ohne Tag (vor dem ersten Update mit `git tag -f produktiv`) stattdessen `HEAD` nehmen. Das stimmt nur, wenn nach dem letzten `git pull` auch neu gebaut wurde. Zur Kontrolle das Build-Datum des Images mit dem Datum des Commits vergleichen; das Image muss jünger sein:
+
+```bash
+docker image inspect --format '{{.Created}}' "$(docker compose images -q app)"
+git log -1 --format=%ci HEAD
+```
+
+Lokale Änderungen am Checkout zeigt `git status --short`; die Ausgabe sollte leer sein.
+
+**Rückstand zu `main`**
+
+Anzahl der fehlenden Commits:
+
+```bash
+git rev-list --count produktiv..origin/main
+```
+
+`0` heißt: Die Produktion ist auf dem Stand von `main`.
+
+Fehlende Pull Requests, eine Zeile pro Merge in `main`:
+
+```bash
+git log --oneline --first-parent produktiv..origin/main
+```
+
+Alle fehlenden Commits einzeln:
+
+```bash
+git log --oneline produktiv..origin/main
+```
+
+Geänderte Dateien:
+
+```bash
+git diff --stat produktiv origin/main
+```
+
+Vor dem Update besonders wichtig sind neue Datenbank-Migrationen, denn sie laufen beim Start automatisch und lassen sich nur über ein Backup zurücknehmen:
+
+```bash
+git diff --name-only produktiv origin/main -- backend/src/main/resources/db/migration
+```
+
+**Vergleich mit einem anderen Branch**
+
+Dieselben Befehle mit dem Branch statt `main`, z. B. `origin/feat/category-icons`. Bei einem Branch gibt es oft Unterschiede in beide Richtungen, deshalb beide Seiten zählen:
+
+```bash
+git rev-list --left-right --count produktiv...origin/feat/category-icons
+```
+
+Die linke Zahl sind Commits, die nur in der Produktion sind (der Branch ist also nicht auf dem aktuellen Stand), die rechte Zahl Commits, die nur im Branch sind. Die Commits selbst:
+
+```bash
+git log --oneline produktiv..origin/feat/category-icons
+git log --oneline origin/feat/category-icons..produktiv
+```
+
+Alle Branches von GitHub mit ihrem Rückstand und Vorsprung gegenüber der Produktion:
+
+```bash
+git for-each-ref --format='%(refname:short) %(ahead-behind:produktiv)' refs/remotes/origin
+```
+
+Die erste Zahl sind Commits, die nur im Branch sind, die zweite Commits, die nur in der Produktion sind (braucht Git 2.41 oder neuer).
+
+**Ohne Zugang zum Server**
+
+Mit dem Commit-Hash aus `git log -1 produktiv` zeigt GitHub den Unterschied im Browser:
+
+```
+https://github.com/Mirco104/budget-tracker/compare/<commit>...main
+```
+
+Oben steht die Zahl der Commits und der geänderten Dateien, darunter die Commits und die Änderungen. Für einen anderen Branch `main` durch den Branch-Namen ersetzen.
 
 ## Backup
 
