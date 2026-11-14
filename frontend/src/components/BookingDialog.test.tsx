@@ -9,6 +9,7 @@ import { BookingDialog } from './BookingDialog'
 const categories: Category[] = [
   { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
   { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 61, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 6, path: 'Freizeit › Kino' },
   { id: 7, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false, parentId: null, path: 'Lebensmittel' },
   { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt' },
   { id: 30, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false, parentId: null, path: 'Kredite' },
@@ -428,5 +429,66 @@ describe('BookingDialog', () => {
     expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key')
     expect(screen.getByLabelText('Konto')).toHaveValue('4')
     plan = []
+  })
+
+  // US37 (14.11.2026): "Kategorie" lists only top-level categories, "Unterkategorie (optional)" those of the chosen one
+  describe('subcategories', () => {
+    it('offers the subcategories of the chosen category in a second field and books on the subcategory', async () => {
+      const { fetchMock, onDone } = renderDialog()
+      expect(screen.queryByLabelText('Unterkategorie (optional)')).not.toBeInTheDocument()
+      expect(within(screen.getByLabelText('Kategorie')).queryByRole('option', { name: /Kino/ })).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '12' } })
+      fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Kinoabend' } })
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      const sub = screen.getByLabelText('Unterkategorie (optional)')
+      expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '– keine –',
+        'Kino',
+        '+ Neue Unterkategorie …',
+      ])
+      fireEvent.change(sub, { target: { value: '61' } })
+      save()
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled())
+      expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 61 })
+    })
+
+    it('books on the category itself with "– keine –"', async () => {
+      const { fetchMock, onDone } = renderDialog()
+      fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '12' } })
+      fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Konzert' } })
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: '61' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: '' } })
+      save()
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled())
+      expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 6 })
+    })
+
+    it('shows the category and the subcategory of an entry booked on a subcategory', () => {
+      renderDialog({ ...kino, categoryId: 61, categoryName: 'Freizeit › Kino' })
+
+      expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+      expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('61')
+    })
+
+    it('creates a new subcategory below the chosen category and chooses it', async () => {
+      const { fetchMock } = renderDialog(null, (url) =>
+        url.startsWith('/api/categories')
+          ? json({ ...categories[1], id: 62, name: 'Theater', parentId: 6, path: 'Freizeit › Theater' }, 201)
+          : json({}),
+      )
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: 'new' } })
+      const name = screen.getByRole('textbox', { name: 'Neue Unterkategorie von Freizeit' })
+      fireEvent.change(name, { target: { value: 'Theater' } })
+      fireEvent.keyDown(name, { key: 'Enter' })
+
+      await waitFor(() => expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('62'))
+      expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+      expect(sent(fetchMock, 'POST')).toEqual({ url: '/api/categories', body: { name: 'Theater', parentId: 6 } })
+    })
   })
 })

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { AccountSelect } from './AccountSelect'
-import { CategorySelect } from './CategorySelect'
+import { CategoryPicker } from './CategoryPicker'
 import { ApiError } from '../api/client'
 import { useCreatePlannedItem, useDeletePlannedItem, usePastTerms, useUpdatePlannedItem } from '../api/plan'
 import type { Category, EntryMode, PlanGroup, PlannedItem, PlannedItemInput, RhythmUnit } from '../api/types'
@@ -371,7 +371,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
 
         <div className="field">
           <span id="item-category-label">Kategorie{kind === 'saving' ? ' (optional)' : ''}</span>
-          <CategorySelect
+          <CategoryPicker
             labelledBy="item-category-label"
             value={categoryId}
             onChange={setCategoryId}

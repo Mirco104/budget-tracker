@@ -22,6 +22,11 @@ interface Props {
   createLabel?: string
   /** Called with a category created here, before it is chosen. */
   onCreated?: (category: Category) => void
+  /**
+   * US37: the field lists the subcategories of this parent; the options show their name and "+ Neue Unterkategorie …"
+   * creates the new one below it.
+   */
+  parentId?: number
 }
 
 /**
@@ -40,6 +45,7 @@ export function CategorySelect({
   disabled,
   createLabel = 'Neue Kategorie',
   onCreated,
+  parentId,
 }: Props) {
   const create = useCreateCategory()
   const [creating, setCreating] = useState(false)
@@ -49,7 +55,7 @@ export function CategorySelect({
   const options = all.filter((c) => !c.archived || String(c.id) === value)
 
   async function handleCreate(name: string) {
-    const category = await create.mutateAsync({ name })
+    const category = await create.mutateAsync(parentId === undefined ? { name } : { name, parentId })
     setCreated((current) => [...current, category])
     setCreating(false)
     onCreated?.(category)
@@ -78,15 +84,15 @@ export function CategorySelect({
         {/* R32: the backend sends each parent followed by its subcategories; a subcategory shows its path */}
         {options.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.path}
+            {parentId === undefined ? c.path : c.name}
           </option>
         ))}
-        <option value={NEW}>+ Neue Kategorie …</option>
+        <option value={NEW}>{parentId === undefined ? '+ Neue Kategorie …' : '+ Neue Unterkategorie …'}</option>
       </select>
       {creating && (
         <InlineCreate
           label={createLabel}
-          placeholder="Name der Kategorie"
+          placeholder={parentId === undefined ? 'Name der Kategorie' : 'Name der Unterkategorie'}
           onCreate={handleCreate}
           onCancel={() => setCreating(false)}
         />

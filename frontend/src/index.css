@@ -1322,6 +1322,18 @@ button.add-category {
   color: var(--muted);
 }
 
+/* US37: the optional subcategory below the category field of a dialog */
+.category-sub {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.category-sub-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 /* R32: a subcategory stands indented below its parent */
 .category-row.sub {
   padding-left: 36px;
