@@ -72,7 +72,8 @@ public final class ImportRules {
 
     /**
      * The values that make two rows of a file equal; equal rows are told apart by their number (R30). Without the
-     * purpose for the Sparkasse (decision 47); for every other bank exactly as before, so fingerprints stay the same.
+     * purpose for the Sparkasse and the VR-Bank (decisions 47 and 64); for every other bank exactly as before, so
+     * fingerprints stay the same.
      */
     public static String sameRowKey(BankProfile profile, BankTransaction row) {
         String key = String.join("|", row.accountName(), row.bookingDate().toString(),
@@ -103,12 +104,12 @@ public final class ImportRules {
 
     /**
      * The name of a new account for a source: "C24 Ausgabenkonto", "Trade Republic" for its default account,
-     * "Sparkasse …3000" with the end of the IBAN.
+     * "Sparkasse …3000" or "VR-Bank …3000" with the end of the IBAN.
      */
     public static String accountName(BankProfile profile, String source) {
         boolean plain = source == null || source.isBlank()
                 || (profile == BankProfile.TRADE_REPUBLIC && source.equalsIgnoreCase("DEFAULT"));
-        if (!plain && profile == BankProfile.SPARKASSE) {
+        if (!plain && (profile == BankProfile.SPARKASSE || profile == BankProfile.VR_BANK)) {
             String iban = source.replaceAll("\\s", "");
             return profile.label() + " …" + iban.substring(Math.max(0, iban.length() - 4));
         }

@@ -300,7 +300,7 @@ public class ImportService {
                     .findFirst()
                     .orElse(null);
         }
-        // AP 26h: a source that is an IBAN (Sparkasse) goes to the own account with that IBAN
+        // AP 26h: a source that is an IBAN (Sparkasse, VR-Bank) goes to the own account with that IBAN
         String iban = Iban.normalize(name);
         if (accountId == null && iban != null) {
             accountId = accounts.stream()
