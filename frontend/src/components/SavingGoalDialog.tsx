@@ -10,16 +10,7 @@ function amountText(value: number | null): string {
 }
 
 /** 27f4: a saving goal with name, target amount and target date (both optional); a new one when goal is null. */
-export function SavingGoalDialog({
-  goal,
-  onClose,
-  onCreated,
-}: {
-  goal: SavingGoal | null
-  onClose: () => void
-  /** 27h: the bell picks a goal created from the month closing */
-  onCreated?: (goal: SavingGoal) => void
-}) {
+export function SavingGoalDialog({ goal, onClose }: { goal: SavingGoal | null; onClose: () => void }) {
   const create = useCreateSavingGoal()
   const update = useUpdateSavingGoal()
   const remove = useDeleteSavingGoal()
@@ -53,11 +44,7 @@ export function SavingGoalDialog({
       return
     }
     const input = { name: name.trim(), targetAmount: amount, targetDate: date === '' ? null : date }
-    void run(() =>
-      goal
-        ? update.mutateAsync({ id: goal.id, input })
-        : create.mutateAsync(input).then((created) => onCreated?.(created)),
-    )
+    void run(() => (goal ? update.mutateAsync({ id: goal.id, input }) : create.mutateAsync(input)))
   }
 
   return (

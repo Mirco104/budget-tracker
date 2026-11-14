@@ -17,7 +17,7 @@ const notifications: AppNotification[] = [
   { ...empty, key: 'overplanned', kind: 'OVERPLANNED', month: '2026-11', amount: 189.93 },
 ]
 
-function renderWith(ui: React.ReactNode, items: AppNotification[] = notifications) {
+function renderWith(ui: React.ReactNode, items: AppNotification[] = notifications, leftover = -40) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     const body = init?.method
       ? url.startsWith('/api/month-closings')
@@ -31,7 +31,7 @@ function renderWith(ui: React.ReactNode, items: AppNotification[] = notification
           ? [{ id: 4, name: 'Urlaub', targetAmount: null, targetDate: null, saved: 0, monthly: 0 }]
           : url.startsWith('/api/month-closings')
             ? {
-                month: '2026-10', leftover: -40, closed: false, savingGoalId: null, savingGoalName: null,
+                month: '2026-10', leftover, closed: false, savingGoalId: null, savingGoalName: null,
                 accounts: [{ accountId: 1, name: 'Girokonto', change: -40 }, { accountId: 2, name: 'Tagesgeld', change: 300 }],
               }
             : []
@@ -92,10 +92,9 @@ describe('Bell', () => {
     const panel = screen.getByRole('region', { name: 'Benachrichtigungen' })
     await within(panel).findByRole('option', { name: 'Urlaub' })
     fireEvent.change(within(panel).getByRole('combobox', { name: 'Sparziel' }), { target: { value: 'new' } })
-    const dialog = screen.getByRole('dialog', { name: 'Neues Sparziel' })
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name' }), { target: { value: 'Auto' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Neues Sparziel' }), { target: { value: 'Auto' } })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Anlegen' }))
+    await waitFor(() => expect(within(panel).queryByRole('textbox', { name: 'Neues Sparziel' })).not.toBeInTheDocument())
     expect(sent(fetchMock, '/api/saving-goals')).toEqual({ name: 'Auto', targetAmount: null, targetDate: null })
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Zuordnen' }))
@@ -134,5 +133,18 @@ describe('ClosedMonthCard', () => {
     expect(card).toHaveTextContent('Tagesgeld+300,00 €')
     // A shortfall is not assigned to a goal
     expect(within(card).queryByRole('button', { name: 'Zuordnen' })).not.toBeInTheDocument()
+  })
+
+  it('offers the same goal choice with a new goal for a surplus', async () => {
+    const fetchMock = renderWith(<ClosedMonthCard month="2026-10" />, notifications, 180)
+    fireEvent.click(await screen.findByRole('button', { name: /Überschuss im Oktober/ }))
+    const card = screen.getByRole('region', { name: 'Überschuss' })
+    await within(card).findByRole('option', { name: 'Urlaub' })
+    fireEvent.change(within(card).getByRole('combobox', { name: 'Sparziel' }), { target: { value: 'new' } })
+    fireEvent.change(within(card).getByRole('textbox', { name: 'Neues Sparziel' }), { target: { value: 'Auto' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Anlegen' }))
+    await waitFor(() => expect(within(card).queryByRole('textbox', { name: 'Neues Sparziel' })).not.toBeInTheDocument())
+    fireEvent.click(within(card).getByRole('button', { name: 'Zuordnen' }))
+    await waitFor(() => expect(sent(fetchMock, '/api/month-closings/2026-10')).toEqual({ savingGoalId: 5 }))
   })
 })

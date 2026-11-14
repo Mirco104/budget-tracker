@@ -3671,6 +3671,12 @@ button.account-open:hover {
   padding: 6px 12px;
   font-size: 0.875rem;
 }
+/* The name field of a new saving goal takes its own line below the buttons */
+.bell-actions .inline-create,
+.closing-actions .inline-create {
+  flex-basis: 100%;
+  order: 1;
+}
 .bell-skip {
   justify-self: start;
   color: var(--muted);

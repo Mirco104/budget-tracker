@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useSavingGoals } from '../api/goals'
 import {
   useAcceptPriceChange,
@@ -11,10 +10,9 @@ import {
 import { errorText } from '../api/client'
 import { formatEuro, formatMonth } from '../format'
 import { ROUTES } from '../router'
-import { SavingGoalDialog } from './SavingGoalDialog'
+import { goalOrFirst } from './goalChoice'
+import { SavingGoalSelect } from './SavingGoalSelect'
 import { Icon } from './ui/Icon'
-
-const NEW_GOAL = 'new'
 
 /**
  * 27h (decision 65): the bell with a counter. It lists the month closing (P10), an account below its lower limit
@@ -31,14 +29,12 @@ export function Bell() {
       return
     }
     function handlePointer(event: MouseEvent) {
-      const target = event.target as Element
-      // A dialog opened from the bell (new saving goal) lies outside it but keeps the bell open
-      if (root.current && !root.current.contains(target) && !target.closest?.('.overlay')) {
+      if (root.current && !root.current.contains(event.target as Node)) {
         setOpen(false)
       }
     }
     function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !document.querySelector('.overlay')) {
+      if (event.key === 'Escape') {
         setOpen(false)
       }
     }
@@ -194,12 +190,10 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
  * goal right here, and "Nicht zuordnen".
  */
 function MonthClosingItem({ month, amount, onError }: { month: string; amount: number; onError: (e: string | null) => void }) {
-  const goalsQuery = useSavingGoals()
-  const goals = goalsQuery.data ?? []
+  const goals = useSavingGoals().data ?? []
   const close = useCloseMonth()
   const [goalId, setGoalId] = useState('')
-  const [creating, setCreating] = useState(false)
-  const chosen = goalId !== '' ? goalId : goals[0] ? String(goals[0].id) : ''
+  const chosen = goalOrFirst(goalId, goals)
 
   async function submit(savingGoalId: number | null) {
     onError(null)
@@ -213,35 +207,14 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
   return (
     <>
       <p>{formatEuro(amount)} sind übrig geblieben. Soll es auf ein Sparziel gerechnet werden?</p>
-      {goals.length > 0 ? (
-        <div className="bell-actions">
-          <select
-            aria-label="Sparziel"
-            value={chosen}
-            onChange={(e) => (e.target.value === NEW_GOAL ? setCreating(true) : setGoalId(e.target.value))}
-          >
-            {goals.map((goal) => (
-              <option key={goal.id} value={goal.id}>
-                {goal.name}
-              </option>
-            ))}
-            <option value={NEW_GOAL}>+ Neues Sparziel …</option>
-          </select>
+      <div className="bell-actions">
+        <SavingGoalSelect value={chosen} onChange={setGoalId} />
+        {chosen !== '' && (
           <button type="button" className="primary" disabled={close.isPending} onClick={() => void submit(Number(chosen))}>
             Zuordnen
           </button>
-        </div>
-      ) : (
-        // Only once the goals are loaded, so it does not flash up while loading
-        goalsQuery.isSuccess && (
-          <p className="hint">
-            Noch kein Sparziel.{' '}
-            <button type="button" className="link-button" onClick={() => setCreating(true)}>
-              Sparziel erstellen
-            </button>
-          </p>
-        )
-      )}
+        )}
+      </div>
       <button
         type="button"
         className="link-button bell-skip"
@@ -250,16 +223,6 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
       >
         Nicht zuordnen (das Geld bleibt unverplant auf dem Konto)
       </button>
-      {creating &&
-        // In the body, so the dialog lies above the header and the bottom bar
-        createPortal(
-          <SavingGoalDialog
-            goal={null}
-            onCreated={(goal) => setGoalId(String(goal.id))}
-            onClose={() => setCreating(false)}
-          />,
-          document.body,
-        )}
     </>
   )
 }
