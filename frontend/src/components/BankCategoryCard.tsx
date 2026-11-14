@@ -97,7 +97,8 @@ function BankCategoryRow({
   onApply: () => void
   onEdit: () => void
 }) {
-  const guess = guessOf(item, categories)
+  // A known mapping was confirmed before; the hint only helps while the guess is still open
+  const guess = item.mappedCategoryId === null ? guessOf(item, categories) : null
   const bankChild = item.child !== null && (
     <option value={BANK}>+ Neu anlegen: {item.child}</option>
   )
