@@ -11,7 +11,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-/** A notification of the bell the user marked "Erledigt" (27h); its key names what it was about. */
+/**
+ * A notification of the bell the user marked "Erledigt" (27h). The key names the subject (an account, an item, the
+ * plan, a series), the value what the notification said then; one row per subject, a new "Erledigt" overwrites it.
+ */
 @Entity
 @Table(name = "dismissed_notifications")
 public class DismissedNotification {
@@ -27,15 +30,27 @@ public class DismissedNotification {
     @Column(name = "notification_key", nullable = false, length = 200)
     private String key;
 
+    @Column(name = "dismissed_value", nullable = false, length = 200)
+    private String value;
+
     protected DismissedNotification() {
     }
 
-    public DismissedNotification(User owner, String key) {
+    public DismissedNotification(User owner, String key, String value) {
         this.owner = owner;
         this.key = key;
+        this.value = value;
     }
 
     public String getKey() {
         return key;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
     }
 }

@@ -12,9 +12,9 @@ const empty = {
 }
 const notifications: AppNotification[] = [
   { ...empty, key: 'closing:2026-10', kind: 'MONTH_CLOSING', month: '2026-10', amount: 180 },
-  { ...empty, key: 'limit:1:2026-11', kind: 'LOWER_LIMIT', accountId: 1, accountName: 'Girokonto', balance: 800, expected: -120, limit: 0 },
-  { ...empty, key: 'price:k:-14.99', kind: 'PRICE_CHANGE', itemId: 9, itemName: 'Streaming', oldAmount: -12.99, newAmount: -14.99 },
-  { ...empty, key: 'overplanned:2026-11:189.93', kind: 'OVERPLANNED', month: '2026-11', amount: 189.93 },
+  { ...empty, key: 'limit:1', kind: 'LOWER_LIMIT', accountId: 1, accountName: 'Girokonto', balance: 800, expected: -120, limit: 0 },
+  { ...empty, key: 'price:k', kind: 'PRICE_CHANGE', itemId: 9, itemName: 'Streaming', oldAmount: -12.99, newAmount: -14.99 },
+  { ...empty, key: 'overplanned', kind: 'OVERPLANNED', month: '2026-11', amount: 189.93 },
 ]
 
 function renderWith(ui: React.ReactNode, items: AppNotification[] = notifications) {
@@ -107,7 +107,7 @@ describe('Bell', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Benachrichtigungen (4)' }))
     const panel = screen.getByRole('region', { name: 'Benachrichtigungen' })
     fireEvent.click(within(panel).getAllByRole('button', { name: 'Erledigt' })[0])
-    await waitFor(() => expect(sent(fetchMock, '/api/notifications/done')).toEqual({ key: 'limit:1:2026-11' }))
+    await waitFor(() => expect(sent(fetchMock, '/api/notifications/done')).toEqual({ key: 'limit:1' }))
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Übernehmen' }))
     await waitFor(() =>

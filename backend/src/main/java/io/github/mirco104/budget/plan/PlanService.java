@@ -9,6 +9,8 @@ import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.dashboard.IncomeAverage;
 import io.github.mirco104.budget.goal.SavingGoalRepository;
 import io.github.mirco104.budget.importer.ImportBatch;
+import io.github.mirco104.budget.notification.DismissedNotificationRepository;
+import io.github.mirco104.budget.notification.NotificationService;
 import io.github.mirco104.budget.plan.PlanCalculator.Group;
 import io.github.mirco104.budget.plan.PlanCalculator.ItemData;
 import io.github.mirco104.budget.user.CurrentUser;
@@ -36,11 +38,13 @@ public class PlanService {
     private final CurrentUser currentUser;
     private final Clock clock;
     private final SavingGoalRepository goalRepository;
+    private final DismissedNotificationRepository dismissedRepository;
 
     public PlanService(
             PlannedItemRepository itemRepository, ItemTermRepository termRepository, CategoryService categoryService,
             BankAccountService bankAccountService, CurrentUser currentUser, Clock clock,
-            SavingGoalRepository goalRepository) {
+            SavingGoalRepository goalRepository, DismissedNotificationRepository dismissedRepository) {
+        this.dismissedRepository = dismissedRepository;
         this.clock = clock;
         this.goalRepository = goalRepository;
         this.itemRepository = itemRepository;
@@ -175,6 +179,8 @@ public class PlanService {
         List<PlannedItem> versions = itemRepository.findByItemKeyAndOwner(item.getItemKey(), currentUser.get());
         if (from == null) {
             termRepository.deleteByItemKey(currentUser.get(), item.getItemKey());
+            // 27h: the dismissed price change of the item goes with it
+            dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.PRICE_PREFIX + item.getItemKey());
             itemRepository.deleteAll(versions);
             return;
         }
