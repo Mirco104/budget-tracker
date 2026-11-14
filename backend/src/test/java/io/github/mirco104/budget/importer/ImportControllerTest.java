@@ -401,6 +401,38 @@ class ImportControllerTest {
         assertThat(((Number) JsonPath.read(preview, "$.sources[0].accountId")).longValue()).isEqualTo(giro);
     }
 
+    // --- VR-Bank (decision 64) ---
+
+    @Test
+    void aVrBankFileIsImportedOnceWithTheMerchantOfACardPayment() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.VR_BANK);
+        assertThat(JsonPath.<String>read(preview, "$.profile")).isEqualTo("VR_BANK");
+        assertThat(JsonPath.<String>read(preview, "$.profileLabel")).isEqualTo("VR-Bank");
+        assertThat(JsonPath.<Integer>read(preview, "$.rows")).isEqualTo(7);
+        assertThat(JsonPath.<Integer>read(preview, "$.newRows")).isEqualTo(6);
+        assertThat(JsonPath.<Integer>read(preview, "$.skipped")).isEqualTo(1);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].key")).isEqualTo("VR_BANK:" + GIRO_IBAN);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].suggestedName")).isEqualTo("VR-Bank …3000");
+        Map<String, Object> card = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 2)]").getFirst();
+        assertThat(card.get("description")).isEqualTo("Baeckerei Beispiel");
+        assertThat(card.get("counterparty")).isEqualTo("Baeckerei Beispiel");
+        assertThat(card.get("bankCategory")).isEqualTo("Kartenzahlung girocard");
+        List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
+        assertThat(reasons).containsExactly("vorgemerkt (noch nicht gebucht)");
+        // R33: the VR-Bank only delivers the kind of booking, so it has no bank categories to map
+        assertThat(JsonPath.<List<Object>>read(preview, "$.bankCategories")).isEmpty();
+
+        long freizeit = category(user, "Freizeit");
+        commit(mockMvc, preview, entry -> freizeit, true)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(6))
+                .andExpect(jsonPath("$.batch.profile").value("VR_BANK"));
+
+        String again = previewJson(mockMvc, BankCsvTest.VR_BANK);
+        assertThat(JsonPath.<Integer>read(again, "$.duplicates")).isEqualTo(6);
+        assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
+    }
+
     // --- R30 possible duplicates ---
 
     @Test

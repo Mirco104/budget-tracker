@@ -46,7 +46,7 @@ scripts/reset-db.sh sample                                             # Beispie
 - Benutzersystem: Anmeldung, Einladungslinks, Konto, Nutzerübersicht mit Rollen USER/ADMIN/SYSTEM_ADMIN (US14–US16, US25).
 - Betrieb mit Docker, Backup, Health-Check (AP 19).
 - Überarbeitung von Bedienung und Design (Abschnitt 17, AP 19a–19k).
-- Bank-Import (Abschnitt 18, AP 26a–26h): Bankkonten, Umbuchungen zählen nicht (R27), Kategorie-Vorschlag (R29), CSV-Import für C24, Trade Republic, N26 und Sparkasse mit Vorschau, Duplikaterkennung, Rückgängig (R30), Serienvorschlag im Import (R31), „Ist ersetzt Plan" (R28), Filter in der Import-Vorschau (#84).
+- Bank-Import (Abschnitt 18, AP 26a–26h, AP 29): Bankkonten, Umbuchungen zählen nicht (R27), Kategorie-Vorschlag (R29), CSV-Import für C24, Trade Republic, N26 und Sparkasse mit Vorschau, Duplikaterkennung, Rückgängig (R30), Serienvorschlag im Import (R31), „Ist ersetzt Plan" (R28), Filter in der Import-Vorschau (#84), VR-Bank als fünftes Profil (AP 29).
 - Zuletzt gemergt:
   - **#92** (Ticket #85): keine Zoom- und Höhenprobleme am iPhone. Eingabefelder mindestens 16 px, `maximum-scale=1` nur auf iOS, Dialog mit `dvh`-Höhe und angehefteter Kopf- und Knopfleiste, Datumsfelder auf iOS ohne eigene Mindestbreite.
   - **#95** (Ticket #80): „Alle Einträge" beim Bearbeiten und Löschen einer Serie. Betrag, Beschreibung, Kategorie und Konto gelten für alle Teile der Serie; Datum, Rhythmus und einzeln geänderte Einträge bleiben.
