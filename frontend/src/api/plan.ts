@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 import type { Plan, PlannedItem, PlannedItemInput } from './types'
 
@@ -30,6 +30,8 @@ export function usePastTerms(input: PlannedItemInput | null) {
       request<{ count: number }>('/planned-items/past-terms', { method: 'POST', body: JSON.stringify(input) }),
     enabled: input !== null,
     staleTime: 30_000,
+    // The last count stays while a changed date loads, so the hint does not disappear and reappear (#126)
+    placeholderData: keepPreviousData,
   })
 }
 

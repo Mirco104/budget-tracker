@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { AccountSelect } from './AccountSelect'
-import { CategorySelect } from './CategorySelect'
+import { CategoryPicker } from './CategoryPicker'
 import { ApiError } from '../api/client'
 import { useCreatePlannedItem, useDeletePlannedItem, usePastTerms, useUpdatePlannedItem } from '../api/plan'
 import type { Category, EntryMode, PlanGroup, PlannedItem, PlannedItemInput, RhythmUnit } from '../api/types'
@@ -117,13 +117,14 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const rare = unit === 'MONTH' && rhythmCount !== null && rhythmCount > 1
 
   // 27f2: an automatic item enters its past terms from "Gilt ab" on; the dialog says how many before saving. Only
-  // asked when the dates change compared with the saved item.
+  // asked when the dates change compared with the saved item. The count does not depend on the name, so typing the
+  // name sends no request and the hint does not flicker (#126).
   const datesChanged =
     !item || validFrom !== item.validFrom || anchorDate() !== item.anchorDate || rhythm !== initialRhythm
   const pastQuery =
     entryMode === 'AUTO' && unit !== null && datesChanged && /^\d{4}-\d{2}$/.test(validFrom) && (unit === 'WEEK' || Number(day) >= 1)
       ? {
-          name: name.trim() || 'Posten',
+          name: 'Posten',
           amount: -1,
           rhythmUnit: unit,
           rhythmCount,
@@ -371,7 +372,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
 
         <div className="field">
           <span id="item-category-label">Kategorie{kind === 'saving' ? ' (optional)' : ''}</span>
-          <CategorySelect
+          <CategoryPicker
             labelledBy="item-category-label"
             value={categoryId}
             onChange={setCategoryId}

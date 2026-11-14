@@ -9,12 +9,18 @@ export interface Category {
   archived: boolean
   /** The category has entries and all of them are positive (R24). */
   incomeOnly: boolean
+  /** R32: the parent category, null for a top-level category. */
+  parentId: number | null
+  /** R32: "Parent › Child", for a top-level category its name. */
+  path: string
 }
 
 /** Without an icon the category gets "tag" (US28). */
 export interface CategoryInput {
   name: string
   icon?: string
+  /** R32: without an icon a subcategory takes the icon of its parent. */
+  parentId?: number | null
 }
 
 /** Rename and archive (US10); categories have no own order (decision 38). Without an icon it stays (US28). */
@@ -22,6 +28,8 @@ export interface CategoryUpdate {
   name: string
   archived: boolean
   icon?: string
+  /** R32: null makes it a top-level category, so send the current parent when it stays. */
+  parentId: number | null
 }
 
 /**
@@ -140,7 +148,10 @@ export interface PlannedItem {
   amount: number
   saving: boolean
   categoryId: number | null
+  /** R32: the path of the category ("Parent › Child"). */
   categoryName: string | null
+  /** R32: the category the item counts in, the parent for a subcategory. */
+  planCategoryId: number | null
   accountId: number
   accountName: string
   rhythmUnit: RhythmUnit | null

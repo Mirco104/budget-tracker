@@ -42,7 +42,8 @@ public record TransactionResponse(
                 transaction.getDescription(),
                 transaction.getDate(),
                 category == null ? null : category.getId(),
-                category == null ? null : category.getName(),
+                // R32: "Parent › Child" for a subcategory
+                category == null ? null : category.getPath(),
                 transaction.getAccount().getId(),
                 transaction.getAccount().getName(),
                 transaction.isTransfer(),

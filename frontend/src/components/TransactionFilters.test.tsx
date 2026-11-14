@@ -6,8 +6,8 @@ import { TransactionFilters } from './TransactionFilters'
 
 // Fictional values
 const categories: Category[] = [
-  { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false },
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
+  { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false, parentId: null, path: 'Alt' },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
 ]
 const empty: Filters = { query: '', category: '', account: '', kind: '', direction: '' }
 

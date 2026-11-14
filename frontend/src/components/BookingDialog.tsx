@@ -3,7 +3,7 @@ import { useBankAccounts } from '../api/bankAccounts'
 import { ApiError } from '../api/client'
 import { useSavingGoals } from '../api/goals'
 import { AccountSelect } from './AccountSelect'
-import { CategorySelect } from './CategorySelect'
+import { CategoryPicker } from './CategoryPicker'
 import { usePlan } from '../api/plan'
 import { useBookingSuggestion } from '../api/suggestions'
 import { useCreateTransaction, useDeleteTransaction, useTransactions, useUpdateTransaction } from '../api/transactions'
@@ -315,12 +315,12 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
                   onClick={() => chooseCategory(String(category.id))}
                 >
                   <CategoryIcon icon={category.icon} size={14} />
-                  {category.name}
+                  {category.path}
                 </button>
               ))}
             </div>
           )}
-          <CategorySelect
+          <CategoryPicker
             labelledBy="booking-category-label"
             value={categoryId}
             onChange={chooseCategory}
@@ -340,7 +340,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           {suggested && (
             <button type="button" className="chip suggestion-chip" onClick={() => chooseCategory(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
-              Vorschlag: {suggested.name}
+              Vorschlag: {suggested.path}
             </button>
           )}
           {errors.categoryId && <span className="error">{errors.categoryId}</span>}

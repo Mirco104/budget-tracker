@@ -49,12 +49,26 @@ export function TransactionFilters({
 }) {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
+  // R32: a parent counts the hits of its subcategories too, like its filter
+  function hits(field: FacetField, value: string): number {
+    if (!counts) {
+      return 0
+    }
+    const own = counts[field].get(value) ?? 0
+    if (field !== 'category') {
+      return own
+    }
+    return categories
+      .filter((c) => String(c.parentId) === value)
+      .reduce((sum, child) => sum + (counts.category.get(String(child.id)) ?? 0), own)
+  }
+
   function options(field: FacetField, all: FilterOption[]) {
     return all
-      .filter((option) => !counts || (counts[field].get(option.value) ?? 0) > 0 || option.value === filters[field])
+      .filter((option) => !counts || hits(field, option.value) > 0 || option.value === filters[field])
       .map((option) => (
         <option key={option.value} value={option.value}>
-          {counts ? `${option.label} (${counts[field].get(option.value) ?? 0})` : option.label}
+          {counts ? `${option.label} (${hits(field, option.value)})` : option.label}
         </option>
       ))
   }
@@ -63,7 +77,7 @@ export function TransactionFilters({
     ...extraCategoryOptions,
     ...categories.map((category) => ({
       value: String(category.id),
-      label: category.archived ? `${category.name} (archiviert)` : category.name,
+      label: category.archived ? `${category.path} (archiviert)` : category.path,
     })),
   ]
 
