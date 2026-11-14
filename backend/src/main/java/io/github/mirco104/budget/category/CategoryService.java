@@ -44,53 +44,79 @@ public class CategoryService {
                 .toList();
     }
 
-    /** The user's categories, alphabetically (decision 38). */
+    /** The user's categories, alphabetically, each top-level category followed by its subcategories (R32). */
     @Transactional(readOnly = true)
     public List<Category> findAllOrdered() {
         return categoryRepository.findAllByOwner(currentUser.get()).stream()
-                .sorted(CategoryOrder.ALPHABETICAL)
+                .sorted(CategoryOrder.TREE)
                 .toList();
     }
 
+    /** R32: the categories every calculation shows as lines; a subcategory counts as its parent. */
+    @Transactional(readOnly = true)
+    public List<Category> findCalculationCategories() {
+        return findAllOrdered().stream().filter(category -> category.getParent() == null).toList();
+    }
+
     /**
-     * US10: names are unique ignoring case (409). A new category appears at its alphabetical place (decision 38);
-     * the column sort_order is still filled, because the schema needs it, but nothing reads it any more.
+     * US10: names are unique ignoring case (409), per level (R32). A new category appears at its alphabetical place
+     * (decision 38); the column sort_order is still filled, because the schema needs it, but nothing reads it any more.
+     * A new subcategory without an icon takes the icon of its parent (US37).
      */
     @Transactional
     public CategoryResponse create(CreateCategoryRequest request) {
         String name = request.name().trim();
-        if (categoryRepository.existsByOwnerAndNameIgnoreCase(currentUser.get(), name)) {
-            throw nameTaken(name);
-        }
-        String icon = request.icon() == null ? CategoryIcons.DEFAULT : knownIcon(request.icon());
+        Category parent = parentFor(null, request.parentId());
+        checkName(parent, name, -1);
+        String icon = request.icon() != null ? knownIcon(request.icon())
+                : parent != null ? parent.getIcon() : CategoryIcons.DEFAULT;
         int sortOrder = categoryRepository.findTopByOwnerOrderBySortOrderDesc(currentUser.get())
                 .map(last -> last.getSortOrder() + SORT_ORDER_STEP)
                 .orElse(SORT_ORDER_STEP);
-        Category category = categoryRepository.save(new Category(currentUser.get(), name, sortOrder, icon));
+        Category category = new Category(currentUser.get(), name, sortOrder, icon);
+        category.moveTo(parent);
+        categoryRepository.save(category);
         // A new category has no entries yet (R24, R25)
         return CategoryResponse.from(category, false);
     }
 
-    /** US10: renames, archives and changes the icon (US28); the order follows the name (decision 38). */
+    /**
+     * US10: renames, archives and changes the icon (US28); the order follows the name (decision 38). R32: sets the
+     * parent (null: top level); archiving a parent archives its subcategories, a subcategory of an archived parent
+     * cannot be reactivated (409).
+     */
     @Transactional
     public CategoryResponse update(long id, UpdateCategoryRequest request) {
         Category category = find(id);
         String name = request.name().trim();
-        if (categoryRepository.existsByOwnerAndNameIgnoreCaseAndIdNot(currentUser.get(), name, id)) {
-            throw nameTaken(name);
-        }
+        Category parent = parentFor(category, request.parentId());
+        checkName(parent, name, id);
         String icon = request.icon() == null ? category.getIcon() : knownIcon(request.icon());
+        if (!request.archived() && parent != null && parent.isArchived()) {
+            throw new ConflictException("Die Oberkategorie ist archiviert. Reaktiviere zuerst die Oberkategorie.");
+        }
 
         category.rename(name);
+        category.moveTo(parent);
         category.setArchived(request.archived());
         category.changeIcon(icon);
+        if (request.archived()) {
+            categoryRepository.findAllByParent(category).forEach(child -> child.setArchived(true));
+        }
         return CategoryResponse.from(category, incomeOnlyIds().contains(id));
     }
 
-    /** US10: only an unused category can be deleted; otherwise 409 with the hint to archive it. */
+    /**
+     * US10: only an unused category can be deleted; otherwise 409 with the hint to archive it. R32: a parent only
+     * without subcategories (409).
+     */
     @Transactional
     public void delete(long id) {
         Category category = find(id);
+        if (categoryRepository.existsByParent(category)) {
+            throw new ConflictException(
+                    "Die Kategorie hat Unterkategorien. Lösche oder verschiebe zuerst die Unterkategorien.");
+        }
         if (transactionRepository.existsByCategoryId(id)
                 || transactionRepository.existsByCategoryBeforeTransferId(id)
                 || plannedItemRepository.existsByCategoryId(id)) {
@@ -130,6 +156,44 @@ public class CategoryService {
     private Category find(long id) {
         return categoryRepository.findByIdAndOwner(id, currentUser.get())
                 .orElseThrow(() -> new NotFoundException("Kategorie " + id + " wurde nicht gefunden."));
+    }
+
+    /**
+     * R32: the parent of a category, 400 on field parentId if it is unknown or another user's (R15), archived, a
+     * subcategory itself or the category itself, or if the category has subcategories. The archived check does not
+     * apply when the parent stays the same, so an archived subcategory of an archived parent can still be renamed.
+     */
+    private Category parentFor(Category category, Long parentId) {
+        if (parentId == null) {
+            return null;
+        }
+        Category parent = categoryRepository.findByIdAndOwner(parentId, currentUser.get())
+                .orElseThrow(() -> new InvalidFieldException("parentId", "Die Oberkategorie existiert nicht."));
+        if (category != null && parent.getId().equals(category.getId())) {
+            throw new InvalidFieldException("parentId", "Eine Kategorie kann nicht ihre eigene Oberkategorie sein.");
+        }
+        if (parent.getParent() != null) {
+            throw new InvalidFieldException("parentId", "Eine Unterkategorie kann keine Unterkategorien haben.");
+        }
+        if (category != null && categoryRepository.existsByParent(category)) {
+            throw new InvalidFieldException(
+                    "parentId", "Eine Kategorie mit Unterkategorien kann keine Oberkategorie haben.");
+        }
+        boolean unchanged = category != null && category.getParent() == parent;
+        if (parent.isArchived() && !unchanged) {
+            throw new InvalidFieldException("parentId", "Die Oberkategorie ist archiviert.");
+        }
+        return parent;
+    }
+
+    // R32: top-level names per user, subcategory names per parent, ignoring case (409)
+    private void checkName(Category parent, String name, long id) {
+        boolean taken = parent == null
+                ? categoryRepository.existsByOwnerAndParentIsNullAndNameIgnoreCaseAndIdNot(currentUser.get(), name, id)
+                : categoryRepository.existsByParentAndNameIgnoreCaseAndIdNot(parent, name, id);
+        if (taken) {
+            throw nameTaken(name);
+        }
     }
 
     /** US28: an icon key outside the fixed list is 400 on field icon. */

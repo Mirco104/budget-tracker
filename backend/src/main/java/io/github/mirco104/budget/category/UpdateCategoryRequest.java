@@ -16,5 +16,7 @@ public record UpdateCategoryRequest(
         @NotNull(message = "Archiviert ist Pflicht.")
         Boolean archived,
 
-        String icon) {
+        String icon,
+        /** R32: the parent category; null makes it a top-level category. */
+        Long parentId) {
 }

@@ -16,6 +16,12 @@ public final class CategoryOrder {
     public static final Comparator<Category> ALPHABETICAL =
             Comparator.comparing(Category::getName, COLLATOR::compare).thenComparing(Category::getId);
 
+    /** R32: top-level categories alphabetically, each followed by its subcategories, also alphabetically. */
+    public static final Comparator<Category> TREE =
+            Comparator.comparing(Category::getCalculationCategory, ALPHABETICAL)
+                    .thenComparing(category -> category.getParent() != null)
+                    .thenComparing(ALPHABETICAL);
+
     private CategoryOrder() {
     }
 
