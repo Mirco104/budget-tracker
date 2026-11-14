@@ -10,14 +10,14 @@ const groups: AccountGroup[] = [
     role: 'EVERYDAY',
     total: 1250,
     accounts: [
-      { id: 1, name: 'Girokonto', iban: null, role: 'EVERYDAY', defaultAccount: true, archived: false, balance: 1250, statementDate: null, statementAmount: null, comfortAmount: null, belowComfort: false },
+      { id: 1, name: 'Girokonto', iban: null, role: 'EVERYDAY', defaultAccount: true, archived: false, balance: 1250, statementDate: null, statementAmount: null, lowerLimitMode: 'ZERO', lowerLimit: 0, belowLimit: false },
     ],
   },
   {
     role: 'SAVINGS',
     total: 700,
     accounts: [
-      { id: 2, name: 'Tagesgeld', iban: null, role: 'SAVINGS', defaultAccount: false, archived: false, balance: 700, statementDate: '2026-11-01', statementAmount: 690, comfortAmount: 1000, belowComfort: true },
+      { id: 2, name: 'Tagesgeld', iban: null, role: 'SAVINGS', defaultAccount: false, archived: false, balance: 700, statementDate: '2026-11-01', statementAmount: 690, lowerLimitMode: 'CUSTOM', lowerLimit: 1000, belowLimit: true },
     ],
   },
   { role: 'DEPOT', total: 0, accounts: [] },
@@ -115,25 +115,41 @@ describe('AccountsPage', () => {
     expect(within(reserves).getByRole('option', { name: 'Girokonto' })).toBeInTheDocument()
   })
 
-  // 27f4
-  it('marks a balance below the comfort amount and changes the comfort amount', async () => {
+  // P12 (27h): the lower limit replaces the comfort amount
+  it('marks a balance below the lower limit and changes the lower limit', async () => {
     const fetchMock = renderPage()
     const card = await screen.findByRole('region', { name: 'Bankkonten' })
     const saving = within(card).getByRole('group', { name: 'Sparen' })
-    expect(saving).toHaveTextContent('unter Wohlfühlbetrag 1.000,00 €')
-    expect(within(saving).getByText('700,00 €', { selector: '.item-amount' })).toHaveClass('below-comfort')
-    expect(within(card).getByRole('group', { name: 'Alltag' })).not.toHaveTextContent('Wohlfühlbetrag')
+    expect(saving).toHaveTextContent('unter Untergrenze 1.000,00 €')
+    expect(within(saving).getByText('700,00 €', { selector: '.item-amount' })).toHaveClass('below-limit')
+    // 0 € is only named when the balance is below it
+    expect(within(card).getByRole('group', { name: 'Alltag' })).not.toHaveTextContent('Untergrenze')
 
     fireEvent.click(within(saving).getByRole('button', { name: 'Konto Tagesgeld bearbeiten' }))
     const dialog = screen.getByRole('dialog', { name: 'Konto Tagesgeld' })
-    expect(within(dialog).getByLabelText('Wohlfühlbetrag (optional)')).toHaveValue('1000,00')
-    fireEvent.change(within(dialog).getByLabelText('Wohlfühlbetrag (optional)'), { target: { value: '500' } })
+    expect(within(dialog).getByRole('combobox', { name: /Untergrenze/ })).toHaveValue('CUSTOM')
+    expect(within(dialog).getByLabelText('Eigene Untergrenze')).toHaveValue('1000,00')
+    expect(within(dialog).getByRole('button', { name: 'Erklärung: Was löst die Untergrenze aus?' })).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('Eigene Untergrenze'), { target: { value: '500' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/2/comfort-amount')
-    expect(call?.[1]?.body).toBe(JSON.stringify({ amount: 500 }))
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/2/lower-limit')
+    expect(call?.[1]?.body).toBe(JSON.stringify({ mode: 'CUSTOM', amount: 500 }))
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/balances'))).toBe(false)
+  })
+
+  it('switches the lower limit off', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Girokonto' })
+    expect(within(dialog).getByRole('combobox', { name: /Untergrenze/ })).toHaveValue('ZERO')
+    fireEvent.change(within(dialog).getByRole('combobox', { name: /Untergrenze/ }), { target: { value: 'OFF' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/1/lower-limit')
+    expect(call?.[1]?.body).toBe(JSON.stringify({ mode: 'OFF', amount: null }))
   })
 
   it('creates a new account with its Kontoart', async () => {

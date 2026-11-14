@@ -1,3 +1,4 @@
+import { Bell } from './components/Bell'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
@@ -141,6 +142,7 @@ function SignedIn({ me }: { me: Me }) {
               </a>
             ))}
           </nav>
+          <Bell />
           <AccountMenu
             me={me}
             settingsHref={ROUTES.settings}

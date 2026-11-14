@@ -3358,8 +3358,8 @@ a.summary-link:hover {
   color: var(--muted);
   font-weight: 400;
 }
-.below-comfort,
-.link-button.below-comfort {
+.below-limit,
+.link-button.below-limit {
   color: var(--warn);
   font-weight: 600;
 }
@@ -3574,4 +3574,87 @@ button.account-open:hover {
 }
 .filter-more select {
   width: 100%;
+}
+
+/* --- Bell and lower limit (AP 27h) --- */
+.limit-row {
+  align-items: center;
+}
+.bell {
+  position: relative;
+  margin-left: auto;
+}
+.bell + .account-menu {
+  margin-left: 8px;
+}
+.bell-button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+}
+.bell-button:hover:not(:disabled) {
+  background: var(--primary-soft);
+}
+.bell-count {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+}
+.bell-menu {
+  width: min(360px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.bell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.bell-list > li + li {
+  border-top: 1px solid var(--line);
+}
+.bell-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px 8px;
+}
+.bell-item p {
+  margin: 0;
+}
+.bell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.bell-skip {
+  justify-self: start;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+.summary-value.over,
+.budget-amount.over {
+  color: var(--warn);
+}
+.closing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 16px;
 }
