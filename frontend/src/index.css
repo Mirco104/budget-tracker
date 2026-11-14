@@ -1709,6 +1709,8 @@ button.budget-toggle {
 
 .field {
   display: grid;
+  /* In a field row a message below one field must not stretch or move the inputs of the others (#126) */
+  align-content: start;
   gap: 6px;
   min-width: 0;
   margin: 0;
