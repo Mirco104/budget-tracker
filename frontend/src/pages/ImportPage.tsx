@@ -678,7 +678,8 @@ function Preview({
 
   // US33: a category chosen for a row becomes the suggestion of the open rows with the same key (R29); a transfer does not
   /**
-   * R33, US38: the card "Kategorien der Bank" was applied; the open rows of each bank category get its category, except
+   * R33, US38: a row of the card "Kategorien der Bank" was applied; the open rows of each bank category (and those preset
+   * from its old mapping) get its category, except
    * transfers, rows that fulfil a term and rows whose certain history names another category (decision 62).
    */
   function applyBankCategories(categoryByBankCategory: Record<string, number>) {
@@ -687,7 +688,9 @@ function Preview({
       for (const entry of preview.entries) {
         const id = entry.bankCategory === null ? undefined : categoryByBankCategory[entry.bankCategory]
         const choice = entry.fingerprint === null ? undefined : next[entry.fingerprint]
-        if (id === undefined || !choice || choice.category !== '' || entry.transfer || entry.replaces) {
+        // A row keeps a category the user chose; one preset from a mapping that changed follows the new mapping
+        const preset = choice?.category === '' || choice?.category === String(entry.mappedCategoryId)
+        if (id === undefined || !choice || !preset || entry.transfer || entry.replaces) {
           continue
         }
         if (entry.certain && entry.categoryId !== null && entry.categoryId !== id) {

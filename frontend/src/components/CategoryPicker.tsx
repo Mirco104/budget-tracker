@@ -15,7 +15,7 @@ interface Props {
   ariaLabel?: string
   /**
    * Compact (import rows and cards): the second field has no visible label but an accessible name, and its first
-   * option says "– keine Unterkategorie –".
+   * option says "– Unterkategorie (optional) –".
    */
   subAriaLabel?: string
   invalid?: boolean
@@ -60,7 +60,7 @@ export function CategoryPicker({
       value={chosen?.parentId != null ? value : ''}
       onChange={(next) => onChange(next === '' ? main : next)}
       categories={subcategories}
-      placeholder={compact ? '– keine Unterkategorie –' : '– keine –'}
+      placeholder={compact ? '– Unterkategorie (optional) –' : '– keine –'}
       parentId={mainCategory.id}
       disabled={disabled}
       createLabel={`Neue Unterkategorie von ${mainCategory.name}`}

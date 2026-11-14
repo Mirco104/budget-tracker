@@ -906,40 +906,83 @@ describe('ImportPage', () => {
       ],
     }
 
-    it('maps a bank category to an own category and sets it at its rows only', async () => {
+    it('presets "Neu anlegen" and creates the category with the name of the bank from the row', async () => {
       const fetchMock = renderPage(() => json(withBankCategories))
       await upload()
 
       const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
       expect(card).toHaveTextContent('Die Datei enthält 1 Kategorie der Bank: 1 wird neu angelegt, 0 deinen Kategorien zugeordnet.')
-      fireEvent.change(within(card).getByLabelText('Wahl für Freizeit & Unterhaltung'), { target: { value: 'own' } })
-      fireEvent.change(within(card).getByLabelText('Eigene Kategorie für Freizeit & Unterhaltung'), { target: { value: '8' } })
-      expect(card).toHaveTextContent('0 werden neu angelegt, 1 deinen Kategorien zugeordnet.')
-      fireEvent.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+      expect(within(card).queryByLabelText('Wahl für Freizeit & Unterhaltung')).not.toBeInTheDocument()
+      expect(within(card).getByLabelText('Kategorie für Freizeit & Unterhaltung')).toHaveValue('bank')
+      expect(within(card).getByText('Unterkategorie (optional)')).toBeInTheDocument()
+      const item = within(card).getByRole('listitem', { name: 'Freizeit & Unterhaltung' })
+      fireEvent.click(within(item).getByRole('button', { name: 'Übernehmen' }))
 
-      await waitFor(() => expect(screen.queryByRole('region', { name: 'Kategorien der Bank' })).not.toBeInTheDocument())
+      await waitFor(() => expect(within(card).getByText('Alle Kategorien der Bank sind übernommen.')).toBeInTheDocument())
       const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
       expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({
         profile: 'C24',
-        mappings: [{ bankCategory: 'Freizeit & Unterhaltung', categoryId: 8 }],
+        mappings: [{ bankCategory: 'Freizeit & Unterhaltung', parentName: 'Freizeit & Unterhaltung' }],
       })
+      expect(within(item).getByRole('button', { name: 'Ändern' })).toBeInTheDocument()
+    })
+
+    it('maps a bank category to an own category with "Alle übernehmen" and sets it at its rows only', async () => {
+      const fetchMock = renderPage(() => json(withBankCategories))
+      await upload()
+
+      const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
+      fireEvent.change(within(card).getByLabelText('Kategorie für Freizeit & Unterhaltung'), { target: { value: '8' } })
+      expect(within(card).getByLabelText('Unterkategorie für Freizeit & Unterhaltung')).toHaveValue('')
+      expect(card).toHaveTextContent('0 werden neu angelegt, 1 deinen Kategorien zugeordnet.')
+      fireEvent.click(within(card).getByRole('button', { name: 'Alle übernehmen (1)' }))
+
+      await waitFor(() => expect(within(card).getByText('Alle Kategorien der Bank sind übernommen.')).toBeInTheDocument())
+      const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
+      expect(JSON.parse(String((call?.[1] as RequestInit).body)).mappings).toEqual([
+        { bankCategory: 'Freizeit & Unterhaltung', categoryId: 8 },
+      ])
       const [withCategory, without] = row('Spiele Shop')
       expect(within(withCategory).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
       expect(within(without).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
     })
 
-    it('creates a new category with the name of the bank', async () => {
-      const fetchMock = renderPage(() => json(withBankCategories))
+    it('presets a guessed parent with a hint and creates the child of the bank below it', async () => {
+      const fetchMock = renderPage(() =>
+        json({
+          ...withBankCategories,
+          bankCategories: [
+            {
+              ...withBankCategories.bankCategories[0],
+              bankCategory: 'Freizeiten › Konzerte',
+              parent: 'Freizeiten',
+              child: 'Konzerte',
+              parentStatus: 'GUESSED',
+              parentCategoryId: 8,
+              childStatus: 'NEW',
+            },
+          ],
+        }),
+      )
       await upload()
 
       const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
-      expect(within(card).getByLabelText('Wahl für Freizeit & Unterhaltung')).toHaveValue('new')
-      fireEvent.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+      expect(card).toHaveTextContent('vermutet: Freizeit')
+      expect(within(card).getByLabelText('Kategorie für Freizeiten › Konzerte')).toHaveValue('8')
+      const sub = within(card).getByLabelText('Unterkategorie für Freizeiten › Konzerte')
+      expect(sub).toHaveValue('bank')
+      expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '– keine –',
+        '+ Neu anlegen: Konzerte',
+        'Kino',
+        '+ Neue Unterkategorie …',
+      ])
+      fireEvent.click(within(card).getByRole('button', { name: 'Alle übernehmen (1)' }))
 
       await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => u === '/api/bank-category-mappings')).toBe(true))
       const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
       expect(JSON.parse(String((call?.[1] as RequestInit).body)).mappings).toEqual([
-        { bankCategory: 'Freizeit & Unterhaltung', parentName: 'Freizeit & Unterhaltung' },
+        { bankCategory: 'Freizeiten › Konzerte', parentId: 8, name: 'Konzerte' },
       ])
     })
 
@@ -970,7 +1013,7 @@ describe('ImportPage', () => {
       fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '8' } })
       const sub = within(first).getByLabelText('Unterkategorie für Spiele Shop')
       expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
-        '– keine Unterkategorie –',
+        '– Unterkategorie (optional) –',
         'Kino',
         '+ Neue Unterkategorie …',
       ])
