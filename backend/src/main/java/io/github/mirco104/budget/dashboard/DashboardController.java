@@ -1,6 +1,6 @@
 package io.github.mirco104.budget.dashboard;
 
-import io.github.mirco104.budget.plan.TermService;
+import io.github.mirco104.budget.plan.DueEntries;
 import java.time.YearMonth;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,17 +13,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final DashboardService dashboardService;
-    private final TermService termService;
+    private final DueEntries dueEntries;
 
-    public DashboardController(DashboardService dashboardService, TermService termService) {
-        this.termService = termService;
+    public DashboardController(DashboardService dashboardService, DueEntries dueEntries) {
+        this.dueEntries = dueEntries;
         this.dashboardService = dashboardService;
     }
 
     @GetMapping
     public DashboardResponse get(@RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
         // P6: due automatic entries are made before the month is calculated
-        termService.enterDue();
+        dueEntries.enter();
         return dashboardService.calculate(month);
     }
 }
