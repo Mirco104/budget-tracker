@@ -81,6 +81,29 @@ public class CategoryService {
     }
 
     /**
+     * R33, US38: the category with this name at its level (top level for a null parent), created if there is none. An
+     * archived one is 400 on field name, so the user reactivates it or picks another.
+     */
+    @Transactional
+    public Category findOrCreate(String name, Category parent) {
+        String trimmed = name.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 50) {
+            throw new InvalidFieldException("name", "Der Name muss 1 bis 50 Zeichen haben.");
+        }
+        java.util.Optional<Category> existing = parent == null
+                ? categoryRepository.findFirstByOwnerAndParentIsNullAndNameIgnoreCase(currentUser.get(), trimmed)
+                : categoryRepository.findFirstByParentAndNameIgnoreCase(parent, trimmed);
+        if (existing.isPresent()) {
+            if (existing.get().isArchived()) {
+                throw new InvalidFieldException("name", "Die Kategorie \"" + trimmed + "\" ist archiviert.");
+            }
+            return existing.get();
+        }
+        long id = create(new CreateCategoryRequest(trimmed, null, parent == null ? null : parent.getId())).id();
+        return find(id);
+    }
+
+    /**
      * US10: renames, archives and changes the icon (US28); the order follows the name (decision 38). R32: sets the
      * parent (null: top level); archiving a parent archives its subcategories, a subcategory of an archived parent
      * cannot be reactivated (409).

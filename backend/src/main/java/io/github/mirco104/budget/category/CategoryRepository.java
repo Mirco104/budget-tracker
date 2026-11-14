@@ -25,6 +25,10 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     boolean existsByParent(Category parent);
 
+    Optional<Category> findFirstByOwnerAndParentIsNullAndNameIgnoreCase(User owner, String name);
+
+    Optional<Category> findFirstByParentAndNameIgnoreCase(Category parent, String name);
+
     List<Category> findAllByParent(Category parent);
 
     /** US16: deleting an account; targets, transactions and series must be gone first. */
