@@ -1689,13 +1689,15 @@ button.budget-toggle {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
-.dialog-trail {
+.dialog-title {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: 0.8rem;
+  min-width: 0;
+}
+.dialog-trail {
+  display: inline-flex;
+  color: var(--primary);
 }
 
 .booking-form {

@@ -176,7 +176,8 @@ describe('BookingDialog', () => {
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
     const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
-    // The window says which window it lies on
+    // A category of the first field gets no parent field; screen readers hear which window it lies on
+    expect(within(created).queryByLabelText('Unterkategorie von (optional)')).not.toBeInTheDocument()
     expect(created).toHaveTextContent('über Neue Buchung')
     fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
     // Its form does not save the booking below
@@ -492,8 +493,8 @@ describe('BookingDialog', () => {
       fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
       fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: 'new' } })
       const created = screen.getByRole('dialog', { name: 'Neue Unterkategorie von Freizeit' })
-      // The parent is preset and gives its icon
-      await waitFor(() => expect(within(created).getByLabelText('Oberkategorie')).toHaveValue('6'))
+      // The parent comes from the selection, so the window asks no parent
+      expect(within(created).queryByLabelText('Unterkategorie von (optional)')).not.toBeInTheDocument()
       fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Theater' } })
       fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 

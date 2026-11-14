@@ -16,8 +16,8 @@ const DialogStack = createContext<string[]>([])
 /**
  * Modal dialog; on phones a sheet from the bottom (US27). Escape and the close button close it, Tab stays inside,
  * and the focus goes back to where it was when the dialog closes. It lies in the body, so a dialog opened from another
- * one (decision 66, e.g. "Neue Kategorie" from the booking) lies above it: it names the dialogs below
- * ("Neue Buchung ›") and sits a bit lower, so the one below still shows.
+ * one (decision 66, e.g. "Neue Kategorie" from the booking) lies above it: it shows a layers icon (screen readers hear
+ * the dialogs below), sits a bit lower and has a blue frame, so the one below still shows.
  */
 export function Dialog({ title, onClose, children }: Props) {
   const titleId = useId()
@@ -91,14 +91,16 @@ export function Dialog({ title, onClose, children }: Props) {
           {/* Stays at the top while the content scrolls, so the title and the close button are always in reach */}
           <div className="dialog-top">
             <div className="grabber" aria-hidden="true" />
-            {stacked && (
-              <p className="dialog-trail">
-                <Icon name="layers" size={14} />
-                <span>über {below.join(' › ')}</span>
-              </p>
-            )}
             <div className="dialog-head">
-              <h2 id={titleId}>{title}</h2>
+              <div className="dialog-title">
+                {stacked && (
+                  <span className="dialog-trail">
+                    <Icon name="layers" size={18} />
+                    <span className="visually-hidden">über {below.join(' › ')}</span>
+                  </span>
+                )}
+                <h2 id={titleId}>{title}</h2>
+              </div>
               <button type="button" className="icon-button" aria-label="Schließen" onClick={() => close.current()}>
                 <Icon name="close" />
               </button>

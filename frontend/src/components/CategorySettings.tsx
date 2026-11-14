@@ -308,7 +308,7 @@ function NewCategoryButton({ categories }: { categories: Category[] }) {
         <Icon name="plus" size={18} />
         Kategorie
       </button>
-      {open && <CategoryDialog categories={categories} onClose={() => setOpen(false)} />}
+      {open && <CategoryDialog categories={categories} chooseParent onClose={() => setOpen(false)} />}
     </>
   )
 }

@@ -17,7 +17,10 @@ export function ParentSelect({
   categories,
   exclude,
   disabled,
+  noneLabel = 'keine',
 }: {
+  /** The option for no parent; "keine" in the row menu, "– keine –" in the window of a new category. */
+  noneLabel?: string
   id: string
   value: number | null
   onChange: (parentId: number | null) => void
@@ -35,7 +38,7 @@ export function ParentSelect({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
     >
-      <option value="">keine</option>
+      <option value="">{noneLabel}</option>
       {parents.map((c) => (
         <option key={c.id} value={c.id}>
           {c.name}
@@ -76,17 +79,21 @@ export function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (i
 const DEFAULT_ICON = 'tag'
 
 /**
- * Decision 66: the one window to create a category, from the settings and from every category selection: name,
- * Oberkategorie (R32) and icon (US28). A subcategory starts with the icon of its parent until the user picks one
+ * Decision 66: the one window to create a category, from the settings and from every category selection: name and
+ * icon (US28). Only the settings choose a parent ("Unterkategorie von", R32); a selection knows it: none for a
+ * category, the chosen one for a subcategory. A subcategory starts with the icon of its parent until the user picks one
  * (US37). The new category appears at its alphabetical place (decision 38); onCreated gets it, e.g. to choose it.
  */
 export function CategoryDialog({
   categories,
   title,
   parentId: initialParent = null,
+  chooseParent = false,
   onCreated,
   onClose,
 }: {
+  /** Shows "Unterkategorie von (optional)" (settings); without it the category gets parentId. */
+  chooseParent?: boolean
   /** All categories of the user, for the choice of the Oberkategorie. */
   categories: Category[]
   /** e.g. "Neue Kategorie für REWE"; without it "Neue Kategorie" or "Neue Unterkategorie". */
@@ -136,10 +143,18 @@ export function CategoryDialog({
           />
         </div>
         <div className="field-row">
-          <div className="field">
-            <label htmlFor={parentFieldId}>Oberkategorie</label>
-            <ParentSelect id={parentFieldId} value={parentId} onChange={setParentId} categories={categories} />
-          </div>
+          {chooseParent && (
+            <div className="field">
+              <label htmlFor={parentFieldId}>Unterkategorie von (optional)</label>
+              <ParentSelect
+                id={parentFieldId}
+                value={parentId}
+                onChange={setParentId}
+                categories={categories}
+                noneLabel="– keine –"
+              />
+            </div>
+          )}
           <div className="field">
             <span id={iconId}>Icon</span>
             <button

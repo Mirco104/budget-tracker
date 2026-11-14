@@ -257,9 +257,9 @@ describe('CategorySettings', () => {
     await screen.findByRole('listitem', { name: 'Wohnen' })
     fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
 
-    const parent = screen.getByLabelText('Oberkategorie')
+    const parent = screen.getByLabelText('Unterkategorie von (optional)')
     // Only active top-level categories
-    expect(within(parent).getAllByRole('option').map((o) => o.textContent)).toEqual(['keine', 'Wohnen', 'Freizeit', 'Urlaub'])
+    expect(within(parent).getAllByRole('option').map((o) => o.textContent)).toEqual(['– keine –', 'Wohnen', 'Freizeit', 'Urlaub'])
     fireEvent.change(parent, { target: { value: '2' } })
     expect(screen.getByRole('button', { name: 'Icon' }).querySelector('.category-icon')).toHaveAttribute('data-icon', 'music')
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Kino' } })
