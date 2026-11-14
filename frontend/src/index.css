@@ -1322,6 +1322,15 @@ button.add-category {
   color: var(--muted);
 }
 
+/* R32: a subcategory stands indented below its parent */
+.category-row.sub {
+  padding-left: 36px;
+}
+
+.category-parent {
+  flex: 1 1 200px;
+}
+
 .rename-form {
   flex: 1;
   min-width: 0;

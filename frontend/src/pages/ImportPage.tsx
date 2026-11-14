@@ -24,7 +24,7 @@ import { InlineCreate } from '../components/ui/InlineCreate'
 import { CategorySelect } from '../components/CategorySelect'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
+import { categoryFits, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
@@ -583,7 +583,7 @@ function Preview({
   function matchesFilter(entry: ImportEntry, current: Filters): boolean {
     const search = current.query.trim().toLocaleLowerCase('de-DE')
     return (
-      (current.category === '' || categoryKey(entry) === current.category) &&
+      categoryFits(categoryKey(entry), current.category, categories) &&
       (current.account === '' || entry.source === current.account) &&
       (current.kind === '' || kindOfRow(entry) === current.kind) &&
       (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
@@ -959,7 +959,7 @@ function Preview({
                 <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
-                    {category.name}
+                    {category.path}
                   </option>
                 ))}
               </select>

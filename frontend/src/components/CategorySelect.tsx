@@ -75,9 +75,10 @@ export function CategorySelect({
       >
         <option value="">{placeholder}</option>
         {leading}
+        {/* R32: the backend sends each parent followed by its subcategories; a subcategory shows its path */}
         {options.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.name}
+            {c.path}
           </option>
         ))}
         <option value={NEW}>+ Neue Kategorie …</option>

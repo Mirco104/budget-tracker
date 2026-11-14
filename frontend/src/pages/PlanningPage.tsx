@@ -278,7 +278,7 @@ function GroupSection({
               name={line.categoryName}
               icon={iconOf(line.categoryId)}
               total={line.total}
-              items={items.filter((item) => item.categoryId === line.categoryId)}
+              items={items.filter((item) => item.planCategoryId === line.categoryId)}
               onEdit={onEdit}
             />
           ))}

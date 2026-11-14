@@ -8,9 +8,9 @@ import { ImportPage } from './ImportPage'
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
   // Alphabetical, as the backend sends them (decision 38)
-  { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false },
-  { id: 8, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
+  { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false, parentId: null, path: 'Alt' },
+  { id: 8, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
 ]
 const accounts: BankAccount[] = [
   { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },

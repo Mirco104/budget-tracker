@@ -7,11 +7,11 @@ import { BookingDialog } from './BookingDialog'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
-  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
-  { id: 7, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true },
-  { id: 30, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
+  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 7, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false, parentId: null, path: 'Lebensmittel' },
+  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt' },
+  { id: 30, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false, parentId: null, path: 'Kredite' },
 ]
 
 const kino: Transaction = { id: 7, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false }
