@@ -235,10 +235,33 @@ class TransactionControllerTest {
 
     @Test
     void rejectsMoreThanTenYears() throws Exception {
+        postTransaction("""
+                {"amount": -5, "description": "Alt", "date": "2016-01-01", "categoryId": %d}
+                """.formatted(categoryId("Freizeit"))).andExpect(status().isCreated());
+
         mockMvc.perform(get("/api/transactions").param("from", "2016-01-01").param("to", "2026-01-01"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("to"))
                 .andExpect(jsonPath("$.errors[0].message").value("Der Zeitraum darf höchstens 10 Jahre lang sein."));
+    }
+
+    // Ticket #102: nothing lies before the first booking, so the period starts there before the limit is checked
+    @Test
+    void startsAPeriodAtTheFirstBookingBeforeCheckingTheLimit() throws Exception {
+        postTransaction("""
+                {"amount": -5, "description": "Erste", "date": "2025-03-01", "categoryId": %d}
+                """.formatted(categoryId("Freizeit"))).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/transactions").param("from", "2000-01-01").param("to", "2026-11-30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].description", contains("Erste")));
+    }
+
+    @Test
+    void listsNothingForALongPeriodWithoutBookings() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("from", "2000-01-01").param("to", "2026-11-30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 
     @Test
