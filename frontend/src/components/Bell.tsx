@@ -169,7 +169,8 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
 
 /** P10: "Oktober abschließen: 180 € sind übrig geblieben. Wohin damit?" with the saving goals and "Nicht zuordnen". */
 function MonthClosingItem({ month, amount, onError }: { month: string; amount: number; onError: (e: string | null) => void }) {
-  const goals = useSavingGoals().data ?? []
+  const goalsQuery = useSavingGoals()
+  const goals = goalsQuery.data ?? []
   const close = useCloseMonth()
   const [goalId, setGoalId] = useState('')
   const chosen = goalId !== '' ? goalId : goals[0] ? String(goals[0].id) : ''
@@ -202,9 +203,12 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
           </button>
         </div>
       ) : (
-        <p className="hint">
-          Noch kein Sparziel. <a href={ROUTES.accounts}>Sparziel anlegen</a>
-        </p>
+        // Only once the goals are loaded, so it does not flash up while loading
+        goalsQuery.isSuccess && (
+          <p className="hint">
+            Noch kein Sparziel. <a href={ROUTES.accounts}>Sparziel anlegen</a>
+          </p>
+        )
       )}
       <button
         type="button"
