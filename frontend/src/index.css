@@ -1273,26 +1273,6 @@ button.add-category {
   align-items: center;
 }
 
-.category-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: end;
-}
-
-.category-new-name {
-  flex: 1 1 200px;
-}
-
-.category-new .icon-picker {
-  flex-basis: 100%;
-}
-
-.category-new .error {
-  flex-basis: 100%;
-  margin: 0;
-}
-
 .category-list {
   margin: 0;
   padding: 0;
@@ -1698,6 +1678,26 @@ button.budget-toggle {
   display: none;
 }
 
+/* Decision 66: a dialog on top of another one names it and sits lower, so the one below still shows */
+.overlay.stacked {
+  background: rgb(15 20 26 / 0.3);
+}
+.dialog.stacked {
+  margin-top: 48px;
+  max-height: calc(100vh - 96px);
+  max-height: calc(100dvh - 96px);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.dialog-trail {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .booking-form {
   display: grid;
   gap: 14px;
@@ -2039,6 +2039,13 @@ button.tx:hover:not(:disabled) {
     max-height: 92vh;
     max-height: 92dvh;
     border-radius: 20px 20px 0 0;
+  }
+
+  /* The sheet below keeps its top edge visible */
+  .dialog.stacked {
+    margin-top: 0;
+    max-height: calc(92vh - 48px);
+    max-height: calc(92dvh - 48px);
   }
 
   .grabber {
@@ -2605,21 +2612,6 @@ button.tx:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.inline-create {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.inline-create input {
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-
-.inline-create .error {
-  flex-basis: 100%;
 }
 
 .import-category .chip {
@@ -3670,12 +3662,6 @@ button.account-open:hover {
   min-height: 34px;
   padding: 6px 12px;
   font-size: 0.875rem;
-}
-/* The name field of a new saving goal takes its own line below the buttons */
-.bell-actions .inline-create,
-.closing-actions .inline-create {
-  flex-basis: 100%;
-  order: 1;
 }
 .bell-skip {
   justify-self: start;

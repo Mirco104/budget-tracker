@@ -100,8 +100,8 @@ describe('CategorySettings', () => {
     await screen.findByRole('listitem', { name: 'Wohnen' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
-    fireEvent.change(screen.getByLabelText('Neue Kategorie'), { target: { value: ' Haustier ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: ' Haustier ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
     const [url, init] = writeCalls(fetchMock)[0]
@@ -127,8 +127,8 @@ describe('CategorySettings', () => {
 
     expect(screen.queryByRole('group', { name: 'Icon wählen' })).not.toBeInTheDocument()
     expect(iconButton.querySelector('.category-icon')).toHaveAttribute('data-icon', key)
-    fireEvent.change(screen.getByLabelText('Neue Kategorie'), { target: { value: 'Haustier' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Haustier' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
     expect(JSON.parse(String(writeCalls(fetchMock)[0][1]?.body))).toEqual({ name: 'Haustier', icon: key, parentId: null })
@@ -152,7 +152,7 @@ describe('CategorySettings', () => {
     await screen.findByRole('listitem', { name: 'Wohnen' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
 
     expect(screen.getByText('Der Name ist Pflicht.')).toBeInTheDocument()
     expect(writeCalls(fetchMock)).toHaveLength(0)
@@ -262,8 +262,8 @@ describe('CategorySettings', () => {
     expect(within(parent).getAllByRole('option').map((o) => o.textContent)).toEqual(['keine', 'Wohnen', 'Freizeit', 'Urlaub'])
     fireEvent.change(parent, { target: { value: '2' } })
     expect(screen.getByRole('button', { name: 'Icon' }).querySelector('.category-icon')).toHaveAttribute('data-icon', 'music')
-    fireEvent.change(screen.getByLabelText('Neue Kategorie'), { target: { value: 'Kino' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Kino' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
     expect(lastBody(fetchMock)).toEqual({ name: 'Kino', icon: 'music', parentId: 2 })

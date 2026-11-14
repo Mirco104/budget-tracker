@@ -1,195 +1,14 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
+import { useRef, useState } from 'react'
+import { useCategories, useDeleteCategory, useUpdateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
 import { currentMonth } from '../format'
+import { CategoryDialog, IconPicker, ParentSelect } from './CategoryDialog'
 import { CategoryIcon } from './ui/CategoryIcon'
-import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
+import { categoryIconLabel } from './ui/categoryIcons'
 import { Icon } from './ui/Icon'
 import { RowMenu } from './ui/RowMenu'
 import { Loading } from './ui/Loading'
-
-/** The icon a new category starts with, as in the backend (US28). */
-const DEFAULT_ICON = 'tag'
-
-/**
- * R32: "Oberkategorie: keine / …". Only active top-level categories can be a parent, never the category itself; a
- * category with subcategories cannot get one, so the caller does not show the field then.
- */
-function ParentSelect({
-  id,
-  value,
-  onChange,
-  categories,
-  exclude,
-  disabled,
-}: {
-  id: string
-  value: number | null
-  onChange: (parentId: number | null) => void
-  categories: Category[]
-  exclude?: number
-  disabled?: boolean
-}) {
-  const parents = categories.filter(
-    (c) => c.parentId === null && c.id !== exclude && (!c.archived || c.id === value),
-  )
-  return (
-    <select
-      id={id}
-      value={value === null ? '' : String(value)}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-    >
-      <option value="">keine</option>
-      {parents.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
-  )
-}
-
-/**
- * "+ Kategorie" opens a field for the name and the choice of an icon (US10, US28). The category appears at its
- * alphabetical place (decision 38).
- */
-function NewCategory({ categories }: { categories: Category[] }) {
-  const create = useCreateCategory()
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [icon, setIcon] = useState(DEFAULT_ICON)
-  // A subcategory starts with the icon of its parent until the user picks one (US37)
-  const [iconPicked, setIconPicked] = useState(false)
-  const [parentId, setParentId] = useState<number | null>(null)
-  const [picking, setPicking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  function close() {
-    setOpen(false)
-    setName('')
-    setIcon(DEFAULT_ICON)
-    setIconPicked(false)
-    setParentId(null)
-    setPicking(false)
-    setError(null)
-  }
-
-  function chooseParent(next: number | null) {
-    setParentId(next)
-    if (!iconPicked) {
-      setIcon(categories.find((c) => c.id === next)?.icon ?? DEFAULT_ICON)
-    }
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (name.trim() === '') {
-      setError('Der Name ist Pflicht.')
-      return
-    }
-    setError(null)
-    try {
-      await create.mutateAsync({ name: name.trim(), icon, parentId })
-      close()
-    } catch (e) {
-      setError(errorText(e, 'Anlegen fehlgeschlagen.'))
-    }
-  }
-
-  if (!open) {
-    return (
-      <button type="button" className="add-category" onClick={() => setOpen(true)}>
-        <Icon name="plus" size={18} />
-        Kategorie
-      </button>
-    )
-  }
-  return (
-    <form className="category-new" noValidate onSubmit={handleSubmit}>
-      <div className="field">
-        <span id="new-category-icon">Icon</span>
-        <button
-          type="button"
-          className="icon-button category-icon-button"
-          aria-labelledby="new-category-icon"
-          aria-describedby="new-category-icon-name"
-          aria-expanded={picking}
-          onClick={() => setPicking(!picking)}
-        >
-          <CategoryIcon icon={icon} />
-        </button>
-        <span id="new-category-icon-name" hidden>
-          {categoryIconLabel(icon)}
-        </span>
-      </div>
-      <label className="field category-new-name">
-        Neue Kategorie
-        <input
-          // Opened on purpose, so typing can start right away
-          autoFocus
-          value={name}
-          maxLength={50}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && close()}
-          aria-invalid={error ? true : undefined}
-        />
-      </label>
-      <div className="field category-parent">
-        <label htmlFor="new-category-parent">Oberkategorie</label>
-        <ParentSelect id="new-category-parent" value={parentId} onChange={chooseParent} categories={categories} />
-      </div>
-      <div className="dialog-buttons">
-        <button type="button" onClick={close}>
-          Abbrechen
-        </button>
-        <button type="submit" disabled={create.isPending}>
-          Hinzufügen
-        </button>
-      </div>
-      {picking && (
-        <IconPicker
-          icon={icon}
-          onPick={(picked) => {
-            setIcon(picked)
-            setIconPicked(true)
-            setPicking(false)
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
-      {error && <p className="error">{error}</p>}
-    </form>
-  )
-}
-
-/** The fixed list of icons as a grid of buttons (US28); the current one is pressed. Escape closes it. */
-function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (icon: string) => void; onClose: () => void }) {
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      event.stopPropagation()
-      onClose()
-    }
-  }
-
-  return (
-    <div className="icon-picker" role="group" aria-label="Icon wählen" onKeyDown={handleKeyDown}>
-      {CATEGORY_ICON_KEYS.map((key) => (
-        <button
-          key={key}
-          type="button"
-          aria-label={categoryIconLabel(key)}
-          title={categoryIconLabel(key)}
-          aria-pressed={key === icon}
-          onClick={() => onPick(key)}
-        >
-          <CategoryIcon icon={key} />
-        </button>
-      ))}
-    </div>
-  )
-}
 
 type Mode = 'view' | 'rename' | 'icon' | 'parent' | 'confirmDelete'
 
@@ -480,6 +299,20 @@ function ArchivedRow({ category }: { category: Category }) {
   )
 }
 
+/** "+ Kategorie" opens the window "Neue Kategorie" (decision 66), the same as everywhere else. */
+function NewCategoryButton({ categories }: { categories: Category[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="add-category" onClick={() => setOpen(true)}>
+        <Icon name="plus" size={18} />
+        Kategorie
+      </button>
+      {open && <CategoryDialog categories={categories} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
 /**
  * Settings › Kategorien (US10, US28, US37): alphabetical (decision 38), each category followed by its subcategories
  * (R32), per row a menu "⋯".
@@ -509,7 +342,7 @@ export function CategorySettings() {
               Unterkategorien bei ihrer Oberkategorie mit.
             </p>
           </div>
-          <NewCategory categories={categories.data} />
+          <NewCategoryButton categories={categories.data} />
         </div>
         <ul className="category-list">
           {active.map((category) => (

@@ -176,7 +176,8 @@ describe('PlanningPage', () => {
     fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
     fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: 'new' } })
-    expect(within(dialog).getByRole('textbox', { name: 'Neue Kategorie' })).toBeInTheDocument()
+    // Decision 66: the window lies on the item window and says so
+    expect(await screen.findByRole('dialog', { name: 'Neue Kategorie' })).toHaveTextContent('über Neuer Posten')
   })
 
   // #126: the count of past terms does not depend on the name, so typing it sends no request

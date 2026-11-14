@@ -166,7 +166,7 @@ describe('BookingDialog', () => {
     expect(sent(fetchMock, 'POST')?.body).toMatchObject({ accountId: 2 })
   })
 
-  // 08.11.2026: a missing category is created in the dialog and chosen
+  // Decision 66: a missing category is created in the window "Neue Kategorie" above the booking and chosen
   it('creates a new category and books on it', async () => {
     const { fetchMock, onDone } = renderDialog(null, (url) =>
       url.startsWith('/api/categories') ? json({ ...categories[0], id: 40, name: 'Spiele', icon: 'tag' }, 201) : json({}),
@@ -175,14 +175,19 @@ describe('BookingDialog', () => {
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Brettspiel' } })
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
-    const name = screen.getByRole('textbox', { name: 'Neue Kategorie' })
-    fireEvent.change(name, { target: { value: 'Spiele' } })
-    // Enter creates the category and does not save the booking
-    fireEvent.keyDown(name, { key: 'Enter' })
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    // The window says which window it lies on
+    expect(created).toHaveTextContent('über Neue Buchung')
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
+    // Its form does not save the booking below
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('40'))
-    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
-    expect(sent(fetchMock, 'POST')).toEqual({ url: '/api/categories', body: { name: 'Spiele' } })
+    expect(screen.queryByRole('dialog', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(sent(fetchMock, 'POST')).toEqual({
+      url: '/api/categories',
+      body: { name: 'Spiele', icon: 'tag', parentId: null },
+    })
     expect(onDone).not.toHaveBeenCalled()
 
     save()
@@ -192,13 +197,15 @@ describe('BookingDialog', () => {
     expect(JSON.parse(String((posts[1][1] as RequestInit).body))).toMatchObject({ categoryId: 40 })
   })
 
-  it('keeps the dialog open when the name field is cancelled with Escape', async () => {
+  it('closes only the window on top with Escape', async () => {
     const { onClose } = renderDialog()
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { key: 'Escape' })
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    fireEvent.keyDown(within(created).getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
 
-    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Neue Buchung' })).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -217,10 +224,11 @@ describe('BookingDialog', () => {
     fillValid()
 
     fireEvent.change(account, { target: { value: 'new' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Neues Konto' }), { target: { value: 'Tagesgeld' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neues Konto' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Tagesgeld' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Speichern' }))
 
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Neues Konto' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Neues Konto' })).not.toBeInTheDocument())
     save()
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
@@ -232,10 +240,11 @@ describe('BookingDialog', () => {
   it('shows the error of a category name that exists', async () => {
     renderDialog(null, () => json({ status: 409, detail: 'Eine Kategorie „Wohnen“ gibt es schon.' }, 409))
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { target: { value: 'Wohnen' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Wohnen' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
+    expect(await within(created).findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
     expect(screen.getByLabelText('Kategorie')).toHaveValue('')
   })
 
@@ -482,13 +491,18 @@ describe('BookingDialog', () => {
       )
       fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
       fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: 'new' } })
-      const name = screen.getByRole('textbox', { name: 'Neue Unterkategorie von Freizeit' })
-      fireEvent.change(name, { target: { value: 'Theater' } })
-      fireEvent.keyDown(name, { key: 'Enter' })
+      const created = screen.getByRole('dialog', { name: 'Neue Unterkategorie von Freizeit' })
+      // The parent is preset and gives its icon
+      await waitFor(() => expect(within(created).getByLabelText('Oberkategorie')).toHaveValue('6'))
+      fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Theater' } })
+      fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
       await waitFor(() => expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('62'))
       expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
-      expect(sent(fetchMock, 'POST')).toEqual({ url: '/api/categories', body: { name: 'Theater', parentId: 6 } })
+      expect(sent(fetchMock, 'POST')).toEqual({
+        url: '/api/categories',
+        body: { name: 'Theater', icon: 'music', parentId: 6 },
+      })
     })
   })
 })

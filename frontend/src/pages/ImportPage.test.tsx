@@ -575,29 +575,32 @@ describe('ImportPage', () => {
     const [first, second] = row('Spiele Shop')
 
     fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new' } })
-    fireEvent.change(within(first).getByLabelText('Neue Kategorie für Spiele Shop'), { target: { value: 'Spiele' } })
-    fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
+    // Decision 66: the window "Neue Kategorie" names the row
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie für Spiele Shop' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('50'))
     expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
     expect(within(second).getByRole('button', { name: 'Vorschlag: Spiele' })).toBeInTheDocument()
-    expect(within(first).queryByLabelText('Neue Kategorie für Spiele Shop')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Spiele' })
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Spiele', icon: 'tag', parentId: null })
   })
 
-  it('shows why a new category cannot be created and keeps the row open', async () => {
+  it('shows why a new category cannot be created and keeps the window open', async () => {
     renderPage()
     await upload()
     const [first] = row('Spiele Shop')
 
     fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: 'new' } })
-    fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
-    expect(within(first).getByRole('alert')).toHaveTextContent('Der Name ist Pflicht.')
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie für Spiele Shop' })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
+    expect(within(created).getByRole('alert')).toHaveTextContent('Der Name ist Pflicht.')
 
-    fireEvent.change(within(first).getByLabelText('Neue Kategorie für Spiele Shop'), { target: { value: 'Wohnen' } })
-    fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
-    expect(await within(first).findByText(/gibt es schon/)).toBeInTheDocument()
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Wohnen' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
+    expect(await within(created).findByText(/gibt es schon/)).toBeInTheDocument()
     expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
   })
 
@@ -785,27 +788,33 @@ describe('ImportPage', () => {
     expect(within(select).getAllByRole('option').at(-1)).toHaveTextContent('+ Neue Kategorie …')
 
     fireEvent.change(select, { target: { value: 'new' } })
-    fireEvent.change(within(card).getByLabelText('Neue Kategorie für Fixkosten „Spiele Shop“'), { target: { value: 'Spiele' } })
-    fireEvent.click(within(card).getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie für Fixkosten „Spiele Shop“' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(within(card).getByLabelText('Kategorie für Fixkosten „Spiele Shop“')).toHaveValue('50'))
     expect(within(card).getByRole('button', { name: 'Als Fixkosten planen' })).toBeEnabled()
   })
 
-  // 08.11.2026: a new account for a source can get an own name; it is created right away and chosen
+  // 08.11.2026: a new account for a source can get an own name; decision 66: in the window "Neues Konto"
   it('creates an account with an own name for a source and sends it with the import', async () => {
     const fetchMock = renderPage()
     await upload()
     const source = screen.getByLabelText('„Pocket Urlaub“ in der Datei')
 
     fireEvent.change(source, { target: { value: 'new-named' } })
-    const name = screen.getByLabelText('Name des neuen Kontos für Pocket Urlaub')
+    const created = screen.getByRole('dialog', { name: 'Neues Konto' })
+    const name = within(created).getByRole('textbox', { name: 'Name' })
     expect(name).toHaveValue('C24 Pocket Urlaub')
     fireEvent.change(name, { target: { value: 'Urlaubskasse' } })
-    fireEvent.click(within(screen.getByRole('region', { name: 'Datei' })).getByRole('button', { name: 'Anlegen' }))
+    fireEvent.click(within(created).getByRole('button', { name: 'Speichern' }))
 
     await waitFor(() => expect(screen.getByLabelText('„Pocket Urlaub“ in der Datei')).toHaveValue('7'))
-    expect(JSON.parse(String(sent(fetchMock, '/api/bank-accounts')?.body))).toEqual({ name: 'Urlaubskasse' })
+    expect(JSON.parse(String(sent(fetchMock, '/api/bank-accounts')?.body))).toEqual({
+      name: 'Urlaubskasse',
+      iban: null,
+      role: 'EVERYDAY',
+    })
 
     fireEvent.click(screen.getByRole('button', { name: /Alle Vorschläge übernehmen/ }))
     fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
@@ -823,8 +832,9 @@ describe('ImportPage', () => {
     await upload()
 
     fireEvent.change(screen.getByLabelText('„Pocket Urlaub“ in der Datei'), { target: { value: 'new-named' } })
-    fireEvent.change(screen.getByLabelText('Name des neuen Kontos für Pocket Urlaub'), { target: { value: 'Girokonto' } })
-    fireEvent.click(within(screen.getByRole('region', { name: 'Datei' })).getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neues Konto' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Girokonto' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Speichern' }))
 
     expect(await screen.findByText(/Ein Konto mit dem Namen "Girokonto" gibt es schon./)).toBeInTheDocument()
     expect(screen.getByLabelText('„Pocket Urlaub“ in der Datei')).toHaveValue('new')
@@ -1030,12 +1040,13 @@ describe('ImportPage', () => {
 
       fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '8' } })
       fireEvent.change(within(first).getByLabelText('Unterkategorie für Spiele Shop'), { target: { value: 'new' } })
-      fireEvent.change(within(first).getByLabelText('Neue Unterkategorie von Freizeit'), { target: { value: 'Spiele' } })
-      fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
+      const created = screen.getByRole('dialog', { name: 'Neue Unterkategorie von Freizeit' })
+      fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
+      fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
       await waitFor(() => expect(within(first).getByLabelText('Unterkategorie für Spiele Shop')).toHaveValue('50'))
       const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
-      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Spiele', parentId: 8 })
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Spiele', parentId: 8 })
     })
   })
 })
