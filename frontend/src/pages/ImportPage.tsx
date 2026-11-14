@@ -25,7 +25,7 @@ import { CategorySelect } from '../components/CategorySelect'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
-import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
+import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
 
@@ -198,6 +198,7 @@ function PreviewRow({
             </span>
           )}
         </span>
+        <RowDetails entry={entry} />
       </span>
       <span className={entry.amount !== null && entry.amount > 0 ? 'import-amount positive' : 'import-amount'}>
         {entry.amount !== null && formatSigned(entry.amount)}
@@ -225,6 +226,65 @@ function PreviewRow({
   )
 }
 
+/**
+ * Issue #119: what else the bank says about a row, folded away so the list stays short; a field the bank does not
+ * deliver is left out, a row without any has no details.
+ */
+function RowDetails({ entry }: { entry: ImportEntry }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  const details = entry.details
+  const fields: [string, string][] = []
+  if (entry.counterparty) {
+    fields.push(['Gegenseite', entry.counterparty])
+  }
+  if (details?.counterpartyIban) {
+    fields.push(['IBAN', formatIban(details.counterpartyIban)])
+  }
+  if (details?.purpose) {
+    fields.push(['Verwendungszweck', details.purpose])
+  }
+  if (details?.kind) {
+    fields.push(['Art', details.kind])
+  }
+  if (details?.valueDate) {
+    fields.push(['Wertstellung', formatDate(details.valueDate)])
+  }
+  if (details?.mandateId) {
+    fields.push(['Mandatsreferenz', details.mandateId])
+  }
+  if (details?.creditorId) {
+    fields.push(['Gläubiger-ID', details.creditorId])
+  }
+  if (fields.length === 0) {
+    return null
+  }
+  return (
+    <span className="import-details">
+      <button
+        type="button"
+        className="link-button import-details-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={`Details zu ${entry.description ?? 'Buchung'}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? 'Details ausblenden' : 'Details'}
+      </button>
+      {open && (
+        <dl id={id}>
+          {fields.map(([term, value]) => (
+            <div key={term} className="import-details-field">
+              <dt>{term}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </span>
+  )
+}
+
 /** A card shows its rows in the list by setting the kind filter to Wiederkehrend (ticket #84, after the test). */
 function ShowInList({ onClick }: { onClick: () => void }) {
   return (
@@ -235,9 +295,10 @@ function ShowInList({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. "Als Serie
- * anlegen" only notes the series; it is created with the import, and its rows replace its occurrences (code review,
- * 08.11.2026), so "Abbrechen" leaves nothing behind.
+ * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. Issue #119: it
+ * is named like the group of the planning page it ends up in, Fixkosten for an expense and Einkommen for an income, with
+ * the median amount and its range. "Als … planen" only notes the item; it is created with the import, and its rows
+ * fulfil its terms (code review, 08.11.2026), so "Abbrechen" leaves nothing behind.
  */
 function SeriesCard({
   series,
@@ -259,20 +320,24 @@ function SeriesCard({
 }) {
   const [categoryId, setCategoryId] = useState('')
   const suggested = categories.find((c) => c.id === series.categoryId)
-  const plannedName = categories.find((c) => String(c.id) === planned)?.name
+  const income = series.amount > 0
+  const group = income ? 'Einkommen' : 'Fixkosten'
 
-  const label = `Serie „${series.description}“`
+  const label = `${group} „${series.description}“`
   return (
     <section className="card import-series" aria-label={label}>
       <p>
-        Sieht nach einer monatlichen Serie aus: „{series.description}“, {formatSigned(series.amount)} ab{' '}
-        {formatDate(series.startDate)} ({series.lines.length} Buchungen in der Datei).
+        {income ? 'Sieht nach monatlichem Einkommen aus' : 'Sieht nach monatlichen Fixkosten aus'}: „
+        {series.description}“, {formatSigned(series.amount)} ab {formatDate(series.startDate)} (
+        {series.lines.length} Buchungen in der Datei
+        {series.lowest !== series.highest &&
+          `, schwankt zwischen ${formatSigned(series.lowest)} und ${formatSigned(series.highest)}`}
+        ).
       </p>
       {planned !== null ? (
         <div className="import-series-actions">
-          <span className="hint">Wird beim Übernehmen als monatliche Serie angelegt ({plannedName}).</span>
           <button type="button" onClick={onUnplan}>
-            Nicht anlegen
+            Nicht planen
           </button>
         </div>
       ) : (
@@ -292,7 +357,7 @@ function SeriesCard({
             </button>
           )}
           <button type="button" className="primary" disabled={categoryId === ''} onClick={() => onPlan(categoryId)}>
-            Als Serie anlegen
+            Als {group} planen
           </button>
           <button type="button" onClick={onIgnore}>
             Ignorieren
@@ -354,18 +419,20 @@ function MatchCard({
   const category = categories.find((c) => c.id === match.categoryId)
   const dates = match.entries.map((entry) => (entry.replaces as NonNullable<ImportEntry['replaces']>).date).sort()
   const count = match.entries.length
+  // Issue #119: named like the group of the planning page, by the sign of the rows
+  const planned = (match.entries[0].amount ?? 0) > 0 ? 'das geplante Einkommen' : 'die geplanten Fixkosten'
   return (
-    <section className="card import-series" aria-label={`Treffer der Serie „${match.description}“`}>
+    <section className="card import-series" aria-label={`Treffer für „${match.description}“`}>
       <p>
-        {count} Buchungen ersetzen die geplante Serie „{match.description}“{category && ` (${category.name})`} vom{' '}
+        {count} Buchungen erfüllen {planned} „{match.description}“{category && ` (${category.name})`} vom{' '}
         {formatDate(dates[0])} bis {formatDate(dates[dates.length - 1])}.
       </p>
       <div className="import-series-actions">
         {!category ? (
-          <span className="hint">Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.</span>
+          <span className="hint">Die Kategorie des Postens ist archiviert; bitte wähle je Zeile eine.</span>
         ) : open === 0 ? (
           <span className="hint">
-            Alle {count} ersetzen ihr Vorkommen ({category.name}).
+            Alle {count} erfüllen ihren Termin ({category.name}).
           </span>
         ) : (
           <button type="button" className="primary" onClick={onAccept}>

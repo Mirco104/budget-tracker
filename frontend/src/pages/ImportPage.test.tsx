@@ -21,7 +21,7 @@ function entry(values: Partial<ImportEntry>): ImportEntry {
   return {
     line: 2, status: 'NEW', reason: null, fingerprint: 'f'.repeat(64), source: 'C24:Ausgabenkonto', date: '2026-11-04',
     amount: -2.99, description: 'Spiele Shop', counterparty: 'Spiele Shop', bankCategory: null, suggestionKey: 'spiele shop',
-    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null,
+    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null, details: null,
     ...values,
   }
 }
@@ -288,7 +288,7 @@ describe('ImportPage', () => {
   }
 
   function matchCard() {
-    return screen.getByRole('region', { name: 'Treffer der Serie „Miete“' })
+    return screen.getByRole('region', { name: 'Treffer für „Miete“' })
   }
 
   it('takes over every row that replaces an occurrence of the same series', async () => {
@@ -296,7 +296,7 @@ describe('ImportPage', () => {
     await upload({ allKinds: false })
 
     expect(matchCard()).toHaveTextContent(
-      '3 Buchungen ersetzen die geplante Serie „Miete“ (Wohnen) vom 01.01.2026 bis 01.03.2026.',
+      '3 Buchungen erfüllen die geplanten Fixkosten „Miete“ (Wohnen) vom 01.01.2026 bis 01.03.2026.',
     )
     // A series with a single match has no card
     expect(screen.queryByRole('region', { name: /Kino-Abo/ })).not.toBeInTheDocument()
@@ -305,7 +305,7 @@ describe('ImportPage', () => {
 
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
 
-    expect(matchCard()).toHaveTextContent('Alle 3 ersetzen ihr Vorkommen (Wohnen).')
+    expect(matchCard()).toHaveTextContent('Alle 3 erfüllen ihren Termin (Wohnen).')
     expect(within(matchCard()).queryByRole('button', { name: /Alle übernehmen/ })).not.toBeInTheDocument()
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'In der Liste zeigen' }))
     expect(screen.getByLabelText('Art filtern')).toHaveValue('RECURRING')
@@ -367,7 +367,7 @@ describe('ImportPage', () => {
     )
     await upload()
 
-    expect(matchCard()).toHaveTextContent('Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.')
+    expect(matchCard()).toHaveTextContent('Die Kategorie des Postens ist archiviert; bitte wähle je Zeile eine.')
     expect(within(matchCard()).queryByRole('button', { name: /Alle übernehmen/ })).not.toBeInTheDocument()
   })
 
@@ -400,19 +400,20 @@ describe('ImportPage', () => {
   it('notes a suggested series and sends it with the import', async () => {
     const withSeries: ImportPreview = {
       ...preview,
-      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
+      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
     }
     const fetchMock = renderPage(() => json(withSeries))
     await upload({ allKinds: false })
 
-    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
-    expect(card).toHaveTextContent('Sieht nach einer monatlichen Serie aus: „Spiele Shop“, −4,99')
-    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeDisabled()
+    const card = screen.getByRole('region', { name: 'Fixkosten „Spiele Shop“' })
+    expect(card).toHaveTextContent('Sieht nach monatlichen Fixkosten aus: „Spiele Shop“, −4,99 € ab 01.08.2026 (2 Buchungen in der Datei).')
+    expect(within(card).getByRole('button', { name: 'Als Fixkosten planen' })).toBeDisabled()
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
-    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Fixkosten planen' }))
 
     expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
-    expect(card).toHaveTextContent('Wird beim Übernehmen als monatliche Serie angelegt (Freizeit).')
+    // Issue #119: no hint text, only the way back
+    expect(within(card).getByRole('button', { name: 'Nicht planen' })).toBeInTheDocument()
     // Its rows are Wiederkehrend now, so the start filter Einmalig no longer shows them; the card shows them in the list
     expect(screen.queryByRole('listitem', { name: 'Spiele Shop' })).not.toBeInTheDocument()
     // The two series rows and Kino Nord (replaces an occurrence)
@@ -436,21 +437,21 @@ describe('ImportPage', () => {
 
   it('drops a noted series again and creates nothing on Abbrechen', async () => {
     const fetchMock = renderPage(() =>
-      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
+      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
     )
     await upload({ allKinds: false })
-    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    const card = screen.getByRole('region', { name: 'Fixkosten „Spiele Shop“' })
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
-    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Fixkosten planen' }))
 
     expect(screen.queryByRole('listitem', { name: 'Spiele Shop' })).not.toBeInTheDocument()
-    fireEvent.click(within(card).getByRole('button', { name: 'Nicht anlegen' }))
-    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: 'Nicht planen' }))
+    expect(within(card).getByRole('button', { name: 'Als Fixkosten planen' })).toBeInTheDocument()
     // The rows come back with the category of the series
     expect(row('Spiele Shop')).toHaveLength(2)
     expect(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
 
-    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Fixkosten planen' }))
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     expect(sent(fetchMock, '/api/imports')).toBeUndefined()
     expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
@@ -460,7 +461,7 @@ describe('ImportPage', () => {
   it('reads the file again after taking over the finished rows of a noted series', async () => {
     const withSeries: ImportPreview = {
       ...preview,
-      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
+      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }],
     }
     let calls = 0
     const fetchMock = renderPage(() => {
@@ -468,9 +469,9 @@ describe('ImportPage', () => {
       return json(calls === 1 ? withSeries : preview)
     })
     await upload()
-    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
+    const card = screen.getByRole('region', { name: 'Fixkosten „Spiele Shop“' })
     fireEvent.click(within(card).getByRole('button', { name: /Vorschlag: Freizeit/ }))
-    fireEvent.click(within(card).getByRole('button', { name: 'Als Serie anlegen' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Als Fixkosten planen' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Fertige übernehmen (2)' }))
 
@@ -478,18 +479,66 @@ describe('ImportPage', () => {
     const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
     expect(body.series).toHaveLength(1)
     expect(body.rows.map((r: { series?: number }) => r.series)).toEqual([0, 0])
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'Serie „Spiele Shop“' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Fixkosten „Spiele Shop“' })).not.toBeInTheDocument())
+  })
+
+  // Issue #119: an income series is named like its group of the planning page and shows how much the rows vary
+  it('names an income series Einkommen and shows the range of its amounts', async () => {
+    renderPage(() =>
+      json({
+        ...preview,
+        series: [{ lines: [3, 4], startDate: '2026-08-01', amount: 2465, lowest: 2410, highest: 2530, description: 'Firma Beispiel', source: 'C24:Ausgabenkonto', categoryId: null }],
+      }),
+    )
+    await upload()
+
+    const card = screen.getByRole('region', { name: 'Einkommen „Firma Beispiel“' })
+    expect(card).toHaveTextContent(
+      'Sieht nach monatlichem Einkommen aus: „Firma Beispiel“, +2.465,00 € ab 01.08.2026 (2 Buchungen in der Datei, schwankt zwischen +2.410,00 € und +2.530,00 €).',
+    )
+    expect(within(card).getByRole('button', { name: 'Als Einkommen planen' })).toBeDisabled()
+  })
+
+  // Issue #119: the details of a row are folded away; a field the bank does not deliver is left out
+  it('shows the details of a row on request', async () => {
+    renderPage(() =>
+      json({
+        ...preview,
+        entries: [
+          entry({
+            line: 2, fingerprint: 'a'.repeat(64), description: 'Beispiel Verein', counterparty: 'Beispiel Verein e.V.',
+            details: { counterpartyIban: 'GB82WEST12345698765432', purpose: 'Beitrag 11/2026 Mitglied 4711', kind: 'FOLGELASTSCHRIFT', valueDate: '2026-11-05', mandateId: 'M-0001', creditorId: null },
+          }),
+          entry({ line: 3, fingerprint: 'b'.repeat(64), description: 'Ohne Details', counterparty: null, details: null }),
+        ],
+      }),
+    )
+    await upload()
+
+    const club = row('Beispiel Verein')[0]
+    const toggle = within(club).getByRole('button', { name: 'Details zu Beispiel Verein' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(club).queryByText('Mandatsreferenz')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const terms = within(club).getAllByRole('term').map((term) => term.textContent)
+    expect(terms).toEqual(['Gegenseite', 'IBAN', 'Verwendungszweck', 'Art', 'Wertstellung', 'Mandatsreferenz'])
+    expect(within(club).getByText('GB82 WEST 1234 5698 7654 32')).toBeInTheDocument()
+    expect(within(club).getByText('05.11.2026')).toBeInTheDocument()
+    expect(within(row('Ohne Details')[0]).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument()
   })
 
   it('hides an ignored series', async () => {
     renderPage(() =>
-      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: null }] }),
+      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: null }] }),
     )
     await upload()
 
     fireEvent.click(screen.getByRole('button', { name: 'Ignorieren' }))
 
-    expect(screen.queryByRole('region', { name: 'Serie „Spiele Shop“' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Fixkosten „Spiele Shop“' })).not.toBeInTheDocument()
   })
 
   it('offers a new category at the end of the selection', async () => {
@@ -713,20 +762,20 @@ describe('ImportPage', () => {
   it('creates a new category in the card of a series', async () => {
     const withSeries: ImportPreview = {
       ...preview,
-      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: null }],
+      series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: null }],
     }
     renderPage(() => json(withSeries))
     await upload()
-    const card = screen.getByRole('region', { name: 'Serie „Spiele Shop“' })
-    const select = within(card).getByLabelText('Kategorie für Serie „Spiele Shop“')
+    const card = screen.getByRole('region', { name: 'Fixkosten „Spiele Shop“' })
+    const select = within(card).getByLabelText('Kategorie für Fixkosten „Spiele Shop“')
     expect(within(select).getAllByRole('option').at(-1)).toHaveTextContent('+ Neue Kategorie …')
 
     fireEvent.change(select, { target: { value: 'new' } })
-    fireEvent.change(within(card).getByLabelText('Neue Kategorie für Serie „Spiele Shop“'), { target: { value: 'Spiele' } })
+    fireEvent.change(within(card).getByLabelText('Neue Kategorie für Fixkosten „Spiele Shop“'), { target: { value: 'Spiele' } })
     fireEvent.click(within(card).getByRole('button', { name: 'Anlegen' }))
 
-    await waitFor(() => expect(within(card).getByLabelText('Kategorie für Serie „Spiele Shop“')).toHaveValue('50'))
-    expect(within(card).getByRole('button', { name: 'Als Serie anlegen' })).toBeEnabled()
+    await waitFor(() => expect(within(card).getByLabelText('Kategorie für Fixkosten „Spiele Shop“')).toHaveValue('50'))
+    expect(within(card).getByRole('button', { name: 'Als Fixkosten planen' })).toBeEnabled()
   })
 
   // 08.11.2026: a new account for a source can get an own name; it is created right away and chosen

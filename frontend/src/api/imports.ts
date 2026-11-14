@@ -56,13 +56,30 @@ export interface ImportEntry {
     autoEntryId?: number | null
   } | null
   duplicateOf: { id: number; date: string; description: string } | null
+  /** Issue #119: what else the bank says about the row; a field the bank does not deliver is null. */
+  details: ImportDetails | null
 }
 
-/** R31: rows that look like a monthly series that does not exist yet; categoryId is only a suggestion. */
+/** Issue #119: the details of a row; purpose as the bank sends it, kind the kind of booking. */
+export interface ImportDetails {
+  counterpartyIban: string | null
+  purpose: string | null
+  kind: string | null
+  valueDate: string | null
+  mandateId: string | null
+  creditorId: string | null
+}
+
+/**
+ * R31: rows that look like a monthly series that does not exist yet; categoryId is only a suggestion. amount is the
+ * median of the rows, lowest and highest the smallest and the largest amount by size (issue #119).
+ */
 export interface ImportSeries {
   lines: number[]
   startDate: string
   amount: number
+  lowest: number
+  highest: number
   description: string
   source: string
   categoryId: number | null

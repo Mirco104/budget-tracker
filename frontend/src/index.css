@@ -2457,6 +2457,37 @@ button.tx:hover:not(:disabled) {
   font-size: 0.8rem;
 }
 
+/* Issue #119: what else the bank says about a row */
+.link-button.import-details-toggle {
+  align-self: flex-start;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.import-details dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+}
+
+/* dt and dd of a field sit in the grid as if the wrapper were not there */
+.import-details-field {
+  display: contents;
+}
+
+.import-details dt {
+  color: var(--muted);
+}
+
+.import-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* R28: a row replaces a planned occurrence; the tick takes it back */
 .badge.replace {
   gap: 6px;
