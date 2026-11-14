@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rule R30: reading the CSV exports of C24, Trade Republic, N26 and the Sparkasse. The files have the format of the real exports
+ * Rule R30: reading the CSV exports of C24, Trade Republic, N26, the Sparkasse and the VR-Bank. The files have the format of the real exports
  * (header, delimiter, number and date format) with fictional values only: no real account numbers, IBANs or names.
  */
 class BankCsvTest {
@@ -70,6 +70,107 @@ class BankCsvTest {
             "DE89370400440532013000";"05.11.26";"05.11.26";"FOLGELASTSCHRIFT";"Beitrag 11/2026 : Mitglied 4711 ";"DE00ZZZ00000000001";"M-0001";"";"E2E-0001";"";"";"Beispiel Verein e.V.";"GB82WEST12345698765432";"WESTGB2L   ";"-12,00";"EUR";"Umsatz gebucht";"Sport und Hobby"
             "DE89370400440532013000";"31.10.26";"01.11.26";"GUTSCHR. UEBERWEISUNG";"Lohn 10/2026 ";"";"";"";"";"";"";"Firma Beispiel GmbH";"GB29NWBK60161331926819";"NWBKGB2L";"2.500,00";"EUR";"Umsatz gebucht";"Einkünfte"
             """;
+
+    // VR-Bank (decision 64): ";", no quotes, dd.MM.yyyy, signed German amounts, newest first; SEPA tags with ":" at the
+    // end of the purpose, card data after the merchant. All values fictional, the IBANs are ISO 13616 examples.
+    static final String VR_BANK = """
+            Bezeichnung Auftragskonto;IBAN Auftragskonto;BIC Auftragskonto;Bankname Auftragskonto;Buchungstag;Valutadatum;Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;BIC (SWIFT-Code) Zahlungsbeteiligter;Buchungstext;Verwendungszweck;Betrag;Waehrung;Saldo nach Buchung;Bemerkung;Gekennzeichneter Umsatz;Glaeubiger ID;Mandatsreferenz
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;10.11.2026;10.11.2026;Beispiel Payment GmbH;GB82WEST12345698765432;WESTGB2L;Kartenzahlung girocard;Baeckerei Beispiel/Hauptstr. 1/Musterstadt/DE         09.11.2026 um 10:54:09 Uhr 12345678/123456/ECTL/NPIN  12345678/0001234567/1/1230 REF 123456/260024;-4,20;EUR;1395,85;;;DE00ZZZ00000000009;123456
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;06.11.2026;06.11.2026;Beispielbank eG;;;Auszahlung girocard;Beispielbank eG                             GS001 Musterstadt/Musterstadt/DE                      06.11.2026/18:25 girocard  GA 12345678/00001234/00123456/0001234567/1/1230;-90,00;EUR;1400,05;;;;
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;05.11.2026;05.11.2026;Beispiel Medien GmbH;GB29NWBK60161331926819;NWBKGB2L;LASTSCHRIFT;Abo 11/2026 Kunde 4711 EREF: E2E-0001 MREF: M-0001 CRED: DE00ZZZ00000000001 IBAN: GB29NWBK60161331926819 BIC: NWBKGB2L;-11,75;EUR;1490,05;;;DE00ZZZ00000000001;M-0001
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;01.11.2026;01.11.2026;Person B;GB82WEST12345698765432;WESTGB2L;DAUERAUFTRAG;Miete /*DA-1* IBAN: GB82WEST12345698765432 BIC: WESTGB2L;-510,00;EUR;1501,80;;;;
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;30.10.2026;31.10.2026;Firma Beispiel GmbH;GB29NWBK60161331926819;NWBKGB2L;LOHN/GEHALT;Lohn 10/2026 EREF: E2E-0002 ABWA: Firma Beispiel Personal;2500,00;EUR;2011,80;;;;
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;29.10.2026;29.10.2026;Kiosk Beispiel;GB82WEST12345698765432;WESTGB2L;Kartenzahlung girocard;/Musterstadt/DE         28.10.2026 um 08:00:00 Uhr 12345678/123457/ECTL/      12345678/0001234567/1/1230 REF 123457/260024;-2,50;EUR;-488,20;;;;
+            Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;;11.11.2026;Beispiel Payment GmbH;GB82WEST12345698765432;WESTGB2L;Kartenzahlung girocard;Kiosk Beispiel/Musterstadt/DE         11.11.2026 um 09:00:00 Uhr 12345678/123458/ECTL/      12345678/0001234567/1/1230 REF 123458/260024;-3,00;EUR;;;;;
+            """;
+
+    @Test
+    void readsTheVrBankExport() {
+        BankFile file = BankCsv.read(("﻿" + VR_BANK.replace("\n", "\r\n")).getBytes(StandardCharsets.UTF_8));
+
+        assertThat(file.profile()).isEqualTo(BankProfile.VR_BANK);
+        BankTransaction debit = row(file, 4);
+        assertThat(debit.accountName()).isEqualTo("DE89370400440532013000");
+        assertThat(debit.accountIban()).isEqualTo("DE89370400440532013000");
+        assertThat(debit.bookingDate()).isEqualTo(LocalDate.of(2026, 11, 5));
+        assertThat(debit.amount()).isEqualByComparingTo("-11.75");
+        assertThat(debit.currency()).isEqualTo("EUR");
+        assertThat(debit.status()).isEqualTo(Status.BOOKED);
+        assertThat(debit.counterpartyName()).isEqualTo("Beispiel Medien GmbH");
+        assertThat(debit.counterpartyIban()).isEqualTo("GB29NWBK60161331926819");
+        assertThat(debit.counterpartyBic()).isEqualTo("NWBKGB2L");
+        // The purpose ends before the first tag; the end-to-end reference comes from "EREF: ", the rest from the columns
+        assertThat(debit.remittanceInformation()).isEqualTo("Abo 11/2026 Kunde 4711");
+        assertThat(debit.endToEndId()).isEqualTo("E2E-0001");
+        assertThat(debit.mandateId()).isEqualTo("M-0001");
+        assertThat(debit.creditorId()).isEqualTo("DE00ZZZ00000000001");
+        assertThat(debit.bankTransactionCode()).isEqualTo("LASTSCHRIFT");
+        assertThat(debit.bankCategory()).isEqualTo("LASTSCHRIFT");
+        assertThat(debit.entryReference()).isNull();
+
+        // The booking date, not the value date; "ABWA: " ends the end-to-end reference
+        BankTransaction salary = row(file, 6);
+        assertThat(salary.amount()).isEqualByComparingTo("2500.00");
+        assertThat(salary.bookingDate()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(salary.valueDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThat(salary.remittanceInformation()).isEqualTo("Lohn 10/2026");
+        assertThat(salary.endToEndId()).isEqualTo("E2E-0002");
+        assertThat(salary.mandateId()).isNull();
+        assertThat(salary.creditorId()).isNull();
+
+        // The mark of a standing order goes
+        assertThat(row(file, 5).remittanceInformation()).isEqualTo("Miete");
+        assertThat(row(file, 5).endToEndId()).isNull();
+    }
+
+    // Decision 64: the merchant of a card payment is in the purpose; the column often names the payment provider
+    @Test
+    void aVrBankCardPaymentHasTheMerchantAsCounterparty() {
+        BankFile file = BankCsv.read(VR_BANK.getBytes(StandardCharsets.UTF_8));
+
+        BankTransaction card = row(file, 2);
+        assertThat(card.counterpartyName()).isEqualTo("Baeckerei Beispiel");
+        assertThat(card.remittanceInformation()).isEqualTo("Baeckerei Beispiel/Hauptstr. 1/Musterstadt/DE");
+        assertThat(card.amount()).isEqualByComparingTo("-4.20");
+        assertThat(card.counterpartyIban()).isEqualTo("GB82WEST12345698765432");
+        assertThat(card.creditorId()).isEqualTo("DE00ZZZ00000000009");
+
+        // Without a merchant the column stays
+        assertThat(row(file, 7).counterpartyName()).isEqualTo("Kiosk Beispiel");
+        assertThat(row(file, 7).remittanceInformation()).isEqualTo("/Musterstadt/DE");
+
+        // At a cash machine the card data after date and time goes too, the counterparty stays the bank
+        BankTransaction cash = row(file, 3);
+        assertThat(cash.counterpartyName()).isEqualTo("Beispielbank eG");
+        assertThat(cash.remittanceInformation()).startsWith("Beispielbank eG").endsWith("GS001 Musterstadt/Musterstadt/DE");
+        assertThat(cash.counterpartyIban()).isNull();
+    }
+
+    @Test
+    void aVrBankRowWithoutBookingDateIsPending() {
+        BankTransaction pending = row(BankCsv.read(VR_BANK.getBytes(StandardCharsets.UTF_8)), 8);
+
+        assertThat(pending.status()).isEqualTo(Status.PENDING);
+        assertThat(pending.bookingDate()).isNull();
+        assertThat(pending.valueDate()).isEqualTo(LocalDate.of(2026, 11, 11));
+        assertThat(pending.counterpartyName()).isEqualTo("Kiosk Beispiel");
+    }
+
+    @Test
+    void readsTheSepaTagsWithColonOfTheVrBank() {
+        assertThat(BankCsv.colonTags("SecureGo plus IBAN: GB82WEST12345698765432 BIC: WESTGB2L"))
+                .containsEntry("", "SecureGo plus")
+                .containsEntry("IBAN", "GB82WEST12345698765432")
+                .containsEntry("BIC", "WESTGB2L");
+        // The value of a tag runs to the next tag, spaces included
+        assertThat(BankCsv.colonTags("Tanken 04.11 EREF: ELV123 04.11 11.07 ME1 MREF: 99"))
+                .containsEntry("", "Tanken 04.11")
+                .containsEntry("EREF", "ELV123 04.11 11.07 ME1")
+                .containsEntry("MREF", "99");
+        // A tag only counts after whitespace or at the start, with ": "
+        assertThat(BankCsv.colonTags("XIBAN: 1 und EREF:2")).containsOnlyKeys("");
+        assertThat(BankCsv.colonTags("EREF: E2E-1")).containsOnlyKeys("EREF");
+    }
 
     @Test
     void readsTheSparkasseCamtExport() {
