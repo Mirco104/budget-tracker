@@ -42,6 +42,9 @@ class NotificationControllerTest {
     @Autowired
     private Clock clock;
 
+    @Autowired
+    private DismissedNotificationRepository dismissedRepository;
+
     private MockMvc mockMvc;
     private User user;
     private YearMonth current;
@@ -125,6 +128,50 @@ class NotificationControllerTest {
         mockMvc.perform(get("/api/notifications"))
                 .andExpect(jsonPath("$[*].kind", not(hasItem("LOWER_LIMIT"))))
                 .andExpect(jsonPath("$[*].kind", hasItem("OVERPLANNED")));
+
+        // One row per subject: overplanned dismissed, then a higher amount brings it back, a second "Erledigt"
+        // overwrites the row
+        dismiss("overplanned");
+        mockMvc.perform(get("/api/notifications")).andExpect(jsonPath("$[*].kind", not(hasItem("OVERPLANNED"))));
+        item("Strom", "-80", "Wohnen", current.atEndOfMonth(), current.toString());
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(jsonPath("$[?(@.kind == 'OVERPLANNED')].amount").value(980.00));
+        dismiss("overplanned");
+        mockMvc.perform(get("/api/notifications")).andExpect(jsonPath("$[*].kind", not(hasItem("OVERPLANNED"))));
+        org.assertj.core.api.Assertions.assertThat(dismissedRepository.findByOwner(user))
+                .extracting(DismissedNotification::getKey)
+                .containsExactlyInAnyOrder(key, "overplanned");
+
+        // A key that is no notification now is rejected
+        mockMvc.perform(post("/api/notifications/done").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"key\": \"overplanned:anything\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private void dismiss(String key) throws Exception {
+        mockMvc.perform(post("/api/notifications/done").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"key\": \"%s\"}".formatted(key)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void aDismissedPriceChangeGoesWithItsItem() throws Exception {
+        YearMonth start = current.minusMonths(3);
+        long itemId = item("Streaming", "-12.99", "Freizeit", start.atDay(5), start.toString());
+        for (YearMonth month : new YearMonth[] {current.minusMonths(2), current.minusMonths(1)}) {
+            mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
+                            {"amount": -14.99, "description": "Streaming", "date": "%s", "categoryId": %d,
+                             "replaces": {"itemId": %d, "date": "%s"}}""".formatted(month.atDay(5),
+                            category("Freizeit"), itemId, month.atDay(5))))
+                    .andExpect(status().isCreated());
+        }
+        String key = JsonPath.read(mockMvc.perform(get("/api/notifications")).andReturn().getResponse()
+                .getContentAsString(), "$[?(@.kind == 'PRICE_CHANGE')].key").toString().replaceAll("[\\[\\]\"]", "");
+        dismiss(key);
+        org.assertj.core.api.Assertions.assertThat(dismissedRepository.findByOwner(user)).hasSize(1);
+
+        mockMvc.perform(delete("/api/planned-items/{id}", itemId)).andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(dismissedRepository.findByOwner(user)).isEmpty();
     }
 
     @Test
