@@ -310,7 +310,8 @@ public class TermService {
     public void link(UUID itemKey, LocalDate date, Transaction transaction) {
         ItemTerm term = new ItemTerm(currentUser.get(), itemKey, date);
         term.link(transaction);
-        termRepository.save(term);
+        // Flushed right away: a term entered by a parallel request fails here, not at commit (DueEntries)
+        termRepository.saveAndFlush(term);
     }
 
     private PlannedItem termItem(long itemId, LocalDate date, String field) {
