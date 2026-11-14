@@ -1322,6 +1322,22 @@ button.add-category {
   color: var(--muted);
 }
 
+/* US37: category and optional subcategory as one column, the subcategory right below its category */
+.category-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.category-picker.compact {
+  flex: 1 1 14rem;
+}
+
+.category-picker select {
+  max-width: 100%;
+}
+
 /* US37: the optional subcategory below the category field of a dialog */
 .category-sub {
   display: grid;

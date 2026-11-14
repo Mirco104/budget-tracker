@@ -68,8 +68,10 @@ export function CategoryPicker({
     />
   )
 
+  // Compact: both fields form one column, so the subcategory stands right below its category in any row (#120 review)
+  const Wrapper = compact ? 'span' : 'div'
   return (
-    <>
+    <Wrapper className={compact ? 'category-picker compact' : 'category-picker'}>
       <CategorySelect
         labelledBy={labelledBy}
         ariaLabel={ariaLabel}
@@ -94,6 +96,6 @@ export function CategoryPicker({
             {sub}
           </div>
         ))}
-    </>
+    </Wrapper>
   )
 }
