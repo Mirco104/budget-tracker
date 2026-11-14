@@ -67,6 +67,7 @@ public class ImportService {
     private final PlanService planService;
     private final PlannedItemRepository itemRepository;
     private final ItemTermRepository termRepository;
+    private final BankCategoryMappingService mappingService;
     private final CurrentUser currentUser;
     private final Clock clock;
 
@@ -75,7 +76,9 @@ public class ImportService {
             BankAccountService bankAccountService, BankAccountSourceRepository sourceRepository,
             CategoryService categoryService, BookingSuggestionService suggestionService,
             TermService termService, PlanService planService, PlannedItemRepository itemRepository,
-            ItemTermRepository termRepository, CurrentUser currentUser, Clock clock) {
+            ItemTermRepository termRepository, BankCategoryMappingService mappingService, CurrentUser currentUser,
+            Clock clock) {
+        this.mappingService = mappingService;
         this.termService = termService;
         this.planService = planService;
         this.itemRepository = itemRepository;
@@ -190,10 +193,14 @@ public class ImportService {
         Map<Long, Long> autoEntries = new HashMap<>();
         Map<Integer, Planned> matches = occurrenceMatches(fresh, transfers, suggestions, autoEntries);
 
+        // R33: the stored mappings of the bank categories
+        Map<String, Long> mapped = BANK_CATEGORY_PROFILES.contains(profile) ? mappingService.valid(profile) : Map.of();
+
         Map<Integer, Entry> entries = new HashMap<>();
         for (Candidate c : candidates) {
             if (imported.contains(c.fingerprint())) {
-                entries.put(c.line().number(), entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null, null));
+                entries.put(c.line().number(),
+                        entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null, null, null));
                 continue;
             }
             ImportMatcher.Transfer transfer = transfers.get(c.index());
@@ -208,8 +215,18 @@ public class ImportService {
             // P5: a matching term goes before the suggestion, with the category of its item
             Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
+            // R33: the mapped category is set, unless the history is certain about another one (decision 62)
+            Long mappedId = null;
+            String bankCategory = ownBankCategory(profile, c);
+            if (bankCategory != null && transfer == null && match == null && mapped.containsKey(bankCategory)) {
+                Long candidate = mapped.get(bankCategory);
+                Suggestion history = suggestions.get(c.index());
+                if (history == null || !history.certain() || candidate.equals(history.categoryId())) {
+                    mappedId = candidate;
+                }
+            }
             entries.put(c.line().number(), entry(c, status, null, suggestion, transfer,
-                    transferPeer(transfer, candidates, storedById, sources), match, autoEntry, duplicateOf));
+                    transferPeer(transfer, candidates, storedById, sources), match, autoEntry, duplicateOf, mappedId));
         }
         List<Entry> ordered = file.lines().stream()
                 .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason())
@@ -221,7 +238,55 @@ public class ImportService {
         int skipped = (int) ordered.stream().filter(e -> e.status() == Status.SKIPPED).count();
         return new ImportPreviewResponse(profile, profile.label(), ordered.size(), ordered.size() - duplicateCount - skipped,
                 duplicateCount, skipped, List.copyOf(sources.values()), ordered,
-                seriesSuggestions(fresh, transfers, matches, suggestions));
+                seriesSuggestions(fresh, transfers, matches, suggestions),
+                bankCategories(profile, fresh, transfers, mapped));
+    }
+
+    /** R33: only C24 and the Sparkasse deliver a category; the others only the kind of booking. */
+    private static final Set<BankProfile> BANK_CATEGORY_PROFILES = Set.of(BankProfile.C24, BankProfile.SPARKASSE);
+
+    /**
+     * R33: the category of the bank of a row, null if the bank has none; the Sparkasse puts the kind of booking there
+     * when its export has no column Kategorie (R30), which is no category.
+     */
+    private static String ownBankCategory(BankProfile profile, Candidate c) {
+        String bankCategory = c.bankCategory();
+        if (!BANK_CATEGORY_PROFILES.contains(profile) || bankCategory == null || bankCategory.isBlank()
+                || bankCategory.equals(c.line().row().bankTransactionCode())) {
+            return null;
+        }
+        return bankCategory;
+    }
+
+    // R33, US38: the bank categories of the new rows without transfers, alphabetically, with their match
+    private List<ImportPreviewResponse.BankCategory> bankCategories(
+            BankProfile profile, List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers,
+            Map<String, Long> mapped) {
+        Map<String, Integer> rows = new java.util.TreeMap<>(java.text.Collator.getInstance(java.util.Locale.GERMAN));
+        for (Candidate c : fresh) {
+            String bankCategory = ownBankCategory(profile, c);
+            if (bankCategory != null && !transfers.containsKey(c.index())) {
+                rows.merge(bankCategory, 1, Integer::sum);
+            }
+        }
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<BankCategoryMatcher.Own> own = categoryService.findAllOrdered().stream()
+                .filter(category -> !category.isArchived())
+                .map(category -> new BankCategoryMatcher.Own(category.getId(), category.getName(),
+                        category.getParent() == null ? null : category.getParent().getId()))
+                .toList();
+        List<ImportPreviewResponse.BankCategory> result = new ArrayList<>();
+        rows.forEach((bankCategory, count) -> {
+            BankCategoryMatcher.Result match = BankCategoryMatcher.match(bankCategory, own);
+            result.add(new ImportPreviewResponse.BankCategory(bankCategory, match.parent(), match.child(), count,
+                    match.parentMatch().status(), match.parentMatch().categoryId(),
+                    match.childMatch() == null ? null : match.childMatch().status(),
+                    match.childMatch() == null ? null : match.childMatch().categoryId(),
+                    mapped.get(bankCategory)));
+        });
+        return result;
     }
 
     private static Source source(
@@ -350,7 +415,7 @@ public class ImportService {
 
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,
             ImportMatcher.Transfer transfer, ImportPreviewResponse.TransferPeer transferPeer, Planned match,
-            Long autoEntry, DuplicateOf duplicateOf) {
+            Long autoEntry, DuplicateOf duplicateOf, Long mappedCategoryId) {
         BankTransaction row = c.line().row();
         return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.bookingDate(), row.amount(),
                 c.description(), c.counterparty(), c.bankCategory(), CategorySuggester.key(c.text()),
@@ -360,7 +425,7 @@ public class ImportService {
                 match == null ? null
                         : new Replaces(match.itemId(), match.date(), match.description(), match.amount().abs(),
                                 match.categoryId(), autoEntry),
-                duplicateOf, details(row));
+                duplicateOf, details(row), mappedCategoryId);
     }
 
     // Issue #119: the fields of the bank for the details of a row; the purpose with its whitespace joined, at most 500

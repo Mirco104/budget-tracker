@@ -1322,6 +1322,43 @@ button.add-category {
   color: var(--muted);
 }
 
+/* US37: category and optional subcategory as one column, the subcategory right below its category */
+.category-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.category-picker.compact {
+  flex: 1 1 14rem;
+}
+
+.category-picker select {
+  max-width: 100%;
+}
+
+/* US37: the optional subcategory below the category field of a dialog */
+.category-sub {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.category-sub-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* R32: a subcategory stands indented below its parent */
+.category-row.sub {
+  padding-left: 36px;
+}
+
+.category-parent {
+  flex: 1 1 200px;
+}
+
 .rename-form {
   flex: 1;
   min-width: 0;
@@ -2373,6 +2410,54 @@ button.tx:hover:not(:disabled) {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+/* R33, US38: the bank categories of the file with the choice per category */
+.bank-categories details {
+  margin-bottom: 8px;
+}
+
+.bank-category-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bank-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.bank-category-name {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.bank-category select {
+  max-width: 100%;
+}
+
+/* US38: the two category fields of a bank category, one below the other, with small labels */
+.bank-category-fields {
+  display: grid;
+  flex: 1 1 16rem;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bank-category-guess {
+  display: block;
+}
+
+.bank-category-applied {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .import-list {

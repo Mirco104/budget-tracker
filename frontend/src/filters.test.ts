@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { facetCounts, NO_FILTERS, type Filters } from './filters'
+import type { Category } from './api/types'
+import { categoryFits, facetCounts, NO_FILTERS, type Filters } from './filters'
 
 // Fictional entries
 interface Item {
@@ -48,5 +49,25 @@ describe('facetCounts', () => {
     expect(Object.fromEntries(counts.category)).toEqual({ '1': 1, '8': 2 })
     expect(Object.fromEntries(counts.account)).toEqual({ giro: 1, pocket: 1 })
     expect(Object.fromEntries(counts.kind)).toEqual({ SINGLE: 2 })
+  })
+})
+
+// R32: a parent filter also fits the entries of its subcategories
+describe('categoryFits', () => {
+  const categories: Category[] = [
+    { id: 2, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+    { id: 6, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 2, path: 'Freizeit › Kino' },
+  ]
+
+  it('fits the category itself, its subcategories and no filter', () => {
+    expect(categoryFits('2', '2', categories)).toBe(true)
+    expect(categoryFits('6', '2', categories)).toBe(true)
+    expect(categoryFits('6', '', categories)).toBe(true)
+  })
+
+  it('does not fit the parent for a subcategory filter or another category', () => {
+    expect(categoryFits('2', '6', categories)).toBe(false)
+    expect(categoryFits('transfer', '2', categories)).toBe(false)
+    expect(categoryFits('9', '2', categories)).toBe(false)
   })
 })

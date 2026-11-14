@@ -21,10 +21,11 @@ import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { InlineCreate } from '../components/ui/InlineCreate'
-import { CategorySelect } from '../components/CategorySelect'
+import { CategoryPicker } from '../components/CategoryPicker'
+import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
+import { categoryFits, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
@@ -68,7 +69,7 @@ function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: R
   const chosen = entry.suggestionKey ? chosenByKey[entry.suggestionKey] : undefined
   const id = chosen !== undefined ? Number(chosen) : entry.categoryId
   const category = categories.find((c) => c.id === id)
-  return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
+  return category ? { value: String(category.id), name: category.path, icon: category.icon } : null
 }
 
 /**
@@ -101,7 +102,9 @@ function initialChoices(preview: ImportPreview): Record<string, Choice> {
     if (!importable(entry) || entry.fingerprint === null) {
       continue
     }
-    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: '' }
+    // R33: a stored mapping of the bank category sets the category (decision 62); otherwise no row is preset
+    const mapped = entry.mappedCategoryId === null || entry.mappedCategoryId === undefined ? '' : String(entry.mappedCategoryId)
+    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: mapped }
   }
   return choices
 }
@@ -204,8 +207,9 @@ function PreviewRow({
         {entry.amount !== null && formatSigned(entry.amount)}
       </span>
       <span className="import-category">
-        <CategorySelect
+        <CategoryPicker
           ariaLabel={`Kategorie für ${description}`}
+          subAriaLabel={`Unterkategorie für ${description}`}
           value={choice.category}
           disabled={!choice.selected}
           invalid={open}
@@ -342,8 +346,9 @@ function SeriesCard({
         </div>
       ) : (
         <div className="import-series-actions">
-          <CategorySelect
+          <CategoryPicker
             ariaLabel={`Kategorie für ${label}`}
+            subAriaLabel={`Unterkategorie für ${label}`}
             value={categoryId}
             onChange={setCategoryId}
             categories={categories}
@@ -353,7 +358,7 @@ function SeriesCard({
           {suggested && categoryId === '' && (
             <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
-              Vorschlag: {suggested.name}
+              Vorschlag: {suggested.path}
             </button>
           )}
           <button type="button" className="primary" disabled={categoryId === ''} onClick={() => onPlan(categoryId)}>
@@ -583,7 +588,7 @@ function Preview({
   function matchesFilter(entry: ImportEntry, current: Filters): boolean {
     const search = current.query.trim().toLocaleLowerCase('de-DE')
     return (
-      (current.category === '' || categoryKey(entry) === current.category) &&
+      categoryFits(categoryKey(entry), current.category, categories) &&
       (current.account === '' || entry.source === current.account) &&
       (current.kind === '' || kindOfRow(entry) === current.kind) &&
       (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
@@ -672,6 +677,31 @@ function Preview({
   }
 
   // US33: a category chosen for a row becomes the suggestion of the open rows with the same key (R29); a transfer does not
+  /**
+   * R33, US38: a row of the card "Kategorien der Bank" was applied; the open rows of each bank category (and those preset
+   * from its old mapping) get its category, except
+   * transfers, rows that fulfil a term and rows whose certain history names another category (decision 62).
+   */
+  function applyBankCategories(categoryByBankCategory: Record<string, number>) {
+    setChoices((current) => {
+      const next = { ...current }
+      for (const entry of preview.entries) {
+        const id = entry.bankCategory === null ? undefined : categoryByBankCategory[entry.bankCategory]
+        const choice = entry.fingerprint === null ? undefined : next[entry.fingerprint]
+        // A row keeps a category the user chose; one preset from a mapping that changed follows the new mapping
+        const preset = choice?.category === '' || choice?.category === String(entry.mappedCategoryId)
+        if (id === undefined || !choice || !preset || entry.transfer || entry.replaces) {
+          continue
+        }
+        if (entry.certain && entry.categoryId !== null && entry.categoryId !== id) {
+          continue
+        }
+        next[entry.fingerprint as string] = { ...choice, category: String(id) }
+      }
+      return next
+    })
+  }
+
   function change(entry: ImportEntry, next: Choice) {
     setChoices((current) => ({ ...current, [entry.fingerprint as string]: next }))
     // The row stays in sight while it is edited, even when it no longer passes the filters
@@ -869,6 +899,15 @@ function Preview({
         )}
       </section>
 
+      {(preview.bankCategories ?? []).length > 0 && (
+        <BankCategoryCard
+          profile={preview.profile}
+          items={preview.bankCategories}
+          categories={categories}
+          onApplied={applyBankCategories}
+        />
+      )}
+
       {matches.map((match) => (
         <MatchCard
           key={match.recurringId}
@@ -959,7 +998,7 @@ function Preview({
                 <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
-                    {category.name}
+                    {category.path}
                   </option>
                 ))}
               </select>

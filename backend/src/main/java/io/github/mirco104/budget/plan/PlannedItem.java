@@ -135,9 +135,11 @@ public class PlannedItem {
         this.importBatch = batch;
     }
 
+    /** The data for the calculations; a subcategory counts as its parent (R32). */
     public PlanCalculator.ItemData data() {
         return new PlanCalculator.ItemData(
-                id, category == null ? null : category.getId(), amount, saving, rhythmUnit, rhythmCount,
+                id, category == null ? null : category.getCalculationCategory().getId(), amount, saving, rhythmUnit,
+                rhythmCount,
                 getValidFrom(), getValidTo());
     }
 

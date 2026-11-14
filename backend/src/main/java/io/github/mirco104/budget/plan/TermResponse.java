@@ -34,7 +34,7 @@ public record TermResponse(
                 e.term().dueDate(),
                 item.getAmount(),
                 item.getCategory() == null ? null : item.getCategory().getId(),
-                item.getCategory() == null ? null : item.getCategory().getName(),
+                item.getCategory() == null ? null : item.getCategory().getPath(),
                 item.getAccount().getId(),
                 item.getEntryMode(),
                 PlanCalculator.groupOf(item.data()),

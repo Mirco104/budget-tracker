@@ -7,10 +7,10 @@ import { categoryIconLabel } from './ui/categoryIcons'
 
 // Fictional categories, shaped like the backend response.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
-  { id: 2, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
-  { id: 4, name: 'Urlaub', icon: 'suitcase', archived: false, incomeOnly: false },
-  { id: 3, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
+  { id: 2, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 4, name: 'Urlaub', icon: 'suitcase', archived: false, incomeOnly: false, parentId: null, path: 'Urlaub' },
+  { id: 3, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false, parentId: null, path: 'Kredite' },
 ]
 
 function json(body: unknown, status = 200) {
@@ -68,7 +68,7 @@ describe('CategorySettings', () => {
     expect(row('Wohnen').querySelector('[draggable="true"]')).toBeNull()
   })
 
-  it('offers rename, icon, archive and delete in the menu "⋯", no moving', async () => {
+  it('offers rename, icon, parent, archive and delete in the menu "⋯", no moving', async () => {
     renderSettings()
     await screen.findByRole('listitem', { name: 'Wohnen' })
 
@@ -77,6 +77,7 @@ describe('CategorySettings', () => {
     expect(menu.getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Umbenennen',
       'Icon ändern',
+      'Oberkategorie ändern',
       'Archivieren',
       'Löschen',
     ])
@@ -107,7 +108,7 @@ describe('CategorySettings', () => {
     expect(url).toBe('/api/categories')
     expect(init?.method).toBe('POST')
     // Without choosing, the new category gets the default icon (US28)
-    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Haustier', icon: 'tag' })
+    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Haustier', icon: 'tag', parentId: null })
   })
 
   // A new category can get its icon right away (US28)
@@ -130,7 +131,7 @@ describe('CategorySettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
 
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
-    expect(JSON.parse(String(writeCalls(fetchMock)[0][1]?.body))).toEqual({ name: 'Haustier', icon: key })
+    expect(JSON.parse(String(writeCalls(fetchMock)[0][1]?.body))).toEqual({ name: 'Haustier', icon: key, parentId: null })
   })
 
   it('starts again with the default icon after cancelling', async () => {
@@ -171,7 +172,12 @@ describe('CategorySettings', () => {
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
     const [url, init] = writeCalls(fetchMock)[0]
     expect(url).toBe('/api/categories/1')
-    expect(JSON.parse(String(init?.body))).toEqual({ name: 'Miete und Wohnen', archived: false, icon: 'home' })
+    expect(JSON.parse(String(init?.body))).toEqual({
+      name: 'Miete und Wohnen',
+      archived: false,
+      icon: 'home',
+      parentId: null,
+    })
   })
 
   it('cancels renaming with Escape', async () => {
@@ -224,11 +230,11 @@ describe('CategorySettings', () => {
 
     openMenu('Freizeit').getByRole('button', { name: 'Archivieren' }).click()
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
-    expect(lastBody(fetchMock)).toEqual({ name: 'Freizeit', archived: true, icon: 'music' })
+    expect(lastBody(fetchMock)).toEqual({ name: 'Freizeit', archived: true, icon: 'music', parentId: null })
 
     fireEvent.click(within(row('Kredite')).getByRole('button', { name: 'Wiederherstellen' }))
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(2))
-    expect(lastBody(fetchMock)).toEqual({ name: 'Kredite', archived: false, icon: 'card' })
+    expect(lastBody(fetchMock)).toEqual({ name: 'Kredite', archived: false, icon: 'card', parentId: null })
   })
 
   it('deletes only after asking once more', async () => {
@@ -243,6 +249,70 @@ describe('CategorySettings', () => {
     await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
     expect(writeCalls(fetchMock)[0][0]).toBe('/api/categories/4')
     expect(writeCalls(fetchMock)[0][1]?.method).toBe('DELETE')
+  })
+
+  // R32, US37: a subcategory starts with the icon of its parent
+  it('creates a subcategory with the icon of the chosen parent', async () => {
+    const fetchMock = renderSettings(() => json({ ...categories[1], id: 5, name: 'Kino', parentId: 2 }, 201))
+    await screen.findByRole('listitem', { name: 'Wohnen' })
+    fireEvent.click(screen.getByRole('button', { name: 'Kategorie' }))
+
+    const parent = screen.getByLabelText('Oberkategorie')
+    // Only active top-level categories
+    expect(within(parent).getAllByRole('option').map((o) => o.textContent)).toEqual(['keine', 'Wohnen', 'Freizeit', 'Urlaub'])
+    fireEvent.change(parent, { target: { value: '2' } })
+    expect(screen.getByRole('button', { name: 'Icon' }).querySelector('.category-icon')).toHaveAttribute('data-icon', 'music')
+    fireEvent.change(screen.getByLabelText('Neue Kategorie'), { target: { value: 'Kino' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }))
+
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    expect(lastBody(fetchMock)).toEqual({ name: 'Kino', icon: 'music', parentId: 2 })
+  })
+
+  it('shows subcategories indented with their path and keeps the parent when renaming', async () => {
+    const withSub: Category[] = [
+      categories[1],
+      { id: 6, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 2, path: 'Freizeit › Kino' },
+      ...categories.filter((c) => c.id !== 2),
+    ]
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+      init?.method && init.method !== 'GET' ? json(withSub[1]) : json(withSub),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <CategorySettings />
+      </QueryClientProvider>,
+    )
+
+    const sub = await screen.findByRole('listitem', { name: 'Freizeit › Kino' })
+    expect(sub).toHaveClass('sub')
+    // A parent with subcategories cannot get a parent itself
+    expect(openMenu('Freizeit').queryByRole('button', { name: 'Oberkategorie ändern' })).not.toBeInTheDocument()
+
+    fireEvent.click(within(sub).getByRole('button', { name: 'Aktionen für Kino' }))
+    within(screen.getByRole('group', { name: 'Aktionen für Kino' })).getByRole('button', { name: 'Umbenennen' }).click()
+    const input = await screen.findByLabelText('Neuer Name für Kino')
+    fireEvent.change(input, { target: { value: 'Kino und Theater' } })
+    fireEvent.submit(input)
+
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    expect(lastBody(fetchMock)).toEqual({ name: 'Kino und Theater', archived: false, icon: 'music', parentId: 2 })
+  })
+
+  it('moves a category under a parent from the menu', async () => {
+    const fetchMock = renderSettings()
+    await screen.findByRole('listitem', { name: 'Wohnen' })
+
+    openMenu('Urlaub').getByRole('button', { name: 'Oberkategorie ändern' }).click()
+    const parent = await within(row('Urlaub')).findByLabelText('Oberkategorie')
+    // Not the category itself
+    expect(within(parent).queryByRole('option', { name: 'Urlaub' })).not.toBeInTheDocument()
+    fireEvent.change(parent, { target: { value: '2' } })
+
+    await waitFor(() => expect(writeCalls(fetchMock)).toHaveLength(1))
+    expect(writeCalls(fetchMock)[0][0]).toBe('/api/categories/4')
+    expect(lastBody(fetchMock)).toEqual({ name: 'Urlaub', archived: false, icon: 'suitcase', parentId: 2 })
   })
 
   it('shows the conflict when a used category is deleted', async () => {

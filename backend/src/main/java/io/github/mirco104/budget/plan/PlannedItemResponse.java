@@ -7,7 +7,8 @@ import java.util.UUID;
 
 /**
  * One version of a planned item. amount is the real amount per payment with its sign, monthlyShare its monthly share
- * without sign (P2), group follows from the fields (P4). validTo null = open-ended.
+ * without sign (P2), group follows from the fields (P4). validTo null = open-ended. categoryName is the path of the
+ * category, planCategoryId the category the item counts in (its parent for a subcategory, R32).
  */
 public record PlannedItemResponse(
         long id,
@@ -17,6 +18,7 @@ public record PlannedItemResponse(
         boolean saving,
         Long categoryId,
         String categoryName,
+        Long planCategoryId,
         long accountId,
         String accountName,
         RhythmUnit rhythmUnit,
@@ -40,7 +42,8 @@ public record PlannedItemResponse(
                 item.getAmount(),
                 item.isSaving(),
                 item.getCategory() == null ? null : item.getCategory().getId(),
-                item.getCategory() == null ? null : item.getCategory().getName(),
+                item.getCategory() == null ? null : item.getCategory().getPath(),
+                item.getCategory() == null ? null : item.getCategory().getCalculationCategory().getId(),
                 item.getAccount().getId(),
                 item.getAccount().getName(),
                 item.getRhythmUnit(),

@@ -7,10 +7,10 @@ import { PlanningPage } from './PlanningPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
-  { id: 2, name: 'Mobilität', icon: 'car', archived: false, incomeOnly: false },
-  { id: 3, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false },
-  { id: 4, name: 'Gehalt/Lohn (netto)', icon: 'wallet', archived: false, incomeOnly: true },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
+  { id: 2, name: 'Mobilität', icon: 'car', archived: false, incomeOnly: false, parentId: null, path: 'Mobilität' },
+  { id: 3, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false, parentId: null, path: 'Lebensmittel' },
+  { id: 4, name: 'Gehalt/Lohn (netto)', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt/Lohn (netto)' },
 ]
 
 function item(overrides: Partial<PlannedItem>): PlannedItem {
@@ -34,6 +34,8 @@ function item(overrides: Partial<PlannedItem>): PlannedItem {
     group: 'FIXED',
     monthlyShare: 900,
     ...overrides,
+    // R32: without a subcategory an item counts in its own category
+    planCategoryId: overrides.planCategoryId ?? ('categoryId' in overrides ? (overrides.categoryId ?? null) : 1),
   }
 }
 

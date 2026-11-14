@@ -14,7 +14,7 @@ import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.ColumnDefault;
 
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"owner_id", "name"}))
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"owner_id", "parent_id", "name"}))
 public class Category {
 
     @Id
@@ -41,6 +41,11 @@ public class Category {
     @Column(nullable = false, length = 20)
     @ColumnDefault("'tag'")
     private String icon;
+
+    // R32: one level; a parent has no parent itself
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Category parent;
 
     protected Category() {
     }
@@ -82,5 +87,24 @@ public class Category {
 
     public void setArchived(boolean archived) {
         this.archived = archived;
+    }
+
+    /** R32: the parent category, null for a top-level category. */
+    public Category getParent() {
+        return parent;
+    }
+
+    public void moveTo(Category parent) {
+        this.parent = parent;
+    }
+
+    /** R32: every calculation treats a subcategory like its parent (for now, decision 61). */
+    public Category getCalculationCategory() {
+        return parent == null ? this : parent;
+    }
+
+    /** R32: "Parent › Child", for a top-level category its name. */
+    public String getPath() {
+        return parent == null ? name : parent.getName() + " › " + name;
     }
 }

@@ -48,6 +48,8 @@ function category(id: number, name: string, icon: string, plan: number | null = 
     icon,
     archived: false,
     incomeOnly: false,
+    parentId: null,
+    path: name,
   }
 }
 
