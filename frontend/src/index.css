@@ -3664,6 +3664,13 @@ button.account-open:hover {
   align-items: center;
   gap: 12px;
 }
+/* Compact buttons in the card, so two fit next to each other on the phone */
+.bell-actions button,
+.bell-actions .button-link {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
 .bell-skip {
   justify-self: start;
   color: var(--muted);

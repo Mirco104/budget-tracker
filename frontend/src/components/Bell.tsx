@@ -114,7 +114,7 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
   }
 
   const done = (
-    <button type="button" className="link-button" onClick={() => void run(() => dismiss.mutateAsync(n.key))}>
+    <button type="button" onClick={() => void run(() => dismiss.mutateAsync(n.key))}>
       Erledigt
     </button>
   )
@@ -132,7 +132,7 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
             : `${n.accountName} fällt nach den erwarteten Zahlungen voraussichtlich auf ${formatEuro(n.expected)}, unter die Untergrenze von ${formatEuro(n.limit)}.`}
         </p>
         <div className="bell-actions">
-          <a href={ROUTES.accounts} onClick={onNavigate}>
+          <a className="button-link" href={ROUTES.accounts} onClick={onNavigate}>
             Zu den Konten
           </a>
           {done}
@@ -151,7 +151,7 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
         <div className="bell-actions">
           <button
             type="button"
-            className="link-button"
+            className="primary"
             onClick={() => void run(() => acceptPrice.mutateAsync({ itemId: n.itemId ?? 0, amount: n.newAmount ?? 0 }))}
           >
             Übernehmen
@@ -167,7 +167,7 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
           Deine Planung für {formatMonth(n.month ?? '')} ist um {formatEuro(n.amount)} überplant.
         </p>
         <div className="bell-actions">
-          <a href={ROUTES.planning} onClick={onNavigate}>
+          <a className="button-link" href={ROUTES.planning} onClick={onNavigate}>
             Zur Planung
           </a>
           {done}
@@ -227,7 +227,7 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
             ))}
             <option value={NEW_GOAL}>+ Neues Sparziel …</option>
           </select>
-          <button type="button" disabled={close.isPending} onClick={() => void submit(Number(chosen))}>
+          <button type="button" className="primary" disabled={close.isPending} onClick={() => void submit(Number(chosen))}>
             Zuordnen
           </button>
         </div>
