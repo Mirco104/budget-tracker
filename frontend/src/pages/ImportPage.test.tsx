@@ -10,6 +10,7 @@ const categories: Category[] = [
   // Alphabetical, as the backend sends them (decision 38)
   { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false, parentId: null, path: 'Alt' },
   { id: 8, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 81, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 8, path: 'Freizeit › Kino' },
   { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
 ]
 const accounts: BankAccount[] = [
@@ -94,11 +95,19 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
       return json(body.mappings.map((m) => ({ bankCategory: m.bankCategory, categoryId: m.categoryId ?? 50 })))
     }
     if (url === '/api/categories' && init?.method === 'POST') {
-      const { name } = JSON.parse(String(init.body)) as { name: string }
+      const { name, parentId = null } = JSON.parse(String(init.body)) as { name: string; parentId?: number | null }
       if (name.toLowerCase() === 'wohnen') {
         return json({ status: 409, detail: 'Eine Kategorie mit dem Namen "Wohnen" gibt es schon.' }, 409)
       }
-      const created: Category = { ...categories[2], id: 50, name, icon: 'tag' }
+      const parent = currentCategories.find((c) => c.id === parentId)
+      const created: Category = {
+        ...categories[2],
+        id: 50,
+        name,
+        path: parent ? `${parent.name} › ${name}` : name,
+        parentId,
+        icon: 'tag',
+      }
       currentCategories = [...currentCategories, created]
       return json(created, 201)
     }
@@ -947,6 +956,43 @@ describe('ImportPage', () => {
 
       expect(screen.queryByRole('region', { name: 'Kategorien der Bank' })).not.toBeInTheDocument()
       expect(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+    })
+  })
+
+  // US37 (second review, 14.11.2026): the import chooses the category in the same two fields as the booking dialog
+  describe('subcategories in the import', () => {
+    it('offers the subcategories of the chosen category in a row and takes the subcategory', async () => {
+      renderPage()
+      await upload()
+      const [first] = row('Spiele Shop')
+      expect(within(first).queryByLabelText('Unterkategorie für Spiele Shop')).not.toBeInTheDocument()
+
+      fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '8' } })
+      const sub = within(first).getByLabelText('Unterkategorie für Spiele Shop')
+      expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '– keine Unterkategorie –',
+        'Kino',
+        '+ Neue Unterkategorie …',
+      ])
+      fireEvent.change(sub, { target: { value: '81' } })
+
+      expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+      expect(within(first).getByLabelText('Unterkategorie für Spiele Shop')).toHaveValue('81')
+    })
+
+    it('creates a new subcategory below the chosen category from a row', async () => {
+      const fetchMock = renderPage()
+      await upload()
+      const [first] = row('Spiele Shop')
+
+      fireEvent.change(within(first).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '8' } })
+      fireEvent.change(within(first).getByLabelText('Unterkategorie für Spiele Shop'), { target: { value: 'new' } })
+      fireEvent.change(within(first).getByLabelText('Neue Unterkategorie von Freizeit'), { target: { value: 'Spiele' } })
+      fireEvent.click(within(first).getByRole('button', { name: 'Anlegen' }))
+
+      await waitFor(() => expect(within(first).getByLabelText('Unterkategorie für Spiele Shop')).toHaveValue('50'))
+      const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Spiele', parentId: 8 })
     })
   })
 })

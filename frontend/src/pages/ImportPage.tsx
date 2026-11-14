@@ -21,7 +21,7 @@ import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { InlineCreate } from '../components/ui/InlineCreate'
-import { CategorySelect } from '../components/CategorySelect'
+import { CategoryPicker } from '../components/CategoryPicker'
 import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
@@ -69,7 +69,7 @@ function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: R
   const chosen = entry.suggestionKey ? chosenByKey[entry.suggestionKey] : undefined
   const id = chosen !== undefined ? Number(chosen) : entry.categoryId
   const category = categories.find((c) => c.id === id)
-  return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
+  return category ? { value: String(category.id), name: category.path, icon: category.icon } : null
 }
 
 /**
@@ -207,8 +207,9 @@ function PreviewRow({
         {entry.amount !== null && formatSigned(entry.amount)}
       </span>
       <span className="import-category">
-        <CategorySelect
+        <CategoryPicker
           ariaLabel={`Kategorie für ${description}`}
+          subAriaLabel={`Unterkategorie für ${description}`}
           value={choice.category}
           disabled={!choice.selected}
           invalid={open}
@@ -345,8 +346,9 @@ function SeriesCard({
         </div>
       ) : (
         <div className="import-series-actions">
-          <CategorySelect
+          <CategoryPicker
             ariaLabel={`Kategorie für ${label}`}
+            subAriaLabel={`Unterkategorie für ${label}`}
             value={categoryId}
             onChange={setCategoryId}
             categories={categories}
@@ -356,7 +358,7 @@ function SeriesCard({
           {suggested && categoryId === '' && (
             <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
-              Vorschlag: {suggested.name}
+              Vorschlag: {suggested.path}
             </button>
           )}
           <button type="button" className="primary" disabled={categoryId === ''} onClick={() => onPlan(categoryId)}>

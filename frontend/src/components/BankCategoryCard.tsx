@@ -7,7 +7,7 @@ import {
   type ImportProfile,
 } from '../api/imports'
 import type { Category } from '../api/types'
-import { CategorySelect } from './CategorySelect'
+import { CategoryPicker } from './CategoryPicker'
 
 /** What the user chose for one bank category (US38). */
 type Kind = 'suggest' | 'new' | 'own' | 'skip'
@@ -119,8 +119,9 @@ function BankCategoryRow({
         <option value="skip">Nicht übernehmen</option>
       </select>
       {choice.kind === 'own' && (
-        <CategorySelect
+        <CategoryPicker
           ariaLabel={`Eigene Kategorie für ${item.bankCategory}`}
+          subAriaLabel={`Eigene Unterkategorie für ${item.bankCategory}`}
           value={choice.own}
           onChange={(own) => onChange({ ...choice, own })}
           categories={categories}
