@@ -138,7 +138,7 @@ function SignedIn({ me }: { me: Me }) {
                 aria-current={page === tab.page ? 'page' : undefined}
               >
                 <Icon name={tab.icon} />
-                {tab.label}
+                <span className="tab-label">{tab.label}</span>
               </a>
             ))}
           </nav>

@@ -3583,9 +3583,20 @@ button.account-open:hover {
 .bell {
   position: relative;
   margin-left: auto;
+  /* bell and avatar sit 8px apart instead of the header gap */
+  margin-right: -16px;
 }
 .bell + .account-menu {
-  margin-left: 8px;
+  margin-left: 0;
+}
+/* 27h: with the bell the tabs get narrower before they move to the bottom bar */
+@media (max-width: 1100px) {
+  .app-header-inner {
+    gap: 16px;
+  }
+  .tab {
+    padding: 0 8px;
+  }
 }
 .bell-button {
   position: relative;
@@ -3657,4 +3668,24 @@ button.account-open:hover {
   align-items: center;
   gap: 12px;
   padding: 12px 20px 16px;
+}
+/* 27h: between the phone and a wide window the tabs show only their icon, so header, bell and avatar fit */
+@media (min-width: 721px) and (max-width: 1000px) {
+  .tab .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 720px) {
+  .bell-menu {
+    position: fixed;
+    top: calc(var(--header-height) + 4px);
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
 }
