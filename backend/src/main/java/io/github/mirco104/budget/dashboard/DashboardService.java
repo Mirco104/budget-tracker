@@ -105,13 +105,14 @@ public class DashboardService {
         List<TransactionData> entries = new ArrayList<>();
         for (io.github.mirco104.budget.transaction.Transaction t : bookings) {
             if (!excluded.contains(t.getId())) {
-                entries.add(new TransactionData(t.getCategory().getId(), t.getAmount(), t.getDate(),
+                entries.add(new TransactionData(t.getCategory().getCalculationCategory().getId(), t.getAmount(), t.getDate(),
                         fix.contains(t.getId())));
             }
         }
         for (io.github.mirco104.budget.plan.PlannedItem item : rare) {
             ReserveCalculator.Pot pot = ReserveCalculator.pot(
-                    new ReserveCalculator.PotItem(item.getId(), item.getName(), item.getCategory().getId(),
+                    new ReserveCalculator.PotItem(item.getId(), item.getName(),
+                            item.getCategory().getCalculationCategory().getId(),
                             item.getAmount().abs(), item.getRhythmCount(), item.schedule(),
                             firstMonth.get(item.getItemKey())),
                     month, paid.getOrDefault(item.getItemKey(), BigDecimal.ZERO), null);
@@ -203,7 +204,8 @@ public class DashboardService {
 
     private List<CategoryData> categoriesOf(YearMonth month) {
         Map<Long, BigDecimal> plan = planService.calculate(month).planByCategory();
-        return categoryService.findAllOrdered().stream()
+        // R32: a subcategory counts in its parent, so only top-level categories are lines
+        return categoryService.findCalculationCategories().stream()
                 .map(category -> new CategoryData(category.getId(), category.getName(), plan.get(category.getId())))
                 .toList();
     }
@@ -238,7 +240,8 @@ public class DashboardService {
         Set<Long> fix = bookings.isEmpty() ? Set.of() : termService.fixIds(from.atDay(1), to.atEndOfMonth());
         return bookings.stream()
                 .map(transaction -> new TransactionData(
-                        transaction.getCategory().getId(), transaction.getAmount(), transaction.getDate(),
+                        transaction.getCategory().getCalculationCategory().getId(), transaction.getAmount(),
+                        transaction.getDate(),
                         fix.contains(transaction.getId())))
                 .toList();
     }

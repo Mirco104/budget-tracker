@@ -6,8 +6,8 @@ import { TransactionsPage, TransactionsRoute } from './TransactionsPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true },
+  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt' },
 ]
 
 const transactions: Transaction[] = [

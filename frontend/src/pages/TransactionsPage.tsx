@@ -4,14 +4,14 @@ import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import { useReserves } from '../api/reserves'
 import { useTransactionRange, useTransactionsBetween } from '../api/transactions'
-import type { Transaction } from '../api/types'
+import type { Category, Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { BookingList } from '../components/BookingList'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
-import { DIRECTIONS, facetCounts, NO_FILTERS, type Filters } from '../filters'
+import { categoryFits, DIRECTIONS, facetCounts, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
@@ -42,11 +42,11 @@ function categoryOf(entry: Transaction): string {
   return entry.transfer ? TRANSFER_CATEGORY : String(entry.categoryId)
 }
 
-/** US26: whether an entry passes the filters (description, category, account, kind). */
-function matchesFilters(entry: Transaction, filters: Filters): boolean {
+/** US26: whether an entry passes the filters (description, category with its subcategories R32, account, kind). */
+function matchesFilters(entry: Transaction, filters: Filters, categories: Category[]): boolean {
   const search = filters.query.trim().toLocaleLowerCase('de-DE')
   return (
-    (filters.category === '' || categoryOf(entry) === filters.category) &&
+    categoryFits(categoryOf(entry), filters.category, categories) &&
     (filters.account === '' || String(entry.accountId) === filters.account) &&
     (filters.kind === '' || kindOf(entry) === filters.kind) &&
     (filters.direction === '' || directionOf(entry) === filters.direction) &&
@@ -109,9 +109,11 @@ export function TransactionsPage({
   }
 
   const loaded = transactions.data ?? []
-  const shown = loaded.filter((entry) => matchesFilters(entry, filters))
+  const categoryList = categories.data ?? []
+  const matches = (entry: Transaction, current: Filters) => matchesFilters(entry, current, categoryList)
+  const shown = loaded.filter((entry) => matches(entry, filters))
   // Ticket #84: the hits of each filter option with the other filters
-  const counts = facetCounts(loaded, filters, matchesFilters, FACET_KEYS)
+  const counts = facetCounts(loaded, filters, matches, FACET_KEYS)
   const sums = totals(shown)
   // The active filters behind the button "Filter"; the search is always shown
   const hidden = [filters.category, filters.kind, filters.account, filters.direction].filter((v) => v !== '').length

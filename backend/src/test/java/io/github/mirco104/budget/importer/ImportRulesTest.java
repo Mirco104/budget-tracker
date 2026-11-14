@@ -112,6 +112,45 @@ class ImportRulesTest {
         assertThat(ImportRules.accountName(BankProfile.SPARKASSE, "")).isEqualTo("Sparkasse");
     }
 
+    // Decision 64: the purpose is not part of a VR-Bank fingerprint either
+    @Test
+    void aVrBankFingerprintLeavesOutThePurpose() {
+        BankTransaction row = row(BankCsv.read(BankCsvTest.VR_BANK.getBytes(StandardCharsets.UTF_8)), 4);
+        BankTransaction otherPurpose = new BankTransaction(row.accountName(), row.accountIban(), row.bookingDate(),
+                row.valueDate(), row.amount(), row.currency(), row.status(), row.counterpartyName(),
+                row.counterpartyIban(), row.counterpartyBic(), "Abo  11/2026", row.endToEndId(), row.mandateId(),
+                row.creditorId(), row.bankTransactionCode(), row.entryReference(), row.bankCategory());
+
+        assertThat(ImportRules.sameRowKey(BankProfile.VR_BANK, otherPurpose))
+                .isEqualTo(ImportRules.sameRowKey(BankProfile.VR_BANK, row));
+        assertThat(ImportRules.fingerprint(BankProfile.VR_BANK, otherPurpose, 1))
+                .isEqualTo(ImportRules.fingerprint(BankProfile.VR_BANK, row, 1))
+                .isNotEqualTo(ImportRules.fingerprint(BankProfile.SPARKASSE, row, 1));
+    }
+
+    @Test
+    void describesVrBankRowsWithoutCardData() {
+        BankCsv.BankFile file = BankCsv.read(BankCsvTest.VR_BANK.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(describe(row(file, 2))).isEqualTo("Baeckerei Beispiel");
+        assertThat(describe(row(file, 3))).isEqualTo("Beispielbank eG");
+        assertThat(describe(row(file, 4))).isEqualTo("Beispiel Medien GmbH · Abo 11/2026 Kunde 4711");
+        assertThat(describe(row(file, 5))).isEqualTo("Person B · Miete");
+    }
+
+    @Test
+    void namesAVrBankAccountByTheEndOfItsIban() {
+        assertThat(ImportRules.sourceKey(BankProfile.VR_BANK, "DE89370400440532013000"))
+                .isEqualTo("VR_BANK:DE89370400440532013000");
+        assertThat(ImportRules.accountName(BankProfile.VR_BANK, "DE89370400440532013000")).isEqualTo("VR-Bank …3000");
+        assertThat(ImportRules.accountName(BankProfile.VR_BANK, "")).isEqualTo("VR-Bank");
+    }
+
+    private static String describe(BankTransaction row) {
+        return ImportRules.describe(row.counterpartyName(), ImportRules.cleanPurpose(row.remittanceInformation()),
+                row.bankTransactionCode());
+    }
+
     private static BankTransaction row(BankCsv.BankFile file, int number) {
         return file.lines().stream().filter(l -> l.number() == number).findFirst().orElseThrow().row();
     }

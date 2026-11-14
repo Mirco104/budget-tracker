@@ -129,12 +129,13 @@ public class AccountService {
                 .map(a -> new BankAccountExport(a.getName(), a.getIban(), a.isDefaultAccount(), a.isArchived()))
                 .toList();
         List<CategoryExport> categories = categoryRepository.findAllByOwner(user).stream()
-                .sorted(CategoryOrder.ALPHABETICAL)
-                .map(category -> new CategoryExport(category.getName(), category.isArchived()))
+                .sorted(CategoryOrder.TREE)
+                .map(category -> new CategoryExport(category.getName(),
+                        category.getParent() == null ? null : category.getParent().getName(), category.isArchived()))
                 .toList();
         List<TransactionExport> transactions = transactionRepository.findByOwnerOrderByDateAscIdAsc(user).stream()
                 .map(t -> new TransactionExport(t.getDate(), t.getAmount(), t.getDescription(),
-                        t.getCategory() == null ? null : t.getCategory().getName(), t.getAccount().getName(),
+                        t.getCategory() == null ? null : t.getCategory().getPath(), t.getAccount().getName(),
                         t.isTransfer(), t.isAuto(), t.getCounterparty(), t.getBankCategory()))
                 .toList();
         Map<java.util.UUID, List<TermExport>> terms = termRepository.findByOwner(user).stream()
@@ -144,7 +145,7 @@ public class AccountService {
                         Collectors.toList())));
         List<PlannedItemExport> items = itemRepository.findAllOf(user).stream()
                 .map(i -> new PlannedItemExport(i.getItemKey(), i.getName(), i.getAmount(), i.isSaving(),
-                        i.getCategory() == null ? null : i.getCategory().getName(), i.getAccount().getName(),
+                        i.getCategory() == null ? null : i.getCategory().getPath(), i.getAccount().getName(),
                         i.getRhythmUnit(), i.getRhythmCount(), i.getAnchorDate(), i.getEntryMode(), i.isWorkdaysOnly(),
                         i.getValidFrom(), i.getValidTo(), terms.getOrDefault(i.getItemKey(), List.of())))
                 .toList();

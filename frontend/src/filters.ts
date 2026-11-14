@@ -1,3 +1,5 @@
+import type { Category } from './api/types'
+
 /** The values of the shared filter bar of Transaktionen and the import (US26, US33); '' means no filter. */
 export interface Filters {
   query: string
@@ -50,6 +52,18 @@ export function facetCounts<T>(
     kind: count('kind'),
     direction: count('direction'),
   }
+}
+
+/**
+ * R32: whether the category filter value fits the category value of an entry; a parent also fits the entries of its
+ * subcategories.
+ */
+export function categoryFits(entryValue: string, filterValue: string, categories: Category[]): boolean {
+  if (filterValue === '' || entryValue === filterValue) {
+    return true
+  }
+  const parentId = categories.find((c) => String(c.id) === entryValue)?.parentId
+  return parentId !== null && parentId !== undefined && String(parentId) === filterValue
 }
 
 /** 27f4: Einnahmen and Ausgaben are a filter of their own on Transaktionen, not a kind (decision 60). */

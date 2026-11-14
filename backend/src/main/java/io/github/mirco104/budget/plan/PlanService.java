@@ -72,7 +72,8 @@ public class PlanService {
         List<PlanResponse.CategoryTotal> categories = new ArrayList<>();
         Map<Long, Category> categoryById = new java.util.HashMap<>();
         items.stream().filter(i -> i.getCategory() != null)
-                .forEach(i -> categoryById.put(i.getCategory().getId(), i.getCategory()));
+                .map(i -> i.getCategory().getCalculationCategory())
+                .forEach(category -> categoryById.put(category.getId(), category));
         for (Group group : List.of(Group.INCOME, Group.FIXED, Group.BUDGET)) {
             PlanCalculator.categoryTotals(data, month, group).forEach((id, total) -> categories.add(
                     new PlanResponse.CategoryTotal(group, id, categoryById.get(id).getName(), total)));

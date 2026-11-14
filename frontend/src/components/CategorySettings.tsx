@@ -13,14 +13,56 @@ import { Loading } from './ui/Loading'
 const DEFAULT_ICON = 'tag'
 
 /**
+ * R32: "Oberkategorie: keine / …". Only active top-level categories can be a parent, never the category itself; a
+ * category with subcategories cannot get one, so the caller does not show the field then.
+ */
+function ParentSelect({
+  id,
+  value,
+  onChange,
+  categories,
+  exclude,
+  disabled,
+}: {
+  id: string
+  value: number | null
+  onChange: (parentId: number | null) => void
+  categories: Category[]
+  exclude?: number
+  disabled?: boolean
+}) {
+  const parents = categories.filter(
+    (c) => c.parentId === null && c.id !== exclude && (!c.archived || c.id === value),
+  )
+  return (
+    <select
+      id={id}
+      value={value === null ? '' : String(value)}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+    >
+      <option value="">keine</option>
+      {parents.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/**
  * "+ Kategorie" opens a field for the name and the choice of an icon (US10, US28). The category appears at its
  * alphabetical place (decision 38).
  */
-function NewCategory() {
+function NewCategory({ categories }: { categories: Category[] }) {
   const create = useCreateCategory()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState(DEFAULT_ICON)
+  // A subcategory starts with the icon of its parent until the user picks one (US37)
+  const [iconPicked, setIconPicked] = useState(false)
+  const [parentId, setParentId] = useState<number | null>(null)
   const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,8 +70,17 @@ function NewCategory() {
     setOpen(false)
     setName('')
     setIcon(DEFAULT_ICON)
+    setIconPicked(false)
+    setParentId(null)
     setPicking(false)
     setError(null)
+  }
+
+  function chooseParent(next: number | null) {
+    setParentId(next)
+    if (!iconPicked) {
+      setIcon(categories.find((c) => c.id === next)?.icon ?? DEFAULT_ICON)
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -40,7 +91,7 @@ function NewCategory() {
     }
     setError(null)
     try {
-      await create.mutateAsync({ name: name.trim(), icon })
+      await create.mutateAsync({ name: name.trim(), icon, parentId })
       close()
     } catch (e) {
       setError(errorText(e, 'Anlegen fehlgeschlagen.'))
@@ -85,6 +136,10 @@ function NewCategory() {
           aria-invalid={error ? true : undefined}
         />
       </label>
+      <div className="field category-parent">
+        <label htmlFor="new-category-parent">Oberkategorie</label>
+        <ParentSelect id="new-category-parent" value={parentId} onChange={chooseParent} categories={categories} />
+      </div>
       <div className="dialog-buttons">
         <button type="button" onClick={close}>
           Abbrechen
@@ -98,6 +153,7 @@ function NewCategory() {
           icon={icon}
           onPick={(picked) => {
             setIcon(picked)
+            setIconPicked(true)
             setPicking(false)
           }}
           onClose={() => setPicking(false)}
@@ -135,10 +191,13 @@ function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (icon: st
   )
 }
 
-type Mode = 'view' | 'rename' | 'icon' | 'confirmDelete'
+type Mode = 'view' | 'rename' | 'icon' | 'parent' | 'confirmDelete'
 
-/** One active category: icon, name and the menu "⋯" (US10, US28). */
-function CategoryRow({ category }: { category: Category }) {
+/**
+ * One active category: icon, name and the menu "⋯" (US10, US28). A subcategory stands indented below its parent, and
+ * "Oberkategorie ändern" moves it (R32).
+ */
+function CategoryRow({ category, categories }: { category: Category; categories: Category[] }) {
   const update = useUpdateCategory()
   const remove = useDeleteCategory()
   const [mode, setMode] = useState<Mode>('view')
@@ -147,6 +206,7 @@ function CategoryRow({ category }: { category: Category }) {
   const [error, setError] = useState<string | null>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const busy = update.isPending || remove.isPending
+  const hasChildren = categories.some((c) => c.parentId === category.id)
 
   async function send(changes: Partial<CategoryUpdate>): Promise<boolean> {
     setError(null)
@@ -157,6 +217,7 @@ function CategoryRow({ category }: { category: Category }) {
           name: category.name,
           archived: category.archived,
           icon: category.icon,
+          parentId: category.parentId,
           ...changes,
         },
       })
@@ -212,7 +273,7 @@ function CategoryRow({ category }: { category: Category }) {
   }
 
   return (
-    <li className="category-row" aria-label={category.name}>
+    <li className={category.parentId === null ? 'category-row' : 'category-row sub'} aria-label={category.path}>
       <div className="category-line">
         <button
           type="button"
@@ -277,6 +338,11 @@ function CategoryRow({ category }: { category: Category }) {
               <button type="button" className="menu-item" onClick={() => choose(() => setMode('icon'))}>
                 Icon ändern
               </button>
+              {!hasChildren && (
+                <button type="button" className="menu-item" onClick={() => choose(() => setMode('parent'))}>
+                  Oberkategorie ändern
+                </button>
+              )}
               <button type="button" className="menu-item" onClick={() => choose(() => void send({ archived: true }))}>
                 Archivieren
               </button>
@@ -303,6 +369,26 @@ function CategoryRow({ category }: { category: Category }) {
           }}
           onClose={() => setMode('view')}
         />
+      )}
+      {mode === 'parent' && (
+        <div className="dialog-actions confirm" role="group" aria-label={`Oberkategorie für ${category.name}`}>
+          <label htmlFor={`parent-${category.id}`}>Oberkategorie</label>
+          <ParentSelect
+            id={`parent-${category.id}`}
+            value={category.parentId}
+            exclude={category.id}
+            categories={categories}
+            disabled={busy}
+            onChange={(parentId) => {
+              void send({ parentId }).then((saved) => saved && setMode('view'))
+            }}
+          />
+          <div className="dialog-buttons">
+            <button type="button" onClick={() => setMode('view')} disabled={busy}>
+              Fertig
+            </button>
+          </div>
+        </div>
       )}
       {mode === 'confirmDelete' && (
         <div className="dialog-actions confirm" role="group" aria-label="Löschen bestätigen">
@@ -339,7 +425,7 @@ function ArchivedRow({ category }: { category: Category }) {
     try {
       await update.mutateAsync({
         id: category.id,
-        input: { name: category.name, archived: false, icon: category.icon },
+        input: { name: category.name, archived: false, icon: category.icon, parentId: category.parentId },
       })
     } catch (e) {
       setError(errorText(e, 'Speichern fehlgeschlagen.'))
@@ -357,10 +443,10 @@ function ArchivedRow({ category }: { category: Category }) {
   }
 
   return (
-    <li className="category-row archived" aria-label={category.name}>
+    <li className="category-row archived" aria-label={category.path}>
       <div className="category-line">
         <CategoryIcon icon={category.icon} />
-        <span className="category-name">{category.name}</span>
+        <span className="category-name">{category.path}</span>
         {!confirming && (
           <>
             <button type="button" disabled={busy} onClick={() => void restore()}>
@@ -394,7 +480,10 @@ function ArchivedRow({ category }: { category: Category }) {
   )
 }
 
-/** Settings › Kategorien (US10, US28): alphabetical (decision 38), per row a menu "⋯". */
+/**
+ * Settings › Kategorien (US10, US28, US37): alphabetical (decision 38), each category followed by its subcategories
+ * (R32), per row a menu "⋯".
+ */
 export function CategorySettings() {
   const categories = useCategories(currentMonth())
 
@@ -415,15 +504,16 @@ export function CategorySettings() {
           <div>
             <h2 id="categories-title">Kategorien</h2>
             <p className="hint">
-              Kategorien stehen überall alphabetisch. Umbenennen, Icon ändern, Archivieren und Löschen findest du im
-              Menü „⋯“.
+              Kategorien stehen überall alphabetisch, Unterkategorien direkt unter ihrer Oberkategorie. Umbenennen, Icon
+              ändern, Oberkategorie ändern, Archivieren und Löschen findest du im Menü „⋯“. Übersicht und Planung zählen
+              Unterkategorien bei ihrer Oberkategorie mit.
             </p>
           </div>
-          <NewCategory />
+          <NewCategory categories={categories.data} />
         </div>
         <ul className="category-list">
           {active.map((category) => (
-            <CategoryRow key={`${category.id}-${category.name}`} category={category} />
+            <CategoryRow key={`${category.id}-${category.name}`} category={category} categories={categories.data} />
           ))}
         </ul>
       </section>

@@ -42,6 +42,14 @@ public final class BankCsv {
             .toFormatter(Locale.ROOT);
     // SEPA tags in the purpose of CSV-MT940 ("EREF+…MREF+…CRED+…SVWZ+…")
     private static final Pattern SEPA_TAG = Pattern.compile("(EREF|KREF|MREF|CRED|DEBT|SVWZ|ABWA|ABWE|IBAN|BIC|COAM|OAMT)\\+");
+    // VR-Bank (decision 64): SEPA tags with ": " after the purpose ("… EREF: … MREF: … IBAN: … BIC: …")
+    private static final Pattern COLON_TAG = Pattern.compile("(?<!\\S)(EREF|KREF|MREF|CRED|DEBT|SVWZ|ABWA|ABWE|IBAN|BIC): ");
+    // VR-Bank: the card data from date and time on, of a card payment ("09.11.2026 um 10:54:09 Uhr …") or at a cash
+    // machine ("06.11.2026/18:25 girocard …")
+    private static final Pattern CARD_DATA = Pattern.compile(
+            "\\s+\\d{2}\\.\\d{2}\\.\\d{4}(?: um \\d{2}:\\d{2}:\\d{2} Uhr|/\\d{2}:\\d{2})(?:\\s.*)?$");
+    // VR-Bank: the mark of a standing order ("Miete /*DA-1*")
+    private static final Pattern STANDING_ORDER = Pattern.compile("\\s*/\\*DA-\\d+\\*");
 
     /**
      * A record after the header: its line in the file and either the normalized booking (decision 46) or why it could
@@ -56,8 +64,8 @@ public final class BankCsv {
     /** The file has no header of a known profile among its first records. */
     public static class UnknownFormatException extends RuntimeException {
         UnknownFormatException() {
-            super("Das Format der Datei ist unbekannt. Unterstützt werden CSV-Exporte von C24, Trade Republic, N26 und der "
-                    + "Sparkasse.");
+            super("Das Format der Datei ist unbekannt. Unterstützt werden CSV-Exporte von C24, Trade Republic, N26, der "
+                    + "Sparkasse und der VR-Bank.");
         }
     }
 
@@ -197,6 +205,7 @@ public final class BankCsv {
             case TRADE_REPUBLIC -> tradeRepublic(values);
             case N26 -> n26(values);
             case SPARKASSE -> sparkasse(values);
+            case VR_BANK -> vrBank(values);
         };
     }
 
@@ -304,6 +313,61 @@ public final class BankCsv {
             return Status.BOOKED;
         }
         throw new SkipException("Status unbekannt: " + info);
+    }
+
+    /**
+     * VR-Bank (decision 64): dd.MM.yyyy, signed German amounts, the IBAN of the account as source. The purpose ends
+     * before the first SEPA tag with ":" and loses card data and the mark of a standing order; a card payment has the
+     * merchant before the first "/" of the purpose as counterparty, because the column often names the payment provider.
+     */
+    private static BankTransaction vrBank(Map<String, String> v) {
+        String dateText = get(v, "Buchungstag");
+        LocalDate date = dateText == null ? null : date(dateText, GERMAN_DATE);
+        String valueText = get(v, "Valutadatum");
+        LocalDate valueDate = valueText == null ? null : date(valueText, GERMAN_DATE);
+        BigDecimal amount = amount(get(v, "Betrag"), true);
+        String kind = get(v, "Buchungstext");
+        Map<String, String> tags = colonTags(get(v, "Verwendungszweck"));
+        String purpose = tags.get("");
+        if (purpose != null) {
+            purpose = STANDING_ORDER.matcher(CARD_DATA.matcher(purpose).replaceFirst("")).replaceAll("").trim();
+        }
+        String counterparty = get(v, "Name Zahlungsbeteiligter");
+        if (purpose != null && kind != null && kind.toLowerCase(Locale.ROOT).startsWith("kartenzahlung")) {
+            String merchant = purpose.split("/", 2)[0].trim();
+            counterparty = merchant.isEmpty() ? counterparty : merchant;
+        }
+        String account = orEmpty(get(v, "IBAN Auftragskonto")).replaceAll("\\s", "");
+        String currency = get(v, "Waehrung");
+        return new BankTransaction(
+                account, account.isEmpty() ? null : account,
+                date, valueDate, amount, currency != null ? currency.toUpperCase(Locale.ROOT) : "EUR",
+                date == null ? Status.PENDING : Status.BOOKED,
+                counterparty, get(v, "IBAN Zahlungsbeteiligter"), get(v, "BIC (SWIFT-Code) Zahlungsbeteiligter"),
+                purpose == null || purpose.isEmpty() ? null : purpose,
+                tags.get("EREF"), get(v, "Mandatsreferenz"), get(v, "Glaeubiger ID"),
+                kind, null, kind);
+    }
+
+    /**
+     * VR-Bank: the SEPA tags with ": " in a purpose, each with the text up to the next tag, and under "" the text before
+     * the first one; a tag only counts after whitespace or at the start. Blank values are left out.
+     */
+    static Map<String, String> colonTags(String purpose) {
+        if (purpose == null) {
+            return Map.of();
+        }
+        Map<String, String> tags = new HashMap<>();
+        Matcher matcher = COLON_TAG.matcher(purpose);
+        String tag = "";
+        int start = 0;
+        while (matcher.find()) {
+            putTag(tags, tag, purpose.substring(start, matcher.start()));
+            tag = matcher.group(1);
+            start = matcher.end();
+        }
+        putTag(tags, tag, purpose.substring(start));
+        return tags;
     }
 
     /**

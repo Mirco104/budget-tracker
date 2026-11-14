@@ -25,7 +25,8 @@ public record AccountExport(
     public record BankAccountExport(String name, String iban, boolean defaultAccount, boolean archived) {
     }
 
-    public record CategoryExport(String name, boolean archived) {
+    /** R32: parent is the name of the parent category, null for a top-level category. */
+    public record CategoryExport(String name, String parent, boolean archived) {
     }
 
     public record TransactionExport(

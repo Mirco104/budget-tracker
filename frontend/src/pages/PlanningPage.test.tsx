@@ -7,10 +7,10 @@ import { PlanningPage } from './PlanningPage'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
-  { id: 2, name: 'Mobilität', icon: 'car', archived: false, incomeOnly: false },
-  { id: 3, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false },
-  { id: 4, name: 'Gehalt/Lohn (netto)', icon: 'wallet', archived: false, incomeOnly: true },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
+  { id: 2, name: 'Mobilität', icon: 'car', archived: false, incomeOnly: false, parentId: null, path: 'Mobilität' },
+  { id: 3, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false, parentId: null, path: 'Lebensmittel' },
+  { id: 4, name: 'Gehalt/Lohn (netto)', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt/Lohn (netto)' },
 ]
 
 function item(overrides: Partial<PlannedItem>): PlannedItem {
@@ -34,6 +34,8 @@ function item(overrides: Partial<PlannedItem>): PlannedItem {
     group: 'FIXED',
     monthlyShare: 900,
     ...overrides,
+    // R32: without a subcategory an item counts in its own category
+    planCategoryId: overrides.planCategoryId ?? ('categoryId' in overrides ? (overrides.categoryId ?? null) : 1),
   }
 }
 
@@ -166,6 +168,23 @@ describe('PlanningPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
     fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: 'new' } })
     expect(within(dialog).getByRole('textbox', { name: 'Neue Kategorie' })).toBeInTheDocument()
+  })
+
+  // #126: the count of past terms does not depend on the name, so typing it sends no request
+  it('asks for the past terms once and not again while the name is typed', async () => {
+    const fetchMock = renderPage()
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    const pastTermCalls = () => fetchMock.mock.calls.filter(([url]) => url === '/api/planned-items/past-terms').length
+    await waitFor(() => expect(pastTermCalls()).toBe(1))
+
+    for (const value of ['M', 'Mi', 'Mie', 'Miet', 'Miete']) {
+      fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value } })
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(pastTermCalls()).toBe(1)
   })
 
   it('creates a yearly item with its due month and the month "Gilt ab"', async () => {
