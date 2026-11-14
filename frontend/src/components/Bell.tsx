@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useSavingGoals } from '../api/goals'
 import {
   useAcceptPriceChange,
@@ -10,11 +11,15 @@ import {
 import { errorText } from '../api/client'
 import { formatEuro, formatMonth } from '../format'
 import { ROUTES } from '../router'
+import { SavingGoalDialog } from './SavingGoalDialog'
 import { Icon } from './ui/Icon'
+
+const NEW_GOAL = 'new'
 
 /**
  * 27h (decision 65): the bell with a counter. It lists the month closing (P10), an account below its lower limit
- * (P12), a price change (P13) and an overplanned month; each can be marked "Erledigt", the month closing is answered.
+ * (P12), a price change (P13) and an overplanned month, each as a card with a heading; each can be marked "Erledigt",
+ * the month closing is answered.
  */
 export function Bell() {
   const notifications = useNotifications().data ?? []
@@ -26,12 +31,14 @@ export function Bell() {
       return
     }
     function handlePointer(event: MouseEvent) {
-      if (root.current && !root.current.contains(event.target as Node)) {
+      const target = event.target as Element
+      // A dialog opened from the bell (new saving goal) lies outside it but keeps the bell open
+      if (root.current && !root.current.contains(target) && !target.closest?.('.overlay')) {
         setOpen(false)
       }
     }
     function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !document.querySelector('.overlay')) {
         setOpen(false)
       }
     }
@@ -77,6 +84,19 @@ export function Bell() {
       )}
     </div>
   )
+}
+
+function titleOf(n: AppNotification): string {
+  switch (n.kind) {
+    case 'MONTH_CLOSING':
+      return `Monatsabschluss ${formatMonth(n.month ?? '')}`
+    case 'LOWER_LIMIT':
+      return `Untergrenze: ${n.accountName ?? ''}`
+    case 'PRICE_CHANGE':
+      return 'Preisänderung'
+    default:
+      return 'Planung überplant'
+  }
 }
 
 function NotificationItem({ notification: n, onNavigate }: { notification: AppNotification; onNavigate: () => void }) {
@@ -155,24 +175,30 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
       </>
     )
   }
+  const warn = n.kind === 'LOWER_LIMIT' || n.kind === 'OVERPLANNED'
   return (
-    <div className="bell-item">
+    <article className={warn ? 'bell-item warn' : 'bell-item'} aria-label={titleOf(n)}>
+      <h3 className="bell-title">{titleOf(n)}</h3>
       {body}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-    </div>
+    </article>
   )
 }
 
-/** P10: "Oktober abschließen: 180 € sind übrig geblieben. Wohin damit?" with the saving goals and "Nicht zuordnen". */
+/**
+ * P10: "180 € sind übrig geblieben. Soll es auf ein Sparziel gerechnet werden?" with the saving goals, a new saving
+ * goal right here, and "Nicht zuordnen".
+ */
 function MonthClosingItem({ month, amount, onError }: { month: string; amount: number; onError: (e: string | null) => void }) {
   const goalsQuery = useSavingGoals()
   const goals = goalsQuery.data ?? []
   const close = useCloseMonth()
   const [goalId, setGoalId] = useState('')
+  const [creating, setCreating] = useState(false)
   const chosen = goalId !== '' ? goalId : goals[0] ? String(goals[0].id) : ''
 
   async function submit(savingGoalId: number | null) {
@@ -186,17 +212,20 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
 
   return (
     <>
-      <p>
-        {formatMonth(month)} abschließen: {formatEuro(amount)} sind übrig geblieben. Wohin damit?
-      </p>
+      <p>{formatEuro(amount)} sind übrig geblieben. Soll es auf ein Sparziel gerechnet werden?</p>
       {goals.length > 0 ? (
         <div className="bell-actions">
-          <select aria-label="Sparziel" value={chosen} onChange={(e) => setGoalId(e.target.value)}>
+          <select
+            aria-label="Sparziel"
+            value={chosen}
+            onChange={(e) => (e.target.value === NEW_GOAL ? setCreating(true) : setGoalId(e.target.value))}
+          >
             {goals.map((goal) => (
               <option key={goal.id} value={goal.id}>
                 {goal.name}
               </option>
             ))}
+            <option value={NEW_GOAL}>+ Neues Sparziel …</option>
           </select>
           <button type="button" disabled={close.isPending} onClick={() => void submit(Number(chosen))}>
             Zuordnen
@@ -206,7 +235,10 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
         // Only once the goals are loaded, so it does not flash up while loading
         goalsQuery.isSuccess && (
           <p className="hint">
-            Noch kein Sparziel. <a href={ROUTES.accounts}>Sparziel anlegen</a>
+            Noch kein Sparziel.{' '}
+            <button type="button" className="link-button" onClick={() => setCreating(true)}>
+              Sparziel erstellen
+            </button>
           </p>
         )
       )}
@@ -218,6 +250,16 @@ function MonthClosingItem({ month, amount, onError }: { month: string; amount: n
       >
         Nicht zuordnen (das Geld bleibt unverplant auf dem Konto)
       </button>
+      {creating &&
+        // In the body, so the dialog lies above the header and the bottom bar
+        createPortal(
+          <SavingGoalDialog
+            goal={null}
+            onCreated={(goal) => setGoalId(String(goal.id))}
+            onClose={() => setCreating(false)}
+          />,
+          document.body,
+        )}
     </>
   )
 }

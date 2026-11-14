@@ -22,7 +22,9 @@ function renderWith(ui: React.ReactNode, items: AppNotification[] = notification
     const body = init?.method
       ? url.startsWith('/api/month-closings')
         ? { month: '2026-10', leftover: 180, closed: true, savingGoalId: 4, savingGoalName: 'Urlaub', accounts: [] }
-        : null
+        : url === '/api/saving-goals'
+          ? { id: 5, name: 'Auto', targetAmount: null, targetDate: null, saved: 0, monthly: 0 }
+          : null
       : url === '/api/notifications'
         ? items
         : url === '/api/saving-goals'
@@ -57,7 +59,12 @@ describe('Bell', () => {
     const bell = await screen.findByRole('button', { name: 'Benachrichtigungen (4)' })
     fireEvent.click(bell)
     const panel = screen.getByRole('region', { name: 'Benachrichtigungen' })
-    expect(panel).toHaveTextContent('Oktober 2026 abschließen: 180,00 € sind übrig geblieben. Wohin damit?')
+    // Each notification is a card with its heading
+    expect(within(panel).getByRole('heading', { name: 'Monatsabschluss Oktober 2026' })).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'Untergrenze: Girokonto' })).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'Preisänderung' })).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'Planung überplant' })).toBeInTheDocument()
+    expect(panel).toHaveTextContent('180,00 € sind übrig geblieben. Soll es auf ein Sparziel gerechnet werden?')
     expect(panel).toHaveTextContent(
       'Girokonto fällt nach den erwarteten Zahlungen voraussichtlich auf -120,00 €, unter die Untergrenze von 0,00 €.',
     )
@@ -77,6 +84,22 @@ describe('Bell', () => {
     await waitFor(() =>
       expect(fetchMock.mock.calls.filter(([u]) => u === '/api/month-closings/2026-10').length).toBe(2),
     )
+  })
+
+  it('creates a saving goal from the month closing and assigns the leftover to it', async () => {
+    const fetchMock = renderWith(<Bell />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Benachrichtigungen (4)' }))
+    const panel = screen.getByRole('region', { name: 'Benachrichtigungen' })
+    await within(panel).findByRole('option', { name: 'Urlaub' })
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Sparziel' }), { target: { value: 'new' } })
+    const dialog = screen.getByRole('dialog', { name: 'Neues Sparziel' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name' }), { target: { value: 'Auto' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(sent(fetchMock, '/api/saving-goals')).toEqual({ name: 'Auto', targetAmount: null, targetDate: null })
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Zuordnen' }))
+    await waitFor(() => expect(sent(fetchMock, '/api/month-closings/2026-10')).toEqual({ savingGoalId: 5 }))
   })
 
   it('marks a notification as done and takes over a price change', async () => {
