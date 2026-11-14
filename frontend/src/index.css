@@ -2163,9 +2163,12 @@ button.tx:hover:not(:disabled) {
 }
 
 .history-category-name {
-  display: inline-flex;
+  display: flex;
   gap: 8px;
   align-items: center;
+  /* #117: a long name like "Einnahmen Selbstständigkeit" wraps instead of widening the table on a phone */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .history-category-name .category-icon {
@@ -2623,11 +2626,13 @@ button.tx:hover:not(:disabled) {
   }
 }
 
-/* iPhone (#85): iOS gives date fields a minimum width of their own that ignores width: 100%, so in a narrow dialog the
-   field gets wider than the dialog and the dialog scrolls sideways. Without the system look the field fits. Only on
-   iOS (the feature query matches Safari on iOS only), so the calendar button of desktop browsers stays. */
+/* iPhone (#85, #117): iOS gives date and month fields a minimum width of their own that ignores width: 100%, so in a
+   narrow dialog the field gets wider than the dialog and the dialog scrolls sideways. Without the system look the field
+   fits. Only on iOS (the feature query matches Safari on iOS only), so the calendar button of desktop browsers stays.
+   #117: the month fields ("Gilt ab" of an item, the period of Auswertung) were missing. */
 @supports (-webkit-touch-callout: none) {
-  input[type='date'] {
+  input[type='date'],
+  input[type='month'] {
     -webkit-appearance: none;
     appearance: none;
     min-width: 0;
@@ -2635,8 +2640,14 @@ button.tx:hover:not(:disabled) {
     text-align: left;
   }
 
-  input[type='date']::-webkit-date-and-time-value {
+  input[type='date']::-webkit-date-and-time-value,
+  input[type='month']::-webkit-date-and-time-value {
     text-align: left;
+  }
+
+  /* The month of the navigation stays centered between its arrows */
+  .month-nav .month-input::-webkit-date-and-time-value {
+    text-align: center;
   }
 }
 
