@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.plan;
 
 import io.github.mirco104.budget.category.Category;
+import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.importer.SeriesDetector;
 import io.github.mirco104.budget.notification.DismissedNotification;
 import io.github.mirco104.budget.notification.DismissedNotificationRepository;
@@ -27,13 +28,16 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 27i (decision 65): suggestions on the page Planung from the bookings of the last 12 months. The monthly series of
  * R31 among the bookings that fulfil no term yet become suggested items when they still run (a booking in the current
- * or the previous month), unless an item with the same name is valid now or the user hid the suggestion ("Ausblenden", stored like a dismissed notification).
+ * or the previous month), unless an item with the same name is valid now or the user hid the suggestion
+ * ("Ausblenden", one row per series in the dismissed notifications). The row of a hidden series goes once the series
+ * had no booking for 12 months.
  */
 @Service
 public class PlanSuggestionService {
 
     static final int MONTHS = 12;
-    static final String KEY_PREFIX = "suggestion:";
+    public static final String KEY_PREFIX = "suggestion:";
+    private static final String HIDDEN = "hidden";
 
     private final TransactionRepository transactionRepository;
     private final TermService termService;
@@ -63,13 +67,52 @@ public class PlanSuggestionService {
             LocalDate anchorDate, int months, PlanCalculator.Group group) {
     }
 
-    @Transactional(readOnly = true)
+    /** The suggestions; on the way it deletes the rows of hidden series without a booking in the last 12 months. */
+    @Transactional
     public List<PlanSuggestion> suggestions() {
+        List<Transaction> counted = counted();
+        Set<String> booked = counted.stream().map(PlanSuggestionService::keyOf).collect(Collectors.toSet());
+        Set<String> hidden = new java.util.HashSet<>();
+        for (DismissedNotification row : dismissedRepository.findByOwner(currentUser.get())) {
+            if (!row.getKey().startsWith(KEY_PREFIX)) {
+                continue;
+            }
+            if (booked.contains(row.getKey())) {
+                hidden.add(row.getKey());
+            } else {
+                dismissedRepository.delete(row);
+            }
+        }
+        return detect(counted).stream().filter(s -> !hidden.contains(s.key())).toList();
+    }
+
+    /** "Ausblenden": the suggestion with this key does not come back while its series has bookings. */
+    @Transactional
+    public void hide(String key) {
+        if (detect(counted()).stream().noneMatch(s -> s.key().equals(key))) {
+            throw new InvalidFieldException("key", "Diesen Vorschlag gibt es nicht.");
+        }
+        if (dismissedRepository.findByOwnerAndKey(currentUser.get(), key).isEmpty()) {
+            dismissedRepository.save(new DismissedNotification(currentUser.get(), key, HIDDEN));
+        }
+    }
+
+    // The bookings of the last 12 months that count, with a category and not saving
+    private List<Transaction> counted() {
+        LocalDate today = LocalDate.now(clock);
+        LocalDate from = YearMonth.from(today).minusMonths(MONTHS).atDay(1);
+        return transactionRepository.findCountedBetween(currentUser.get(), from, today).stream()
+                .filter(t -> t.getCategory() != null && !t.isSaving())
+                .toList();
+    }
+
+    // The series among the bookings that fulfil no term, still run and have no item of the same name valid now
+    private List<PlanSuggestion> detect(List<Transaction> counted) {
         LocalDate today = LocalDate.now(clock);
         LocalDate from = YearMonth.from(today).minusMonths(MONTHS).atDay(1);
         Set<Long> fulfilling = termService.fixIds(from, today);
-        List<Transaction> bookings = transactionRepository.findCountedBetween(currentUser.get(), from, today).stream()
-                .filter(t -> !fulfilling.contains(t.getId()) && t.getCategory() != null && !t.isSaving())
+        List<Transaction> bookings = counted.stream()
+                .filter(t -> !fulfilling.contains(t.getId()))
                 .sorted(Comparator.comparing(Transaction::getDate))
                 .toList();
         List<SeriesDetector.Row> rows = new ArrayList<>();
@@ -78,9 +121,6 @@ public class PlanSuggestionService {
             rows.add(new SeriesDetector.Row(i, t.getDate(), t.getAmount(), CategorySuggester.key(textOf(t)),
                     t.getDescription()));
         }
-        Set<String> dismissed = dismissedRepository.findByOwner(currentUser.get()).stream()
-                .map(DismissedNotification::getKey)
-                .collect(Collectors.toSet());
         Set<String> itemNames = planService.findAll().stream()
                 .filter(item -> PlanCalculator.validIn(item.data(), YearMonth.from(today)))
                 .map(item -> item.getName().trim().toLowerCase(Locale.GERMAN))
@@ -90,19 +130,22 @@ public class PlanSuggestionService {
             List<Transaction> of = series.indices().stream().map(bookings::get).toList();
             Transaction latest = of.getLast();
             // Only a series that still runs: its latest booking lies in the current or the previous month
-            if (latest.getDate().isBefore(YearMonth.from(today).minusMonths(1).atDay(1))) {
-                continue;
-            }
-            String key = KEY_PREFIX + CategorySuggester.key(textOf(latest)) + "|" + series.amount().signum();
-            if (dismissed.contains(key) || itemNames.contains(series.description().trim().toLowerCase(Locale.GERMAN))) {
+            if (latest.getDate().isBefore(YearMonth.from(today).minusMonths(1).atDay(1))
+                    || itemNames.contains(series.description().trim().toLowerCase(Locale.GERMAN))) {
                 continue;
             }
             Category category = mostFrequent(of);
-            result.add(new PlanSuggestion(key, series.description(), series.amount().setScale(2, RoundingMode.HALF_UP),
-                    category.getId(), category.getPath(), latest.getAccount().getId(), latest.getDate(),
-                    of.size(), series.amount().signum() > 0 ? PlanCalculator.Group.INCOME : PlanCalculator.Group.FIXED));
+            result.add(new PlanSuggestion(keyOf(latest), series.description(),
+                    series.amount().setScale(2, RoundingMode.HALF_UP), category.getId(), category.getPath(),
+                    latest.getAccount().getId(), latest.getDate(), of.size(),
+                    series.amount().signum() > 0 ? PlanCalculator.Group.INCOME : PlanCalculator.Group.FIXED));
         }
         return result;
+    }
+
+    // The key of the series a booking belongs to: R29 key of its text and its sign
+    private static String keyOf(Transaction t) {
+        return KEY_PREFIX + CategorySuggester.key(textOf(t)) + "|" + t.getAmount().signum();
     }
 
     // R29: the text of a booking is the counterparty when it is known, else the description

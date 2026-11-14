@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.plan;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +14,7 @@ import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserService;
 import java.time.Clock;
 import java.time.YearMonth;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +40,9 @@ class PlanSuggestionControllerTest {
 
     @Autowired
     private Clock clock;
+
+    @Autowired
+    private io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedRepository;
 
     private MockMvc mockMvc;
     private User user;
@@ -73,6 +78,23 @@ class PlanSuggestionControllerTest {
                         .content("{\"key\": \"%s\"}".formatted(key)))
                 .andExpect(status().isNoContent());
         mockMvc.perform(get("/api/plan/suggestions")).andExpect(jsonPath("$", hasSize(0)));
+        org.assertj.core.api.Assertions.assertThat(dismissedRepository.findByOwner(user)).hasSize(1);
+
+        // Without bookings of the series in the last 12 months its row goes
+        for (int i = 3; i >= 1; i--) {
+            for (Number id : JsonPath.<List<Number>>read(mockMvc.perform(get("/api/transactions").param("month",
+                            current.minusMonths(i).toString())).andReturn().getResponse().getContentAsString(),
+                    "$[?(@.description == 'Streaming Abo')].id")) {
+                mockMvc.perform(delete("/api/transactions/{id}", id.longValue())).andExpect(status().isNoContent());
+            }
+        }
+        mockMvc.perform(get("/api/plan/suggestions")).andExpect(jsonPath("$", hasSize(0)));
+        org.assertj.core.api.Assertions.assertThat(dismissedRepository.findByOwner(user)).isEmpty();
+
+        // A key that is no suggestion now is rejected
+        mockMvc.perform(post("/api/notifications/done").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"key\": \"suggestion:nothing|-1\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

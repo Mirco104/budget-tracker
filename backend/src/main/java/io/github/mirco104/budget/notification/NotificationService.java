@@ -11,6 +11,7 @@ import io.github.mirco104.budget.dashboard.DashboardService;
 import io.github.mirco104.budget.plan.Fulfillment;
 import io.github.mirco104.budget.plan.PlanCalculator;
 import io.github.mirco104.budget.plan.PlanService;
+import io.github.mirco104.budget.plan.PlanSuggestionService;
 import io.github.mirco104.budget.plan.PlannedItem;
 import io.github.mirco104.budget.plan.PlannedItemRequest;
 import io.github.mirco104.budget.plan.PriceChange;
@@ -59,12 +60,15 @@ public class NotificationService {
     private final TransactionRepository transactionRepository;
     private final CurrentUser currentUser;
     private final Clock clock;
+    private final PlanSuggestionService suggestionService;
 
     public NotificationService(
             DismissedNotificationRepository dismissedRepository, MonthClosingService closingService,
             DashboardService dashboardService, BankAccountService bankAccountService,
             AccountOverviewService accountOverviewService, TermService termService, PlanService planService,
-            TransactionRepository transactionRepository, CurrentUser currentUser, Clock clock) {
+            TransactionRepository transactionRepository, CurrentUser currentUser, Clock clock,
+            PlanSuggestionService suggestionService) {
+        this.suggestionService = suggestionService;
         this.dismissedRepository = dismissedRepository;
         this.closingService = closingService;
         this.dashboardService = dashboardService;
@@ -111,6 +115,11 @@ public class NotificationService {
     /** "Erledigt": the notification does not come back while its value stays the same. */
     @Transactional
     public void dismiss(String key) {
+        // 27i: "Ausblenden" of a suggestion on Planung
+        if (key != null && key.startsWith(PlanSuggestionService.KEY_PREFIX)) {
+            suggestionService.hide(key);
+            return;
+        }
         Entry entry = entries().stream()
                 .filter(e -> e.notification().kind() != Kind.MONTH_CLOSING && e.notification().key().equals(key))
                 .findFirst()
