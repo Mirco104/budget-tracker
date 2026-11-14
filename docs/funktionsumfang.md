@@ -69,7 +69,7 @@ Die App hat vier Bereiche: **Übersicht**, **Transaktionen**, **Planung** und **
 ## 6. Bankkonten und Import von Kontoauszügen
 
 - **Bankkonten** (Einstellungen › Bankkonten): mehrere Konten mit Namen und optional IBAN anlegen, eines als Standardkonto festlegen, archivieren oder löschen. Jede Buchung gehört zu einem Konto.
-- **CSV-Import** (Transaktionen › Importieren) für **C24, Trade Republic, N26 und Sparkasse**. Die App erkennt die Bank selbst.
+- **CSV-Import** (Transaktionen › Importieren) für **C24, Trade Republic, N26, Sparkasse und VR-Bank** (Volks- und Raiffeisenbanken). Die App erkennt die Bank selbst. Bei Kartenzahlungen der VR-Bank steht der Händler als Gegenseite, nicht der Zahlungsdienstleister.
 - **Vorschau vor dem Übernehmen:**
   - Konten der Datei den eigenen Bankkonten zuordnen oder neu anlegen.
   - Je Zeile Datum, Beschreibung, Betrag, Kategorie und Hinweise. Nichts ist vorausgewählt; Vorschläge stehen als Knopf daneben. „Alle Vorschläge übernehmen" setzt sie alle auf einmal.
