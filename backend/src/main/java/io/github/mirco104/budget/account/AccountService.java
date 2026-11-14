@@ -55,6 +55,10 @@ public class AccountService {
     private final ImportBatchRepository importBatchRepository;
     private final Clock clock;
 
+    // 27h: the month closings and the dismissed notifications of the bell
+    private final io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository;
+    private final io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedNotificationRepository;
+
     public AccountService(
             CurrentUser currentUser, UserRepository userRepository, PasswordEncoder passwordEncoder,
             CategoryRepository categoryRepository,
@@ -64,7 +68,10 @@ public class AccountService {
             InvitationRepository invitationRepository,
             BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
             ImportBatchRepository importBatchRepository, PasswordResetRepository passwordResetRepository,
-            Clock clock) {
+            Clock clock, io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository,
+            io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedNotificationRepository) {
+        this.closedMonthRepository = closedMonthRepository;
+        this.dismissedNotificationRepository = dismissedNotificationRepository;
         this.passwordResetRepository = passwordResetRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.sourceRepository = sourceRepository;
@@ -165,6 +172,8 @@ public class AccountService {
         if (user.getRole() == Role.SYSTEM_ADMIN) {
             throw new ConflictException("Der Systemadmin kann sein Konto nicht löschen.");
         }
+        dismissedNotificationRepository.deleteByOwner(user);
+        closedMonthRepository.deleteByOwner(user);
         termRepository.deleteByOwner(user);
         itemRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);

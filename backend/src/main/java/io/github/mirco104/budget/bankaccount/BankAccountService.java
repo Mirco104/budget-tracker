@@ -53,6 +53,10 @@ public class BankAccountService {
         BankAccount account = create(request.name(), request.iban());
         if (request.role() != null) {
             account.setRole(request.role());
+            // P12: a savings or depot account starts without a lower limit, an everyday one with 0 €
+            if (request.role() != AccountRole.EVERYDAY) {
+                account.setLowerLimit(LowerLimitMode.OFF, null);
+            }
         }
         return BankAccountResponse.from(account, false);
     }
