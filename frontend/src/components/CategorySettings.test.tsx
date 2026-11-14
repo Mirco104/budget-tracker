@@ -275,7 +275,7 @@ describe('CategorySettings', () => {
       { id: 6, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 2, path: 'Freizeit › Kino' },
       ...categories.filter((c) => c.id !== 2),
     ]
-    const fetchMock = vi.fn((url: string, init?: RequestInit) =>
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
       init?.method && init.method !== 'GET' ? json(withSub[1]) : json(withSub),
     )
     vi.stubGlobal('fetch', fetchMock)

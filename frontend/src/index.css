@@ -2382,6 +2382,36 @@ button.tx:hover:not(:disabled) {
   align-items: center;
 }
 
+/* R33, US38: the bank categories of the file with the choice per category */
+.bank-categories details {
+  margin-bottom: 8px;
+}
+
+.bank-category-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bank-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.bank-category-name {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.bank-category select {
+  max-width: 100%;
+}
+
 .import-list {
   margin: 0 0 16px;
   padding: 0;

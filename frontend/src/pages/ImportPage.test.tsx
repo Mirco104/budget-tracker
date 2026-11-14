@@ -21,7 +21,7 @@ function entry(values: Partial<ImportEntry>): ImportEntry {
   return {
     line: 2, status: 'NEW', reason: null, fingerprint: 'f'.repeat(64), source: 'C24:Ausgabenkonto', date: '2026-11-04',
     amount: -2.99, description: 'Spiele Shop', counterparty: 'Spiele Shop', bankCategory: null, suggestionKey: 'spiele shop',
-    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null, details: null,
+    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null, details: null, mappedCategoryId: null,
     ...values,
   }
 }
@@ -47,6 +47,7 @@ const preview: ImportPreview = {
     { ...entry({ line: 8 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
   ],
   series: [],
+  bankCategories: [],
 }
 
 const batches: ImportBatch[] = [
@@ -87,6 +88,10 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
     }
     if (url === '/api/recurring-transactions' && init?.method === 'POST') {
       return json({ id: 9 }, 201)
+    }
+    if (url === '/api/bank-category-mappings' && init?.method === 'PUT') {
+      const body = JSON.parse(String(init.body)) as { mappings: { bankCategory: string; categoryId?: number }[] }
+      return json(body.mappings.map((m) => ({ bankCategory: m.bankCategory, categoryId: m.categoryId ?? 50 })))
     }
     if (url === '/api/categories' && init?.method === 'POST') {
       const { name } = JSON.parse(String(init.body)) as { name: string }
@@ -871,5 +876,77 @@ describe('ImportPage', () => {
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/imports/4' && init?.method === 'DELETE')).toBe(true),
     )
+  })
+
+  // R33, US38: the card "Kategorien der Bank"
+  describe('bank categories', () => {
+    const withBankCategories: ImportPreview = {
+      ...preview,
+      bankCategories: [
+        {
+          bankCategory: 'Freizeit & Unterhaltung',
+          parent: 'Freizeit & Unterhaltung',
+          child: null,
+          rows: 1,
+          parentStatus: 'NEW',
+          parentCategoryId: null,
+          childStatus: null,
+          childCategoryId: null,
+          mappedCategoryId: null,
+        },
+      ],
+    }
+
+    it('maps a bank category to an own category and sets it at its rows only', async () => {
+      const fetchMock = renderPage(() => json(withBankCategories))
+      await upload()
+
+      const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
+      expect(card).toHaveTextContent('Die Datei enthält 1 Kategorie der Bank: 1 wird neu angelegt, 0 deinen Kategorien zugeordnet.')
+      fireEvent.change(within(card).getByLabelText('Wahl für Freizeit & Unterhaltung'), { target: { value: 'own' } })
+      fireEvent.change(within(card).getByLabelText('Eigene Kategorie für Freizeit & Unterhaltung'), { target: { value: '8' } })
+      expect(card).toHaveTextContent('0 werden neu angelegt, 1 deinen Kategorien zugeordnet.')
+      fireEvent.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+
+      await waitFor(() => expect(screen.queryByRole('region', { name: 'Kategorien der Bank' })).not.toBeInTheDocument())
+      const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
+      expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({
+        profile: 'C24',
+        mappings: [{ bankCategory: 'Freizeit & Unterhaltung', categoryId: 8 }],
+      })
+      const [withCategory, without] = row('Spiele Shop')
+      expect(within(withCategory).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+      expect(within(without).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
+    })
+
+    it('creates a new category with the name of the bank', async () => {
+      const fetchMock = renderPage(() => json(withBankCategories))
+      await upload()
+
+      const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
+      expect(within(card).getByLabelText('Wahl für Freizeit & Unterhaltung')).toHaveValue('new')
+      fireEvent.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+
+      await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => u === '/api/bank-category-mappings')).toBe(true))
+      const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
+      expect(JSON.parse(String((call?.[1] as RequestInit).body)).mappings).toEqual([
+        { bankCategory: 'Freizeit & Unterhaltung', parentName: 'Freizeit & Unterhaltung' },
+      ])
+    })
+
+    // Decision 62: a stored mapping presets the row
+    it('presets the category of a row from a stored mapping and shows no card without new bank categories', async () => {
+      renderPage(() =>
+        json({
+          ...preview,
+          entries: preview.entries.map((e) => (e.line === 3 ? { ...e, mappedCategoryId: 8 } : e)),
+          bankCategories: [{ ...withBankCategories.bankCategories[0], mappedCategoryId: 8 }],
+        }),
+      )
+      await upload()
+
+      expect(screen.queryByRole('region', { name: 'Kategorien der Bank' })).not.toBeInTheDocument()
+      expect(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
+    })
   })
 })
