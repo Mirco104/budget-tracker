@@ -54,6 +54,8 @@ public class ImportService {
     /** R30: the largest file and the most lines. */
     static final int MAX_BYTES = 2 * 1024 * 1024;
     static final int MAX_LINES = 5000;
+    /** Issue #119: the longest purpose the details of a row show. */
+    static final int MAX_PURPOSE = 500;
 
     private final TransactionRepository transactionRepository;
     private final ImportBatchRepository batchRepository;
@@ -294,7 +296,7 @@ public class ImportService {
             Long category = votes.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
             return new ImportPreviewResponse.SeriesSuggestion(
                     covered.stream().map(c -> c.line().number()).toList(), series.startDate(), series.amount(),
-                    series.description(), covered.getLast().source(), category);
+                    series.lowest(), series.highest(), series.description(), covered.getLast().source(), category);
         }).toList();
     }
 
@@ -358,7 +360,19 @@ public class ImportService {
                 match == null ? null
                         : new Replaces(match.itemId(), match.date(), match.description(), match.amount().abs(),
                                 match.categoryId(), autoEntry),
-                duplicateOf);
+                duplicateOf, details(row));
+    }
+
+    // Issue #119: the fields of the bank for the details of a row; the purpose with its whitespace joined, at most 500
+    private static ImportPreviewResponse.Details details(BankTransaction row) {
+        String purpose = row.remittanceInformation() == null ? null
+                : row.remittanceInformation().replaceAll("\\s+", " ").trim();
+        if (purpose != null && purpose.length() > MAX_PURPOSE) {
+            purpose = purpose.substring(0, MAX_PURPOSE - 1) + "…";
+        }
+        return new ImportPreviewResponse.Details(blankToNull(row.counterpartyIban()), blankToNull(purpose),
+                blankToNull(row.bankTransactionCode()), row.valueDate(), blankToNull(row.mandateId()),
+                blankToNull(row.creditorId()));
     }
 
     private static DuplicateOf duplicateOf(Transaction transaction) {

@@ -115,6 +115,28 @@ class ImportControllerTest {
         assertThat(row.get("categoryId")).isNull();
     }
 
+    // Issue #119: the details of a row are what else the bank says about it
+    @Test
+    void aRowShowsTheDetailsOfTheBank() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.SPARKASSE_CAMT);
+
+        Map<String, Object> club = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 2)]").getFirst();
+        assertThat(club.get("details")).isEqualTo(Map.of(
+                "counterpartyIban", "GB82WEST12345698765432",
+                "purpose", "Beitrag 11/2026 : Mitglied 4711",
+                "kind", "FOLGELASTSCHRIFT",
+                "valueDate", "2026-11-05",
+                "mandateId", "M-0001",
+                "creditorId", "DE00ZZZ00000000001"));
+        // A field the bank does not deliver is null
+        Map<String, Object> salary = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 3)]").getFirst();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) salary.get("details");
+        assertThat(details.get("valueDate")).isEqualTo("2026-11-01");
+        assertThat(details.get("mandateId")).isNull();
+        assertThat(details.get("creditorId")).isNull();
+    }
+
     @Test
     void anUnknownFileIsAFieldError() throws Exception {
         preview(mockMvc, "Datum;Wert\n01.01.2026;5\n")
@@ -436,6 +458,10 @@ class ImportControllerTest {
         assertThat(JsonPath.<String>read(preview, "$.series[0].startDate")).isEqualTo("2026-08-01");
         assertThat(JsonPath.<String>read(preview, "$.series[0].description")).isEqualTo("Firma Beispiel · Lohn");
         assertThat(JsonPath.<String>read(preview, "$.series[0].source")).isEqualTo("N26:Hauptkonto");
+        // Issue #119: the median amount and the range of the rows
+        assertThat(JsonPath.<Double>read(preview, "$.series[0].amount")).isEqualTo(2500.0);
+        assertThat(JsonPath.<Double>read(preview, "$.series[0].lowest")).isEqualTo(2500.0);
+        assertThat(JsonPath.<Double>read(preview, "$.series[0].highest")).isEqualTo(2500.0);
         assertThat(JsonPath.<List<Object>>read(preview, "$.series")).hasSize(1);
 
         mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""

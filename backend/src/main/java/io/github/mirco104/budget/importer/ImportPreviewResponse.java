@@ -29,12 +29,22 @@ public record ImportPreviewResponse(
     }
 
     /**
-     * R31: rows that look like a monthly series that does not exist yet: their lines, the first occurrence, the amount and
-     * description of the latest row, its source and the category most of the rows were suggested (null without one).
+     * R31: rows that look like a monthly series that does not exist yet: their lines, the first occurrence, the median
+     * amount with the smallest and the largest amount by size (issue #119), the description of the latest row, its source
+     * and the category most of the rows were suggested (null without one).
      */
     public record SeriesSuggestion(
-            List<Integer> lines, LocalDate startDate, BigDecimal amount, String description, String source,
-            Long categoryId) {
+            List<Integer> lines, LocalDate startDate, BigDecimal amount, BigDecimal lowest, BigDecimal highest,
+            String description, String source, Long categoryId) {
+    }
+
+    /**
+     * Issue #119: what the bank says about a row, for its details in the preview; a field the bank does not deliver is
+     * null. purpose is the purpose as the bank sends it (only whitespace joined), kind the kind of booking.
+     */
+    public record Details(
+            String counterpartyIban, String purpose, String kind, LocalDate valueDate, String mandateId,
+            String creditorId) {
     }
 
     /**
@@ -52,18 +62,18 @@ public record ImportPreviewResponse(
      * One line of the file. For SKIPPED only line, status and reason are set. categoryId is the suggestion (R29) and
      * certain its certainty; transfer is the suggestion of R27 with transferCertain, transferPeerId a stored
      * counterpart that becomes a transfer as well and transferPeer the counterpart for the hint; replaces is the occurrence the row replaces (R28), and then
-     * categoryId is the category of its series.
+     * categoryId is the category of its series. details is what else the bank says about the row (issue #119).
      */
     public record Entry(
             int line, Status status, String reason, String fingerprint, String source, LocalDate date, BigDecimal amount,
             String description, String counterparty, String bankCategory, String suggestionKey, Long categoryId,
             boolean certain, boolean transfer, boolean transferCertain, Long transferPeerId, TransferPeer transferPeer,
             Replaces replaces,
-            DuplicateOf duplicateOf) {
+            DuplicateOf duplicateOf, Details details) {
 
         static Entry skipped(int line, String reason) {
             return new Entry(line, Status.SKIPPED, reason, null, null, null, null, null, null, null, null, null, false,
-                    false, false, null, null, null, null);
+                    false, false, null, null, null, null, null);
         }
     }
 }
