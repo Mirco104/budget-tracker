@@ -18,7 +18,13 @@ function onError(error: Error) {
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({ onError }),
-  mutationCache: new MutationCache({ onError }),
+  mutationCache: new MutationCache({
+    onError,
+    // 27h: a booking, an item or an account can change what the bell reports
+    onSuccess: (): void => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  }),
 })
 
 createRoot(document.getElementById('root')!).render(
