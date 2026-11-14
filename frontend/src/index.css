@@ -3631,17 +3631,29 @@ button.account-open:hover {
   overflow-y: auto;
 }
 .bell-list {
+  display: grid;
+  gap: 8px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.bell-list > li + li {
-  border-top: 1px solid var(--line);
-}
+/* Each notification is a card with a heading; blue edge for a question, orange for a warning */
 .bell-item {
   display: grid;
   gap: 8px;
-  padding: 10px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.bell-item.warn {
+  border-left-color: var(--warn);
+}
+.bell-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 .bell-item p {
   margin: 0;
