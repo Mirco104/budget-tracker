@@ -26,8 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 27i (decision 65): suggestions on the page Planung from the bookings of the last 12 months. The monthly series of
- * R31 among the bookings that fulfil no term yet become suggested items, unless an item with the same name is valid
- * now or the user hid the suggestion ("Ausblenden", stored like a dismissed notification).
+ * R31 among the bookings that fulfil no term yet become suggested items when they still run (a booking in the current
+ * or the previous month), unless an item with the same name is valid now or the user hid the suggestion ("Ausblenden", stored like a dismissed notification).
  */
 @Service
 public class PlanSuggestionService {
@@ -89,6 +89,10 @@ public class PlanSuggestionService {
         for (SeriesDetector.Suggestion series : SeriesDetector.detect(rows)) {
             List<Transaction> of = series.indices().stream().map(bookings::get).toList();
             Transaction latest = of.getLast();
+            // Only a series that still runs: its latest booking lies in the current or the previous month
+            if (latest.getDate().isBefore(YearMonth.from(today).minusMonths(1).atDay(1))) {
+                continue;
+            }
             String key = KEY_PREFIX + CategorySuggester.key(textOf(latest)) + "|" + series.amount().signum();
             if (dismissed.contains(key) || itemNames.contains(series.description().trim().toLowerCase(Locale.GERMAN))) {
                 continue;

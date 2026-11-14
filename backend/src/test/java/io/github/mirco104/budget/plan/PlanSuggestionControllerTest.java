@@ -76,6 +76,14 @@ class PlanSuggestionControllerTest {
     }
 
     @Test
+    void aSeriesThatStoppedIsNotSuggested() throws Exception {
+        for (int i = 6; i >= 3; i--) {
+            book("-24", "Drogerie", current.minusMonths(i).atDay(6).toString(), "Persönlicher Bedarf");
+        }
+        mockMvc.perform(get("/api/plan/suggestions")).andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
     void aSeriesWithAnItemOfTheSameNameIsNotSuggested() throws Exception {
         for (int i = 3; i >= 1; i--) {
             book("3000", "Gehalt", current.minusMonths(i).atDay(1).toString(), "Gehalt/Lohn (netto)");
