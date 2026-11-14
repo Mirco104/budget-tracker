@@ -168,6 +168,23 @@ describe('PlanningPage', () => {
     expect(within(dialog).getByRole('textbox', { name: 'Neue Kategorie' })).toBeInTheDocument()
   })
 
+  // #126: the count of past terms does not depend on the name, so typing it sends no request
+  it('asks for the past terms once and not again while the name is typed', async () => {
+    const fetchMock = renderPage()
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    const pastTermCalls = () => fetchMock.mock.calls.filter(([url]) => url === '/api/planned-items/past-terms').length
+    await waitFor(() => expect(pastTermCalls()).toBe(1))
+
+    for (const value of ['M', 'Mi', 'Mie', 'Miet', 'Miete']) {
+      fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value } })
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(pastTermCalls()).toBe(1)
+  })
+
   it('creates a yearly item with its due month and the month "Gilt ab"', async () => {
     const fetchMock = renderPage()
     const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
