@@ -51,7 +51,7 @@ scripts/update.sh --no-https  # Test im Heimnetz ohne Caddy
 
 Das Skript macht nacheinander:
 
-1. ein Backup mit `scripts/backup.sh`, wenn die Datenbank läuft (beim ersten Start gibt es noch keine),
+1. die Datenbank starten, falls sie nicht läuft (`docker compose up -d --wait db`; läuft sie schon, passiert nichts), und immer ein Backup mit `scripts/backup.sh` (beim ersten Start von der leeren Datenbank),
 2. `git pull --ff-only`,
 3. `APP_COMMIT=$(git rev-parse --short HEAD) docker compose --profile https up -d --build`.
 
