@@ -1,8 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useLogin } from '../api/auth'
 
+interface Props {
+  /** Called after a successful sign-in, e.g. to leave the invitation page (ticket #133). */
+  onSignedIn?: () => void
+}
+
 /** US14: sign in with e-mail and password. The backend gives one text for a wrong e-mail or password. */
-export function LoginPage() {
+export function LoginPage({ onSignedIn }: Props = {}) {
   const login = useLogin()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,6 +23,7 @@ export function LoginPage() {
     setError(null)
     try {
       await login.mutateAsync({ email: email.trim(), password })
+      onSignedIn?.()
     } catch (e) {
       setPassword('')
       setError(e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen.')
