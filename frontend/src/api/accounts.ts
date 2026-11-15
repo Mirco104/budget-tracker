@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
-import type { AccountGroup, LowerLimitMode, ReconcileResult, ReserveGroup } from './types'
+import type { AccountGroup, BalanceLine, LowerLimitMode, ReconcileResult, ReserveGroup } from './types'
 
 /** Accounts by role with their app balance (P11). */
 export function useAccounts() {
@@ -49,5 +49,28 @@ export function useSetLowerLimit() {
         body: JSON.stringify({ mode, amount }),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] }),
+  })
+}
+
+/** Ticket #135: the balances from the bank of an account, newest first; refreshed with every change of ['accounts']. */
+export function useBalanceHistory(accountId: number) {
+  return useQuery({
+    queryKey: ['accounts', 'balances', accountId],
+    queryFn: () => request<BalanceLine[]>(`/bank-accounts/${accountId}/balances`),
+  })
+}
+
+/** Ticket #135: deletes a wrong balance from the bank; the app balance then counts from the one before (P11). */
+export function useDeleteBalance() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ accountId, balanceId }: { accountId: number; balanceId: number }) =>
+      request<unknown>(`/bank-accounts/${accountId}/balances/${balanceId}`, { method: 'DELETE' }),
+    onSuccess: () =>
+      Promise.all(
+        ['accounts', 'bank-accounts', 'notifications', 'month-closing'].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      ),
   })
 }

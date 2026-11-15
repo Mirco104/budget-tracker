@@ -371,6 +371,15 @@ export interface ReserveGroup {
 }
 
 /** P11: the app balance on the day of the bank balance and the difference (not booked). */
+/** Ticket #135: one balance from the bank with the app balance on its day and the difference (P11). */
+export interface BalanceLine {
+  id: number
+  date: string
+  amount: number
+  appBalance: number
+  difference: number
+}
+
 export interface ReconcileResult {
   appBalance: number
   bankBalance: number

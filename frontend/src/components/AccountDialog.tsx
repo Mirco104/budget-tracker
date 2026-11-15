@@ -11,6 +11,7 @@ import { errorText } from '../api/client'
 import type { AccountLine, AccountRole, LowerLimitMode } from '../api/types'
 import { formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
 import { ROLE_NAMES } from '../accountRoles'
+import { BalanceHistoryDialog } from './BalanceHistoryDialog'
 import { Dialog } from './ui/Dialog'
 import { InfoTip } from './ui/InfoTip'
 
@@ -63,6 +64,7 @@ export function AccountDialog({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [merging, setMerging] = useState(false)
   const [mergeTarget, setMergeTarget] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const busy =
     create.isPending ||
     update.isPending ||
@@ -250,6 +252,12 @@ export function AccountDialog({
             </label>
           </div>
         )}
+        {/* Ticket #135: the history in its own window, it can get long */}
+        {account !== null && (
+          <button type="button" className="link-button balance-history-open" onClick={() => setHistoryOpen(true)}>
+            Verlauf der Kontostände ansehen
+          </button>
+        )}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -337,6 +345,9 @@ export function AccountDialog({
           </div>
         )}
       </form>
+      {historyOpen && account !== null && (
+        <BalanceHistoryDialog accountId={account.id} accountName={account.name} onClose={() => setHistoryOpen(false)} />
+      )}
     </Dialog>
   )
 }
