@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.importer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -624,6 +625,125 @@ class ImportControllerTest {
                 "series":[{"startDate":"%s","amount":2500,"description":"Firma Beispiel · Lohn","categoryId":%d,"source":"%s"}],"""
                 .formatted(startDate, categoryId, source);
         return body.replace("\"rows\":[", series + "\"rows\":[").replace("\"transfer\":false}", "\"transfer\":false,\"series\":0}");
+    }
+
+    // --- Saving in the import (decision 67) ---
+
+    private static final String SAVINGS_IBAN = "DE02120300000000202051";
+
+    private static final String SAVING_PLAN = """
+            "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)"
+            2026-08-03,2026-08-03,"Person A","DE02120300000000202051","Outgoing Transfer","Sparplan",Hauptkonto,-200.00
+            2026-09-03,2026-09-03,"Person A","DE02120300000000202051","Outgoing Transfer","Sparplan",Hauptkonto,-200.00
+            2026-10-03,2026-10-03,"Person A","DE02120300000000202051","Outgoing Transfer","Sparplan",Hauptkonto,-200.00
+            """;
+
+    private void savingsAccount() throws Exception {
+        mockMvc.perform(post("/api/bank-accounts").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Tagesgeld", "iban": "%s", "role": "SAVINGS"}""".formatted(SAVINGS_IBAN)))
+                .andExpect(status().isCreated());
+    }
+
+    // The rows of the body are saving, and with series the body creates one saving series of all of them
+    private static String asSaving(String body, boolean series) {
+        String saving = body.replace("\"transfer\":true}", "\"transfer\":true,\"saving\":true" + (series ? ",\"series\":0}" : "}"));
+        return !series ? saving : saving.replace("\"rows\":[", """
+                "series":[{"startDate":"2026-08-03","amount":-200,"description":"Person A · Sparplan","source":"N26:Hauptkonto","saving":true}],"rows":[""");
+    }
+
+    @Test
+    void aTransferToASavingsAccountIsSuggestedAsSavingWithASavingSeries() throws Exception {
+        savingsAccount();
+
+        String preview = previewJson(mockMvc, SAVING_PLAN);
+
+        assertThat(JsonPath.<List<Boolean>>read(preview, "$.entries[*].transfer")).containsOnly(true);
+        assertThat(JsonPath.<List<Boolean>>read(preview, "$.entries[*].saving")).containsOnly(true);
+        assertThat(JsonPath.<List<Object>>read(preview, "$.series")).hasSize(1);
+        assertThat(JsonPath.<Boolean>read(preview, "$.series[0].saving")).isTrue();
+        assertThat(JsonPath.<Object>read(preview, "$.series[0].categoryId")).isNull();
+    }
+
+    @Test
+    void aTransferBetweenEverydayAccountsIsNoSavingAndNoSeries() throws Exception {
+        mockMvc.perform(post("/api/bank-accounts").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Zweitkonto", "iban": "%s"}""".formatted(SAVINGS_IBAN)))
+                .andExpect(status().isCreated());
+
+        String preview = previewJson(mockMvc, SAVING_PLAN);
+
+        assertThat(JsonPath.<List<Boolean>>read(preview, "$.entries[*].transfer")).containsOnly(true);
+        assertThat(JsonPath.<List<Boolean>>read(preview, "$.entries[*].saving")).containsOnly(false);
+        assertThat(JsonPath.<List<Object>>read(preview, "$.series")).isEmpty();
+    }
+
+    @Test
+    void createsASavingItemWhoseRowsAreSavingAndALaterFileFulfilsIt() throws Exception {
+        savingsAccount();
+        String body = asSaving(commitBody(previewJson(mockMvc, SAVING_PLAN), entry -> null, true), true);
+
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(3));
+
+        mockMvc.perform(get("/api/plan").param("month", "2026-09"))
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].saving").value(true))
+                .andExpect(jsonPath("$.items[0].categoryId").isEmpty())
+                .andExpect(jsonPath("$.items[0].entryMode").value("TICK"))
+                .andExpect(jsonPath("$.items[0].group").value("SAVING"));
+        mockMvc.perform(get("/api/transactions").param("month", "2026-09"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].saving").value(true))
+                .andExpect(jsonPath("$[0].transfer").value(true));
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
+                .andExpect(jsonPath("$.saving.items[0].actual").value(200.00))
+                .andExpect(jsonPath("$.saving.actual").value(200.00));
+
+        // The next month meets the saving item by its word and suggests no series
+        String again = previewJson(mockMvc, SAVING_PLAN
+                + "2026-11-03,2026-11-03,\"Person A\",\"DE02120300000000202051\",\"Outgoing Transfer\",\"Sparplan\",Hauptkonto,-200.00\n");
+        assertThat(JsonPath.<List<Object>>read(again, "$.series")).isEmpty();
+        assertThat(JsonPath.<List<String>>read(again, "$.entries[?(@.status == 'NEW')].replaces.date"))
+                .containsExactly("2026-11-03");
+        assertThat(JsonPath.<List<Boolean>>read(again, "$.entries[?(@.status == 'NEW')].saving")).containsExactly(true);
+        assertThat(JsonPath.<List<Object>>read(again, "$.entries[?(@.status == 'NEW')].replaces.categoryId"))
+                .containsExactly((Object) null);
+    }
+
+    @Test
+    void anExpenseRowCanBeSavingButNotWithACategory() throws Exception {
+        long freizeit = category(user, "Freizeit");
+        String preview = previewJson(mockMvc, BankCsvTest.N26);
+        String saving = commitBody(preview, entry -> null, true)
+                .replace("\"categoryId\":null,\"transfer\":false", "\"categoryId\":null,\"transfer\":false,\"saving\":true");
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(saving))
+                .andExpect(status().isCreated());
+        mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
+                .andExpect(jsonPath("$[*].saving", everyItem(org.hamcrest.Matchers.is(true))));
+
+        String withCategory = commitBody(previewJson(mockMvc, SALARIES), entry -> freizeit, true)
+                .replaceFirst("\"transfer\":false", "\"transfer\":false,\"saving\":true");
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(withCategory))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("rows[0].categoryId"));
+    }
+
+    @Test
+    void theRowsOfASavingSeriesMustBeSavingAndAPlainTransferBelongsToNoSeries() throws Exception {
+        savingsAccount();
+        String preview = previewJson(mockMvc, SAVING_PLAN);
+        String plainTransfer = asSaving(commitBody(preview, entry -> null, true), true).replace(",\"saving\":true,\"series\"", ",\"series\"");
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(plainTransfer))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("rows[0].series"));
+
+        String withCategory = asSaving(commitBody(preview, entry -> null, true), true)
+                .replace("\"saving\":true}]", "\"saving\":true,\"categoryId\":" + category(user, "Freizeit") + "}]");
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(withCategory))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("series[0].categoryId"));
+        mockMvc.perform(get("/api/plan").param("month", "2026-09")).andExpect(jsonPath("$.items", hasSize(0)));
     }
 
     // --- US34 ---

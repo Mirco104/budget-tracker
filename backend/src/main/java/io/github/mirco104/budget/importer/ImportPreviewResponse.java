@@ -41,11 +41,12 @@ public record ImportPreviewResponse(
     /**
      * R31: rows that look like a monthly series that does not exist yet: their lines, the first occurrence, the median
      * amount with the smallest and the largest amount by size (issue #119), the description of the latest row, its source
-     * and the category most of the rows were suggested (null without one).
+     * and the category most of the rows were suggested (null without one). saving: all its rows are suggested as the kind
+     * Sparen (decision 67); then there is no category.
      */
     public record SeriesSuggestion(
             List<Integer> lines, LocalDate startDate, BigDecimal amount, BigDecimal lowest, BigDecimal highest,
-            String description, String source, Long categoryId) {
+            String description, String source, Long categoryId, boolean saving) {
     }
 
     /**
@@ -74,18 +75,20 @@ public record ImportPreviewResponse(
      * counterpart that becomes a transfer as well and transferPeer the counterpart for the hint; replaces is the occurrence the row replaces (R28), and then
      * categoryId is the category of its series. details is what else the bank says about the row (issue #119).
      * mappedCategoryId is the category the row gets set from the stored mapping of its bank category (R33): not for a
-     * transfer or a row that fulfils a term, and not when a certain suggestion (R29) names another category.
+     * transfer or a row that fulfils a term, and not when a certain suggestion (R29) names another category. saving is
+     * the suggestion of the kind Sparen (decision 67): a transfer to a savings or depot account or a row that fulfils a
+     * saving item.
      */
     public record Entry(
             int line, Status status, String reason, String fingerprint, String source, LocalDate date, BigDecimal amount,
             String description, String counterparty, String bankCategory, String suggestionKey, Long categoryId,
             boolean certain, boolean transfer, boolean transferCertain, Long transferPeerId, TransferPeer transferPeer,
             Replaces replaces,
-            DuplicateOf duplicateOf, Details details, Long mappedCategoryId) {
+            DuplicateOf duplicateOf, Details details, Long mappedCategoryId, boolean saving) {
 
         static Entry skipped(int line, String reason) {
             return new Entry(line, Status.SKIPPED, reason, null, null, null, null, null, null, null, null, null, false,
-                    false, false, null, null, null, null, null, null);
+                    false, false, null, null, null, null, null, null, false);
         }
     }
 }
