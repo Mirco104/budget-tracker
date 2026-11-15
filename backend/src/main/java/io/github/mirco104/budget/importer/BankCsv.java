@@ -25,6 +25,8 @@ import io.github.mirco104.budget.importer.BankTransaction.Status;
  * Reads the CSV export of a bank, rule R30 from docs/spezifikation.md, section 2. No Spring dependencies. The file is
  * decoded (UTF-8, else Windows-1252), split into records (";" or ","), the header found among the first 20 records
  * and every following record read with the profile of that header into a normalized BankTransaction (decision 46).
+ * Only the Deutsche Bank reads the preamble before the header (the IBAN of the account) and has a footer that is
+ * skipped (decision 68).
  */
 public final class BankCsv {
 
@@ -32,6 +34,10 @@ public final class BankCsv {
     static final int HEADER_SEARCH = 20;
 
     private static final DateTimeFormatter GERMAN_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    // Deutsche Bank (decision 68): "30.6.2026", leading zeros allowed ("30.06.2026")
+    private static final DateTimeFormatter SHORT_DAY_MONTH_DATE = DateTimeFormatter.ofPattern("d.M.yyyy");
+    // Deutsche Bank: the IBAN of the account from the preamble, under a key no column can have
+    private static final String PREAMBLE_IBAN = "\u0000preamble:iban";
     private static final Pattern GERMAN_NUMBER = Pattern.compile("[+-]?\\d+(,\\d+)?");
     private static final Pattern PLAIN_NUMBER = Pattern.compile("[+-]?\\d+(\\.\\d+)?");
     private static final String NO_AMOUNT = "ohne Betrag";
@@ -65,7 +71,7 @@ public final class BankCsv {
     public static class UnknownFormatException extends RuntimeException {
         UnknownFormatException() {
             super("Das Format der Datei ist unbekannt. Unterstützt werden CSV-Exporte von C24, Trade Republic, N26, der "
-                    + "Sparkasse und der VR-Bank.");
+                    + "Sparkasse, der VR-Bank und der Deutschen Bank.");
         }
     }
 
@@ -83,7 +89,8 @@ public final class BankCsv {
                 List<String> header = records.get(i).fields().stream().map(BankCsv::clean).toList();
                 for (BankProfile profile : BankProfile.values()) {
                     if (hasColumns(header, profile.requiredColumns())) {
-                        return new BankFile(profile, readLines(profile, header, records.subList(i + 1, records.size())));
+                        return new BankFile(profile, readLines(profile, header, records.subList(0, i),
+                                records.subList(i + 1, records.size())));
                     }
                 }
             }
@@ -177,12 +184,20 @@ public final class BankCsv {
 
     // --- rows per profile ---
 
-    private static List<Line> readLines(BankProfile profile, List<String> header, List<Record> records) {
+    private static List<Line> readLines(BankProfile profile, List<String> header, List<Record> preamble,
+            List<Record> records) {
+        String preambleIban = profile == BankProfile.DEUTSCHE_BANK ? preambleIban(preamble) : null;
         List<Line> lines = new ArrayList<>();
         for (Record record : records) {
+            if (profile == BankProfile.DEUTSCHE_BANK && clean(record.fields().getFirst()).equalsIgnoreCase("Kontostand")) {
+                continue; // the footer with the balance is no booking (decision 68)
+            }
             Map<String, String> values = new HashMap<>();
             for (int i = 0; i < header.size(); i++) {
                 values.put(header.get(i).toLowerCase(Locale.ROOT), i < record.fields().size() ? record.fields().get(i).trim() : "");
+            }
+            if (preambleIban != null) {
+                values.put(PREAMBLE_IBAN, preambleIban);
             }
             try {
                 lines.add(new Line(record.line(), read(profile, values), null));
@@ -191,6 +206,21 @@ public final class BankCsv {
             }
         }
         return lines;
+    }
+
+    // Deutsche Bank: the preamble has a line with the column names "Konto;Filial-/Kontonummer;IBAN;Währung" and the
+    // values in the line below; null without such lines
+    private static String preambleIban(List<Record> preamble) {
+        for (int r = 0; r + 1 < preamble.size(); r++) {
+            List<String> names = preamble.get(r).fields();
+            for (int i = 0; i < names.size(); i++) {
+                List<String> values = preamble.get(r + 1).fields();
+                if (clean(names.get(i)).equalsIgnoreCase("IBAN") && i < values.size() && !values.get(i).isBlank()) {
+                    return values.get(i).replaceAll("\\s", "");
+                }
+            }
+        }
+        return null;
     }
 
     private static final class SkipException extends RuntimeException {
@@ -206,7 +236,40 @@ public final class BankCsv {
             case N26 -> n26(values);
             case SPARKASSE -> sparkasse(values);
             case VR_BANK -> vrBank(values);
+            case DEUTSCHE_BANK -> deutscheBank(values);
         };
+    }
+
+    // Deutsche Bank (decision 68): d.M.yyyy, signed German amounts in Betrag (empty: Haben, or Soll as a debit), the
+    // account from the preamble; the export holds no pending bookings
+    private static BankTransaction deutscheBank(Map<String, String> v) {
+        LocalDate date = date(get(v, "Buchungstag"), SHORT_DAY_MONTH_DATE);
+        String valueText = get(v, "Wert");
+        LocalDate valueDate = valueText == null ? null : date(valueText, SHORT_DAY_MONTH_DATE);
+        String account = orEmpty(v.get(PREAMBLE_IBAN));
+        String kind = get(v, "Umsatzart");
+        String currency = get(v, "Währung");
+        return new BankTransaction(
+                account, account.isEmpty() ? null : account,
+                date, valueDate, deutscheBankAmount(v), currency != null ? currency.toUpperCase(Locale.ROOT) : "EUR",
+                Status.BOOKED,
+                get(v, "Begünstigter / Auftraggeber"), get(v, "IBAN / Kontonummer"), get(v, "BIC"),
+                get(v, "Verwendungszweck"),
+                get(v, "Kundenreferenz"), get(v, "Mandatsreferenz"), get(v, "Gläubiger ID"),
+                kind, null, kind);
+    }
+
+    private static BigDecimal deutscheBankAmount(Map<String, String> v) {
+        String betrag = get(v, "Betrag");
+        if (betrag != null) {
+            return amount(betrag, true);
+        }
+        String haben = get(v, "Haben");
+        if (haben != null) {
+            return amount(haben, true).abs();
+        }
+        String soll = get(v, "Soll");
+        return soll == null ? amount(null, true) : amount(soll, true).abs().negate();
     }
 
     // C24: Buchungsdatum (empty: pending), German amounts in EUR, Kontoname (else Kontonummer) as account

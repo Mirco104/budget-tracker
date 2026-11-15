@@ -109,7 +109,8 @@ public final class ImportRules {
     public static String accountName(BankProfile profile, String source) {
         boolean plain = source == null || source.isBlank()
                 || (profile == BankProfile.TRADE_REPUBLIC && source.equalsIgnoreCase("DEFAULT"));
-        if (!plain && (profile == BankProfile.SPARKASSE || profile == BankProfile.VR_BANK)) {
+        if (!plain && (profile == BankProfile.SPARKASSE || profile == BankProfile.VR_BANK
+                || profile == BankProfile.DEUTSCHE_BANK)) {
             String iban = source.replaceAll("\\s", "");
             return profile.label() + " …" + iban.substring(Math.max(0, iban.length() - 4));
         }
