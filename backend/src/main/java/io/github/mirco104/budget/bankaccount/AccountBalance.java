@@ -3,6 +3,8 @@ package io.github.mirco104.budget.bankaccount;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -20,6 +22,10 @@ public final class AccountBalance {
 
     /** A balance from the bank at the end of its day. */
     public record Statement(LocalDate date, BigDecimal amount) {
+    }
+
+    /** Ticket #135: a balance from the bank with the app balance on its day and the difference (P11). */
+    public record Reconciled(Statement statement, BigDecimal appBalance, BigDecimal difference) {
     }
 
     private AccountBalance() {
@@ -59,5 +65,21 @@ public final class AccountBalance {
     /** P11: bank balance minus the app balance on its day, from the statement before it. */
     public static BigDecimal difference(Statement previous, List<Entry> entries, Statement bank) {
         return bank.amount().subtract(balance(previous, entries, bank.date())).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Ticket #135: every balance from the bank, newest first, each with the app balance on its day from the statement
+     * before it and the difference, as when it was entered (P11).
+     */
+    public static List<Reconciled> history(List<Statement> statements, List<Entry> entries) {
+        List<Statement> sorted = statements.stream().sorted(Comparator.comparing(Statement::date)).toList();
+        List<Reconciled> history = new ArrayList<>();
+        Statement previous = null;
+        for (Statement statement : sorted) {
+            BigDecimal app = balance(previous, entries, statement.date());
+            history.add(new Reconciled(statement, app, difference(previous, entries, statement)));
+            previous = statement;
+        }
+        return history.reversed();
     }
 }
