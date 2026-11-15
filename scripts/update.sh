@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start or update the app in one step (ticket #129, docs/betrieb.md): database up, backup, git pull, build and start
-# with the commit shown in the settings.
+# with the commit shown in the footer.
 # Usage: scripts/update.sh            (with Caddy and HTTPS)
 #        scripts/update.sh --no-https (test in the home network, without Caddy)
 set -euo pipefail

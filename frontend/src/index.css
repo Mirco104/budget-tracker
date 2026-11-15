@@ -2925,9 +2925,8 @@ label.tx.disabled {
   text-transform: uppercase;
   white-space: nowrap;
 }
-.app-version {
-  margin-top: 24px;
-  text-align: center;
+.legal .app-version {
+  color: var(--muted);
 }
 
 /* On the phone only the short name fits next to the brand */
