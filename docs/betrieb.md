@@ -64,7 +64,7 @@ Die App hat eine Version nach SemVer mit Vorabkennung (Ticket #129, Entscheidung
 Eine neue Version:
 
 1. Die Version in `frontend/package.json` (dazu `npm install --package-lock-only` für `package-lock.json`) und in `backend/pom.xml` gleich setzen; die CI prüft das (`node scripts/check-version.mjs`).
-2. Nach dem Merge auf `main` ein Tag setzen: `git tag v0.1.0-alpha && git push origin v0.1.0-alpha`.
+2. Nach dem Merge auf `main` setzt die GitHub Action *Release tag* (`.github/workflows/release-tag.yml`) das Tag `v<Version>` auf den Merge-Commit, wenn es noch nicht existiert. Sie läuft bei jeder Änderung von `frontend/package.json` (oder der Action selbst) auf `main` und lässt sich unter *Actions* auch von Hand starten.
 
 Neue Funktionen erhöhen die mittlere Zahl, reine Fehlerbehebungen die letzte.
 
