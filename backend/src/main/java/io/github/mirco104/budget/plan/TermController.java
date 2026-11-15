@@ -28,9 +28,11 @@ public class TermController {
     private static final int MAX_PERIOD_MONTHS = 24;
 
     private final TermService termService;
+    private final DueEntries dueEntries;
 
-    public TermController(TermService termService) {
+    public TermController(TermService termService, DueEntries dueEntries) {
         this.termService = termService;
+        this.dueEntries = dueEntries;
     }
 
     /** P7: the term and, optionally, another amount (without sign) and booking date. */
@@ -53,7 +55,7 @@ public class TermController {
         if (YearMonth.from(to).isAfter(YearMonth.from(from).plusMonths(MAX_PERIOD_MONTHS))) {
             throw new InvalidFieldException("to", "Der Zeitraum darf höchstens 24 Monate lang sein.");
         }
-        termService.enterDue();
+        dueEntries.enter();
         return termService.terms(from, to).stream().map(TermResponse::from).toList();
     }
 
