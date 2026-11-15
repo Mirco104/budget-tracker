@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Category, Plan, PlannedItem } from '../api/types'
 import { currentMonth } from '../format'
+import type { PlanSuggestion } from '../api/plan'
 import { PlanningPage } from './PlanningPage'
 
 // Fictional values, shaped like the backend responses.
@@ -77,10 +78,18 @@ const plan: Plan = {
   ],
 }
 
-function renderPage(data: Plan = plan) {
+// 27i: a monthly series of bookings that no item covers yet
+const streaming: PlanSuggestion = {
+  key: 'suggestion:streaming abo|-1', name: 'Streaming Abo', amount: -12.99, categoryId: 2, categoryName: 'Freizeit',
+  accountId: 1, anchorDate: '2026-10-03', months: 3, group: 'FIXED',
+}
+
+function renderPage(data: Plan = plan, suggestions: PlanSuggestion[] = []) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     void init
-    const body = url.startsWith('/api/plan')
+    const body = url === '/api/plan/suggestions'
+      ? suggestions
+      : url.startsWith('/api/plan')
       ? data
       : url.startsWith('/api/categories')
         ? categories
@@ -167,7 +176,8 @@ describe('PlanningPage', () => {
     fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
     fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: 'new' } })
-    expect(within(dialog).getByRole('textbox', { name: 'Neue Kategorie' })).toBeInTheDocument()
+    // Decision 66: the window lies on the item window and says so
+    expect(await screen.findByRole('dialog', { name: 'Neue Kategorie' })).toHaveTextContent('über Neuer Posten')
   })
 
   // #126: the count of past terms does not depend on the name, so typing it sends no request
@@ -258,5 +268,26 @@ describe('PlanningPage', () => {
       categories: [...plan.categories, { group: 'BUDGET', categoryId: 9, categoryName: 'Sonstiges', total: 120 }],
     })
     expect(await screen.findByText('davon Sonstiges 120,00 €')).toBeInTheDocument()
+  })
+
+  // 27i: suggestions from the bookings with "Übernehmen" (prefilled dialog) and "Ausblenden"
+  it('suggests items found in the bookings and takes one over', async () => {
+    const fetchMock = renderPage(plan, [streaming])
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    const found = await within(fixed).findByRole('group', { name: 'Gefunden in deinen Buchungen' })
+    expect(found).toHaveTextContent('Streaming Abo')
+    expect(found).toHaveTextContent('monatlich · Freizeit · 3 Monate, zuletzt am 03.10.2026')
+    expect(found).toHaveTextContent('12,99 €')
+    expect(within(screen.getByRole('region', { name: 'Einkommen' })).queryByText('Streaming Abo')).not.toBeInTheDocument()
+
+    fireEvent.click(within(found).getByRole('button', { name: 'Übernehmen' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Streaming Abo')
+    expect(within(dialog).getByLabelText(/Betrag/)).toHaveValue('12,99')
+
+    fireEvent.click(within(found).getByRole('button', { name: 'Ausblenden' }))
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/notifications/done' && init?.body === JSON.stringify({ key: streaming.key }))).toBe(true),
+    )
   })
 })

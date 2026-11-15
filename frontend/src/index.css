@@ -1273,26 +1273,6 @@ button.add-category {
   align-items: center;
 }
 
-.category-new {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: end;
-}
-
-.category-new-name {
-  flex: 1 1 200px;
-}
-
-.category-new .icon-picker {
-  flex-basis: 100%;
-}
-
-.category-new .error {
-  flex-basis: 100%;
-  margin: 0;
-}
-
 .category-list {
   margin: 0;
   padding: 0;
@@ -1698,6 +1678,28 @@ button.budget-toggle {
   display: none;
 }
 
+/* Decision 66: a dialog on top of another one names it and sits lower, so the one below still shows */
+.overlay.stacked {
+  background: rgb(15 20 26 / 0.3);
+}
+.dialog.stacked {
+  margin-top: 48px;
+  max-height: calc(100vh - 96px);
+  max-height: calc(100dvh - 96px);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.dialog-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.dialog-trail {
+  display: inline-flex;
+  color: var(--primary);
+}
+
 .booking-form {
   display: grid;
   gap: 14px;
@@ -2039,6 +2041,13 @@ button.tx:hover:not(:disabled) {
     max-height: 92vh;
     max-height: 92dvh;
     border-radius: 20px 20px 0 0;
+  }
+
+  /* The sheet below keeps its top edge visible */
+  .dialog.stacked {
+    margin-top: 0;
+    max-height: calc(92vh - 48px);
+    max-height: calc(92dvh - 48px);
   }
 
   .grabber {
@@ -2608,21 +2617,6 @@ button.tx:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.inline-create {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.inline-create input {
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-
-.inline-create .error {
-  flex-basis: 100%;
 }
 
 .import-category .chip {
@@ -3369,8 +3363,8 @@ a.summary-link:hover {
   color: var(--muted);
   font-weight: 400;
 }
-.below-comfort,
-.link-button.below-comfort {
+.below-limit,
+.link-button.below-limit {
   color: var(--warn);
   font-weight: 600;
 }
@@ -3585,4 +3579,174 @@ button.account-open:hover {
 }
 .filter-more select {
   width: 100%;
+}
+
+/* --- Bell and lower limit (AP 27h) --- */
+.limit-row {
+  align-items: center;
+}
+.bell {
+  position: relative;
+  margin-left: auto;
+  /* bell and avatar sit 8px apart instead of the header gap */
+  margin-right: -16px;
+}
+.bell + .account-menu {
+  margin-left: 0;
+}
+/* 27h: with the bell the tabs get narrower before they move to the bottom bar */
+@media (max-width: 1100px) {
+  .app-header-inner {
+    gap: 16px;
+  }
+  .tab {
+    padding: 0 8px;
+  }
+}
+.bell-button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+}
+.bell-button:hover:not(:disabled) {
+  background: var(--primary-soft);
+}
+.bell-count {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+}
+.bell-menu {
+  width: min(360px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.bell-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* Each notification is a card with a heading; blue edge for a question, orange for a warning */
+.bell-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.bell-item.warn {
+  border-left-color: var(--warn);
+}
+.bell-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.bell-item p {
+  margin: 0;
+}
+.bell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+/* Compact buttons in the card, so two fit next to each other on the phone */
+.bell-actions button,
+.bell-actions .button-link {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+.bell-skip {
+  justify-self: start;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+.summary-value.over,
+.budget-amount.over {
+  color: var(--warn);
+}
+.closing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 16px;
+}
+
+/* --- Planung: suggestions from the bookings (AP 27i) --- */
+.plan-suggestions {
+  margin: 12px 0 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+.plan-suggestions h3 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.suggestion-row:last-child {
+  border-bottom: 0;
+}
+.suggestion-row .item-main {
+  flex: 1 1 200px;
+}
+.suggestion-actions {
+  display: flex;
+  gap: 12px;
+}
+.link-button.muted {
+  color: var(--muted);
+}
+.item-amount.income {
+  color: var(--income);
+}
+/* 27h: between the phone and a wide window the tabs show only their icon, so header, bell and avatar fit */
+@media (min-width: 721px) and (max-width: 1000px) {
+  .tab .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 720px) {
+  .bell-menu {
+    position: fixed;
+    top: calc(var(--header-height) + 4px);
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
 }

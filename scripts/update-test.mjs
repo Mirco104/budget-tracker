@@ -115,12 +115,16 @@ async function seedLegacy(a) {
 }
 
 async function seedPlan(a) {
-  // Accounts (P11): a savings account with a bank balance and a comfort amount
+  // Accounts (P11): a savings account with a bank balance and a lower limit of 500 € (P12, from 27h; before it the
+  // comfort amount of 27f4, which migration V24 turns into the lower limit)
   const accounts = await a.request('GET', '/api/bank-accounts')
   const giro = accounts.find((account) => account.defaultAccount)
   const tagesgeld = await a.request('POST', '/api/bank-accounts', { name: 'Tagesgeld', role: 'SAVINGS' })
   await a.request('POST', `/api/bank-accounts/${tagesgeld.id}/balances`, { date: '2026-09-30', amount: 1000 })
-  await a.request('PUT', `/api/bank-accounts/${tagesgeld.id}/comfort-amount`, { amount: 500 })
+  const limit = await a.send('PUT', `/api/bank-accounts/${tagesgeld.id}/lower-limit`, { mode: 'CUSTOM', amount: 500 })
+  if (!limit.ok) {
+    await a.request('PUT', `/api/bank-accounts/${tagesgeld.id}/comfort-amount`, { amount: 500 })
+  }
 
   // Planned items (P2–P5); MANUAL, so no automatic entries depend on the day of the test
   const item = (name, amount, category, unit, count, anchorDate) => ({
@@ -197,7 +201,7 @@ async function snapshot(model) {
         items: plan.items.map((item) => `${item.name} ${item.amount} ${item.entryMode}`).sort(),
         transfers: entries.filter((entry) => entry.transfer).map((entry) => `${entry.date} ${entry.amount} ${entry.accountName}`).sort(),
         accounts: accounts.flatMap((group) => group.accounts.map((account) =>
-          `${account.name} ${account.role} ${account.defaultAccount} ${account.statementAmount} ${account.comfortAmount}`)).sort(),
+          `${account.name} ${account.role} ${account.defaultAccount} ${account.statementAmount} ${account.lowerLimitMode === 'CUSTOM' || account.comfortAmount != null ? (account.lowerLimit ?? account.comfortAmount) : '-'}`)).sort(),
         reserves: reserves.map((group) => `${group.accountName} ${group.target}`).sort(),
         goals: goals.map((goal) => `${goal.name} ${goal.targetAmount}`).sort(),
       })

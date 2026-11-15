@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type ChangeEvent } from 'react'
 import { useDeleteTransaction } from '../api/transactions'
-import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
+import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import {
@@ -20,7 +20,7 @@ import type { BankAccount, Category } from '../api/types'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
-import { InlineCreate } from '../components/ui/InlineCreate'
+import { AccountDialog } from '../components/AccountDialog'
 import { CategoryPicker } from '../components/CategoryPicker'
 import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -471,14 +471,7 @@ function SourceAccount({
   onChange: (value: string) => void
 }) {
   const labelId = useId()
-  const createAccount = useCreateBankAccount()
   const [creating, setCreating] = useState(false)
-
-  async function handleCreate(name: string) {
-    const account = await createAccount.mutateAsync({ name })
-    setCreating(false)
-    onChange(String(account.id))
-  }
 
   return (
     <div className="field">
@@ -497,12 +490,11 @@ function SourceAccount({
         <option value={NEW_NAMED_ACCOUNT}>+ Neues Konto mit eigenem Namen …</option>
       </select>
       {creating && (
-        <InlineCreate
-          label={`Name des neuen Kontos für ${source.name}`}
-          placeholder="Name des Kontos"
-          initial={source.suggestedName}
-          onCreate={handleCreate}
-          onCancel={() => setCreating(false)}
+        <AccountDialog
+          account={null}
+          initialName={source.suggestedName}
+          onCreated={(id) => onChange(String(id))}
+          onClose={() => setCreating(false)}
         />
       )}
     </div>

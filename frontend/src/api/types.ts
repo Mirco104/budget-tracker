@@ -331,6 +331,9 @@ export interface BankAccount {
 export type AccountRole = 'EVERYDAY' | 'SAVINGS' | 'DEPOT'
 
 /** One account on the page Konten: app balance today (P11) and the last balance from the bank. */
+/** P12: the lower limit of an account: none, 0 € or an own amount. */
+export type LowerLimitMode = 'OFF' | 'ZERO' | 'CUSTOM'
+
 export interface AccountLine {
   id: number
   name: string
@@ -341,9 +344,10 @@ export interface AccountLine {
   balance: number
   statementDate: string | null
   statementAmount: number | null
-  /** 27f4: optional; belowComfort is true when the balance lies below it */
-  comfortAmount: number | null
-  belowComfort: boolean
+  /** P12 (27h): the lower limit; lowerLimit is its amount (null without one), belowLimit whether the balance is below */
+  lowerLimitMode: LowerLimitMode
+  lowerLimit: number | null
+  belowLimit: boolean
 }
 
 export interface AccountGroup {

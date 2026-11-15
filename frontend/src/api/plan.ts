@@ -70,3 +70,21 @@ export function useDeletePlannedItem() {
     onSuccess: refresh,
   })
 }
+
+/** 27i: an item suggested from a monthly series of bookings (R31); amount with sign. */
+export interface PlanSuggestion {
+  key: string
+  name: string
+  amount: number
+  categoryId: number | null
+  categoryName: string | null
+  accountId: number | null
+  anchorDate: string
+  months: number
+  group: 'INCOME' | 'FIXED'
+}
+
+/** 27i: suggestions from the bookings of the last 12 months; under 'plan', so a new item refreshes them. */
+export function usePlanSuggestions() {
+  return useQuery({ queryKey: ['plan', 'suggestions'], queryFn: () => request<PlanSuggestion[]>('/plan/suggestions') })
+}

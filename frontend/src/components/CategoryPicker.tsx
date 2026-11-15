@@ -62,6 +62,7 @@ export function CategoryPicker({
       categories={subcategories}
       placeholder={compact ? '– Unterkategorie (optional) –' : '– keine –'}
       parentId={mainCategory.id}
+      allCategories={categories}
       disabled={disabled}
       createLabel={`Neue Unterkategorie von ${mainCategory.name}`}
       onCreated={onCreated}
@@ -78,6 +79,7 @@ export function CategoryPicker({
         value={main}
         onChange={onChange}
         categories={categories.filter((c) => c.parentId === null)}
+        allCategories={categories}
         placeholder={placeholder}
         leading={leading}
         invalid={invalid}

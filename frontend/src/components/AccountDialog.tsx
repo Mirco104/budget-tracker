@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { useReconcile, useSetComfortAmount } from '../api/accounts'
+import { useReconcile, useSetLowerLimit } from '../api/accounts'
 import { useBankAccounts, useCreateBankAccount, useDeleteBankAccount, useUpdateBankAccount } from '../api/bankAccounts'
 import { errorText } from '../api/client'
-import type { AccountLine, AccountRole } from '../api/types'
+import type { AccountLine, AccountRole, LowerLimitMode } from '../api/types'
 import { formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
 import { ROLE_NAMES } from '../accountRoles'
 import { Dialog } from './ui/Dialog'
-
+import { InfoTip } from './ui/InfoTip'
 
 function toAmountText(amount: number | null): string {
   return amount === null ? '' : amount.toFixed(2).replace('.', ',')
@@ -14,28 +14,44 @@ function toAmountText(amount: number | null): string {
 
 /**
  * 27f4 (decision 60): one window per account on the page Konten, for a new account (account null) and for editing
- * one: name, IBAN, Kontoart, default account, comfort amount, the balance from the bank (P11, books nothing),
+ * one: name, IBAN, Kontoart, default account, lower limit (P12, 27h), the balance from the bank (P11, books nothing),
  * archive and delete (US30).
  */
-export function AccountDialog({ account, onClose }: { account: AccountLine | null; onClose: () => void }) {
+export function AccountDialog({
+  account,
+  initialName = '',
+  onCreated,
+  onClose,
+}: {
+  account: AccountLine | null
+  /** Decision 66: the name a new account starts with, e.g. the suggestion of the import. */
+  initialName?: string
+  /** Decision 66: gets the id of a new account, e.g. to choose it in the selection that opened the window. */
+  onCreated?: (id: number) => void
+  onClose: () => void
+}) {
   const create = useCreateBankAccount()
   const update = useUpdateBankAccount()
   const remove = useDeleteBankAccount()
   const reconcile = useReconcile()
-  const setComfort = useSetComfortAmount()
+  const setLowerLimit = useSetLowerLimit()
   const used = useBankAccounts().data?.find((a) => a.id === account?.id)?.used ?? true
 
-  const [name, setName] = useState(account?.name ?? '')
+  const [name, setName] = useState(account?.name ?? initialName)
   const [iban, setIban] = useState(account?.iban ?? '')
   const [role, setRole] = useState<AccountRole>(account?.role ?? 'EVERYDAY')
   const [defaultAccount, setDefaultAccount] = useState(account?.defaultAccount ?? false)
-  const initialComfort = toAmountText(account?.comfortAmount ?? null)
-  const [comfort, setComfortText] = useState(initialComfort)
+  // P12: a new everyday account starts at 0 €, a savings or depot account without a limit
+  const initialMode: LowerLimitMode | null = account?.lowerLimitMode ?? null
+  const [limitMode, setLimitMode] = useState<LowerLimitMode | null>(initialMode)
+  const mode: LowerLimitMode = limitMode ?? (role === 'EVERYDAY' ? 'ZERO' : 'OFF')
+  const initialLimit = account?.lowerLimitMode === 'CUSTOM' ? toAmountText(account.lowerLimit) : ''
+  const [limitText, setLimitText] = useState(initialLimit)
   const [date, setDate] = useState(todayIso())
   const [balance, setBalance] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const busy = create.isPending || update.isPending || remove.isPending || reconcile.isPending || setComfort.isPending
+  const busy = create.isPending || update.isPending || remove.isPending || reconcile.isPending || setLowerLimit.isPending
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -43,9 +59,9 @@ export function AccountDialog({ account, onClose }: { account: AccountLine | nul
       setError('Der Name ist Pflicht.')
       return
     }
-    const comfortValue = comfort.trim() === '' ? null : parseAmountInput(comfort.trim())
-    if (comfort.trim() !== '' && comfortValue === null) {
-      setError('Bitte einen Wohlfühlbetrag wie 500,00 eingeben.')
+    const limitValue = mode === 'CUSTOM' ? parseAmountInput(limitText.trim()) : null
+    if (mode === 'CUSTOM' && limitValue === null) {
+      setError('Bitte eine Untergrenze wie 500,00 eingeben.')
       return
     }
     // Negative balances are allowed: "-12,50"
@@ -61,6 +77,7 @@ export function AccountDialog({ account, onClose }: { account: AccountLine | nul
       let id = account?.id
       if (account === null) {
         id = (await create.mutateAsync({ name: name.trim(), iban: ibanValue, role })).id
+        onCreated?.(id)
       } else if (
         name.trim() !== account.name ||
         ibanValue !== account.iban ||
@@ -72,8 +89,9 @@ export function AccountDialog({ account, onClose }: { account: AccountLine | nul
           input: { name: name.trim(), iban: ibanValue, archived: account.archived, defaultAccount, role },
         })
       }
-      if (id !== undefined && comfort.trim() !== initialComfort) {
-        await setComfort.mutateAsync({ accountId: id, amount: comfortValue })
+      const limitChanged = account === null ? limitMode !== null : mode !== initialMode || limitText.trim() !== initialLimit
+      if (id !== undefined && limitChanged) {
+        await setLowerLimit.mutateAsync({ accountId: id, mode, amount: limitValue })
       }
       if (id !== undefined && parsed !== null) {
         // The window stays open and shows the difference to the app balance
@@ -158,16 +176,36 @@ export function AccountDialog({ account, onClose }: { account: AccountLine | nul
             Standardkonto (Buchungen ohne Auswahl landen hier)
           </label>
         )}
-        <label className="field">
-          Wohlfühlbetrag (optional)
-          <input
-            inputMode="decimal"
-            placeholder="z. B. 500,00"
-            value={comfort}
-            onChange={(e) => setComfortText(e.target.value)}
-          />
-        </label>
-        <span className="hint">Liegt der Kontostand darunter, wird er orange.</span>
+        {/* P12 (27h, decision 65): replaces the comfort amount */}
+        <div className="field">
+          <span id="account-limit-label">
+            Untergrenze{' '}
+            <InfoTip label="Was löst die Untergrenze aus?">
+              Unter der Grenze wird der Kontostand orange. Fällt er voraussichtlich darunter, weil noch Zahlungen erwartet
+              werden, erscheint eine Benachrichtigung (Glocke).
+            </InfoTip>
+          </span>
+          <div className="field-row limit-row">
+            <select
+              aria-labelledby="account-limit-label"
+              value={mode}
+              onChange={(e) => setLimitMode(e.target.value as LowerLimitMode)}
+            >
+              <option value="OFF">Aus</option>
+              <option value="ZERO">0 €</option>
+              <option value="CUSTOM">Eigener Betrag</option>
+            </select>
+            {mode === 'CUSTOM' && (
+              <input
+                inputMode="decimal"
+                aria-label="Eigene Untergrenze"
+                placeholder="z. B. 500,00"
+                value={limitText}
+                onChange={(e) => setLimitText(e.target.value)}
+              />
+            )}
+          </div>
+        </div>
         {account !== null && (
           <div className="field-row">
             <label className="field">

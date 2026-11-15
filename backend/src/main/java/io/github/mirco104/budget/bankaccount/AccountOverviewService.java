@@ -38,13 +38,13 @@ public class AccountOverviewService {
     }
 
     /**
-     * One account with its app balance today and its last balance from the bank (null without one). belowComfort is
-     * true when a comfort amount is set and the balance lies below it (27f4).
+     * One account with its app balance today and its last balance from the bank (null without one). lowerLimit is the
+     * amount of the lower limit (null without one) and belowLimit tells whether the balance lies below it (P12).
      */
     public record AccountLine(
             long id, String name, String iban, AccountRole role, boolean defaultAccount, boolean archived,
-            BigDecimal balance, LocalDate statementDate, BigDecimal statementAmount, BigDecimal comfortAmount,
-            boolean belowComfort) {
+            BigDecimal balance, LocalDate statementDate, BigDecimal statementAmount, LowerLimitMode lowerLimitMode,
+            BigDecimal lowerLimit, boolean belowLimit) {
     }
 
     /** The accounts of one role with the sum of their balances. */
@@ -69,11 +69,11 @@ public class AccountOverviewService {
                         BankStatement last = lastOnOrBefore(statements.get(account.getId()), today);
                         BigDecimal balance = AccountBalance.balance(last == null ? null : last.statement(),
                                 entries.getOrDefault(account.getId(), List.of()), today);
-                        BigDecimal comfort = account.getComfortAmount();
+                        BigDecimal limit = account.limit();
                         return new AccountLine(account.getId(), account.getName(), account.getIban(), role,
                                 account.isDefaultAccount(), account.isArchived(), balance,
                                 last == null ? null : last.getDate(), last == null ? null : last.getAmount(),
-                                comfort, comfort != null && balance.compareTo(comfort) < 0);
+                                account.getLowerLimitMode(), limit, AccountBalance.below(balance, limit));
                     })
                     .toList();
             BigDecimal total = lines.stream().map(AccountLine::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -82,12 +82,15 @@ public class AccountOverviewService {
         return groups;
     }
 
-    /** 27f4: sets the comfort amount of the account; null removes it. */
+    /** P12: sets the lower limit of the account; CUSTOM needs an amount (400 on the field). */
     @Transactional
-    public void setComfortAmount(long accountId, BigDecimal amount) {
+    public void setLowerLimit(long accountId, LowerLimitMode mode, BigDecimal amount) {
         BankAccount account = accountRepository.findByIdAndOwner(accountId, currentUser.get())
                 .orElseThrow(() -> new NotFoundException("Konto " + accountId + " wurde nicht gefunden."));
-        account.setComfortAmount(amount == null ? null : amount.setScale(2, RoundingMode.HALF_UP));
+        if (mode == LowerLimitMode.CUSTOM && amount == null) {
+            throw new io.github.mirco104.budget.common.InvalidFieldException("amount", "Bitte einen Betrag eingeben.");
+        }
+        account.setLowerLimit(mode, amount == null ? null : amount.setScale(2, RoundingMode.HALF_UP));
     }
 
     /** P11: the app balance of the account at the end of the day. */

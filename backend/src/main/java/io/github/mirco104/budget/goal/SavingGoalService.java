@@ -36,11 +36,13 @@ public class SavingGoalService {
     private final TransactionRepository transactionRepository;
     private final CurrentUser currentUser;
     private final Clock clock;
+    private final io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository;
 
     public SavingGoalService(
             SavingGoalRepository goalRepository, PlannedItemRepository itemRepository,
             ItemTermRepository termRepository, TransactionRepository transactionRepository, CurrentUser currentUser,
-            Clock clock) {
+            Clock clock, io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository) {
+        this.closedMonthRepository = closedMonthRepository;
         this.goalRepository = goalRepository;
         this.itemRepository = itemRepository;
         this.termRepository = termRepository;
@@ -96,9 +98,11 @@ public class SavingGoalService {
         SavingGoal goal = find(id);
         boolean used = itemRepository.findAllOf(currentUser.get()).stream()
                 .anyMatch(item -> item.getSavingGoal() != null && item.getSavingGoal().getId().equals(id))
-                || transactionRepository.existsBySavingGoalId(id);
+                || transactionRepository.existsBySavingGoalId(id)
+                || closedMonthRepository.existsBySavingGoalId(id);
         if (used) {
-            throw new ConflictException("Das Sparziel hat Sparposten oder Buchungen und kann nicht gelöscht werden.");
+            throw new ConflictException(
+                    "Das Sparziel hat Sparposten, Buchungen oder Monatsabschlüsse und kann nicht gelöscht werden.");
         }
         goalRepository.delete(goal);
     }
@@ -113,9 +117,13 @@ public class SavingGoalService {
                 .orElseThrow(() -> new InvalidFieldException(field, "Das Sparziel gibt es nicht."));
     }
 
-    /** Extra amounts per goal id, e.g. the month closings (P10); empty until AP 27h. */
+    /** P10 (27h): the leftovers of the months closed with a goal, per goal id. */
     protected java.util.Map<Long, BigDecimal> extraSaved() {
-        return java.util.Map.of();
+        java.util.Map<Long, BigDecimal> result = new java.util.HashMap<>();
+        closedMonthRepository.findByOwner(currentUser.get()).stream()
+                .filter(closed -> closed.getSavingGoal() != null)
+                .forEach(closed -> result.merge(closed.getSavingGoal().getId(), closed.getAmount(), BigDecimal::add));
+        return result;
     }
 
     private GoalResponse response(SavingGoal goal, List<PlannedItem> items, List<ItemTerm> terms) {

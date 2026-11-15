@@ -8,7 +8,8 @@ import java.util.List;
 /**
  * Rule P11 from docs/spezifikation.md, section 19: the app balance of an account is the last balance from the bank
  * plus all bookings of the account after its day (transfers included); without one the sum of all bookings. A new
- * balance from the bank shows the difference to the app balance on its day; the difference is not booked.
+ * balance from the bank shows the difference to the app balance on its day; the difference is not booked. P12: the
+ * lower limit and the expected balance.
  * No Spring dependencies.
  */
 public final class AccountBalance {
@@ -34,6 +35,25 @@ public final class AccountBalance {
             }
         }
         return sum.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** P12: the lower limit of the mode; null when there is none (OFF, or CUSTOM without an amount). */
+    public static BigDecimal limit(LowerLimitMode mode, BigDecimal custom) {
+        return switch (mode) {
+            case OFF -> null;
+            case ZERO -> BigDecimal.ZERO;
+            case CUSTOM -> custom;
+        };
+    }
+
+    /** P12: the expected balance: the balance today plus the open terms of the month on the account (with sign). */
+    public static BigDecimal expected(BigDecimal balance, List<BigDecimal> openTerms) {
+        return openTerms.stream().reduce(balance, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** P12: a balance lies below a limit; never without a limit. */
+    public static boolean below(BigDecimal balance, BigDecimal limit) {
+        return limit != null && balance.compareTo(limit) < 0;
     }
 
     /** P11: bank balance minus the app balance on its day, from the statement before it. */

@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
-import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { AccountSelect } from './AccountSelect'
 import { CategoryPicker } from './CategoryPicker'
 import { ApiError } from '../api/client'
@@ -10,7 +9,7 @@ import { formatEuro, formatMonth, parseAmountInput, shiftMonth } from '../format
 import { RHYTHM_PRESETS } from '../labels'
 import { anchorFromDay, dayOfAnchor } from '../planning'
 import { Dialog } from './ui/Dialog'
-import { InlineCreate } from './ui/InlineCreate'
+import { SavingGoalSelect } from './SavingGoalSelect'
 import { Segmented } from './ui/Segmented'
 
 type Kind = 'income' | 'expense' | 'saving'
@@ -60,7 +59,7 @@ interface Props {
   /** The group of a new item (from the "+" of a group). */
   group?: PlanGroup
   /** Prefilled values of a new item, e.g. "Zum Sparen" with the unplanned rest. */
-  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number }
+  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number; accountId?: number; day?: number }
   onClose: () => void
   onDone: (message: string) => void
 }
@@ -75,8 +74,6 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const update = useUpdatePlannedItem()
   const remove = useDeletePlannedItem()
   const bankAccounts = useBankAccounts().data ?? []
-  const goals = useSavingGoals().data ?? []
-  const createGoal = useCreateSavingGoal()
 
   const initialRhythm = item
     ? item.rhythmUnit === null
@@ -94,13 +91,12 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const [categoryId, setCategoryId] = useState(
     item?.categoryId ? String(item.categoryId) : preset?.categoryId ? String(preset.categoryId) : '',
   )
-  const [accountId, setAccountId] = useState(item ? String(item.accountId) : '')
+  const [accountId, setAccountId] = useState(item ? String(item.accountId) : preset?.accountId ? String(preset.accountId) : '')
   const [goalId, setGoalId] = useState(
     item?.savingGoalId ? String(item.savingGoalId) : preset?.savingGoalId ? String(preset.savingGoalId) : '',
   )
-  const [creatingGoal, setCreatingGoal] = useState(false)
   const [rhythm, setRhythm] = useState(initialRhythm)
-  const [day, setDay] = useState(anchor ? String(anchor.day) : '1')
+  const [day, setDay] = useState(anchor ? String(anchor.day) : preset?.day ? String(preset.day) : '1')
   const [dueMonth, setDueMonth] = useState(anchor ? anchor.month : Number(month.slice(5, 7)))
   const [firstDate, setFirstDate] = useState(item?.anchorDate ?? `${month}-01`)
   const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? defaultMode(kindOf(item, group), initialRhythm))
@@ -342,31 +338,12 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
         {kind === 'saving' && (
           <div className="field">
             <span id="item-goal-label">Sparziel (optional)</span>
-            <select
-              aria-labelledby="item-goal-label"
+            <SavingGoalSelect
+              labelledBy="item-goal-label"
+              noneLabel="ohne Sparziel"
               value={goalId}
-              onChange={(e) => (e.target.value === 'new' ? setCreatingGoal(true) : setGoalId(e.target.value))}
-            >
-              <option value="">ohne Sparziel</option>
-              {goals.map((goal) => (
-                <option key={goal.id} value={goal.id}>
-                  {goal.name}
-                </option>
-              ))}
-              <option value="new">+ Neues Sparziel …</option>
-            </select>
-            {creatingGoal && (
-              <InlineCreate
-                label="Neues Sparziel"
-                placeholder="z. B. Notgroschen"
-                onCreate={async (goalName) => {
-                  const goal = await createGoal.mutateAsync({ name: goalName })
-                  setGoalId(String(goal.id))
-                  setCreatingGoal(false)
-                }}
-                onCancel={() => setCreatingGoal(false)}
-              />
-            )}
+              onChange={setGoalId}
+            />
           </div>
         )}
 
