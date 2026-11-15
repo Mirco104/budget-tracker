@@ -9,6 +9,7 @@ const PATHS = {
     </>
   ),
   evaluation: <path d="M5 20V11M11 20V5M17 20v-6M3 20h18" />,
+  accounts: <path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3 3 8h18z" />,
   settings: (
     <>
       <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
@@ -39,6 +40,7 @@ const PATHS = {
     </>
   ),
   close: <path d="M18 6 6 18M6 6l12 12" />,
+  filter: <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />,
   search: (
     <>
       <circle cx="11" cy="11" r="7" />
@@ -56,6 +58,8 @@ const PATHS = {
       <path d="M12 11v5M12 8h.01" />
     </>
   ),
+  bell: <path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4" />,
+  layers: <path d="M12 3 2 8l10 5 10-5zM2 13l10 5 10-5" />,
 }
 
 export type IconName = keyof typeof PATHS

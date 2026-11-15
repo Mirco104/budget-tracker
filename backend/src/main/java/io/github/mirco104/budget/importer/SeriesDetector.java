@@ -1,6 +1,7 @@
 package io.github.mirco104.budget.importer;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
@@ -29,10 +30,11 @@ public final class SeriesDetector {
     }
 
     /**
-     * A suggested monthly series: the rows it covers (by index, oldest first), its first occurrence, and the amount and
-     * description of its latest row.
+     * A suggested monthly series: the rows it covers (by index, oldest first), its first occurrence, the median amount
+     * of its rows (issue #119), the smallest and the largest amount by size, and the description of its latest row.
      */
-    public record Suggestion(List<Integer> indices, LocalDate startDate, BigDecimal amount, String description) {
+    public record Suggestion(List<Integer> indices, LocalDate startDate, BigDecimal amount, BigDecimal lowest,
+            BigDecimal highest, String description) {
     }
 
     private SeriesDetector() {
@@ -160,9 +162,17 @@ public final class SeriesDetector {
             return null;
         }
         long exact = rows.stream().filter(row -> row.date().getDayOfMonth() == Math.min(day, row.date().lengthOfMonth())).count();
-        Row latest = run.getLast();
-        return new Run(new Suggestion(run.stream().map(Row::index).toList(), due(best.getFirst(), day), latest.amount(),
-                latest.description()), exact);
+        List<BigDecimal> bySize = run.stream().map(Row::amount).sorted(Comparator.comparing(BigDecimal::abs)).toList();
+        return new Run(new Suggestion(run.stream().map(Row::index).toList(), due(best.getFirst(), day), median(bySize),
+                bySize.getFirst(), bySize.getLast(), run.getLast().description()), exact);
+    }
+
+    // The middle amount, for an even number the mean of the two middle ones; scale 2, HALF_UP
+    private static BigDecimal median(List<BigDecimal> sorted) {
+        int middle = sorted.size() / 2;
+        BigDecimal median = sorted.size() % 2 == 1 ? sorted.get(middle)
+                : sorted.get(middle - 1).add(sorted.get(middle)).divide(BigDecimal.TWO);
+        return median.setScale(2, RoundingMode.HALF_UP);
     }
 
     private static LocalDate due(YearMonth month, int day) {

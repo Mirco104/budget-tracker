@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ChangeEvent } from 'react'
-import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
-import { useCategories, useCreateCategory } from '../api/categories'
+import { useDeleteTransaction } from '../api/transactions'
+import { useBankAccounts } from '../api/bankAccounts'
+import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import {
   useCommitImport,
@@ -13,17 +14,21 @@ import {
   type ImportRequest,
   type ImportSeries,
   type ImportSource,
+  type MissingAuto,
 } from '../api/imports'
 import type { BankAccount, Category } from '../api/types'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
-import { InlineCreate } from '../components/ui/InlineCreate'
+import { AccountDialog } from '../components/AccountDialog'
+import { CategoryPicker } from '../components/CategoryPicker'
+import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { facetCounts, IMPORT_FILTERS, type Filters } from '../filters'
-import { currentMonth, formatDate, formatDateTime, formatSigned } from '../format'
+import { categoryFits, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
+import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
+import { Loading } from '../components/ui/Loading'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
@@ -32,7 +37,6 @@ const NEW_ACCOUNT = 'new'
 /** The value of the account field that opens the field for a new account with an own name (08.11.2026). */
 const NEW_NAMED_ACCOUNT = 'new-named'
 /** The value of the category field that opens the field for a new category. */
-const NEW_CATEGORY = 'new-category'
 
 /**
  * What the user chose for one row: import it or not, its category ('' while open, TRANSFER for a transfer) and whether
@@ -65,7 +69,7 @@ function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: R
   const chosen = entry.suggestionKey ? chosenByKey[entry.suggestionKey] : undefined
   const id = chosen !== undefined ? Number(chosen) : entry.categoryId
   const category = categories.find((c) => c.id === id)
-  return category ? { value: String(category.id), name: category.name, icon: category.icon } : null
+  return category ? { value: String(category.id), name: category.path, icon: category.icon } : null
 }
 
 /**
@@ -98,7 +102,9 @@ function initialChoices(preview: ImportPreview): Record<string, Choice> {
     if (!importable(entry) || entry.fingerprint === null) {
       continue
     }
-    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: '' }
+    // R33: a stored mapping of the bank category sets the category (decision 62); otherwise no row is preset
+    const mapped = entry.mappedCategoryId === null || entry.mappedCategoryId === undefined ? '' : String(entry.mappedCategoryId)
+    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: mapped }
   }
   return choices
 }
@@ -136,15 +142,6 @@ function PreviewRow({
 }) {
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
-  const createCategory = useCreateCategory()
-  const [creating, setCreating] = useState(false)
-
-  // A category that is missing is created right here and chosen for the row (after the first test, 07.11.2026)
-  async function handleCreate(name: string) {
-    const created = await createCategory.mutateAsync({ name })
-    setCreating(false)
-    onChange({ ...choice, category: String(created.id) })
-  }
 
   return (
     <li
@@ -193,7 +190,9 @@ function PreviewRow({
                 disabled={!choice.selected}
                 onChange={(e) => onChange({ ...choice, replace: e.target.checked })}
               />
-              ersetzt „{entry.replaces.description}“ vom {formatDate(entry.replaces.date)}
+              {entry.replaces.autoEntryId
+                ? `ersetzt den automatischen Eintrag „${entry.replaces.description}“ vom ${formatDate(entry.replaces.date)}`
+                : `erfüllt „${entry.replaces.description}“ vom ${formatDate(entry.replaces.date)}`}
             </label>
           )}
           {entry.duplicateOf && (
@@ -202,41 +201,24 @@ function PreviewRow({
             </span>
           )}
         </span>
+        <RowDetails entry={entry} />
       </span>
       <span className={entry.amount !== null && entry.amount > 0 ? 'import-amount positive' : 'import-amount'}>
         {entry.amount !== null && formatSigned(entry.amount)}
       </span>
       <span className="import-category">
-        <select
-          aria-label={`Kategorie für ${description}`}
+        <CategoryPicker
+          ariaLabel={`Kategorie für ${description}`}
+          subAriaLabel={`Unterkategorie für ${description}`}
           value={choice.category}
           disabled={!choice.selected}
-          aria-invalid={open ? true : undefined}
-          onChange={(e) => {
-            if (e.target.value === NEW_CATEGORY) {
-              setCreating(true)
-            } else {
-              onChange({ ...choice, category: e.target.value })
-            }
-          }}
-        >
-          <option value="">Kategorie wählen …</option>
-          <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-          <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
-        </select>
-        {creating && (
-          <InlineCreate
-            label={`Neue Kategorie für ${description}`}
-            placeholder="Name der Kategorie"
-            onCreate={handleCreate}
-            onCancel={() => setCreating(false)}
-          />
-        )}
+          invalid={open}
+          onChange={(value) => onChange({ ...choice, category: value })}
+          categories={categories}
+          placeholder="Kategorie wählen …"
+          leading={<option value={TRANSFER}>Umbuchung (zählt nicht)</option>}
+          createLabel={`Neue Kategorie für ${description}`}
+        />
         {suggested && open && (
           <button type="button" className="chip" onClick={() => onChange({ ...choice, category: suggested.value })}>
             {suggested.icon && <CategoryIcon icon={suggested.icon} size={14} />}
@@ -245,6 +227,65 @@ function PreviewRow({
         )}
       </span>
     </li>
+  )
+}
+
+/**
+ * Issue #119: what else the bank says about a row, folded away so the list stays short; a field the bank does not
+ * deliver is left out, a row without any has no details.
+ */
+function RowDetails({ entry }: { entry: ImportEntry }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  const details = entry.details
+  const fields: [string, string][] = []
+  if (entry.counterparty) {
+    fields.push(['Gegenseite', entry.counterparty])
+  }
+  if (details?.counterpartyIban) {
+    fields.push(['IBAN', formatIban(details.counterpartyIban)])
+  }
+  if (details?.purpose) {
+    fields.push(['Verwendungszweck', details.purpose])
+  }
+  if (details?.kind) {
+    fields.push(['Art', details.kind])
+  }
+  if (details?.valueDate) {
+    fields.push(['Wertstellung', formatDate(details.valueDate)])
+  }
+  if (details?.mandateId) {
+    fields.push(['Mandatsreferenz', details.mandateId])
+  }
+  if (details?.creditorId) {
+    fields.push(['Gläubiger-ID', details.creditorId])
+  }
+  if (fields.length === 0) {
+    return null
+  }
+  return (
+    <span className="import-details">
+      <button
+        type="button"
+        className="link-button import-details-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={`Details zu ${entry.description ?? 'Buchung'}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? 'Details ausblenden' : 'Details'}
+      </button>
+      {open && (
+        <dl id={id}>
+          {fields.map(([term, value]) => (
+            <div key={term} className="import-details-field">
+              <dt>{term}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </span>
   )
 }
 
@@ -258,9 +299,10 @@ function ShowInList({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. "Als Serie
- * anlegen" only notes the series; it is created with the import, and its rows replace its occurrences (code review,
- * 08.11.2026), so "Abbrechen" leaves nothing behind.
+ * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. Issue #119: it
+ * is named like the group of the planning page it ends up in, Fixkosten for an expense and Einkommen for an income, with
+ * the median amount and its range. "Als … planen" only notes the item; it is created with the import, and its rows
+ * fulfil its terms (code review, 08.11.2026), so "Abbrechen" leaves nothing behind.
  */
 function SeriesCard({
   series,
@@ -281,62 +323,46 @@ function SeriesCard({
   onIgnore: () => void
 }) {
   const [categoryId, setCategoryId] = useState('')
-  const createCategory = useCreateCategory()
-  const [creating, setCreating] = useState(false)
   const suggested = categories.find((c) => c.id === series.categoryId)
+  const income = series.amount > 0
+  const group = income ? 'Einkommen' : 'Fixkosten'
 
-  async function handleCreate(name: string) {
-    const created = await createCategory.mutateAsync({ name })
-    setCreating(false)
-    setCategoryId(String(created.id))
-  }
-  const plannedName = categories.find((c) => String(c.id) === planned)?.name
-
-  const label = `Serie „${series.description}“`
+  const label = `${group} „${series.description}“`
   return (
     <section className="card import-series" aria-label={label}>
       <p>
-        Sieht nach einer monatlichen Serie aus: „{series.description}“, {formatSigned(series.amount)} ab{' '}
-        {formatDate(series.startDate)} ({series.lines.length} Buchungen in der Datei).
+        {income ? 'Sieht nach monatlichem Einkommen aus' : 'Sieht nach monatlichen Fixkosten aus'}: „
+        {series.description}“, {formatSigned(series.amount)} ab {formatDate(series.startDate)} (
+        {series.lines.length} Buchungen in der Datei
+        {series.lowest !== series.highest &&
+          `, schwankt zwischen ${formatSigned(series.lowest)} und ${formatSigned(series.highest)}`}
+        ).
       </p>
       {planned !== null ? (
         <div className="import-series-actions">
-          <span className="hint">Wird beim Übernehmen als monatliche Serie angelegt ({plannedName}).</span>
           <button type="button" onClick={onUnplan}>
-            Nicht anlegen
+            Nicht planen
           </button>
         </div>
       ) : (
         <div className="import-series-actions">
-          <select
-            aria-label={`Kategorie für ${label}`}
+          <CategoryPicker
+            ariaLabel={`Kategorie für ${label}`}
+            subAriaLabel={`Unterkategorie für ${label}`}
             value={categoryId}
-            onChange={(e) => (e.target.value === NEW_CATEGORY ? setCreating(true) : setCategoryId(e.target.value))}
-          >
-            <option value="">Kategorie wählen …</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-            <option value={NEW_CATEGORY}>+ Neue Kategorie …</option>
-          </select>
-          {creating && (
-            <InlineCreate
-              label={`Neue Kategorie für ${label}`}
-              placeholder="Name der Kategorie"
-              onCreate={handleCreate}
-              onCancel={() => setCreating(false)}
-            />
-          )}
+            onChange={setCategoryId}
+            categories={categories}
+            placeholder="Kategorie wählen …"
+            createLabel={`Neue Kategorie für ${label}`}
+          />
           {suggested && categoryId === '' && (
             <button type="button" className="chip" onClick={() => setCategoryId(String(suggested.id))}>
               <CategoryIcon icon={suggested.icon} size={14} />
-              Vorschlag: {suggested.name}
+              Vorschlag: {suggested.path}
             </button>
           )}
           <button type="button" className="primary" disabled={categoryId === ''} onClick={() => onPlan(categoryId)}>
-            Als Serie anlegen
+            Als {group} planen
           </button>
           <button type="button" onClick={onIgnore}>
             Ignorieren
@@ -398,18 +424,20 @@ function MatchCard({
   const category = categories.find((c) => c.id === match.categoryId)
   const dates = match.entries.map((entry) => (entry.replaces as NonNullable<ImportEntry['replaces']>).date).sort()
   const count = match.entries.length
+  // Issue #119: named like the group of the planning page, by the sign of the rows
+  const planned = (match.entries[0].amount ?? 0) > 0 ? 'das geplante Einkommen' : 'die geplanten Fixkosten'
   return (
-    <section className="card import-series" aria-label={`Treffer der Serie „${match.description}“`}>
+    <section className="card import-series" aria-label={`Treffer für „${match.description}“`}>
       <p>
-        {count} Buchungen ersetzen die geplante Serie „{match.description}“{category && ` (${category.name})`} vom{' '}
+        {count} Buchungen erfüllen {planned} „{match.description}“{category && ` (${category.name})`} vom{' '}
         {formatDate(dates[0])} bis {formatDate(dates[dates.length - 1])}.
       </p>
       <div className="import-series-actions">
         {!category ? (
-          <span className="hint">Die Kategorie der Serie ist archiviert; bitte wähle je Zeile eine.</span>
+          <span className="hint">Die Kategorie des Postens ist archiviert; bitte wähle je Zeile eine.</span>
         ) : open === 0 ? (
           <span className="hint">
-            Alle {count} ersetzen ihr Vorkommen ({category.name}).
+            Alle {count} erfüllen ihren Termin ({category.name}).
           </span>
         ) : (
           <button type="button" className="primary" onClick={onAccept}>
@@ -443,14 +471,7 @@ function SourceAccount({
   onChange: (value: string) => void
 }) {
   const labelId = useId()
-  const createAccount = useCreateBankAccount()
   const [creating, setCreating] = useState(false)
-
-  async function handleCreate(name: string) {
-    const account = await createAccount.mutateAsync({ name })
-    setCreating(false)
-    onChange(String(account.id))
-  }
 
   return (
     <div className="field">
@@ -469,12 +490,11 @@ function SourceAccount({
         <option value={NEW_NAMED_ACCOUNT}>+ Neues Konto mit eigenem Namen …</option>
       </select>
       {creating && (
-        <InlineCreate
-          label={`Name des neuen Kontos für ${source.name}`}
-          placeholder="Name des Kontos"
-          initial={source.suggestedName}
-          onCreate={handleCreate}
-          onCancel={() => setCreating(false)}
+        <AccountDialog
+          account={null}
+          initialName={source.suggestedName}
+          onCreated={(id) => onChange(String(id))}
+          onClose={() => setCreating(false)}
         />
       )}
     </div>
@@ -494,7 +514,7 @@ function Preview({
   preview: ImportPreview
   accounts: BankAccount[]
   categories: Category[]
-  onDone: (message: string, batch: ImportBatch | null) => void
+  onDone: (message: string, batch: ImportBatch | null, missing: MissingAuto[]) => void
   /** "Fertige übernehmen": the rows with these fingerprints are stored, the rest stays in the preview. */
   onPartlyDone: (fingerprints: string[]) => void
   /** A part was taken over with a new series: the file is read again, so the rest meets the series (R28). */
@@ -560,7 +580,7 @@ function Preview({
   function matchesFilter(entry: ImportEntry, current: Filters): boolean {
     const search = current.query.trim().toLocaleLowerCase('de-DE')
     return (
-      (current.category === '' || categoryKey(entry) === current.category) &&
+      categoryFits(categoryKey(entry), current.category, categories) &&
       (current.account === '' || entry.source === current.account) &&
       (current.kind === '' || kindOfRow(entry) === current.kind) &&
       (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
@@ -582,6 +602,7 @@ function Preview({
     category: categoryKey,
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
+    direction: () => '',
   })
   // The shown chosen rows without category, for "Zuordnen"
   const assignable = filterActive
@@ -648,6 +669,31 @@ function Preview({
   }
 
   // US33: a category chosen for a row becomes the suggestion of the open rows with the same key (R29); a transfer does not
+  /**
+   * R33, US38: a row of the card "Kategorien der Bank" was applied; the open rows of each bank category (and those preset
+   * from its old mapping) get its category, except
+   * transfers, rows that fulfil a term and rows whose certain history names another category (decision 62).
+   */
+  function applyBankCategories(categoryByBankCategory: Record<string, number>) {
+    setChoices((current) => {
+      const next = { ...current }
+      for (const entry of preview.entries) {
+        const id = entry.bankCategory === null ? undefined : categoryByBankCategory[entry.bankCategory]
+        const choice = entry.fingerprint === null ? undefined : next[entry.fingerprint]
+        // A row keeps a category the user chose; one preset from a mapping that changed follows the new mapping
+        const preset = choice?.category === '' || choice?.category === String(entry.mappedCategoryId)
+        if (id === undefined || !choice || !preset || entry.transfer || entry.replaces) {
+          continue
+        }
+        if (entry.certain && entry.categoryId !== null && entry.categoryId !== id) {
+          continue
+        }
+        next[entry.fingerprint as string] = { ...choice, category: String(id) }
+      }
+      return next
+    })
+  }
+
   function change(entry: ImportEntry, next: Choice) {
     setChoices((current) => ({ ...current, [entry.fingerprint as string]: next }))
     // The row stays in sight while it is edited, even when it no longer passes the filters
@@ -786,11 +832,16 @@ function Preview({
     setError(null)
     try {
       const result = await commit.mutateAsync(request(selected))
+      const replaced = result.replacedAuto ?? 0
       const message =
         result.created === 0
           ? 'Nichts Neues: alle gewählten Zeilen waren schon importiert.'
-          : `${bookings(result.created)} übernommen.`
-      onDone(message, result.batch)
+          : `${bookings(result.created)} übernommen${
+              replaced > 0
+                ? `, ${replaced === 1 ? '1 automatischer Eintrag' : `${replaced} automatische Einträge`} durch die echte Buchung ersetzt`
+                : ''
+            }.`
+      onDone(message, result.batch, result.missingAuto ?? [])
     } catch (e) {
       setError(errorText(e, 'Übernehmen fehlgeschlagen.'))
     }
@@ -839,6 +890,15 @@ function Preview({
           </div>
         )}
       </section>
+
+      {(preview.bankCategories ?? []).length > 0 && (
+        <BankCategoryCard
+          profile={preview.profile}
+          items={preview.bankCategories}
+          categories={categories}
+          onApplied={applyBankCategories}
+        />
+      )}
 
       {matches.map((match) => (
         <MatchCard
@@ -896,6 +956,7 @@ function Preview({
             filters={filters}
             onChange={changeFilters}
             counts={counts}
+            kinds={IMPORT_KINDS}
             categories={categories}
             accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
             extraCategoryOptions={[
@@ -929,7 +990,7 @@ function Preview({
                 <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
-                    {category.name}
+                    {category.path}
                   </option>
                 ))}
               </select>
@@ -1072,8 +1133,8 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
 }
 
 /**
- * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic, N26 or the Sparkasse, check the preview and
- * take the rows over; earlier imports can be undone.
+ * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic, N26, the Sparkasse or the
+ * VR-Bank, check the preview and take the rows over; earlier imports can be undone.
  */
 export function ImportPage() {
   const accounts = useBankAccounts()
@@ -1085,6 +1146,9 @@ export function ImportPage() {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<{ message: string; batch: ImportBatch | null } | null>(null)
+  // P6: automatic entries the file did not contain; the user deletes or keeps each one
+  const [missing, setMissing] = useState<MissingAuto[]>([])
+  const deleteTransaction = useDeleteTransaction()
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -1154,16 +1218,16 @@ export function ImportPage() {
       {!preview && (
         <section className="card import-upload" aria-label="Datei wählen">
           <p>
-            CSV-Export deiner Bank hochladen. Unterstützt werden C24, Trade Republic, N26 und die Sparkasse (alle vier
-            CSV-Exporte). Die Datei wird nur gelesen
-            und nicht gespeichert; vorgemerkte Umsätze werden übersprungen.
+            CSV-Export deiner Bank hochladen. Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier
+            CSV-Exporte) und die VR-Bank (Volks- und Raiffeisenbanken). Die Datei wird nur gelesen und nicht
+            gespeichert; vorgemerkte Umsätze werden übersprungen.
           </p>
           <label className="button-link primary file-button">
             <Icon name="plus" size={18} />
             CSV-Datei wählen
             <input type="file" accept=".csv,text/csv" className="visually-hidden" onChange={(e) => void handleFile(e)} />
           </label>
-          {upload.isPending && <p className="hint">Lese Datei …</p>}
+          {upload.isPending && <Loading text="Lese Datei …" inline />}
           {error && (
             <p className="error" role="alert">
               {error}
@@ -1177,6 +1241,38 @@ export function ImportPage() {
               )}
             </p>
           )}
+          {missing.length > 0 && (
+            <div className="card import-missing" aria-label="Nicht in der Datei">
+              <h3>Automatisch eingetragen, aber nicht in der Datei</h3>
+              <ul className="item-list">
+                {missing.map((entry) => (
+                  <li key={entry.id} className="account-row">
+                    <span className="item-main">
+                      <span className="item-name">{entry.description}</span>
+                      <span className="tx-meta">
+                        {formatDate(entry.date)} · {entry.accountName}
+                      </span>
+                    </span>
+                    <span className="item-amount">{formatSigned(entry.amount)}</span>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() =>
+                        void deleteTransaction
+                          .mutateAsync(entry.id)
+                          .then(() => setMissing((current) => current.filter((m) => m.id !== entry.id)))
+                      }
+                    >
+                      Eintrag löschen
+                    </button>
+                    <button type="button" onClick={() => setMissing((current) => current.filter((m) => m.id !== entry.id))}>
+                      Behalten
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -1186,9 +1282,10 @@ export function ImportPage() {
           preview={preview}
           accounts={accounts.data}
           categories={activeCategories}
-          onDone={(message, batch) => {
+          onDone={(message, batch, missingAuto) => {
             setPreview(null)
             setDone({ message, batch })
+            setMissing(missingAuto)
           }}
           onPartlyDone={markImported}
           onReload={() => void reload()}

@@ -38,8 +38,21 @@ public class BankAccount {
     @Column(name = "default_account", nullable = false)
     private boolean defaultAccount;
 
+    // Concept 3.4: only Alltag counts in income and expenses (P1)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false, length = 8)
+    private AccountRole role = AccountRole.EVERYDAY;
+
     @Column(nullable = false)
     private boolean archived;
+
+    // P12 (27h, decision 65): below it the balance is orange on Konten and the bell warns; replaces the comfort amount
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "lower_limit_mode", nullable = false, length = 6)
+    private LowerLimitMode lowerLimitMode = LowerLimitMode.ZERO;
+
+    @Column(name = "lower_limit", precision = 12, scale = 2)
+    private java.math.BigDecimal lowerLimit;
 
     protected BankAccount() {
     }
@@ -83,5 +96,32 @@ public class BankAccount {
 
     public void setDefaultAccount(boolean defaultAccount) {
         this.defaultAccount = defaultAccount;
+    }
+
+    public AccountRole getRole() {
+        return role;
+    }
+
+    public void setRole(AccountRole role) {
+        this.role = role;
+    }
+
+    public LowerLimitMode getLowerLimitMode() {
+        return lowerLimitMode;
+    }
+
+    public java.math.BigDecimal getLowerLimit() {
+        return lowerLimit;
+    }
+
+    /** P12: the amount is kept only for CUSTOM. */
+    public void setLowerLimit(LowerLimitMode mode, java.math.BigDecimal amount) {
+        this.lowerLimitMode = mode;
+        this.lowerLimit = mode == LowerLimitMode.CUSTOM ? amount : null;
+    }
+
+    /** P12: the lower limit as an amount, null without one. */
+    public java.math.BigDecimal limit() {
+        return AccountBalance.limit(lowerLimitMode, lowerLimit);
     }
 }

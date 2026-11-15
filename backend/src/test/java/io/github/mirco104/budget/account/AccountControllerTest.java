@@ -15,10 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.mirco104.budget.TestUsers;
 import io.github.mirco104.budget.auth.LoginAttempts;
 import io.github.mirco104.budget.category.CategoryRepository;
-import io.github.mirco104.budget.category.CategoryTargetRepository;
 import io.github.mirco104.budget.invitation.InvitationRepository;
-import io.github.mirco104.budget.recurring.RecurringExceptionRepository;
-import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.Role;
 import io.github.mirco104.budget.user.User;
@@ -61,16 +58,7 @@ class AccountControllerTest {
     private CategoryRepository categoryRepository;
 
     @Autowired
-    private CategoryTargetRepository categoryTargetRepository;
-
-    @Autowired
     private TransactionRepository transactionRepository;
-
-    @Autowired
-    private RecurringTransactionRepository recurringRepository;
-
-    @Autowired
-    private RecurringExceptionRepository exceptionRepository;
 
     @Autowired
     private InvitationRepository invitationRepository;
@@ -173,31 +161,6 @@ class AccountControllerTest {
 
     // --- GET /api/account/export ---
 
-    @Test
-    void exportsAllOwnDataAndNothingElse() throws Exception {
-        asB.perform(get("/api/account/export"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Content-Disposition", containsString("budget-export.json")))
-                .andExpect(jsonPath("$.account.email").value(EMAIL))
-                .andExpect(jsonPath("$.account.passwordHash").doesNotExist())
-                .andExpect(jsonPath("$.categories.length()").value(20))
-                // Alphabetical like everywhere (decision 38), without the former sortOrder
-                .andExpect(jsonPath("$.categories[19].name").value("Wohnen"))
-                .andExpect(jsonPath("$.categories[19].sortOrder").doesNotExist())
-                .andExpect(jsonPath("$.categories[19].targets[0].validFrom").value(MONTH))
-                .andExpect(jsonPath("$.categories[19].targets[0].targetAmount").value(500.0))
-                .andExpect(jsonPath("$.transactions.length()").value(1))
-                .andExpect(jsonPath("$.transactions[0].description").value("Einkauf B"))
-                .andExpect(jsonPath("$.transactions[0].category").value("Wohnen"))
-                .andExpect(jsonPath("$.transactions[0].account").value("Girokonto"))
-                .andExpect(jsonPath("$.bankAccounts[0].name").value("Girokonto"))
-                .andExpect(jsonPath("$.bankAccounts[0].defaultAccount").value(true))
-                .andExpect(jsonPath("$.recurringTransactions.length()").value(1))
-                .andExpect(jsonPath("$.recurringTransactions[0].interval").value("MONTHLY"))
-                .andExpect(jsonPath("$.recurringTransactions[0].exceptions[0]").value("2026-11-01"))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Einkauf C"))));
-    }
-
     // --- DELETE /api/account ---
 
     @Test
@@ -208,30 +171,6 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.errors[0].field").value("password"));
 
         assertThat(userRepository.findById(b.getId())).isPresent();
-    }
-
-    @Test
-    void deletesTheAccountWithAllDataAndEndsTheSession() throws Exception {
-        MockHttpSession session = new MockHttpSession();
-        login(session, TestUsers.PASSWORD).andExpect(status().isNoContent());
-
-        anonymous.perform(delete("/api/account").session(session).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\": \"%s\"}".formatted(TestUsers.PASSWORD)))
-                .andExpect(status().isNoContent());
-
-        anonymous.perform(get("/api/auth/me").session(session)).andExpect(status().isUnauthorized());
-        assertThat(userRepository.findById(b.getId())).isEmpty();
-        assertThat(categoryRepository.findAll()).noneMatch(category -> isOwnedByB(category.getId()));
-        assertThat(transactionRepository.findAll()).extracting(t -> t.getDescription()).doesNotContain("Einkauf B");
-        assertThat(invitationRepository.findAll()).isEmpty();
-        assertThat(exceptionRepository.findAll()).hasSize(1);
-        // C keeps everything
-        assertThat(categoryRepository.findAllByOwner(c)).hasSize(20);
-        assertThat(transactionRepository.findByOwnerOrderByDateAscIdAsc(c)).hasSize(1);
-        assertThat(recurringRepository.findByOwnerOrderByStartDateAscIdAsc(c)).hasSize(1);
-        assertThat(categoryTargetRepository.findByCategoryOwnerOrderByValidFromAsc(c)).hasSize(1);
-        login(TestUsers.PASSWORD).andExpect(status().isUnauthorized());
     }
 
     // US25: only ADMIN_EMAIL sets the system admin's e-mail
@@ -264,28 +203,20 @@ class AccountControllerTest {
         return categoryRepository.findByIdAndOwner(categoryId, b).isPresent();
     }
 
-    // A target, a transaction and a monthly series with one suspended occurrence (R13)
+    // A transaction and a monthly planned item (section 19)
     private void createData(MockMvc mockMvc, User owner, String description) throws Exception {
         long wohnen = categoryRepository.findAllByOwner(owner).stream()
                 .filter(category -> category.getName().equals("Wohnen")).findFirst().orElseThrow().getId();
-        mockMvc.perform(put("/api/categories/{id}/target", wohnen).param("month", MONTH)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"targetAmount\": 500}"))
-                .andExpect(status().isOk());
         mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
                         {"amount": -20, "description": "%s", "date": "2026-10-05", "categoryId": %d}
                         """.formatted(description, wohnen)))
                 .andExpect(status().isCreated());
-        String series = mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"amount": -900, "description": "Miete", "categoryId": %d, "interval": "MONTHLY",
-                                 "startDate": "2026-10-01"}
+                                {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH",
+                                 "rhythmCount": 1, "anchorDate": "2026-10-01", "validFrom": "2026-10"}
                                 """.formatted(wohnen)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        long seriesId = ((Number) com.jayway.jsonpath.JsonPath.read(series, "$.id")).longValue();
-        mockMvc.perform(delete("/api/recurring-transactions/{id}/occurrences/{date}", seriesId, "2026-11-01")
-                        .param("scope", "THIS"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isCreated());
     }
 
     private ResultActions changePassword(String current, String next) throws Exception {

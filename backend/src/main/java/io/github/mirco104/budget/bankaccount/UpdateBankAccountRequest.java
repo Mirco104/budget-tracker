@@ -17,5 +17,7 @@ public record UpdateBankAccountRequest(
         Boolean archived,
 
         @NotNull(message = "Standardkonto ist Pflicht.")
-        Boolean defaultAccount) {
+        Boolean defaultAccount,
+        // Concept 3.4: optional, unchanged without it
+        AccountRole role) {
 }

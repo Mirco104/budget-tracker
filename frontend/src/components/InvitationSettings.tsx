@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { errorText } from '../api/client'
 import { useCreateInvitation } from '../api/invitations'
 import type { Invitation } from '../api/types'
 import { formatDateTime } from '../format'
+import { CopyLink } from './ui/CopyLink'
 
 /** Opens the admin's own mail program with the link; the app itself sends no e-mail (decision 19). */
 function mailtoLink(invitation: Invitation, senderName: string): string {
@@ -25,53 +26,14 @@ function mailtoLink(invitation: Invitation, senderName: string): string {
 export function InvitationSettings({ senderName }: { senderName: string }) {
   const create = useCreateInvitation()
   const [invitation, setInvitation] = useState<Invitation | null>(null)
-  const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const linkField = useRef<HTMLInputElement>(null)
 
   async function handleCreate() {
     setError(null)
-    setCopied(false)
     try {
       setInvitation(await create.mutateAsync())
     } catch (e) {
       setError(errorText(e, 'Der Link konnte nicht erzeugt werden.'))
-    }
-  }
-
-  // Copies by selecting the link field; works without the clipboard API (plain HTTP, embedded browsers)
-  function copyFromField(): boolean {
-    const field = linkField.current
-    if (!field) {
-      return false
-    }
-    field.focus()
-    field.select()
-    try {
-      return document.execCommand('copy')
-    } catch {
-      return false
-    }
-  }
-
-  async function handleCopy(link: string) {
-    setError(null)
-    let copiedNow = false
-    // The clipboard API only exists in a secure context (HTTPS or localhost) and may still be denied
-    if (navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(link)
-        copiedNow = true
-      } catch {
-        copiedNow = false
-      }
-    }
-    if (!copiedNow) {
-      copiedNow = copyFromField()
-    }
-    setCopied(copiedNow)
-    if (!copiedNow) {
-      setError('Kopieren nicht möglich. Der Link ist markiert, bitte mit Strg+C bzw. lange tippen kopieren.')
     }
   }
 
@@ -86,22 +48,13 @@ export function InvitationSettings({ senderName }: { senderName: string }) {
         Einladungslink erzeugen
       </button>
       {invitation && (
-        <div className="invitation-link">
-          <input
-            ref={linkField}
-            aria-label="Einladungslink"
-            readOnly
-            value={invitation.link}
-            onFocus={(e) => e.target.select()}
-          />
-          <button type="button" onClick={() => void handleCopy(invitation.link)}>
-            {copied ? 'Kopiert' : 'Kopieren'}
-          </button>
+        // A new link starts with "Kopieren" again
+        <CopyLink key={invitation.link} link={invitation.link} label="Einladungslink">
           <a className="button-link" href={mailtoLink(invitation, senderName)}>
             Per E-Mail senden
           </a>
           <span className="hint">Gültig bis {formatDateTime(invitation.expiresAt)}</span>
-        </div>
+        </CopyLink>
       )}
       {error && <p className="error">{error}</p>}
     </section>

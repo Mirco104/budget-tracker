@@ -3,7 +3,9 @@ package io.github.mirco104.budget.bankaccount;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
-import io.github.mirco104.budget.recurring.RecurringTransactionRepository;
+import io.github.mirco104.budget.notification.DismissedNotificationRepository;
+import io.github.mirco104.budget.notification.NotificationService;
+import io.github.mirco104.budget.plan.PlannedItemRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
 import io.github.mirco104.budget.user.User;
@@ -17,18 +19,22 @@ public class BankAccountService {
 
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
-    private final RecurringTransactionRepository recurringRepository;
+    private final PlannedItemRepository itemRepository;
+    private final BankStatementRepository statementRepository;
     private final BankAccountSourceRepository sourceRepository;
     private final CurrentUser currentUser;
+    private final DismissedNotificationRepository dismissedRepository;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
-            RecurringTransactionRepository recurringRepository, BankAccountSourceRepository sourceRepository,
-            CurrentUser currentUser) {
+            PlannedItemRepository itemRepository, BankStatementRepository statementRepository, BankAccountSourceRepository sourceRepository,
+            CurrentUser currentUser, DismissedNotificationRepository dismissedRepository) {
+        this.dismissedRepository = dismissedRepository;
         this.sourceRepository = sourceRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.transactionRepository = transactionRepository;
-        this.recurringRepository = recurringRepository;
+        this.itemRepository = itemRepository;
+        this.statementRepository = statementRepository;
         this.currentUser = currentUser;
     }
 
@@ -48,7 +54,15 @@ public class BankAccountService {
 
     @Transactional
     public BankAccountResponse create(CreateBankAccountRequest request) {
-        return BankAccountResponse.from(create(request.name(), request.iban()), false);
+        BankAccount account = create(request.name(), request.iban());
+        if (request.role() != null) {
+            account.setRole(request.role());
+            // P12: a savings or depot account starts without a lower limit, an everyday one with 0 €
+            if (request.role() != AccountRole.EVERYDAY) {
+                account.setLowerLimit(LowerLimitMode.OFF, null);
+            }
+        }
+        return BankAccountResponse.from(account, false);
     }
 
     /** A new account that is not the default one; 409 for a name or IBAN the user already has (R26). */
@@ -83,10 +97,13 @@ public class BankAccountService {
             account.setDefaultAccount(true);
         }
         account.update(name, iban, request.archived());
+        if (request.role() != null) {
+            account.setRole(request.role());
+        }
         return BankAccountResponse.from(account, isUsed(account));
     }
 
-    /** R26: only an account without transactions and series can be deleted, never the default account. */
+    /** R26: only an account without transactions and planned items can be deleted, never the default account. */
     @Transactional
     public void delete(long id) {
         BankAccount account = find(id);
@@ -98,6 +115,8 @@ public class BankAccountService {
                     "Auf diesem Konto gibt es Buchungen. Das Konto kann nur archiviert werden.");
         }
         sourceRepository.deleteByAccount(account);
+        // 27h: the dismissed lower limit notification of the account goes with it
+        dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);
         bankAccountRepository.deleteById(id);
     }
 
@@ -124,7 +143,8 @@ public class BankAccountService {
 
     private boolean isUsed(BankAccount account) {
         return transactionRepository.existsByAccountId(account.getId())
-                || recurringRepository.existsByAccountId(account.getId());
+                || itemRepository.existsByAccountId(account.getId())
+                || statementRepository.existsByAccountId(account.getId());
     }
 
     private void checkName(String name, Long id) {

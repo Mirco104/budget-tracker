@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.importer;
 
+import io.github.mirco104.budget.plan.TermRef;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -97,9 +98,9 @@ public record ImportRequest(
 
             Long transferPeerId,
 
-            // R28: the occurrence the row replaces
+            // P5: the term of a planned item the row fulfils
             @Valid
-            io.github.mirco104.budget.transaction.OccurrenceRef replaces,
+            TermRef replaces,
 
             // R31: the index of the new series in "series" whose occurrence the row replaces
             Integer series) {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 
-export type ImportProfile = 'C24' | 'TRADE_REPUBLIC' | 'N26' | 'SPARKASSE'
+export type ImportProfile = 'C24' | 'TRADE_REPUBLIC' | 'N26' | 'SPARKASSE' | 'VR_BANK'
 
 /** NEW and POSSIBLE_DUPLICATE can be imported; DUPLICATE was imported before; SKIPPED cannot be imported (R30). */
 export type ImportStatus = 'NEW' | 'POSSIBLE_DUPLICATE' | 'DUPLICATE' | 'SKIPPED'
@@ -43,16 +43,72 @@ export interface ImportEntry {
     amount: number | null
     accountName: string | null
   } | null
-  /** R28: the planned occurrence the row replaces; categoryId is then the category of its series. */
-  replaces: { recurringId: number; date: string; description: string; amount: number; categoryId: number } | null
+  /**
+   * P5: the term of a planned item the row fulfils (recurringId is the id of the item version); categoryId is then the
+   * category of the item. autoEntryId: the automatic entry of the term the row replaces (P6).
+   */
+  replaces: {
+    recurringId: number
+    date: string
+    description: string
+    amount: number
+    categoryId: number
+    autoEntryId?: number | null
+  } | null
   duplicateOf: { id: number; date: string; description: string } | null
+  /** Issue #119: what else the bank says about the row; a field the bank does not deliver is null. */
+  details: ImportDetails | null
+  /** R33: the category the stored mapping of its bank category sets; null without one (decision 62). */
+  mappedCategoryId: number | null
 }
 
-/** R31: rows that look like a monthly series that does not exist yet; categoryId is only a suggestion. */
+export type BankCategoryStatus = 'EXISTING' | 'GUESSED' | 'NEW'
+
+/**
+ * R33, US38: a bank category of the new rows with the match of its parent and child (child fields null without a
+ * child) and the category of a stored mapping.
+ */
+export interface ImportBankCategory {
+  bankCategory: string
+  parent: string
+  child: string | null
+  rows: number
+  parentStatus: BankCategoryStatus
+  parentCategoryId: number | null
+  childStatus: BankCategoryStatus | null
+  childCategoryId: number | null
+  mappedCategoryId: number | null
+}
+
+/** US38: one mapping to store: an own category, or a new one (parentId or parentName, and name for a child). */
+export interface BankCategoryMappingInput {
+  bankCategory: string
+  categoryId?: number
+  parentId?: number
+  parentName?: string
+  name?: string
+}
+
+/** Issue #119: the details of a row; purpose as the bank sends it, kind the kind of booking. */
+export interface ImportDetails {
+  counterpartyIban: string | null
+  purpose: string | null
+  kind: string | null
+  valueDate: string | null
+  mandateId: string | null
+  creditorId: string | null
+}
+
+/**
+ * R31: rows that look like a monthly series that does not exist yet; categoryId is only a suggestion. amount is the
+ * median of the rows, lowest and highest the smallest and the largest amount by size (issue #119).
+ */
 export interface ImportSeries {
   lines: number[]
   startDate: string
   amount: number
+  lowest: number
+  highest: number
   description: string
   source: string
   categoryId: number | null
@@ -68,6 +124,8 @@ export interface ImportPreview {
   sources: ImportSource[]
   entries: ImportEntry[]
   series: ImportSeries[]
+  /** R33: bank categories of C24 and the Sparkasse; empty for the other banks. */
+  bankCategories: ImportBankCategory[]
 }
 
 export interface ImportRequest {
@@ -106,6 +164,10 @@ export interface ImportResult {
   batch: ImportBatch | null
   created: number
   skippedDuplicates: number
+  /** P6: automatic entries the rows replaced. */
+  replacedAuto?: number
+  /** P6: automatic entries of the accounts of the file within its dates that the file does not contain. */
+  missingAuto?: MissingAuto[]
 }
 
 /** Reads the file in the backend; nothing is stored (decision 44). */
@@ -117,6 +179,22 @@ export function previewImport(file: File): Promise<ImportPreview> {
 
 export function commitImport(input: ImportRequest): Promise<ImportResult> {
   return request<ImportResult>('/imports', { method: 'POST', body: JSON.stringify(input) })
+}
+
+/** R33, US38: stores the mappings and creates their new categories; returns the category of each. */
+export function saveBankCategoryMappings(input: {
+  profile: ImportProfile
+  mappings: BankCategoryMappingInput[]
+}): Promise<{ bankCategory: string; categoryId: number }[]> {
+  return request('/bank-category-mappings', { method: 'PUT', body: JSON.stringify(input) })
+}
+
+export function useSaveBankCategoryMappings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: saveBankCategoryMappings,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  })
 }
 
 export function fetchImports(): Promise<ImportBatch[]> {
@@ -154,4 +232,13 @@ export function useCommitImport() {
 export function useDeleteImport() {
   const onSuccess = useInvalidateAfterImport()
   return useMutation({ mutationFn: deleteImport, onSuccess })
+}
+
+/** P6: an automatic entry the import did not find in the file. */
+export interface MissingAuto {
+  id: number
+  date: string
+  description: string
+  amount: number
+  accountName: string
 }

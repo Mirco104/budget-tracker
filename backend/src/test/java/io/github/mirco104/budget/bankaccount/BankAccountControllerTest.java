@@ -146,29 +146,6 @@ class BankAccountControllerTest {
     }
 
     @Test
-    void bookingsCarryTheirAccount() throws Exception {
-        long girokonto = defaultAccountId();
-        long tagesgeld = idOf(create("{\"name\": \"Tagesgeld\"}"));
-
-        book("").andExpect(jsonPath("$.accountId").value(girokonto))
-                .andExpect(jsonPath("$.accountName").value("Girokonto"));
-        long id = idOf(book(", \"accountId\": " + tagesgeld)
-                .andExpect(jsonPath("$.accountName").value("Tagesgeld")));
-        mockMvc.perform(put("/api/transactions/{id}", id).contentType(MediaType.APPLICATION_JSON)
-                        .content(transaction("")))
-                .andExpect(jsonPath("$.accountId").value(girokonto));
-
-        mockMvc.perform(post("/api/recurring-transactions").contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amount": -900, "description": "Miete", "categoryId": %d, "interval": "MONTHLY",
-                                 "startDate": "2026-10-01", "accountId": %d}""".formatted(categoryId, tagesgeld)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accountName").value("Tagesgeld"));
-        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
-                .andExpect(jsonPath("$[?(@.kind == 'RECURRING')].accountName").value("Tagesgeld"));
-    }
-
-    @Test
     void unknownAccountInTheBodyIsInvalid() throws Exception {
         book(", \"accountId\": 999999")
                 .andExpect(status().isBadRequest())

@@ -17,14 +17,17 @@ function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
-function renderUsers(onWrite: (url: string, init: RequestInit) => Promise<Response> = () => json(users[2])) {
+function renderUsers(
+  onWrite: (url: string, init: RequestInit) => Promise<Response> = () => json(users[2]),
+  signedIn: Me = me,
+) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) =>
     init?.method && init.method !== 'GET' ? onWrite(url, init) : json(users),
   )
   vi.stubGlobal('fetch', fetchMock)
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <UserSettings me={me} />
+      <UserSettings me={signedIn} />
     </QueryClientProvider>,
   )
   return fetchMock
@@ -50,6 +53,36 @@ describe('UserSettings', () => {
     expect(within(screen.getByLabelText('Person A')).queryByRole('button')).not.toBeInTheDocument()
     expect(within(screen.getByLabelText('Person C')).getByRole('button', { name: 'Zum Admin machen' })).toBeInTheDocument()
     expect(within(screen.getByLabelText('Person D')).getByRole('button', { name: 'Zum User machen' })).toBeInTheDocument()
+  })
+
+  // US36
+  it('offers an admin a password link for users only, the system admin also for admins', async () => {
+    renderUsers()
+
+    const reset = { name: 'Link für neues Passwort' }
+    expect(within(await screen.findByLabelText('Person C')).getByRole('button', reset)).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Person D')).queryByRole('button', reset)).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText('Person A')).queryByRole('button', reset)).not.toBeInTheDocument()
+  })
+
+  it('lets the system admin create a password link for an admin', async () => {
+    renderUsers(undefined, { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'SYSTEM_ADMIN' })
+
+    expect(
+      within(await screen.findByLabelText('Person D')).getByRole('button', { name: 'Link für neues Passwort' }),
+    ).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Person A')).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('creates a password link and shows it to copy', async () => {
+    const link = { link: 'http://localhost/?passwort=abc', expiresAt: '2026-11-10T08:00:00Z' }
+    const fetchMock = renderUsers(() => json(link, 201))
+
+    fireEvent.click(within(await screen.findByLabelText('Person C')).getByRole('button', { name: 'Link für neues Passwort' }))
+
+    expect(await screen.findByLabelText('Link für neues Passwort von Person C')).toHaveValue(link.link)
+    expect(screen.getByText(/Einmal nutzbar, gültig bis 10\.11\.2026/)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/users/3/password-reset', expect.objectContaining({ method: 'POST' }))
   })
 
   it('makes a user an admin', async () => {

@@ -23,7 +23,7 @@ function formatDay(isoDate: string): string {
 }
 
 function entryKey(entry: Transaction): string {
-  return entry.kind === 'SINGLE' ? `single-${entry.id}` : `recurring-${entry.recurringId}-${entry.occurrenceDate}`
+  return `tx-${entry.id}`
 }
 
 /** Groups the entries by key, in the order in which the keys first appear. */
@@ -71,14 +71,17 @@ export function BookingList({ entries, categories, today, showAccount = false, o
                       <span className="tx-main">
                         <span className="tx-description">{entry.description}</span>
                         <span className="tx-meta">
-                          {entry.transfer ? 'Umbuchung' : entry.categoryName}
+                          {entry.saving ? 'Sparen' : entry.transfer ? 'Umbuchung' : entry.categoryName}
                           {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
-                          {(entry.kind === 'RECURRING' || entry.replaces) && (
-                            <span className="badge">
+                          {entry.fix && (
+                            <span className="badge" title="Fix sind regelmäßige Zahlungen, die du in der Planung eingetragen hast, z. B. Miete, Versicherungen, Abos. Alles andere ist variabel.">
                               <Icon name="repeat" size={12} />
-                              wiederkehrend
+                              fix
                             </span>
                           )}
+                          {entry.reserveItemKey && <span className="badge">aus Rücklage</span>}
+                          {entry.savingGoalId != null && <span className="badge">aus Sparziel</span>}
+                          {entry.auto && <span className="badge auto">automatisch</span>}
                           {entry.date > today && <span className="badge planned">geplant</span>}
                         </span>
                       </span>

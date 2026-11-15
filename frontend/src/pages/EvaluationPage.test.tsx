@@ -54,7 +54,7 @@ const outlook: ReserveData = {
   monthlyReserve: 20,
   reserveBalance: 20,
   reserves: [
-    { recurringId: 2, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, interval: 'YEARLY', nextDate: '2027-10-15', monthly: 20, saved: 20, ratesLeft: 11 },
+    { itemId: 2, description: 'Haftpflicht', categoryName: 'Versicherungen', amount: 240, rhythmUnit: 'MONTH', rhythmCount: 12, nextDate: '2027-10-15', monthly: 20, saved: 20, ratesLeft: 11 },
   ],
   forecast: forecastMonths.map((month, i): ForecastMonth =>
     i === 0
@@ -63,8 +63,8 @@ const outlook: ReserveData = {
           total: 1100,
           fromReserves: 0,
           entries: [
-            { kind: 'RECURRING', id: null, recurringId: 1, description: 'Miete', date: '2026-11-01', amount: 900, fromReserves: false },
-            { kind: 'SINGLE', id: 7, recurringId: null, description: 'Strom', date: '2026-11-02', amount: 200, fromReserves: false },
+            { kind: 'PLANNED', id: null, itemId: 1, description: 'Miete', date: '2026-11-01', amount: 900, fromReserves: false },
+            { kind: 'SINGLE', id: 7, itemId: null, description: 'Strom', date: '2026-11-02', amount: 200, fromReserves: false },
           ],
         }
       : i === 11
@@ -73,7 +73,7 @@ const outlook: ReserveData = {
             total: 1155,
             fromReserves: 240,
             entries: [
-              { kind: 'RECURRING', id: null, recurringId: 2, description: 'Haftpflicht', date: '2027-10-15', amount: 240, fromReserves: true },
+              { kind: 'PLANNED', id: null, itemId: 2, description: 'Haftpflicht', date: '2027-10-15', amount: 240, fromReserves: true },
             ],
           }
         : { month, total: 915, fromReserves: 0, entries: [] },
@@ -86,9 +86,9 @@ const twoReserves: ReserveData = {
   monthlyReserve: 58.36,
   reserveBalance: 338.36,
   reserves: [
-    { recurringId: 4, description: 'Grundsteuer', categoryName: 'Wohnen', amount: 60, interval: 'QUARTERLY', nextDate: '2026-11-15', monthly: 20, saved: 60, ratesLeft: 0 },
-    { recurringId: 3, description: 'Rundfunkbeitrag', categoryName: 'Wohnen', amount: 55.08, interval: 'QUARTERLY', nextDate: '2027-01-15', monthly: 18.36, saved: 18.36, ratesLeft: 2 },
-    { recurringId: 2, description: 'Kfz-Versicherung', categoryName: 'Mobilität', amount: 480, interval: 'YEARLY', nextDate: '2027-03-15', monthly: 40, saved: 440, ratesLeft: 1 },
+    { itemId: 4, description: 'Grundsteuer', categoryName: 'Wohnen', amount: 60, rhythmUnit: 'MONTH', rhythmCount: 3, nextDate: '2026-11-15', monthly: 20, saved: 60, ratesLeft: 0 },
+    { itemId: 3, description: 'Rundfunkbeitrag', categoryName: 'Wohnen', amount: 55.08, rhythmUnit: 'MONTH', rhythmCount: 3, nextDate: '2027-01-15', monthly: 18.36, saved: 18.36, ratesLeft: 2 },
+    { itemId: 2, description: 'Kfz-Versicherung', categoryName: 'Mobilität', amount: 480, rhythmUnit: 'MONTH', rhythmCount: 12, nextDate: '2027-03-15', monthly: 40, saved: 440, ratesLeft: 1 },
   ],
 }
 

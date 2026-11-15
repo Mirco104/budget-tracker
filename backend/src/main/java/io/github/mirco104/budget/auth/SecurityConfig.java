@@ -48,6 +48,8 @@ public class SecurityConfig {
                         // US15: the invited person has no account yet. Admin-only calls check the role in the
                         // service against the database (CurrentUser.requireAdmin), so role changes apply at once.
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/accept").permitAll()
+                        // US36: whoever has forgotten the password cannot sign in
+                        .requestMatchers(HttpMethod.POST, "/api/password-resets/*").permitAll()
                         .requestMatchers("/api/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
                         // Health check of the container (section 15); it shows only the status

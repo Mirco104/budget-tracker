@@ -1,47 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { euroToPercent, percentToEuro } from './planning'
+import { anchorFromDay, dayOfAnchor } from './planning'
 
-// Decision 36: percent is an input helper on the planning page; the backend only stores euro
-describe('percentToEuro', () => {
-  it.each([
-    [50, 2000, 1000],
-    [46.51, 2150, 999.97],
-    // 33.33 % of 300 is 99.99, without float noise
-    [33.33, 300, 99.99],
-    [0, 2850, 0],
-    [100, 2812.5, 2812.5],
-    // Half a cent rounds up: 0.5 % of 1.01 is 0.00505
-    [0.5, 1.01, 0.01],
-  ])('%s %% of %s € is %s €', (percent, base, expected) => {
-    expect(percentToEuro(percent, base)).toBe(expected)
+describe('anchorFromDay', () => {
+  it('puts a monthly term into the month "Gilt ab"', () => {
+    expect(anchorFromDay('2026-11', 15, null)).toBe('2026-11-15')
+    expect(anchorFromDay('2026-11', 1, null)).toBe('2026-11-01')
   })
 
-  it('has no value without a base', () => {
-    expect(percentToEuro(10, null)).toBeNull()
-    expect(percentToEuro(10, 0)).toBeNull()
+  it('uses the last day of a shorter month', () => {
+    expect(anchorFromDay('2026-02', 31, null)).toBe('2026-02-28')
+    expect(anchorFromDay('2028-02', 30, null)).toBe('2028-02-29')
+    expect(anchorFromDay('2026-11', 31, null)).toBe('2026-11-30')
+  })
+
+  it('puts a rare term into its due month in the year of "Gilt ab"', () => {
+    expect(anchorFromDay('2026-11', 15, 3)).toBe('2026-03-15')
+    expect(anchorFromDay('2026-01', 31, 4)).toBe('2026-04-30')
   })
 })
 
-describe('euroToPercent', () => {
-  it.each([
-    [1000, 2000, 50],
-    [950, 2812.5, 33.78],
-    [180, 2812.5, 6.4],
-    [0, 3000, 0],
-    // More than the base is possible, the field shows it
-    [3000, 2000, 150],
-  ])('%s € of %s € is %s %%', (euro, base, expected) => {
-    expect(euroToPercent(euro, base)).toBe(expected)
-  })
-
-  it('has no value without a base', () => {
-    expect(euroToPercent(100, null)).toBeNull()
-    expect(euroToPercent(100, 0)).toBeNull()
-  })
-
-  it('gives back the euro value it came from for whole percents', () => {
-    const percent = euroToPercent(1000, 2000)
-    expect(percent).not.toBeNull()
-    expect(percentToEuro(percent as number, 2000)).toBe(1000)
+describe('dayOfAnchor', () => {
+  it('reads day and month of the first term', () => {
+    expect(dayOfAnchor('2026-03-15')).toEqual({ day: 15, month: 3 })
   })
 })

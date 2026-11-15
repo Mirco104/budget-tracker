@@ -1,18 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
-import type { Category, CategoryInput, CategoryUpdate, TargetInput } from './types'
+import type { Category, CategoryInput, CategoryUpdate } from './types'
 
-/** Categories with the targets in effect for the month ("YYYY-MM"). */
+/** The categories; month is kept in the query key for the pages that pass it (the plan comes with /plan). */
 export function fetchCategories(month: string): Promise<Category[]> {
   return request<Category[]>(`/categories?month=${encodeURIComponent(month)}`)
-}
-
-/** Sets the target from the month onward. */
-export function updateTarget(id: number, month: string, input: TargetInput): Promise<Category> {
-  return request<Category>(`/categories/${id}/target?month=${encodeURIComponent(month)}`, {
-    method: 'PUT',
-    body: JSON.stringify(input),
-  })
 }
 
 export function createCategory(input: CategoryInput): Promise<Category> {
@@ -31,26 +23,12 @@ export function useCategories(month: string) {
   return useQuery({ queryKey: ['categories', month], queryFn: () => fetchCategories(month) })
 }
 
-// A target applies to its month and all later ones (including the remainder), so all months are refreshed.
-export function useUpdateTarget() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, month, input }: { id: number; month: string; input: TargetInput }) =>
-      updateTarget(id, month, input),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['categories'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-      ]),
-  })
-}
-
 // Category names appear in every page, so all of them are refreshed.
 function useInvalidateAfterCategoryChange() {
   const queryClient = useQueryClient()
   return () =>
     Promise.all(
-      ['categories', 'dashboard', 'transactions', 'reserves'].map((key) =>
+      ['categories', 'dashboard', 'transactions', 'reserves', 'plan'].map((key) =>
         queryClient.invalidateQueries({ queryKey: [key] }),
       ),
     )

@@ -1,143 +1,22 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from '../api/categories'
+import { useRef, useState } from 'react'
+import { useCategories, useDeleteCategory, useUpdateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import type { Category, CategoryUpdate } from '../api/types'
 import { currentMonth } from '../format'
+import { CategoryDialog, IconPicker, ParentSelect } from './CategoryDialog'
 import { CategoryIcon } from './ui/CategoryIcon'
-import { CATEGORY_ICON_KEYS, categoryIconLabel } from './ui/categoryIcons'
+import { categoryIconLabel } from './ui/categoryIcons'
 import { Icon } from './ui/Icon'
 import { RowMenu } from './ui/RowMenu'
+import { Loading } from './ui/Loading'
 
-/** The icon a new category starts with, as in the backend (US28). */
-const DEFAULT_ICON = 'tag'
+type Mode = 'view' | 'rename' | 'icon' | 'parent' | 'confirmDelete'
 
 /**
- * "+ Kategorie" opens a field for the name and the choice of an icon (US10, US28). The category appears at its
- * alphabetical place (decision 38).
+ * One active category: icon, name and the menu "⋯" (US10, US28). A subcategory stands indented below its parent, and
+ * "Oberkategorie ändern" moves it (R32).
  */
-function NewCategory() {
-  const create = useCreateCategory()
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [icon, setIcon] = useState(DEFAULT_ICON)
-  const [picking, setPicking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  function close() {
-    setOpen(false)
-    setName('')
-    setIcon(DEFAULT_ICON)
-    setPicking(false)
-    setError(null)
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (name.trim() === '') {
-      setError('Der Name ist Pflicht.')
-      return
-    }
-    setError(null)
-    try {
-      await create.mutateAsync({ name: name.trim(), icon })
-      close()
-    } catch (e) {
-      setError(errorText(e, 'Anlegen fehlgeschlagen.'))
-    }
-  }
-
-  if (!open) {
-    return (
-      <button type="button" className="add-category" onClick={() => setOpen(true)}>
-        <Icon name="plus" size={18} />
-        Kategorie
-      </button>
-    )
-  }
-  return (
-    <form className="category-new" noValidate onSubmit={handleSubmit}>
-      <div className="field">
-        <span id="new-category-icon">Icon</span>
-        <button
-          type="button"
-          className="icon-button category-icon-button"
-          aria-labelledby="new-category-icon"
-          aria-describedby="new-category-icon-name"
-          aria-expanded={picking}
-          onClick={() => setPicking(!picking)}
-        >
-          <CategoryIcon icon={icon} />
-        </button>
-        <span id="new-category-icon-name" hidden>
-          {categoryIconLabel(icon)}
-        </span>
-      </div>
-      <label className="field category-new-name">
-        Neue Kategorie
-        <input
-          // Opened on purpose, so typing can start right away
-          autoFocus
-          value={name}
-          maxLength={50}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && close()}
-          aria-invalid={error ? true : undefined}
-        />
-      </label>
-      <div className="dialog-buttons">
-        <button type="button" onClick={close}>
-          Abbrechen
-        </button>
-        <button type="submit" disabled={create.isPending}>
-          Hinzufügen
-        </button>
-      </div>
-      {picking && (
-        <IconPicker
-          icon={icon}
-          onPick={(picked) => {
-            setIcon(picked)
-            setPicking(false)
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
-      {error && <p className="error">{error}</p>}
-    </form>
-  )
-}
-
-/** The fixed list of icons as a grid of buttons (US28); the current one is pressed. Escape closes it. */
-function IconPicker({ icon, onPick, onClose }: { icon: string; onPick: (icon: string) => void; onClose: () => void }) {
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      event.stopPropagation()
-      onClose()
-    }
-  }
-
-  return (
-    <div className="icon-picker" role="group" aria-label="Icon wählen" onKeyDown={handleKeyDown}>
-      {CATEGORY_ICON_KEYS.map((key) => (
-        <button
-          key={key}
-          type="button"
-          aria-label={categoryIconLabel(key)}
-          title={categoryIconLabel(key)}
-          aria-pressed={key === icon}
-          onClick={() => onPick(key)}
-        >
-          <CategoryIcon icon={key} />
-        </button>
-      ))}
-    </div>
-  )
-}
-
-type Mode = 'view' | 'rename' | 'icon' | 'confirmDelete'
-
-/** One active category: icon, name and the menu "⋯" (US10, US28). */
-function CategoryRow({ category }: { category: Category }) {
+function CategoryRow({ category, categories }: { category: Category; categories: Category[] }) {
   const update = useUpdateCategory()
   const remove = useDeleteCategory()
   const [mode, setMode] = useState<Mode>('view')
@@ -146,6 +25,7 @@ function CategoryRow({ category }: { category: Category }) {
   const [error, setError] = useState<string | null>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const busy = update.isPending || remove.isPending
+  const hasChildren = categories.some((c) => c.parentId === category.id)
 
   async function send(changes: Partial<CategoryUpdate>): Promise<boolean> {
     setError(null)
@@ -156,6 +36,7 @@ function CategoryRow({ category }: { category: Category }) {
           name: category.name,
           archived: category.archived,
           icon: category.icon,
+          parentId: category.parentId,
           ...changes,
         },
       })
@@ -211,7 +92,7 @@ function CategoryRow({ category }: { category: Category }) {
   }
 
   return (
-    <li className="category-row" aria-label={category.name}>
+    <li className={category.parentId === null ? 'category-row' : 'category-row sub'} aria-label={category.path}>
       <div className="category-line">
         <button
           type="button"
@@ -276,6 +157,11 @@ function CategoryRow({ category }: { category: Category }) {
               <button type="button" className="menu-item" onClick={() => choose(() => setMode('icon'))}>
                 Icon ändern
               </button>
+              {!hasChildren && (
+                <button type="button" className="menu-item" onClick={() => choose(() => setMode('parent'))}>
+                  Oberkategorie ändern
+                </button>
+              )}
               <button type="button" className="menu-item" onClick={() => choose(() => void send({ archived: true }))}>
                 Archivieren
               </button>
@@ -302,6 +188,26 @@ function CategoryRow({ category }: { category: Category }) {
           }}
           onClose={() => setMode('view')}
         />
+      )}
+      {mode === 'parent' && (
+        <div className="dialog-actions confirm" role="group" aria-label={`Oberkategorie für ${category.name}`}>
+          <label htmlFor={`parent-${category.id}`}>Oberkategorie</label>
+          <ParentSelect
+            id={`parent-${category.id}`}
+            value={category.parentId}
+            exclude={category.id}
+            categories={categories}
+            disabled={busy}
+            onChange={(parentId) => {
+              void send({ parentId }).then((saved) => saved && setMode('view'))
+            }}
+          />
+          <div className="dialog-buttons">
+            <button type="button" onClick={() => setMode('view')} disabled={busy}>
+              Fertig
+            </button>
+          </div>
+        </div>
       )}
       {mode === 'confirmDelete' && (
         <div className="dialog-actions confirm" role="group" aria-label="Löschen bestätigen">
@@ -338,7 +244,7 @@ function ArchivedRow({ category }: { category: Category }) {
     try {
       await update.mutateAsync({
         id: category.id,
-        input: { name: category.name, archived: false, icon: category.icon },
+        input: { name: category.name, archived: false, icon: category.icon, parentId: category.parentId },
       })
     } catch (e) {
       setError(errorText(e, 'Speichern fehlgeschlagen.'))
@@ -356,10 +262,10 @@ function ArchivedRow({ category }: { category: Category }) {
   }
 
   return (
-    <li className="category-row archived" aria-label={category.name}>
+    <li className="category-row archived" aria-label={category.path}>
       <div className="category-line">
         <CategoryIcon icon={category.icon} />
-        <span className="category-name">{category.name}</span>
+        <span className="category-name">{category.path}</span>
         {!confirming && (
           <>
             <button type="button" disabled={busy} onClick={() => void restore()}>
@@ -393,12 +299,29 @@ function ArchivedRow({ category }: { category: Category }) {
   )
 }
 
-/** Settings › Kategorien (US10, US28): alphabetical (decision 38), per row a menu "⋯". */
+/** "+ Kategorie" opens the window "Neue Kategorie" (decision 66), the same as everywhere else. */
+function NewCategoryButton({ categories }: { categories: Category[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="add-category" onClick={() => setOpen(true)}>
+        <Icon name="plus" size={18} />
+        Kategorie
+      </button>
+      {open && <CategoryDialog categories={categories} chooseParent onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+/**
+ * Settings › Kategorien (US10, US28, US37): alphabetical (decision 38), each category followed by its subcategories
+ * (R32), per row a menu "⋯".
+ */
 export function CategorySettings() {
   const categories = useCategories(currentMonth())
 
   if (categories.isPending) {
-    return <p>Lade Kategorien …</p>
+    return <Loading text="Lade Kategorien …" />
   }
   if (categories.error) {
     return <p className="error">Kategorien konnten nicht geladen werden: {categories.error.message}</p>
@@ -414,15 +337,16 @@ export function CategorySettings() {
           <div>
             <h2 id="categories-title">Kategorien</h2>
             <p className="hint">
-              Kategorien stehen überall alphabetisch. Umbenennen, Icon ändern, Archivieren und Löschen findest du im
-              Menü „⋯“.
+              Kategorien stehen überall alphabetisch, Unterkategorien direkt unter ihrer Oberkategorie. Umbenennen, Icon
+              ändern, Oberkategorie ändern, Archivieren und Löschen findest du im Menü „⋯“. Übersicht und Planung zählen
+              Unterkategorien bei ihrer Oberkategorie mit.
             </p>
           </div>
-          <NewCategory />
+          <NewCategoryButton categories={categories.data} />
         </div>
         <ul className="category-list">
           {active.map((category) => (
-            <CategoryRow key={`${category.id}-${category.name}`} category={category} />
+            <CategoryRow key={`${category.id}-${category.name}`} category={category} categories={categories.data} />
           ))}
         </ul>
       </section>

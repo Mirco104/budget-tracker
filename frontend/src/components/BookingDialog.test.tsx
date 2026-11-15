@@ -1,30 +1,37 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BankAccount, Category, RecurringTransaction, Transaction } from '../api/types'
+import type { BankAccount, Category, Transaction } from '../api/types'
 import type { BookingSuggestion } from '../api/suggestions'
 import { BookingDialog } from './BookingDialog'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 6, name: 'Freizeit', icon: 'music', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 7, name: 'Lebensmittel', icon: 'cart', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: false, incomeOnly: true },
-  { id: 30, name: 'Kredite', icon: 'card', targetAmount: null, fixedCosts: null, fixedCostItems: [], targetValidFrom: null, archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
+  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 61, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 6, path: 'Freizeit › Kino' },
+  { id: 7, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false, parentId: null, path: 'Lebensmittel' },
+  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt' },
+  { id: 30, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false, parentId: null, path: 'Kredite' },
 ]
 
-const kino: Transaction = { kind: 'SINGLE', id: 7, recurringId: null, occurrenceDate: null, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
-const streaming: Transaction = { kind: 'RECURRING', id: null, recurringId: 3, occurrenceDate: '2026-10-05', amount: -15, description: 'Streaming', date: '2026-10-05', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null }
+const kino: Transaction = { id: 7, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false }
 const recent: Transaction[] = [
-  { kind: 'SINGLE', id: 1, recurringId: null, occurrenceDate: null, amount: -50, description: 'Markt', date: '2026-10-02', categoryId: 7, categoryName: 'Lebensmittel', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { id: 1, amount: -50, description: 'Markt', date: '2026-10-02', categoryId: 7, categoryName: 'Lebensmittel', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
   kino,
-  { kind: 'SINGLE', id: 2, recurringId: null, occurrenceDate: null, amount: 3000, description: 'Lohn', date: '2026-10-01', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
-  { kind: 'SINGLE', id: 3, recurringId: null, occurrenceDate: null, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto', transfer: false, replaces: null },
+  { id: 2, amount: 3000, description: 'Lohn', date: '2026-10-01', categoryId: 20, categoryName: 'Gehalt', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
+  { id: 3, amount: -900, description: 'Alt', date: '2026-10-01', categoryId: 30, categoryName: 'Kredite', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false },
 ]
 
-const series: RecurringTransaction[] = [
-  { id: 3, seriesId: 'a1', amount: -15, description: 'Streaming', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', interval: 'QUARTERLY', startDate: '2026-01-05', endDate: '2027-12-31', monthlyEquivalent: 5 },
+// The plan of the month; a rare item has a reserve pot (P8)
+let plan: unknown = []
+const kfz = {
+  id: 9, itemKey: 'kfz-key', name: 'Kfz-Versicherung', amount: -1200, rhythmUnit: 'MONTH', rhythmCount: 12,
+  group: 'FIXED', reserveAccountId: 4,
+}
+const withSavings: BankAccount[] = [
+  { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true },
+  { id: 4, name: 'Tagesgeld', iban: null, defaultAccount: false, archived: false, used: true },
 ]
 
 function json(body: unknown, status = 200) {
@@ -53,7 +60,10 @@ function renderDialog(
     if (url.startsWith('/api/booking-suggestion')) {
       return json(suggestion)
     }
-    return url.startsWith('/api/recurring-transactions') ? json(series) : json([])
+    if (url.startsWith('/api/plan')) {
+      return json(plan)
+    }
+    return json([])
   })
   vi.stubGlobal('fetch', fetchMock)
   const onDone = vi.fn()
@@ -93,51 +103,8 @@ const twoAccounts: BankAccount[] = [
   { id: 3, name: 'Alt', iban: null, defaultAccount: false, archived: true, used: true },
 ]
 
-const miete = {
-  categoryId: 1,
-  certain: true,
-  occurrence: { recurringId: 3, date: '2026-10-01', description: 'Miete Wohnung', amount: 900, categoryId: 1 },
-}
 
 describe('BookingDialog', () => {
-  // R28, US35: a new booking replaces the planned occurrence the backend finds for amount and date
-  it('replaces the planned occurrence of a series unless the user unticks it', async () => {
-    const { fetchMock, onDone } = renderDialog(null, () => json({}), [], miete)
-    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
-    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Miete Oktober' } })
-
-    const replace = await screen.findByRole('checkbox', { name: /Ersetzt das geplante „Miete Wohnung“ vom 01.10.2026/ })
-    expect(replace).toBeChecked()
-    // The category of the series is only a suggestion (decision 46)
-    expect(screen.getByLabelText('Kategorie')).toHaveValue('')
-    fireEvent.click(screen.getByRole('button', { name: /Vorschlag: Wohnen/ }))
-    expect(screen.getByLabelText('Kategorie')).toHaveValue('1')
-    const urls = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith('/api/booking-suggestion'))
-    expect(urls).toContain('/api/booking-suggestion?text=Miete%20Oktober&income=false&amount=-905&date=2026-10-18')
-    save()
-
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
-    expect(sent(fetchMock, 'POST')?.body).toMatchObject({ amount: -905, replaces: { recurringId: 3, date: '2026-10-01' } })
-  })
-
-  it('books without replacing when the user unticks it', async () => {
-    const { fetchMock, onDone } = renderDialog(null, () => json({}), [], miete)
-    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
-    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Miete Oktober' } })
-    fireEvent.click(await screen.findByRole('checkbox', { name: /Ersetzt das geplante/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Vorschlag: Wohnen/ }))
-    save()
-
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
-    expect(sent(fetchMock, 'POST')?.body).not.toHaveProperty('replaces')
-  })
-
-  it('offers no replacement for a series or when an entry is edited', async () => {
-    renderDialog(kino, () => json({}), [], miete)
-    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '905' } })
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    expect(screen.queryByRole('checkbox', { name: /Ersetzt das geplante/ })).not.toBeInTheDocument()
-  })
 
   // US32: the suggestion fills the category of a new booking until the user chooses one
   // Decision 46: even a certain suggestion is not preset; it is a button below the field
@@ -199,7 +166,7 @@ describe('BookingDialog', () => {
     expect(sent(fetchMock, 'POST')?.body).toMatchObject({ accountId: 2 })
   })
 
-  // 08.11.2026: a missing category is created in the dialog and chosen
+  // Decision 66: a missing category is created in the window "Neue Kategorie" above the booking and chosen
   it('creates a new category and books on it', async () => {
     const { fetchMock, onDone } = renderDialog(null, (url) =>
       url.startsWith('/api/categories') ? json({ ...categories[0], id: 40, name: 'Spiele', icon: 'tag' }, 201) : json({}),
@@ -208,14 +175,20 @@ describe('BookingDialog', () => {
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Brettspiel' } })
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
-    const name = screen.getByRole('textbox', { name: 'Neue Kategorie' })
-    fireEvent.change(name, { target: { value: 'Spiele' } })
-    // Enter creates the category and does not save the booking
-    fireEvent.keyDown(name, { key: 'Enter' })
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    // A category of the first field gets no parent field; screen readers hear which window it lies on
+    expect(within(created).queryByLabelText('Unterkategorie von (optional)')).not.toBeInTheDocument()
+    expect(created).toHaveTextContent('über Neue Buchung')
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
+    // Its form does not save the booking below
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('40'))
-    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
-    expect(sent(fetchMock, 'POST')).toEqual({ url: '/api/categories', body: { name: 'Spiele' } })
+    expect(screen.queryByRole('dialog', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(sent(fetchMock, 'POST')).toEqual({
+      url: '/api/categories',
+      body: { name: 'Spiele', icon: 'tag', parentId: null },
+    })
     expect(onDone).not.toHaveBeenCalled()
 
     save()
@@ -225,13 +198,15 @@ describe('BookingDialog', () => {
     expect(JSON.parse(String((posts[1][1] as RequestInit).body))).toMatchObject({ categoryId: 40 })
   })
 
-  it('keeps the dialog open when the name field is cancelled with Escape', async () => {
+  it('closes only the window on top with Escape', async () => {
     const { onClose } = renderDialog()
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { key: 'Escape' })
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    fireEvent.keyDown(within(created).getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
 
-    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Neue Buchung' })).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -250,10 +225,11 @@ describe('BookingDialog', () => {
     fillValid()
 
     fireEvent.change(account, { target: { value: 'new' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Neues Konto' }), { target: { value: 'Tagesgeld' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neues Konto' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Tagesgeld' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Speichern' }))
 
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Neues Konto' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Neues Konto' })).not.toBeInTheDocument())
     save()
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
@@ -265,10 +241,11 @@ describe('BookingDialog', () => {
   it('shows the error of a category name that exists', async () => {
     renderDialog(null, () => json({ status: 409, detail: 'Eine Kategorie „Wohnen“ gibt es schon.' }, 409))
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { target: { value: 'Wohnen' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Wohnen' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
+    expect(await within(created).findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
     expect(screen.getByLabelText('Kategorie')).toHaveValue('')
   })
 
@@ -280,22 +257,6 @@ describe('BookingDialog', () => {
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
     expect(sent(fetchMock, 'POST')?.body).not.toHaveProperty('accountId')
-  })
-
-  it('opens as a dialog with the fields in the order of US27 and the focus on the amount', () => {
-    renderDialog()
-
-    const dialog = screen.getByRole('dialog', { name: 'Neue Buchung' })
-    expect(within(dialog).getByRole('button', { name: 'Ausgabe' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Betrag in Euro')).toHaveFocus()
-    expect(screen.getByLabelText('Datum')).toHaveValue('2026-10-18')
-    expect(screen.getByLabelText('Wiederholen')).toHaveValue('NONE')
-    expect(screen.queryByLabelText('Enddatum (optional)')).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole('button', { name: 'Löschen' })).not.toBeInTheDocument()
-    const labels = within(dialog)
-      .getAllByText(/^(Beschreibung|Kategorie|Datum|Wiederholen)$/)
-      .map((element) => element.firstChild?.textContent)
-    expect(labels).toEqual(['Beschreibung', 'Kategorie', 'Datum', 'Wiederholen'])
   })
 
   it('shows required-field messages in the dialog and sends nothing', () => {
@@ -371,6 +332,7 @@ describe('BookingDialog', () => {
     expect(options).toEqual([
       'Kategorie wählen …',
       'Umbuchung zwischen eigenen Konten (zählt nicht)',
+      'Sparen (auf ein Spar- oder Depotkonto)',
       'Wohnen',
       'Freizeit',
       'Lebensmittel',
@@ -379,81 +341,10 @@ describe('BookingDialog', () => {
     ])
   })
 
-  // R27, US31: a transfer has no category and cannot repeat
-  it('books a transfer without category and without repeat', async () => {
-    const { fetchMock, onDone } = renderDialog()
-    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '500' } })
-    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Aufs Tagesgeld' } })
-    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
-    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'transfer' } })
-
-    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Datum')).toBeInTheDocument()
-    save()
-
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Buchung gespeichert.'))
-    expect(sent(fetchMock, 'POST')).toEqual({
-      url: '/api/transactions',
-      body: { amount: -500, description: 'Aufs Tagesgeld', date: '2026-10-18', transfer: true },
-    })
-  })
-
   it('opens a transfer with the transfer chosen', () => {
-    renderDialog({ ...kino, categoryId: null, categoryName: null, transfer: true, replaces: null })
+    renderDialog({ ...kino, categoryId: null, categoryName: null, transfer: true, auto: false, fix: false })
 
     expect(screen.getByLabelText('Kategorie')).toHaveValue('transfer')
-  })
-
-  it('offers no transfer for an occurrence of a series', () => {
-    renderDialog(streaming)
-
-    const options = within(screen.getByLabelText('Kategorie')).getAllByRole('option').map((o) => o.textContent)
-    expect(options).not.toContain('Umbuchung zwischen eigenen Konten (zählt nicht)')
-  })
-
-  it('creates a series with "Erste Abbuchung" and an end date when a repeat is chosen', async () => {
-    const { fetchMock } = renderDialog()
-    fillValid()
-    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'YEARLY' } })
-
-    expect(screen.getByLabelText('Erste Abbuchung')).toHaveValue('2026-10-18')
-    fireEvent.change(screen.getByLabelText('Enddatum (optional)'), { target: { value: '2030-10-18' } })
-    save()
-
-    await waitFor(() => expect(sent(fetchMock, 'POST')?.url).toBe('/api/recurring-transactions'))
-    expect(sent(fetchMock, 'POST')?.body).toEqual({
-      amount: -240,
-      description: 'Haftpflicht',
-      categoryId: 1,
-      interval: 'YEARLY',
-      startDate: '2026-10-18',
-      endDate: '2030-10-18',
-    })
-  })
-
-  it('rejects an end date before the first occurrence', () => {
-    const { fetchMock } = renderDialog()
-    fillValid()
-    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
-    fireEvent.change(screen.getByLabelText('Enddatum (optional)'), { target: { value: '2026-10-01' } })
-
-    save()
-
-    expect(screen.getByText('Das Enddatum darf nicht vor dem Startdatum liegen.')).toBeInTheDocument()
-    expect(sent(fetchMock, 'POST')).toBeUndefined()
-  })
-
-  it('shows server field errors at the field and keeps the dialog open', async () => {
-    const { onDone } = renderDialog(null, () =>
-      json({ status: 400, errors: [{ field: 'startDate', message: 'Das Startdatum ist ungültig.' }] }, 400),
-    )
-    fillValid()
-    fireEvent.change(screen.getByLabelText('Wiederholen'), { target: { value: 'MONTHLY' } })
-
-    save()
-
-    expect(await screen.findByText('Das Startdatum ist ungültig.')).toBeInTheDocument()
-    expect(onDone).not.toHaveBeenCalled()
   })
 
   it('shows a general server error in the dialog', async () => {
@@ -463,24 +354,6 @@ describe('BookingDialog', () => {
     save()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Etwas ist schiefgelaufen.')
-  })
-
-  it('edits a single transaction with the amount positive and Ausgabe selected', async () => {
-    const { fetchMock, onDone } = renderDialog(kino)
-
-    expect(screen.getByRole('dialog', { name: 'Buchung bearbeiten' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Betrag in Euro')).toHaveValue('12,00')
-    expect(screen.getByRole('button', { name: 'Ausgabe' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '14' } })
-
-    save()
-
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Änderung gespeichert.'))
-    expect(sent(fetchMock, 'PUT')).toEqual({
-      url: '/api/transactions/7',
-      body: { amount: -14, description: 'Kino', categoryId: 6, accountId: 1, date: '2026-10-20' },
-    })
   })
 
   it('keeps an archived category of an edited entry', () => {
@@ -512,70 +385,6 @@ describe('BookingDialog', () => {
     expect(sent(fetchMock, 'DELETE')).toBeUndefined()
   })
 
-  // R13: an occurrence asks for the scope in the dialog; there is no "all entries"
-  it('edits only this occurrence by default, as a single transaction', async () => {
-    const { fetchMock } = renderDialog(streaming)
-
-    expect(screen.getByRole('dialog', { name: 'Wiederkehrende Buchung bearbeiten' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Nur dieser Eintrag' })).toBeChecked()
-    expect(screen.queryByRole('radio', { name: /Alle/ })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Wiederholen')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Datum'), { target: { value: '2026-10-07' } })
-
-    save()
-
-    await waitFor(() =>
-      expect(sent(fetchMock, 'PUT')).toEqual({
-        url: '/api/recurring-transactions/3/occurrences/2026-10-05?scope=THIS',
-        body: { amount: -15, description: 'Streaming', categoryId: 6, accountId: 1, date: '2026-10-07' },
-      }),
-    )
-  })
-
-  it('edits this and all following occurrences as a series, filled from the series', async () => {
-    const { fetchMock } = renderDialog(streaming)
-    const following = screen.getByRole('radio', { name: 'Dieser und alle folgenden' })
-    await waitFor(() => expect(following).toBeEnabled())
-
-    fireEvent.click(following)
-
-    expect(screen.getByLabelText('Erste Abbuchung')).toHaveValue('2026-10-05')
-    expect(screen.getByLabelText('Wiederholen')).toHaveValue('QUARTERLY')
-    expect(within(screen.getByLabelText('Wiederholen')).queryByRole('option', { name: 'nie' })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Enddatum (optional)')).toHaveValue('2027-12-31')
-    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '18' } })
-    save()
-
-    await waitFor(() => expect(sent(fetchMock, 'PUT')?.url).toBe('/api/recurring-transactions/3/occurrences/2026-10-05?scope=FOLLOWING'))
-    expect(sent(fetchMock, 'PUT')?.body).toEqual({
-      amount: -18,
-      description: 'Streaming',
-      categoryId: 6,
-      accountId: 1,
-      interval: 'QUARTERLY',
-      startDate: '2026-10-05',
-      endDate: '2027-12-31',
-    })
-  })
-
-  it('deletes this and all following occurrences with the chosen scope', async () => {
-    const { fetchMock } = renderDialog(streaming)
-    const following = screen.getByRole('radio', { name: 'Dieser und alle folgenden' })
-    await waitFor(() => expect(following).toBeEnabled())
-    fireEvent.click(following)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
-    expect(screen.getByText('Diesen und alle folgenden Einträge löschen?')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Endgültig löschen' }))
-
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/recurring-transactions/3/occurrences/2026-10-05?scope=FOLLOWING',
-        expect.objectContaining({ method: 'DELETE' }),
-      ),
-    )
-  })
-
   it('closes with Escape, the close button and Abbrechen', () => {
     const { onClose } = renderDialog()
 
@@ -584,5 +393,117 @@ describe('BookingDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
 
     expect(onClose).toHaveBeenCalledTimes(3)
+  })
+
+  // 27f3: Sparen with source and target account makes both bookings
+  it('books Sparen from one account to another', async () => {
+    const { fetchMock } = renderDialog(null, () => json({}, 201), twoAccounts)
+    fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '200' } })
+    fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Auf Tagesgeld' } })
+    fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'saving' } })
+    const target = await screen.findByLabelText('Auf Konto')
+    fireEvent.change(target, { target: { value: String(twoAccounts[1].id) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(sent(fetchMock, 'POST')).toBeDefined())
+    expect(sent(fetchMock, 'POST')!.body).toMatchObject({
+      amount: -200, transfer: true, saving: true, targetAccountId: twoAccounts[1].id,
+    })
+  })
+
+  // 27f4 (decision 60): the payment of the term of a rare item shows its reserve and can be taken out of it
+  it('shows the tick of the reserve and sends noReserve when it is unticked', async () => {
+    plan = { items: [kfz] }
+    const payment: Transaction = {
+      id: 12, amount: -1200, description: 'Kfz-Versicherung', date: '2026-10-01', categoryId: 1, categoryName: 'Wohnen',
+      accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: true, reserveItemKey: 'kfz-key',
+    }
+    const { fetchMock } = renderDialog(payment, () => json(payment), withSavings)
+    const tick = await screen.findByRole('checkbox', { name: 'aus Rücklage / Ersparnissen bezahlen' })
+    expect(tick).toBeChecked()
+    await waitFor(() => expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key'))
+    expect(screen.getByText(/Die Rücklage liegt auf Tagesgeld/)).toBeInTheDocument()
+
+    fireEvent.click(tick)
+    save()
+    await waitFor(() => expect(sent(fetchMock, 'PUT')).toBeDefined())
+    expect(sent(fetchMock, 'PUT')?.body).toMatchObject({ noReserve: true })
+    expect(sent(fetchMock, 'PUT')?.body.reserveItemKey).toBeUndefined()
+    plan = []
+  })
+
+  it('suggests the linked account when a reserve is chosen', async () => {
+    plan = { items: [kfz] }
+    renderDialog(null, () => json({}), withSavings)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'aus Rücklage / Ersparnissen bezahlen' }))
+    expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key')
+    expect(screen.getByLabelText('Konto')).toHaveValue('4')
+    plan = []
+  })
+
+  // US37 (14.11.2026): "Kategorie" lists only top-level categories, "Unterkategorie (optional)" those of the chosen one
+  describe('subcategories', () => {
+    it('offers the subcategories of the chosen category in a second field and books on the subcategory', async () => {
+      const { fetchMock, onDone } = renderDialog()
+      expect(screen.queryByLabelText('Unterkategorie (optional)')).not.toBeInTheDocument()
+      expect(within(screen.getByLabelText('Kategorie')).queryByRole('option', { name: /Kino/ })).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '12' } })
+      fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Kinoabend' } })
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      const sub = screen.getByLabelText('Unterkategorie (optional)')
+      expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '– keine –',
+        'Kino',
+        '+ Neue Unterkategorie …',
+      ])
+      fireEvent.change(sub, { target: { value: '61' } })
+      save()
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled())
+      expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 61 })
+    })
+
+    it('books on the category itself with "– keine –"', async () => {
+      const { fetchMock, onDone } = renderDialog()
+      fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '12' } })
+      fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Konzert' } })
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: '61' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: '' } })
+      save()
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled())
+      expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 6 })
+    })
+
+    it('shows the category and the subcategory of an entry booked on a subcategory', () => {
+      renderDialog({ ...kino, categoryId: 61, categoryName: 'Freizeit › Kino' })
+
+      expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+      expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('61')
+    })
+
+    it('creates a new subcategory below the chosen category and chooses it', async () => {
+      const { fetchMock } = renderDialog(null, (url) =>
+        url.startsWith('/api/categories')
+          ? json({ ...categories[1], id: 62, name: 'Theater', parentId: 6, path: 'Freizeit › Theater' }, 201)
+          : json({}),
+      )
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: 'new' } })
+      const created = screen.getByRole('dialog', { name: 'Neue Unterkategorie von Freizeit' })
+      // The parent comes from the selection, so the window asks no parent
+      expect(within(created).queryByLabelText('Unterkategorie von (optional)')).not.toBeInTheDocument()
+      fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Theater' } })
+      fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
+
+      await waitFor(() => expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('62'))
+      expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+      expect(sent(fetchMock, 'POST')).toEqual({
+        url: '/api/categories',
+        body: { name: 'Theater', icon: 'music', parentId: 6 },
+      })
+    })
   })
 })

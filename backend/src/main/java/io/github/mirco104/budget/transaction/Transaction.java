@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,6 +43,30 @@ public class Transaction {
 
     @Column(nullable = false)
     private boolean transfer;
+
+    // 27f3: the other side of a transfer booked with source and target account
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_peer_id")
+    private Transaction transferPeer;
+
+    // P1: a transfer to a savings or depot account, the kind Sparen
+    @Column(nullable = false)
+    private boolean saving;
+
+    // P6: entered by the app from the plan ("automatisch")
+    @Column(nullable = false)
+    private boolean auto;
+
+    // P8: paid explicitly from the reserve pot of the rare item with this key, or from a saving goal
+    private java.util.UUID reserveItemKey;
+
+    // 27f4 (decision 60): the user took the booking out of the reserve whose term it fulfils
+    @Column(name = "no_reserve", nullable = false)
+    private boolean noReserve;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "saving_goal_id")
+    private io.github.mirco104.budget.goal.SavingGoal savingGoal;
 
     // R30: set for a transaction from an import; the fingerprint keeps a row from being imported twice
     @ManyToOne(fetch = FetchType.LAZY)
@@ -163,5 +188,66 @@ public class Transaction {
 
     public BankAccount getAccount() {
         return account;
+    }
+
+    /** P6: a booking the app entered from the plan; a CSV import may replace it. */
+    public boolean isAuto() {
+        return auto;
+    }
+
+    public void markAuto() {
+        this.auto = true;
+    }
+
+    /** P8: "aus Rücklage / Ersparnissen bezahlen"; both null for a booking from the monthly budget. */
+    public void payFrom(java.util.UUID reserveItemKey, io.github.mirco104.budget.goal.SavingGoal savingGoal) {
+        this.reserveItemKey = reserveItemKey;
+        this.savingGoal = savingGoal;
+    }
+
+    /** 27f4: true when the user took the booking out of the reserve whose term it fulfils (decision 60). */
+    public boolean isNoReserve() {
+        return noReserve;
+    }
+
+    public void setNoReserve(boolean noReserve) {
+        this.noReserve = noReserve;
+    }
+
+    /**
+     * 27f4 (decision 60): the reserve that pays this booking: the one chosen explicitly, else the rare item whose term
+     * it fulfils (termItemKey, may be null), unless the user took it out; null for a booking from the monthly budget.
+     */
+    public java.util.UUID reserveOf(java.util.UUID termItemKey) {
+        if (reserveItemKey != null) {
+            return reserveItemKey;
+        }
+        return noReserve || savingGoal != null || amount.signum() >= 0 ? null : termItemKey;
+    }
+
+    public java.util.UUID getReserveItemKey() {
+        return reserveItemKey;
+    }
+
+    public io.github.mirco104.budget.goal.SavingGoal getSavingGoal() {
+        return savingGoal;
+    }
+
+    /** P1: the kind Sparen, a transfer without category that counts as saving. */
+    public boolean isSaving() {
+        return saving;
+    }
+
+    public void markSaving(boolean saving) {
+        this.saving = saving && transfer;
+    }
+
+    /** 27f3: the other side of a transfer pair, null for a single booking. */
+    public Transaction getTransferPeer() {
+        return transferPeer;
+    }
+
+    public void setTransferPeer(Transaction transferPeer) {
+        this.transferPeer = transferPeer;
     }
 }

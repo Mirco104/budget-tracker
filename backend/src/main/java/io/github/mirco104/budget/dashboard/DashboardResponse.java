@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.dashboard;
 
+import io.github.mirco104.budget.reserve.ReserveCalculator;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -30,7 +31,47 @@ public record DashboardResponse(
         BigDecimal surplus,
         String surplusLabel,
         List<CategoryLine> categories,
-        List<IncomeLine> income) {
+        List<IncomeLine> income,
+        SavingCard saving,
+        ExpectedCard expected,
+        Totals budget,
+        List<ReserveCalculator.Pot> reserves,
+        BigDecimal fromReserves) {
+
+    /** The cards Sparen and Erwartet (section 19, AP 27d); the calculator leaves them empty. */
+    public DashboardResponse withCards(SavingCard savingCard, ExpectedCard expectedCard) {
+        return new DashboardResponse(month, monthState, incomeTotal, averageIncome, minimumIncome, averageExpenses,
+                averageIncomeMonths, averageIncomeFrom, averageIncomeTo, expenses, unplanned, unplannedLabel,
+                unplannedMinimum, unplannedMinimumLabel, surplus, surplusLabel, categories, income, savingCard,
+                expectedCard, budget, reserves, fromReserves);
+    }
+
+    /**
+     * P8: the budget lines with the reserve pots: categoryLines and budgetTotals count the monthly share of a rare
+     * item instead of its payment; the tiles (expenses, incomeTotal) keep the real bookings (P1). paidFromReserves is
+     * the part of the expenses of the month paid from reserve pots or saving goals (27f4, null when nothing).
+     */
+    public DashboardResponse withBudget(
+            List<CategoryLine> categoryLines, Totals budgetTotals, List<ReserveCalculator.Pot> pots,
+            BigDecimal paidFromReserves) {
+        return new DashboardResponse(month, monthState, incomeTotal, averageIncome, minimumIncome, averageExpenses,
+                averageIncomeMonths, averageIncomeFrom, averageIncomeTo, expenses, unplanned, unplannedLabel,
+                unplannedMinimum, unplannedMinimumLabel, surplus, surplusLabel, categoryLines, income, saving,
+                expected, budgetTotals, pots, paidFromReserves);
+    }
+
+    /** P9: planned saving of the month (monthly shares), saving rate in percent (null without planned income). */
+    public record SavingCard(BigDecimal planned, BigDecimal rate, List<SavingLine> items, BigDecimal actual) {
+    }
+
+    /** A saving item: its monthly share and what its bookings brought in the month (27f3). */
+    public record SavingLine(long itemId, String name, BigDecimal monthly, BigDecimal actual) {
+    }
+
+    /** P5: terms of the month without a booking yet (expected or missed) and their sum with sign. */
+    public record ExpectedCard(int count, BigDecimal total) {
+    }
+
 
     /** The month compared with the month of today (R7). */
     public enum MonthState {

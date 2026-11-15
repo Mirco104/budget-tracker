@@ -87,6 +87,10 @@ curl -k https://localhost/actuator/health
 
 So geprüft am 02.11.2026: HTTP leitet auf HTTPS um, das Session-Cookie ist `Secure; HttpOnly; SameSite=Lax`, Einladungslinks beginnen mit `https://`.
 
+## Lokale H2-Datenbank nach einer neuen Migration
+
+Mit H2 2.4.240 (Profile `dev` und `sample`) kann direkt nach einer Migration, die eine Tabelle mit einer `check`-Bedingung ändert (z. B. V20 an `bank_accounts`), jedes Speichern in dieser Tabelle mit „Check constraint invalid“ scheitern; die App zeigt „Unbekannter Fehler“. Ein Neustart des Backends behebt es. PostgreSQL ist nicht betroffen.
+
 ## Logs
 
 `docker compose logs app`. Die App schreibt keine Beträge, Beschreibungen, Passwörter oder Tokens ins Log; neuer Code muss das beibehalten.

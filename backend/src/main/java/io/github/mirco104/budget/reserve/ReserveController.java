@@ -12,8 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReserveController {
 
     private final ReserveService reserveService;
+    private final ReserveAccountService reserveAccountService;
 
-    public ReserveController(ReserveService reserveService) {
+    public ReserveController(ReserveService reserveService, ReserveAccountService reserveAccountService) {
+        this.reserveAccountService = reserveAccountService;
         this.reserveService = reserveService;
     }
 
@@ -30,6 +32,12 @@ public class ReserveController {
     }
 
     /** The month stays a parameter so tests can use a fixed month; the app asks for the current month. */
+    /** Konten, 27f2: the reserve pots by their savings account with the coverage by the account. */
+    @GetMapping("/api/reserves/by-account")
+    public java.util.List<ReserveAccountService.ReserveGroup> byAccount() {
+        return reserveAccountService.groups();
+    }
+
     @GetMapping("/api/reserves")
     public ReserveResponse outlook(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {

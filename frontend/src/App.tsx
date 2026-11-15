@@ -1,16 +1,21 @@
+import { Bell } from './components/Bell'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
 import type { Me } from './api/types'
 import { AccountMenu } from './components/ui/AccountMenu'
 import { Icon, type IconName } from './components/ui/Icon'
+import { ModeBadge } from './components/ui/ModeBadge'
 import { currentMonth } from './format'
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
 import { ROUTES, usePage, type Page } from './router'
+import { Loading, LoadingBar } from './components/ui/Loading'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
 const EvaluationPage = lazy(() =>
@@ -23,6 +28,7 @@ const TABS: { page: Page; label: string; icon: IconName }[] = [
   { page: 'transactions', label: 'Transaktionen', icon: 'transactions' },
   { page: 'planning', label: 'Planung', icon: 'planning' },
   { page: 'evaluation', label: 'Auswertung', icon: 'evaluation' },
+  { page: 'accounts', label: 'Konten', icon: 'accounts' },
 ]
 
 // US15: an invitation link opens the app with ?einladung=<token>
@@ -30,14 +36,33 @@ function invitationToken(): string | null {
   return new URLSearchParams(window.location.search).get('einladung')
 }
 
+// US36: a password reset link opens the app with ?passwort=<token>
+function resetToken(): string | null {
+  return new URLSearchParams(window.location.search).get('passwort')
+}
+
 /** Every page needs a signed-in user; without one the login page shows (US14). */
 function App() {
   const me = useMe()
   const [token, setToken] = useState(invitationToken)
+  const [reset, setReset] = useState(resetToken)
 
   function handleAccepted() {
     window.history.replaceState(null, '', window.location.pathname)
     setToken(null)
+  }
+
+  function handleReset() {
+    window.history.replaceState(null, '', window.location.pathname)
+    setReset(null)
+  }
+
+  if (reset) {
+    return (
+      <SignedOut>
+        <ResetPasswordPage token={reset} onDone={handleReset} />
+      </SignedOut>
+    )
   }
 
   if (token) {
@@ -52,7 +77,7 @@ function App() {
   }
   return (
     <SignedOut>
-      {me.isPending && <p>Lade …</p>}
+      {me.isPending && <Loading text="Lade …" />}
       {me.error && <p className="error">Der Server ist nicht erreichbar: {me.error.message}</p>}
       {me.data === null && <LoginPage />}
     </SignedOut>
@@ -66,6 +91,7 @@ function Brand() {
         B
       </span>
       Budget-Tracker
+      <ModeBadge />
     </div>
   )
 }
@@ -94,11 +120,12 @@ function SignedOut({ children }: { children: ReactNode }) {
 function SignedIn({ me }: { me: Me }) {
   const logout = useLogout()
   const page = usePage()
-  // The month of the overview; it stays when switching pages (decision 28: the other pages have their own time)
+  // The month of overview and planning (27f2); it stays when switching pages. Transaktionen has its own period.
   const [month, setMonth] = useState(currentMonth)
 
   return (
     <>
+      <LoadingBar />
       <header className="app-header">
         <div className="app-header-inner">
           <Brand />
@@ -111,10 +138,11 @@ function SignedIn({ me }: { me: Me }) {
                 aria-current={page === tab.page ? 'page' : undefined}
               >
                 <Icon name={tab.icon} />
-                {tab.label}
+                <span className="tab-label">{tab.label}</span>
               </a>
             ))}
           </nav>
+          <Bell />
           <AccountMenu
             me={me}
             settingsHref={ROUTES.settings}
@@ -127,13 +155,14 @@ function SignedIn({ me }: { me: Me }) {
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
         {page === 'transactions' && <TransactionsRoute />}
-        {page === 'planning' && <PlanningPage />}
+        {page === 'planning' && <PlanningPage month={month} onMonthChange={setMonth} />}
         {page === 'evaluation' && (
-          <Suspense fallback={<p>Lade Auswertung …</p>}>
+          <Suspense fallback={<Loading text="Lade Auswertung …" />}>
             <EvaluationPage />
           </Suspense>
         )}
         {page === 'settings' && <SettingsPage me={me} />}
+        {page === 'accounts' && <AccountsPage />}
         <LegalLinks />
       </main>
     </>

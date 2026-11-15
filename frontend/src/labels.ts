@@ -1,19 +1,24 @@
-import type { DashboardData, RecurringInterval } from './api/types'
+import type { DashboardData, RhythmUnit } from './api/types'
 import { formatMonth } from './format'
 
-export const INTERVAL_LABELS: Record<RecurringInterval, string> = {
-  MONTHLY: 'monatlich',
-  QUARTERLY: 'vierteljährlich',
-  HALF_YEARLY: 'halbjährlich',
-  YEARLY: 'jährlich',
-}
+/** The presets of "Wie oft" (concept 3.1): unit and count. */
+export const RHYTHM_PRESETS: { unit: RhythmUnit; count: number; label: string }[] = [
+  { unit: 'WEEK', count: 1, label: 'wöchentlich' },
+  { unit: 'WEEK', count: 2, label: 'alle 2 Wochen' },
+  { unit: 'MONTH', count: 1, label: 'monatlich' },
+  { unit: 'MONTH', count: 2, label: 'alle 2 Monate' },
+  { unit: 'MONTH', count: 3, label: 'vierteljährlich' },
+  { unit: 'MONTH', count: 6, label: 'halbjährlich' },
+  { unit: 'MONTH', count: 12, label: 'jährlich' },
+]
 
-/** The same labels by the interval in months, as the fixed costs carry it (R25). */
-export const INTERVAL_LABELS_BY_MONTHS: Record<number, string> = {
-  1: 'monatlich',
-  3: 'vierteljährlich',
-  6: 'halbjährlich',
-  12: 'jährlich',
+/** "monatlich", "alle 4 Wochen" or "ohne festen Termin" for an item without a unit. */
+export function rhythmLabel(unit: RhythmUnit | null, count: number | null): string {
+  if (unit === null || count === null) {
+    return 'ohne festen Termin'
+  }
+  const preset = RHYTHM_PRESETS.find((p) => p.unit === unit && p.count === count)
+  return preset ? preset.label : `alle ${count} ${unit === 'WEEK' ? 'Wochen' : 'Monate'}`
 }
 
 /** "Januar 2026 – September 2026, 9 Monate": the months behind the Ø income (R23). */

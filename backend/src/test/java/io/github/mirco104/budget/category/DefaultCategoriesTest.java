@@ -27,9 +27,6 @@ class DefaultCategoriesTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
-    @Autowired
-    private CategoryTargetRepository categoryTargetRepository;
-
     @Test
     void seedsTheUniqueNamesOfTheSpec() {
         User user = TestUsers.create(userService, "person-b@example.test");
@@ -80,6 +77,5 @@ class DefaultCategoriesTest {
         assertThat(ofC).hasSize(20);
         assertThat(ofB).extracting(Category::getId).doesNotContainAnyElementsOf(
                 ofC.stream().map(Category::getId).toList());
-        assertThat(categoryTargetRepository.findAll()).isEmpty();
     }
 }

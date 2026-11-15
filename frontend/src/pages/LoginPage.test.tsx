@@ -29,6 +29,16 @@ describe('LoginPage', () => {
     document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT'
   })
 
+  // US36
+  it('explains how to get a new password', () => {
+    renderLogin(() => json({}))
+
+    expect(screen.queryByText(/Bitte deinen Admin/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Passwort vergessen?' }))
+
+    expect(screen.getByText(/Bitte deinen Admin um einen Link für ein neues Passwort/)).toBeInTheDocument()
+  })
+
   it('sends e-mail, password and the CSRF token from the cookie', async () => {
     document.cookie = 'XSRF-TOKEN=token-123'
     const fetchMock = renderLogin(() => Promise.resolve(new Response(null, { status: 204 })))
