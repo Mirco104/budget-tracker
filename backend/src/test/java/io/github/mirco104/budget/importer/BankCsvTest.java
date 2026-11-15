@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Rule R30: reading the CSV exports of C24, Trade Republic, N26, the Sparkasse and the VR-Bank. The files have the format of the real exports
+ * Rule R30: reading the CSV exports of C24, Trade Republic, N26, the Sparkasse, the VR-Bank and the Deutsche Bank. The files have the format of the real exports
  * (header, delimiter, number and date format) with fictional values only: no real account numbers, IBANs or names.
  */
 class BankCsvTest {
@@ -83,6 +83,99 @@ class BankCsvTest {
             Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;29.10.2026;29.10.2026;Kiosk Beispiel;GB82WEST12345698765432;WESTGB2L;Kartenzahlung girocard;/Musterstadt/DE         28.10.2026 um 08:00:00 Uhr 12345678/123457/ECTL/      12345678/0001234567/1/1230 REF 123457/260024;-2,50;EUR;-488,20;;;;
             Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;;11.11.2026;Beispiel Payment GmbH;GB82WEST12345698765432;WESTGB2L;Kartenzahlung girocard;Kiosk Beispiel/Musterstadt/DE         11.11.2026 um 09:00:00 Uhr 12345678/123458/ECTL/      12345678/0001234567/1/1230 REF 123458/260024;-3,00;EUR;;;;;
             """;
+
+    // Deutsche Bank (decision 68): a preamble with the account (name, number, IBAN) before the header in line 8, ";",
+    // d.M.yyyy without leading zeros, signed German amounts in Betrag and again in Soll/Haben, a footer with the balance.
+    // All values fictional, the IBANs are ISO 13616 examples.
+    static final String DEUTSCHE_BANK = """
+            Umsätze
+            Konto;Filial-/Kontonummer;IBAN;Währung
+            Girokonto;100 1234567 00;DE89370400440532013000;EUR
+
+            1.10.2026 - 15.11.2026
+            Letzter Kontostand;;;;1.234,56;EUR
+            Vorgemerkte und noch nicht gebuchte Umsätze sind nicht Bestandteil dieser Übersicht.
+            Buchungstag;Wert;Umsatzart;Begünstigter / Auftraggeber;Verwendungszweck;IBAN / Kontonummer;BIC;Kundenreferenz;Mandatsreferenz;Gläubiger ID;Fremde Gebühren;Betrag;Abweichender Empfänger;Anzahl der Aufträge;Anzahl der Schecks;Soll;Haben;Währung
+            5.11.2026;5.11.2026;SEPA Lastschrift;Beispiel Medien GmbH;Abo 11/2026 Kunde 4711;GB29NWBK60161331926819;NWBKGB2L;E2E-0001;M-0001;DE00ZZZ00000000001;;-11,75;;;;-11,75;;EUR
+            30.10.2026;31.10.2026;SEPA Gutschrift;Firma Beispiel GmbH;Lohn 10/2026;GB82WEST12345698765432;WESTGB2L;;;;;2.500,5;;;;;2.500,5;EUR
+            01.10.2026;01.10.2026;Kartenzahlung;Beispiel Payment GmbH;Baeckerei Beispiel//Musterstadt/DE 30-09-2026T10:54:09 Folgenr. 01 Verfalld. 1230;;;;;;;-4,2;;;;-4,2;;EUR
+            3.10.2026;3.10.2026;Depotpreis;;Depotpreis 07.2026-09.2026;;;;;;;;;;;-6,9;;EUR
+            2.10.2026;2.10.2026;SEPA Gutschrift;Person B;Rueckzahlung;;;;;;;;;;;;20;EUR
+            1.10.2026;1.10.2026;Abschluss;;Kein Entgelt;;;;;;;0;;;;;;EUR
+            Kontostand;15.11.2026;;;1.234,56;EUR
+            """;
+
+    @Test
+    void readsTheDeutscheBankExport() {
+        BankFile file = BankCsv.read(("﻿" + DEUTSCHE_BANK.replace("\n", "\r\n")).getBytes(StandardCharsets.UTF_8));
+
+        assertThat(file.profile()).isEqualTo(BankProfile.DEUTSCHE_BANK);
+        // The account is only in the preamble
+        BankTransaction debit = row(file, 9);
+        assertThat(debit.accountName()).isEqualTo("DE89370400440532013000");
+        assertThat(debit.accountIban()).isEqualTo("DE89370400440532013000");
+        assertThat(debit.bookingDate()).isEqualTo(LocalDate.of(2026, 11, 5));
+        assertThat(debit.valueDate()).isEqualTo(LocalDate.of(2026, 11, 5));
+        assertThat(debit.amount()).isEqualByComparingTo("-11.75");
+        assertThat(debit.currency()).isEqualTo("EUR");
+        assertThat(debit.status()).isEqualTo(Status.BOOKED);
+        assertThat(debit.counterpartyName()).isEqualTo("Beispiel Medien GmbH");
+        assertThat(debit.counterpartyIban()).isEqualTo("GB29NWBK60161331926819");
+        assertThat(debit.counterpartyBic()).isEqualTo("NWBKGB2L");
+        assertThat(debit.remittanceInformation()).isEqualTo("Abo 11/2026 Kunde 4711");
+        assertThat(debit.endToEndId()).isEqualTo("E2E-0001");
+        assertThat(debit.mandateId()).isEqualTo("M-0001");
+        assertThat(debit.creditorId()).isEqualTo("DE00ZZZ00000000001");
+        assertThat(debit.bankTransactionCode()).isEqualTo("SEPA Lastschrift");
+        assertThat(debit.bankCategory()).isEqualTo("SEPA Lastschrift");
+        assertThat(debit.entryReference()).isNull();
+
+        // The booking date, not the value date; thousands dot and one decimal
+        BankTransaction salary = row(file, 10);
+        assertThat(salary.bookingDate()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(salary.valueDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+        assertThat(salary.amount()).isEqualByComparingTo("2500.50");
+        assertThat(salary.endToEndId()).isNull();
+        assertThat(salary.mandateId()).isNull();
+
+        // Leading zeros are allowed too
+        assertThat(row(file, 11).bookingDate()).isEqualTo(LocalDate.of(2026, 10, 1));
+        assertThat(row(file, 11).amount()).isEqualByComparingTo("-4.20");
+        assertThat(row(file, 11).counterpartyName()).isEqualTo("Beispiel Payment GmbH");
+    }
+
+    @Test
+    void aDeutscheBankRowWithoutBetragTakesSollOrHaben() {
+        BankFile file = BankCsv.read(DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8));
+
+        BankTransaction fee = row(file, 12);
+        assertThat(fee.amount()).isEqualByComparingTo("-6.90");
+        assertThat(fee.counterpartyName()).isNull();
+        assertThat(fee.remittanceInformation()).isEqualTo("Depotpreis 07.2026-09.2026");
+        assertThat(row(file, 13).amount()).isEqualByComparingTo("20.00");
+    }
+
+    @Test
+    void theDeutscheBankFooterIsNoRow() {
+        BankFile file = BankCsv.read(DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(file.lines()).extracting(Line::number).containsExactly(9, 10, 11, 12, 13, 14);
+        assertThat(skipReason(file, 14)).isEqualTo("ohne Betrag");
+    }
+
+    // Soll without a sign is still a debit, Haben with a sign still a credit
+    @Test
+    void sollIsADebitAndHabenACreditWhateverTheSign() {
+        String file = DEUTSCHE_BANK
+                .replace("3.10.2026;3.10.2026;Depotpreis;;Depotpreis 07.2026-09.2026;;;;;;;;;;;-6,9;;EUR",
+                        "3.10.2026;3.10.2026;Depotpreis;;Depotpreis 07.2026-09.2026;;;;;;;;;;;6,9;;EUR")
+                .replace(";;;;;;;;;;;;20;EUR", ";;;;;;;;;;;;+20;EUR");
+
+        BankFile read = BankCsv.read(file.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(row(read, 12).amount()).isEqualByComparingTo("-6.90");
+        assertThat(row(read, 13).amount()).isEqualByComparingTo("20.00");
+    }
 
     @Test
     void readsTheVrBankExport() {
