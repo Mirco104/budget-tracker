@@ -496,6 +496,87 @@ describe('ImportPage', () => {
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Fixkosten „Spiele Shop“' })).not.toBeInTheDocument())
   })
 
+  describe('saving (decision 67)', () => {
+    const spielSeries = { lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }
+
+    it('plans an expense series as saving and sends its rows as the kind Sparen', async () => {
+      const fetchMock = renderPage(() => json({ ...preview, series: [spielSeries] }))
+      await upload()
+
+      const card = screen.getByRole('region', { name: 'Fixkosten „Spiele Shop“' })
+      fireEvent.click(within(card).getByRole('button', { name: 'Als Sparen planen' }))
+
+      expect(within(card).getByText('Als Sparen vorgemerkt.')).toBeInTheDocument()
+      expect(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('saving')
+      fireEvent.click(screen.getByRole('button', { name: 'Fertige übernehmen (2)' }))
+
+      await waitFor(() => expect(sent(fetchMock, '/api/imports')).toBeDefined())
+      const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+      expect(body.series).toEqual([
+        { startDate: '2026-08-01', amount: -4.99, description: 'Spiele Shop', saving: true, source: 'C24:Ausgabenkonto' },
+      ])
+      expect(body.rows).toEqual([
+        expect.objectContaining({ categoryId: null, transfer: false, saving: true, series: 0 }),
+        expect.objectContaining({ categoryId: null, transfer: false, saving: true, series: 0 }),
+      ])
+    })
+
+    it('names a series of saving transfers Sparen and offers only to plan it as saving', async () => {
+      renderPage(() =>
+        json({
+          ...preview,
+          entries: preview.entries.map((e) => (e.line === 5 ? { ...e, saving: true } : e)),
+          series: [{ ...spielSeries, lines: [5], description: 'Auf Pocket', amount: -100, lowest: -100, highest: -100, categoryId: null, saving: true }],
+        }),
+      )
+      await upload()
+
+      const card = screen.getByRole('region', { name: 'Sparen „Auf Pocket“' })
+      expect(card).toHaveTextContent('Sieht nach monatlichem Sparen aus: „Auf Pocket“')
+      expect(within(card).queryByRole('combobox')).not.toBeInTheDocument()
+      expect(within(card).queryByRole('button', { name: 'Als Fixkosten planen' })).not.toBeInTheDocument()
+      expect(within(card).getByRole('button', { name: 'Als Sparen planen' })).toBeInTheDocument()
+      // The row suggests Sparen instead of Umbuchung, and its counterpart becomes a transfer as well
+      fireEvent.click(within(row('Auf Pocket')[0]).getByRole('button', { name: 'Vorschlag: Sparen' }))
+      expect(within(row('Auf Pocket')[0]).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('saving')
+      expect(within(row('Auf Pocket')[0]).getByText('Gegenbuchung wird ebenfalls zur Umbuchung')).toBeInTheDocument()
+    })
+
+    it('offers Sparen in every row and sends a saving row with its counterpart', async () => {
+      const fetchMock = renderPage()
+      await upload()
+
+      fireEvent.change(within(row('Auf Pocket')[0]).getByLabelText('Kategorie für Auf Pocket'), { target: { value: 'saving' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Fertige übernehmen (1)' }))
+
+      await waitFor(() => expect(sent(fetchMock, '/api/imports')).toBeDefined())
+      const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+      expect(body.rows).toEqual([
+        expect.objectContaining({ description: 'Auf Pocket', categoryId: null, transfer: false, saving: true, transferPeerId: 77 }),
+      ])
+    })
+
+    it('takes over the rows that fulfil a saving item as Sparen', async () => {
+      const saving = (line: number, date: string) =>
+        rent(line, date, { description: `Notgroschen ${date}`, saving: true, categoryId: null, replaces: { recurringId: 6, date, description: 'Notgroschen', amount: 200, categoryId: null } })
+      const fetchMock = renderPage(() => json({ ...preview, entries: [saving(2, '2026-01-03'), saving(3, '2026-02-03')] }))
+      await upload()
+
+      const card = screen.getByRole('region', { name: 'Treffer für „Notgroschen“' })
+      expect(card).toHaveTextContent('2 Buchungen erfüllen den geplanten Sparposten „Notgroschen“ (Sparen)')
+      fireEvent.click(within(card).getByRole('button', { name: 'Alle übernehmen (2)' }))
+      expect(card).toHaveTextContent('Alle 2 erfüllen ihren Termin (Sparen).')
+      fireEvent.click(screen.getByRole('button', { name: '2 Buchungen übernehmen' }))
+
+      await screen.findByRole('status')
+      const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
+      expect(body.rows).toEqual([
+        expect.objectContaining({ categoryId: null, saving: true, replaces: { recurringId: 6, date: '2026-01-03' } }),
+        expect.objectContaining({ categoryId: null, saving: true, replaces: { recurringId: 6, date: '2026-02-03' } }),
+      ])
+    })
+  })
+
   // Issue #119: an income series is named like its group of the planning page and shows how much the rows vary
   it('names an income series Einkommen and shows the range of its amounts', async () => {
     renderPage(() =>
@@ -563,6 +644,7 @@ describe('ImportPage', () => {
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
       'Kategorie wählen …',
       'Umbuchung (zählt nicht)',
+      'Sparen (zählt als Sparen)',
       'Freizeit',
       'Wohnen',
       '+ Neue Kategorie …',
