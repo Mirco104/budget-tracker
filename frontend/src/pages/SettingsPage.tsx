@@ -4,6 +4,7 @@ import { CategorySettings } from '../components/CategorySettings'
 import { InvitationSettings } from '../components/InvitationSettings'
 import { UserSettings } from '../components/UserSettings'
 import { PageHeader } from '../components/ui/PageHeader'
+import { APP_COMMIT, APP_VERSION } from '../version'
 import { SETTINGS_ROUTES, useSettingsPage, type SettingsPage as Page } from '../router'
 
 const LABELS: Record<Page, string> = {
@@ -51,6 +52,11 @@ export function SettingsPage({ me }: { me: Me }) {
           {page === 'users' && <UserSettings me={me} />}
         </div>
       )}
+      {/* Ticket #129: the version, e.g. for a bug report */}
+      <p className="app-version hint">
+        Version {APP_VERSION}
+        {APP_COMMIT && ` (Commit ${APP_COMMIT})`}
+      </p>
     </section>
   )
 }

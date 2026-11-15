@@ -6,6 +6,7 @@ import type { Me } from './api/types'
 import { AccountMenu } from './components/ui/AccountMenu'
 import { Icon, type IconName } from './components/ui/Icon'
 import { ModeBadge } from './components/ui/ModeBadge'
+import { ReleaseBadge } from './components/ui/ReleaseBadge'
 import { currentMonth } from './format'
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -91,6 +92,7 @@ function Brand() {
         B
       </span>
       Budget-Tracker
+      <ReleaseBadge />
       <ModeBadge />
     </div>
   )

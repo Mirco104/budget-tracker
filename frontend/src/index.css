@@ -2908,6 +2908,23 @@ label.tx.disabled {
   display: none;
 }
 
+/* Ticket #129: the stage of the app next to the brand, on every page */
+.release-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.app-version {
+  margin-top: 24px;
+  text-align: center;
+}
+
 /* On the phone only the short name fits next to the brand */
 @media (max-width: 480px) {
   .brand {

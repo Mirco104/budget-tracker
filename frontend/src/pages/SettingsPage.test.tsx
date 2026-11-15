@@ -68,6 +68,12 @@ describe('SettingsPage', () => {
     expect(screen.queryByRole('heading', { name: 'Konto' })).not.toBeInTheDocument()
   })
 
+  // Ticket #129
+  it('shows the version of the app', () => {
+    renderSettings(user)
+    expect(screen.getByText(/^Version \d+\.\d+\.\d+/)).toBeInTheDocument()
+  })
+
   it('shows the categories without a sub page in the address', async () => {
     renderSettings(user, undefined, '#/einstellungen')
 
