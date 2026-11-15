@@ -51,15 +51,15 @@ scripts/update.sh --no-https  # Test im Heimnetz ohne Caddy
 
 Das Skript macht nacheinander:
 
-1. ein Backup mit `scripts/backup.sh`, wenn die Datenbank läuft (beim ersten Start gibt es noch keine),
+1. die Datenbank starten, falls sie nicht läuft (`docker compose up -d --wait db`; läuft sie schon, passiert nichts), und immer ein Backup mit `scripts/backup.sh` (beim ersten Start von der leeren Datenbank),
 2. `git pull --ff-only`,
 3. `APP_COMMIT=$(git rev-parse --short HEAD) docker compose --profile https up -d --build`.
 
-Bricht ein Schritt ab, laufen die folgenden nicht. Die Flyway-Migrationen laufen beim Start der App automatisch. `APP_COMMIT` sorgt dafür, dass *Einstellungen* neben der Version auch den Commit zeigt (das Image selbst hat kein `.git`); wer `docker compose` von Hand startet, sieht nur die Version.
+Bricht ein Schritt ab, laufen die folgenden nicht. Die Flyway-Migrationen laufen beim Start der App automatisch. `APP_COMMIT` sorgt dafür, dass die Fußzeile neben der Version auch den Commit kennt (das Image selbst hat kein `.git`); wer `docker compose` von Hand startet, sieht nur die Version.
 
 ## Version
 
-Die App hat eine Version nach SemVer mit Vorabkennung (Ticket #129, Entscheidung 69): `0.1.0-alpha` ist die erste. Solange nur der Bekanntenkreis testet, bleibt die Null vorne und die Kennung `-alpha`, später `-beta`; `1.0.0` erst für eine öffentliche Nutzung. Die Version steht neben dem Namen der App auf jeder Seite (Alpha, Beta) und unten in *Einstellungen*; angemeldet liefert `/actuator/info` sie auch.
+Die App hat eine Version nach SemVer mit Vorabkennung (Ticket #129, Entscheidung 69): `0.1.0-alpha` ist die erste. Solange nur der Bekanntenkreis testet, bleibt die Null vorne und die Kennung `-alpha`, später `-beta`; `1.0.0` erst für eine öffentliche Nutzung. Die Stufe steht neben dem Namen der App auf jeder Seite (Alpha, Beta), die Version in der Fußzeile (der Commit beim Darüberfahren); angemeldet liefert `/actuator/info` sie auch.
 
 Eine neue Version:
 

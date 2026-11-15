@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.bankaccount;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -105,6 +106,46 @@ class AccountOverviewControllerTest {
     }
 
     @Test
+    void theHistoryListsTheBalancesNewestFirstAndAWrongOneCanBeDeleted() throws Exception {
+        book("{\"amount\": -40, \"description\": \"Einkauf\", \"date\": \"%s\", \"categoryId\": %d}"
+                .formatted(today, category("Lebensmittel")));
+        balance(girokonto, today.minusDays(1), "1000");
+        balance(girokonto, today, "900");
+        balance(tagesgeld, today, "50");
+
+        String history = mockMvc.perform(get("/api/bank-accounts/{id}/balances", girokonto))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].date").value(today.toString()))
+                .andExpect(jsonPath("$[0].amount").value(900.00))
+                .andExpect(jsonPath("$[0].appBalance").value(960.00))
+                .andExpect(jsonPath("$[0].difference").value(-60.00))
+                .andExpect(jsonPath("$[1].date").value(today.minusDays(1).toString()))
+                .andReturn().getResponse().getContentAsString();
+        long newest = ((Number) JsonPath.read(history, "$[0].id")).longValue();
+
+        // Another user sees neither the account nor its balances
+        User other = TestUsers.create(userService, "person-c@example.test");
+        MockMvc otherMvc = TestUsers.mockMvcFor(context, other);
+        otherMvc.perform(get("/api/bank-accounts/{id}/balances", girokonto)).andExpect(status().isNotFound());
+        otherMvc.perform(delete("/api/bank-accounts/{id}/balances/{b}", girokonto, newest))
+                .andExpect(status().isNotFound());
+        // A balance of another account is not found under this one
+        mockMvc.perform(delete("/api/bank-accounts/{id}/balances/{b}", tagesgeld, newest))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/bank-accounts/{id}/balances/{b}", girokonto, newest))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/bank-accounts/{id}/balances", girokonto))
+                .andExpect(jsonPath("$.length()").value(1));
+        // The app balance counts from the balance before again: 1000 - 40
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$[0].accounts[0].balance").value(960.00));
+        mockMvc.perform(delete("/api/bank-accounts/{id}/balances/{b}", girokonto, newest))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void aPotLinkedToTheSavingsAccountIsCoveredByIt() throws Exception {
         String item = mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
                         {"name": "Kfz-Versicherung", "amount": -1200, "categoryId": %d, "rhythmUnit": "MONTH",
@@ -194,6 +235,12 @@ class AccountOverviewControllerTest {
         mockMvc.perform(get("/api/accounts"))
                 .andExpect(jsonPath("$[1].accounts[0].lowerLimit").doesNotExist())
                 .andExpect(jsonPath("$[1].accounts[0].belowLimit").value(false));
+    }
+
+    private void balance(long account, LocalDate date, String amount) throws Exception {
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", account).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": %s}".formatted(date, amount)))
+                .andExpect(status().isOk());
     }
 
     private void book(String json) throws Exception {

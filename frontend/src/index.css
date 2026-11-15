@@ -2925,9 +2925,8 @@ label.tx.disabled {
   text-transform: uppercase;
   white-space: nowrap;
 }
-.app-version {
-  margin-top: 24px;
-  text-align: center;
+.legal .app-version {
+  color: var(--muted);
 }
 
 /* On the phone only the short name fits next to the brand */
@@ -3865,4 +3864,12 @@ button.account-open:hover {
     left: 16px;
     width: auto;
   }
+}
+
+/* --- Ticket #135: history of the balances from the bank --- */
+.link-button.balance-history-open {
+  align-self: flex-start;
+}
+.balance-row {
+  flex-wrap: wrap;
 }

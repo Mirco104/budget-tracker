@@ -26,8 +26,17 @@ const groups: AccountGroup[] = [
 function renderPage() {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     void init
+    const method = init?.method ?? 'GET'
+    if (url.startsWith('/api/bank-accounts/1/balances/') && method === 'DELETE') {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
     const body = url === '/api/accounts'
       ? groups
+      : url === '/api/bank-accounts/1/balances' && method === 'GET'
+        ? [
+            { id: 8, date: '2026-11-10', amount: 1200, appBalance: 1250, difference: -50 },
+            { id: 7, date: '2026-11-01', amount: 1000, appBalance: 1000, difference: 0 },
+          ]
       : url.startsWith('/api/bank-accounts/1/balances')
         ? { appBalance: 1250, bankBalance: 1200, difference: -50 }
         : url === '/api/reserves/by-account'
@@ -94,6 +103,43 @@ describe('AccountsPage', () => {
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Differenz −50,00 €: fehlt eine Buchung?')
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/1/balances')).toBe(true))
     expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/bank-accounts/1' && init?.method === 'PUT')).toBe(false)
+  })
+
+  // Ticket #135: the history opens in its own window above the account; a wrong balance can be deleted
+  it('shows the history of the bank balances and deletes a wrong one after confirming', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
+    const account = screen.getByRole('dialog', { name: 'Konto Girokonto' })
+    fireEvent.click(await within(account).findByRole('button', { name: 'Verlauf der Kontostände ansehen' }))
+
+    const history = await screen.findByRole('dialog', { name: /Kontostände von Girokonto/ })
+    const rows = within(await within(history).findByRole('list', { name: 'Kontostände' })).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('10.11.2026')
+    expect(rows[0]).toHaveTextContent('1.200,00 €')
+    expect(rows[0]).toHaveTextContent('App 1.250,00 € · Differenz −50,00 €')
+    expect(rows[1]).toHaveTextContent('✓ stimmte mit der App überein')
+
+    fireEvent.click(within(history).getByRole('button', { name: 'Kontostand vom 10.11.2026 löschen' }))
+    const confirm = within(history).getByRole('group', { name: 'Löschen bestätigen' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Löschen' }))
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url, init]) => url === '/api/bank-accounts/1/balances/8' && init?.method === 'DELETE'),
+      ).toBe(true),
+    )
+  })
+
+  it('offers the history only for an account with bank balances', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Tagesgeld bearbeiten' }))
+    const account = screen.getByRole('dialog', { name: 'Konto Tagesgeld' })
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/2/balances')).toBe(true),
+    )
+    expect(within(account).queryByRole('button', { name: 'Verlauf der Kontostände ansehen' })).not.toBeInTheDocument()
   })
 
   // Ticket #139: an account goes into another one; an archived account is no target
@@ -166,7 +212,10 @@ describe('AccountsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/2/lower-limit')
     expect(call?.[1]?.body).toBe(JSON.stringify({ mode: 'CUSTOM', amount: 500 }))
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/balances'))).toBe(false)
+    // No bank balance was entered (the history is only read)
+    expect(
+      fetchMock.mock.calls.some(([url, init]) => String(url).includes('/balances') && init?.method === 'POST'),
+    ).toBe(false)
   })
 
   it('switches the lower limit off', async () => {
