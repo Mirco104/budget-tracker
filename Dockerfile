@@ -6,7 +6,9 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-RUN npm run build
+# Ticket #129: the image has no .git; the commit shown in the settings comes from the build argument (may be empty)
+ARG APP_COMMIT=""
+RUN APP_COMMIT="$APP_COMMIT" npm run build
 
 FROM eclipse-temurin:21.0.13_9-jdk-alpine AS backend
 WORKDIR /build

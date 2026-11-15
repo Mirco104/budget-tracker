@@ -18,7 +18,10 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        APP_COMMIT: ${APP_COMMIT:-}
     restart: unless-stopped
     depends_on:
       db:
