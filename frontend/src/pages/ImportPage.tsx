@@ -32,6 +32,20 @@ import { Loading } from '../components/ui/Loading'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
+/** The value of the category field for the kind Sparen, a transfer that counts as saving (P1, decision 67). */
+const SAVING = 'saving'
+/** The options of a category field before the categories. */
+const KIND_OPTIONS = (
+  <>
+    <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
+    <option value={SAVING}>Sparen (zählt als Sparen)</option>
+  </>
+)
+
+/** The value of the category field a row gets from the term it fulfils: Sparen for a saving item (decision 67). */
+function replacesValue(entry: ImportEntry): string {
+  return entry.replaces?.categoryId === null ? SAVING : String(entry.replaces?.categoryId)
+}
 /** The value of the account field for a new account with the suggested name, created when the rows are taken over. */
 const NEW_ACCOUNT = 'new'
 /** The value of the account field that opens the field for a new account with an own name (08.11.2026). */
@@ -63,6 +77,10 @@ interface RowSuggestion {
  * stand for both.
  */
 function suggestionOf(entry: ImportEntry, categories: Category[], chosenByKey: Record<string, string>): RowSuggestion | null {
+  // Decision 67: a transfer to a savings or depot account, or a row that fulfils a saving item
+  if (entry.saving) {
+    return { value: SAVING, name: 'Sparen', icon: null }
+  }
   if (entry.transfer) {
     return { value: TRANSFER, name: 'Umbuchung', icon: null }
   }
@@ -179,7 +197,7 @@ function PreviewRow({
           {entry.transfer && !entry.transferCertain && entry.transferPeer && entry.transferPeer.line === null && (
             <span className="hint">Gegenbuchung: {peerText(entry.transferPeer)}</span>
           )}
-          {entry.transferPeerId !== null && choice.category === TRANSFER && (
+          {entry.transferPeerId !== null && (choice.category === TRANSFER || choice.category === SAVING) && (
             <span className="badge">Gegenbuchung wird ebenfalls zur Umbuchung</span>
           )}
           {entry.replaces && choice.category !== TRANSFER && (
@@ -216,7 +234,7 @@ function PreviewRow({
           onChange={(value) => onChange({ ...choice, category: value })}
           categories={categories}
           placeholder="Kategorie wählen …"
-          leading={<option value={TRANSFER}>Umbuchung (zählt nicht)</option>}
+          leading={KIND_OPTIONS}
           createLabel={`Neue Kategorie für ${description}`}
         />
         {suggested && open && (
@@ -302,7 +320,8 @@ function ShowInList({ onClick }: { onClick: () => void }) {
  * R31: a card for rows that look like a monthly series. The category of the series is only a suggestion. Issue #119: it
  * is named like the group of the planning page it ends up in, Fixkosten for an expense and Einkommen for an income, with
  * the median amount and its range. "Als … planen" only notes the item; it is created with the import, and its rows
- * fulfil its terms (code review, 08.11.2026), so "Abbrechen" leaves nothing behind.
+ * fulfil its terms (code review, 08.11.2026), so "Abbrechen" leaves nothing behind. Decision 67: an expense can be planned
+ * as saving too, and a series of saving transfers only as saving.
  */
 function SeriesCard({
   series,
@@ -315,7 +334,7 @@ function SeriesCard({
 }: {
   series: ImportSeries
   categories: Category[]
-  /** The category of the noted series, null while it is not noted. */
+  /** The category of the noted series (SAVING for a saving item), null while it is not noted. */
   planned: string | null
   onShowInList: () => void
   onPlan: (categoryId: string) => void
@@ -325,13 +344,24 @@ function SeriesCard({
   const [categoryId, setCategoryId] = useState('')
   const suggested = categories.find((c) => c.id === series.categoryId)
   const income = series.amount > 0
-  const group = income ? 'Einkommen' : 'Fixkosten'
+  const saving = series.saving === true
+  const group = saving ? 'Sparen' : income ? 'Einkommen' : 'Fixkosten'
 
   const label = `${group} „${series.description}“`
+  const looksLike = saving
+    ? 'Sieht nach monatlichem Sparen aus'
+    : income
+      ? 'Sieht nach monatlichem Einkommen aus'
+      : 'Sieht nach monatlichen Fixkosten aus'
+  const planAsSaving = (
+    <button type="button" className={saving ? 'primary' : undefined} onClick={() => onPlan(SAVING)}>
+      Als Sparen planen
+    </button>
+  )
   return (
     <section className="card import-series" aria-label={label}>
       <p>
-        {income ? 'Sieht nach monatlichem Einkommen aus' : 'Sieht nach monatlichen Fixkosten aus'}: „
+        {looksLike}: „
         {series.description}“, {formatSigned(series.amount)} ab {formatDate(series.startDate)} (
         {series.lines.length} Buchungen in der Datei
         {series.lowest !== series.highest &&
@@ -340,8 +370,16 @@ function SeriesCard({
       </p>
       {planned !== null ? (
         <div className="import-series-actions">
+          {planned === SAVING && !saving && <span className="hint">Als Sparen vorgemerkt.</span>}
           <button type="button" onClick={onUnplan}>
             Nicht planen
+          </button>
+        </div>
+      ) : saving ? (
+        <div className="import-series-actions">
+          {planAsSaving}
+          <button type="button" onClick={onIgnore}>
+            Ignorieren
           </button>
         </div>
       ) : (
@@ -364,6 +402,7 @@ function SeriesCard({
           <button type="button" className="primary" disabled={categoryId === ''} onClick={() => onPlan(categoryId)}>
             Als {group} planen
           </button>
+          {!income && planAsSaving}
           <button type="button" onClick={onIgnore}>
             Ignorieren
           </button>
@@ -378,7 +417,8 @@ function SeriesCard({
 interface Match {
   recurringId: number
   description: string
-  categoryId: number
+  /** null for a saving item (decision 67). */
+  categoryId: number | null
   entries: ImportEntry[]
 }
 
@@ -421,11 +461,16 @@ function MatchCard({
   onUndo: () => void
   onShowInList: () => void
 }) {
-  const category = categories.find((c) => c.id === match.categoryId)
+  const saving = match.categoryId === null
+  const category = saving ? { name: 'Sparen' } : categories.find((c) => c.id === match.categoryId)
   const dates = match.entries.map((entry) => (entry.replaces as NonNullable<ImportEntry['replaces']>).date).sort()
   const count = match.entries.length
-  // Issue #119: named like the group of the planning page, by the sign of the rows
-  const planned = (match.entries[0].amount ?? 0) > 0 ? 'das geplante Einkommen' : 'die geplanten Fixkosten'
+  // Issue #119: named like the group of the planning page, by the sign of the rows; decision 67: or Sparen
+  const planned = saving
+    ? 'den geplanten Sparposten'
+    : (match.entries[0].amount ?? 0) > 0
+      ? 'das geplante Einkommen'
+      : 'die geplanten Fixkosten'
   return (
     <section className="card import-series" aria-label={`Treffer für „${match.description}“`}>
       <p>
@@ -560,7 +605,7 @@ function Preview({
   // A row of a match is done with the category of its series and "ersetzt" ticked
   const matchOpen = (entry: ImportEntry) => {
     const choice = choices[entry.fingerprint as string]
-    return choice.category !== String(entry.replaces?.categoryId) || choice.replace === false
+    return choice.category !== replacesValue(entry) || choice.replace === false
   }
 
   // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31); an Umbuchung is a
@@ -699,7 +744,7 @@ function Preview({
     // The row stays in sight while it is edited, even when it no longer passes the filters
     pin(entry)
     const chose = next.category !== '' && next.category !== choices[entry.fingerprint as string].category
-    if (chose && next.category !== TRANSFER && entry.suggestionKey) {
+    if (chose && next.category !== TRANSFER && next.category !== SAVING && entry.suggestionKey) {
       setChosenByKey((current) => ({ ...current, [entry.suggestionKey as string]: next.category }))
     }
   }
@@ -715,7 +760,7 @@ function Preview({
       }
       return updated
     })
-    if (assignCategory !== TRANSFER) {
+    if (assignCategory !== TRANSFER && assignCategory !== SAVING) {
       setChosenByKey((current) => {
         const updated = { ...current }
         for (const entry of targets) {
@@ -727,7 +772,11 @@ function Preview({
       })
     }
     const name =
-      assignCategory === TRANSFER ? 'Umbuchung' : (categories.find((c) => String(c.id) === assignCategory)?.name ?? '')
+      assignCategory === TRANSFER
+        ? 'Umbuchung'
+        : assignCategory === SAVING
+          ? 'Sparen'
+          : (categories.find((c) => String(c.id) === assignCategory)?.name ?? '')
     setNotice(`${targets.length === 1 ? '1 Zeile' : `${targets.length} Zeilen`} „${name}“ zugeordnet.`)
     setAssignCategory('')
   }
@@ -752,7 +801,7 @@ function Preview({
       const updated = { ...current }
       for (const entry of match.entries) {
         const fingerprint = entry.fingerprint as string
-        updated[fingerprint] = { ...updated[fingerprint], category: String(match.categoryId), replace: true }
+        updated[fingerprint] = { ...updated[fingerprint], category: replacesValue(entry), replace: true }
       }
       return updated
     })
@@ -783,13 +832,16 @@ function Preview({
     return {
       ...(used.length > 0
         ? {
-            series: used.map((s) => ({
-              startDate: s.startDate,
-              amount: s.amount,
-              description: s.description,
-              categoryId: Number(plannedSeries[s.lines.join()]),
-              source: s.source,
-            })),
+            series: used.map((s) => {
+              const planned = plannedSeries[s.lines.join()]
+              return {
+                startDate: s.startDate,
+                amount: s.amount,
+                description: s.description,
+                ...(planned === SAVING ? { saving: true } : { categoryId: Number(planned) }),
+                source: s.source,
+              }
+            }),
           }
         : {}),
       profile: preview.profile,
@@ -803,6 +855,8 @@ function Preview({
         const choice = choices[entry.fingerprint as string]
         const category = choice.category
         const transfer = category === TRANSFER
+        // Decision 67: the kind Sparen is a transfer that counts as saving; it may fulfil a term
+        const saving = category === SAVING
         const seriesIndex = used.findIndex((s) => inSeries(entry, s))
         return {
           fingerprint: entry.fingerprint as string,
@@ -812,9 +866,10 @@ function Preview({
           description: entry.description as string,
           counterparty: entry.counterparty,
           bankCategory: entry.bankCategory,
-          categoryId: transfer ? null : Number(category),
+          categoryId: transfer || saving ? null : Number(category),
           transfer,
-          ...(transfer && entry.transferPeerId !== null ? { transferPeerId: entry.transferPeerId } : {}),
+          ...(saving ? { saving } : {}),
+          ...((transfer || saving) && entry.transferPeerId !== null ? { transferPeerId: entry.transferPeerId } : {}),
           ...(!transfer && (choice.replace ?? true) && entry.replaces
             ? { replaces: { recurringId: entry.replaces.recurringId, date: entry.replaces.date } }
             : {}),
@@ -962,6 +1017,7 @@ function Preview({
             extraCategoryOptions={[
               { value: WITHOUT_CATEGORY, label: 'Ohne Kategorie' },
               { value: TRANSFER, label: 'Umbuchung' },
+              { value: SAVING, label: 'Sparen' },
             ]}
           />
           {filterActive && (
@@ -987,7 +1043,7 @@ function Preview({
                 onChange={(e) => setAssignCategory(e.target.value)}
               >
                 <option value="">Kategorie wählen …</option>
-                <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
+                {KIND_OPTIONS}
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.path}

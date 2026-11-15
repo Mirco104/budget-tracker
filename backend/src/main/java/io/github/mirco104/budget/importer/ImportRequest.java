@@ -34,7 +34,10 @@ public record ImportRequest(
         return series == null ? List.of() : series;
     }
 
-    /** R31: a monthly series that the import creates; its rows replace its occurrences (source: its account). */
+    /**
+     * R31: a monthly series that the import creates; its rows replace its occurrences (source: its account). A saving
+     * series (decision 67) has no category, every other one needs one.
+     */
     public record NewSeries(
             @NotNull(message = "Das Startdatum ist Pflicht.")
             LocalDate startDate,
@@ -47,11 +50,16 @@ public record ImportRequest(
             @Size(max = 100, message = "Die Beschreibung darf höchstens 100 Zeichen lang sein.")
             String description,
 
-            @NotNull(message = "Die Kategorie ist Pflicht.")
             Long categoryId,
 
             @NotBlank(message = "Die Quelle ist Pflicht.")
-            String source) {
+            String source,
+
+            Boolean saving) {
+
+        public boolean isSaving() {
+            return Boolean.TRUE.equals(saving);
+        }
     }
 
     /** A source of the file goes to an own account (accountId) or to a new one (newAccountName). */
@@ -66,7 +74,10 @@ public record ImportRequest(
             String newAccountName) {
     }
 
-    /** One row: categoryId is required unless transfer is true (R27); transferPeerId only with a transfer. */
+    /**
+     * One row: categoryId is required unless transfer or saving is true (R27); transferPeerId only with a transfer or a
+     * saving row. saving is the kind Sparen (P1, decision 67), a transfer that counts as saving.
+     */
     public record Row(
             @NotBlank(message = "Der Fingerabdruck ist Pflicht.")
             @Size(min = 64, max = 64, message = "Der Fingerabdruck ist ungültig.")
@@ -103,6 +114,17 @@ public record ImportRequest(
             TermRef replaces,
 
             // R31: the index of the new series in "series" whose occurrence the row replaces
-            Integer series) {
+            Integer series,
+
+            Boolean saving) {
+
+        public boolean isSaving() {
+            return Boolean.TRUE.equals(saving);
+        }
+
+        /** A transfer that is no saving: it fulfils no term and belongs to no series (R27). */
+        boolean isPlainTransfer() {
+            return Boolean.TRUE.equals(transfer) && !isSaving();
+        }
     }
 }
