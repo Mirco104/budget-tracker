@@ -58,6 +58,8 @@ const PATHS = {
       <path d="M12 11v5M12 8h.01" />
     </>
   ),
+  bell: <path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4" />,
+  layers: <path d="M12 3 2 8l10 5 10-5zM2 13l10 5 10-5" />,
 }
 
 export type IconName = keyof typeof PATHS

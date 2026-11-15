@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
-import type { AccountGroup, ReconcileResult, ReserveGroup } from './types'
+import type { AccountGroup, LowerLimitMode, ReconcileResult, ReserveGroup } from './types'
 
 /** Accounts by role with their app balance (P11). */
 export function useAccounts() {
@@ -39,14 +39,14 @@ export function useLinkReserve() {
   })
 }
 
-/** 27f4: sets the comfort amount of an account; null removes it. */
-export function useSetComfortAmount() {
+/** P12 (27h): sets the lower limit of an account; amount only for CUSTOM. */
+export function useSetLowerLimit() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ accountId, amount }: { accountId: number; amount: number | null }) =>
-      request<unknown>(`/bank-accounts/${accountId}/comfort-amount`, {
+    mutationFn: ({ accountId, mode, amount }: { accountId: number; mode: LowerLimitMode; amount: number | null }) =>
+      request<unknown>(`/bank-accounts/${accountId}/lower-limit`, {
         method: 'PUT',
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ mode, amount }),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] }),
   })

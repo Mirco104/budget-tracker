@@ -55,6 +55,10 @@ public class AccountService {
     private final ImportBatchRepository importBatchRepository;
     private final Clock clock;
 
+    // 27h: the month closings and the dismissed notifications of the bell
+    private final io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository;
+    private final io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedNotificationRepository;
+
     public AccountService(
             CurrentUser currentUser, UserRepository userRepository, PasswordEncoder passwordEncoder,
             CategoryRepository categoryRepository,
@@ -64,7 +68,10 @@ public class AccountService {
             InvitationRepository invitationRepository,
             BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
             ImportBatchRepository importBatchRepository, PasswordResetRepository passwordResetRepository,
-            Clock clock) {
+            Clock clock, io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository,
+            io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedNotificationRepository) {
+        this.closedMonthRepository = closedMonthRepository;
+        this.dismissedNotificationRepository = dismissedNotificationRepository;
         this.passwordResetRepository = passwordResetRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.sourceRepository = sourceRepository;
@@ -129,12 +136,13 @@ public class AccountService {
                 .map(a -> new BankAccountExport(a.getName(), a.getIban(), a.isDefaultAccount(), a.isArchived()))
                 .toList();
         List<CategoryExport> categories = categoryRepository.findAllByOwner(user).stream()
-                .sorted(CategoryOrder.ALPHABETICAL)
-                .map(category -> new CategoryExport(category.getName(), category.isArchived()))
+                .sorted(CategoryOrder.TREE)
+                .map(category -> new CategoryExport(category.getName(),
+                        category.getParent() == null ? null : category.getParent().getName(), category.isArchived()))
                 .toList();
         List<TransactionExport> transactions = transactionRepository.findByOwnerOrderByDateAscIdAsc(user).stream()
                 .map(t -> new TransactionExport(t.getDate(), t.getAmount(), t.getDescription(),
-                        t.getCategory() == null ? null : t.getCategory().getName(), t.getAccount().getName(),
+                        t.getCategory() == null ? null : t.getCategory().getPath(), t.getAccount().getName(),
                         t.isTransfer(), t.isAuto(), t.getCounterparty(), t.getBankCategory()))
                 .toList();
         Map<java.util.UUID, List<TermExport>> terms = termRepository.findByOwner(user).stream()
@@ -144,7 +152,7 @@ public class AccountService {
                         Collectors.toList())));
         List<PlannedItemExport> items = itemRepository.findAllOf(user).stream()
                 .map(i -> new PlannedItemExport(i.getItemKey(), i.getName(), i.getAmount(), i.isSaving(),
-                        i.getCategory() == null ? null : i.getCategory().getName(), i.getAccount().getName(),
+                        i.getCategory() == null ? null : i.getCategory().getPath(), i.getAccount().getName(),
                         i.getRhythmUnit(), i.getRhythmCount(), i.getAnchorDate(), i.getEntryMode(), i.isWorkdaysOnly(),
                         i.getValidFrom(), i.getValidTo(), terms.getOrDefault(i.getItemKey(), List.of())))
                 .toList();
@@ -164,6 +172,8 @@ public class AccountService {
         if (user.getRole() == Role.SYSTEM_ADMIN) {
             throw new ConflictException("Der Systemadmin kann sein Konto nicht löschen.");
         }
+        dismissedNotificationRepository.deleteByOwner(user);
+        closedMonthRepository.deleteByOwner(user);
         termRepository.deleteByOwner(user);
         itemRepository.deleteByOwner(user);
         transactionRepository.deleteByOwner(user);

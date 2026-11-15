@@ -253,6 +253,7 @@ public class SampleDataSeeder implements ApplicationRunner {
         void savingsAccountFor(String accountName, String itemName, String balance) {
             io.github.mirco104.budget.bankaccount.BankAccount account = bankAccountService.create(accountName, null);
             account.setRole(io.github.mirco104.budget.bankaccount.AccountRole.SAVINGS);
+            account.setLowerLimit(io.github.mirco104.budget.bankaccount.LowerLimitMode.OFF, null);
             statementRepository.save(statement(account, LAST_MONTH.atEndOfMonth(), new BigDecimal(balance)));
             itemRepository.findAllOf(currentOwner()).stream()
                     .filter(item -> item.getName().equals(itemName))

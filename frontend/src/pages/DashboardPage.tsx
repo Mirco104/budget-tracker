@@ -1,3 +1,4 @@
+import { ClosedMonthCard } from '../components/ClosedMonthCard'
 import { useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { InfoTip } from '../components/ui/InfoTip'
@@ -95,6 +96,8 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
       <p className="hint">{MONTH_NOTES[data.monthState]}</p>
 
       <div className="summary-rows">
+        {/* 27h, decision 59: a past month shows its surplus or shortfall first */}
+        {data.monthState === 'PAST' && <ClosedMonthCard month={month} />}
         <section className={incomeOpen ? 'summary-row open' : 'summary-row'} aria-label="Einnahmen">
           <button type="button" className="summary-head" aria-expanded={incomeOpen} onClick={() => setIncomeOpen((v) => !v)}>
             <span className="summary-label">Einnahmen</span>

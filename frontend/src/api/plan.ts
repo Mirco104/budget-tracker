@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 import type { Plan, PlannedItem, PlannedItemInput } from './types'
 
@@ -30,6 +30,8 @@ export function usePastTerms(input: PlannedItemInput | null) {
       request<{ count: number }>('/planned-items/past-terms', { method: 'POST', body: JSON.stringify(input) }),
     enabled: input !== null,
     staleTime: 30_000,
+    // The last count stays while a changed date loads, so the hint does not disappear and reappear (#126)
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -67,4 +69,22 @@ export function useDeletePlannedItem() {
     mutationFn: ({ id, from }: { id: number; from?: string }) => deletePlannedItem(id, from),
     onSuccess: refresh,
   })
+}
+
+/** 27i: an item suggested from a monthly series of bookings (R31); amount with sign. */
+export interface PlanSuggestion {
+  key: string
+  name: string
+  amount: number
+  categoryId: number | null
+  categoryName: string | null
+  accountId: number | null
+  anchorDate: string
+  months: number
+  group: 'INCOME' | 'FIXED'
+}
+
+/** 27i: suggestions from the bookings of the last 12 months; under 'plan', so a new item refreshes them. */
+export function usePlanSuggestions() {
+  return useQuery({ queryKey: ['plan', 'suggestions'], queryFn: () => request<PlanSuggestion[]>('/plan/suggestions') })
 }

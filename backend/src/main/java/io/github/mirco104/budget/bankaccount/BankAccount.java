@@ -46,9 +46,13 @@ public class BankAccount {
     @Column(nullable = false)
     private boolean archived;
 
-    // 27f4: optional; the page Konten marks a balance below it
-    @Column(name = "comfort_amount", precision = 12, scale = 2)
-    private java.math.BigDecimal comfortAmount;
+    // P12 (27h, decision 65): below it the balance is orange on Konten and the bell warns; replaces the comfort amount
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "lower_limit_mode", nullable = false, length = 6)
+    private LowerLimitMode lowerLimitMode = LowerLimitMode.ZERO;
+
+    @Column(name = "lower_limit", precision = 12, scale = 2)
+    private java.math.BigDecimal lowerLimit;
 
     protected BankAccount() {
     }
@@ -102,11 +106,22 @@ public class BankAccount {
         this.role = role;
     }
 
-    public java.math.BigDecimal getComfortAmount() {
-        return comfortAmount;
+    public LowerLimitMode getLowerLimitMode() {
+        return lowerLimitMode;
     }
 
-    public void setComfortAmount(java.math.BigDecimal comfortAmount) {
-        this.comfortAmount = comfortAmount;
+    public java.math.BigDecimal getLowerLimit() {
+        return lowerLimit;
+    }
+
+    /** P12: the amount is kept only for CUSTOM. */
+    public void setLowerLimit(LowerLimitMode mode, java.math.BigDecimal amount) {
+        this.lowerLimitMode = mode;
+        this.lowerLimit = mode == LowerLimitMode.CUSTOM ? amount : null;
+    }
+
+    /** P12: the lower limit as an amount, null without one. */
+    public java.math.BigDecimal limit() {
+        return AccountBalance.limit(lowerLimitMode, lowerLimit);
     }
 }

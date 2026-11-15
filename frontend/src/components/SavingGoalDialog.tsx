@@ -10,7 +10,16 @@ function amountText(value: number | null): string {
 }
 
 /** 27f4: a saving goal with name, target amount and target date (both optional); a new one when goal is null. */
-export function SavingGoalDialog({ goal, onClose }: { goal: SavingGoal | null; onClose: () => void }) {
+export function SavingGoalDialog({
+  goal,
+  onClose,
+  onCreated,
+}: {
+  goal: SavingGoal | null
+  onClose: () => void
+  /** Decision 66: gets a new goal, e.g. to choose it in the selection that opened the window. */
+  onCreated?: (goal: SavingGoal) => void
+}) {
   const create = useCreateSavingGoal()
   const update = useUpdateSavingGoal()
   const remove = useDeleteSavingGoal()
@@ -44,7 +53,11 @@ export function SavingGoalDialog({ goal, onClose }: { goal: SavingGoal | null; o
       return
     }
     const input = { name: name.trim(), targetAmount: amount, targetDate: date === '' ? null : date }
-    void run(() => (goal ? update.mutateAsync({ id: goal.id, input }) : create.mutateAsync(input)))
+    void run(() =>
+      goal
+        ? update.mutateAsync({ id: goal.id, input })
+        : create.mutateAsync(input).then((created) => onCreated?.(created)),
+    )
   }
 
   return (

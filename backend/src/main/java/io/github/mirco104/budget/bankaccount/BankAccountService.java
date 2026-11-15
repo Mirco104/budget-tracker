@@ -3,6 +3,8 @@ package io.github.mirco104.budget.bankaccount;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
+import io.github.mirco104.budget.notification.DismissedNotificationRepository;
+import io.github.mirco104.budget.notification.NotificationService;
 import io.github.mirco104.budget.plan.PlannedItemRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
@@ -21,11 +23,13 @@ public class BankAccountService {
     private final BankStatementRepository statementRepository;
     private final BankAccountSourceRepository sourceRepository;
     private final CurrentUser currentUser;
+    private final DismissedNotificationRepository dismissedRepository;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
             PlannedItemRepository itemRepository, BankStatementRepository statementRepository, BankAccountSourceRepository sourceRepository,
-            CurrentUser currentUser) {
+            CurrentUser currentUser, DismissedNotificationRepository dismissedRepository) {
+        this.dismissedRepository = dismissedRepository;
         this.sourceRepository = sourceRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.transactionRepository = transactionRepository;
@@ -53,6 +57,10 @@ public class BankAccountService {
         BankAccount account = create(request.name(), request.iban());
         if (request.role() != null) {
             account.setRole(request.role());
+            // P12: a savings or depot account starts without a lower limit, an everyday one with 0 €
+            if (request.role() != AccountRole.EVERYDAY) {
+                account.setLowerLimit(LowerLimitMode.OFF, null);
+            }
         }
         return BankAccountResponse.from(account, false);
     }
@@ -107,6 +115,8 @@ public class BankAccountService {
                     "Auf diesem Konto gibt es Buchungen. Das Konto kann nur archiviert werden.");
         }
         sourceRepository.deleteByAccount(account);
+        // 27h: the dismissed lower limit notification of the account goes with it
+        dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);
         bankAccountRepository.deleteById(id);
     }
 

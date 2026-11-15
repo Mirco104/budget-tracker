@@ -31,17 +31,18 @@ public class AccountOverviewController {
             BigDecimal amount) {
     }
 
-    /** 27f4: the comfort amount of an account, null removes it. */
-    public record ComfortRequest(
+    /** P12: the lower limit of an account; amount only for CUSTOM. */
+    public record LowerLimitRequest(
+            @NotNull(message = "Die Untergrenze ist Pflicht.") LowerLimitMode mode,
             @jakarta.validation.constraints.PositiveOrZero(message = "Der Betrag darf nicht negativ sein.")
             @Digits(integer = 10, fraction = 2, message = "Der Betrag darf höchstens 2 Nachkommastellen haben.")
             BigDecimal amount) {
     }
 
-    @org.springframework.web.bind.annotation.PutMapping("/api/bank-accounts/{id}/comfort-amount")
+    @org.springframework.web.bind.annotation.PutMapping("/api/bank-accounts/{id}/lower-limit")
     @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void comfort(@PathVariable long id, @Valid @RequestBody ComfortRequest request) {
-        overviewService.setComfortAmount(id, request.amount());
+    public void lowerLimit(@PathVariable long id, @Valid @RequestBody LowerLimitRequest request) {
+        overviewService.setLowerLimit(id, request.mode(), request.amount());
     }
 
     @GetMapping("/api/accounts")

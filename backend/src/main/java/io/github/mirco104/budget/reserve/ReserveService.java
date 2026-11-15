@@ -100,7 +100,7 @@ public class ReserveService {
                 .map(item -> new SeriesData(
                         item.getId(),
                         item.getName(),
-                        item.getCategory() == null ? null : item.getCategory().getName(),
+                        item.getCategory() == null ? null : item.getCategory().getPath(),
                         item.getAmount(),
                         item.getRhythmUnit(),
                         item.getRhythmCount(),

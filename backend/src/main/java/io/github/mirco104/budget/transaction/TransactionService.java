@@ -72,6 +72,14 @@ public class TransactionService {
         if (to.isBefore(from)) {
             throw new InvalidFieldException("to", "„Bis“ darf nicht vor „Von“ liegen.");
         }
+        // Ticket #102: nothing lies before the first booking, so a period like 2000 to today starts there
+        LocalDate first = transactionRepository.findFirstBookingDate(currentUser.get());
+        if (first == null || first.isAfter(to)) {
+            return List.of();
+        }
+        if (from.isBefore(first)) {
+            from = first;
+        }
         if (!to.isBefore(from.plusYears(MAX_PERIOD_YEARS))) {
             throw new InvalidFieldException("to", "Der Zeitraum darf höchstens 10 Jahre lang sein.");
         }

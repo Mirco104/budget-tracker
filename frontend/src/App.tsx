@@ -1,3 +1,4 @@
+import { Bell } from './components/Bell'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
@@ -137,10 +138,11 @@ function SignedIn({ me }: { me: Me }) {
                 aria-current={page === tab.page ? 'page' : undefined}
               >
                 <Icon name={tab.icon} />
-                {tab.label}
+                <span className="tab-label">{tab.label}</span>
               </a>
             ))}
           </nav>
+          <Bell />
           <AccountMenu
             me={me}
             settingsHref={ROUTES.settings}

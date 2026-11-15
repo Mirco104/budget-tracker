@@ -7,11 +7,12 @@ import { BookingDialog } from './BookingDialog'
 
 // Fictional values, shaped like the backend responses.
 const categories: Category[] = [
-  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false },
-  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false },
-  { id: 7, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false },
-  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true },
-  { id: 30, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false },
+  { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
+  { id: 6, name: 'Freizeit', icon: 'music', archived: false, incomeOnly: false, parentId: null, path: 'Freizeit' },
+  { id: 61, name: 'Kino', icon: 'music', archived: false, incomeOnly: false, parentId: 6, path: 'Freizeit › Kino' },
+  { id: 7, name: 'Lebensmittel', icon: 'cart', archived: false, incomeOnly: false, parentId: null, path: 'Lebensmittel' },
+  { id: 20, name: 'Gehalt', icon: 'wallet', archived: false, incomeOnly: true, parentId: null, path: 'Gehalt' },
+  { id: 30, name: 'Kredite', icon: 'card', archived: true, incomeOnly: false, parentId: null, path: 'Kredite' },
 ]
 
 const kino: Transaction = { id: 7, amount: -12, description: 'Kino', date: '2026-10-20', categoryId: 6, categoryName: 'Freizeit', accountId: 1, accountName: 'Girokonto', transfer: false, auto: false, fix: false }
@@ -165,7 +166,7 @@ describe('BookingDialog', () => {
     expect(sent(fetchMock, 'POST')?.body).toMatchObject({ accountId: 2 })
   })
 
-  // 08.11.2026: a missing category is created in the dialog and chosen
+  // Decision 66: a missing category is created in the window "Neue Kategorie" above the booking and chosen
   it('creates a new category and books on it', async () => {
     const { fetchMock, onDone } = renderDialog(null, (url) =>
       url.startsWith('/api/categories') ? json({ ...categories[0], id: 40, name: 'Spiele', icon: 'tag' }, 201) : json({}),
@@ -174,14 +175,20 @@ describe('BookingDialog', () => {
     fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Brettspiel' } })
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
-    const name = screen.getByRole('textbox', { name: 'Neue Kategorie' })
-    fireEvent.change(name, { target: { value: 'Spiele' } })
-    // Enter creates the category and does not save the booking
-    fireEvent.keyDown(name, { key: 'Enter' })
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    // A category of the first field gets no parent field; screen readers hear which window it lies on
+    expect(within(created).queryByLabelText('Unterkategorie von (optional)')).not.toBeInTheDocument()
+    expect(created).toHaveTextContent('über Neue Buchung')
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Spiele' } })
+    // Its form does not save the booking below
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() => expect(screen.getByLabelText('Kategorie')).toHaveValue('40'))
-    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
-    expect(sent(fetchMock, 'POST')).toEqual({ url: '/api/categories', body: { name: 'Spiele' } })
+    expect(screen.queryByRole('dialog', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(sent(fetchMock, 'POST')).toEqual({
+      url: '/api/categories',
+      body: { name: 'Spiele', icon: 'tag', parentId: null },
+    })
     expect(onDone).not.toHaveBeenCalled()
 
     save()
@@ -191,13 +198,15 @@ describe('BookingDialog', () => {
     expect(JSON.parse(String((posts[1][1] as RequestInit).body))).toMatchObject({ categoryId: 40 })
   })
 
-  it('keeps the dialog open when the name field is cancelled with Escape', async () => {
+  it('closes only the window on top with Escape', async () => {
     const { onClose } = renderDialog()
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
 
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { key: 'Escape' })
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    fireEvent.keyDown(within(created).getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
 
-    expect(screen.queryByRole('textbox', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Neue Kategorie' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Neue Buchung' })).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -216,10 +225,11 @@ describe('BookingDialog', () => {
     fillValid()
 
     fireEvent.change(account, { target: { value: 'new' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Neues Konto' }), { target: { value: 'Tagesgeld' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neues Konto' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Tagesgeld' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Speichern' }))
 
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Neues Konto' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Neues Konto' })).not.toBeInTheDocument())
     save()
 
     await waitFor(() => expect(onDone).toHaveBeenCalled())
@@ -231,10 +241,11 @@ describe('BookingDialog', () => {
   it('shows the error of a category name that exists', async () => {
     renderDialog(null, () => json({ status: 409, detail: 'Eine Kategorie „Wohnen“ gibt es schon.' }, 409))
     fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: 'new' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Neue Kategorie' }), { target: { value: 'Wohnen' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    const created = screen.getByRole('dialog', { name: 'Neue Kategorie' })
+    fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Wohnen' } })
+    fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
+    expect(await within(created).findByRole('alert')).toHaveTextContent('Eine Kategorie „Wohnen“ gibt es schon.')
     expect(screen.getByLabelText('Kategorie')).toHaveValue('')
   })
 
@@ -428,5 +439,71 @@ describe('BookingDialog', () => {
     expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key')
     expect(screen.getByLabelText('Konto')).toHaveValue('4')
     plan = []
+  })
+
+  // US37 (14.11.2026): "Kategorie" lists only top-level categories, "Unterkategorie (optional)" those of the chosen one
+  describe('subcategories', () => {
+    it('offers the subcategories of the chosen category in a second field and books on the subcategory', async () => {
+      const { fetchMock, onDone } = renderDialog()
+      expect(screen.queryByLabelText('Unterkategorie (optional)')).not.toBeInTheDocument()
+      expect(within(screen.getByLabelText('Kategorie')).queryByRole('option', { name: /Kino/ })).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '12' } })
+      fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Kinoabend' } })
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      const sub = screen.getByLabelText('Unterkategorie (optional)')
+      expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '– keine –',
+        'Kino',
+        '+ Neue Unterkategorie …',
+      ])
+      fireEvent.change(sub, { target: { value: '61' } })
+      save()
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled())
+      expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 61 })
+    })
+
+    it('books on the category itself with "– keine –"', async () => {
+      const { fetchMock, onDone } = renderDialog()
+      fireEvent.change(screen.getByLabelText('Betrag in Euro'), { target: { value: '12' } })
+      fireEvent.change(screen.getByLabelText('Beschreibung'), { target: { value: 'Konzert' } })
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: '61' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: '' } })
+      save()
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled())
+      expect(sent(fetchMock, 'POST')?.body).toMatchObject({ categoryId: 6 })
+    })
+
+    it('shows the category and the subcategory of an entry booked on a subcategory', () => {
+      renderDialog({ ...kino, categoryId: 61, categoryName: 'Freizeit › Kino' })
+
+      expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+      expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('61')
+    })
+
+    it('creates a new subcategory below the chosen category and chooses it', async () => {
+      const { fetchMock } = renderDialog(null, (url) =>
+        url.startsWith('/api/categories')
+          ? json({ ...categories[1], id: 62, name: 'Theater', parentId: 6, path: 'Freizeit › Theater' }, 201)
+          : json({}),
+      )
+      fireEvent.change(screen.getByLabelText('Kategorie'), { target: { value: '6' } })
+      fireEvent.change(screen.getByLabelText('Unterkategorie (optional)'), { target: { value: 'new' } })
+      const created = screen.getByRole('dialog', { name: 'Neue Unterkategorie von Freizeit' })
+      // The parent comes from the selection, so the window asks no parent
+      expect(within(created).queryByLabelText('Unterkategorie von (optional)')).not.toBeInTheDocument()
+      fireEvent.change(within(created).getByRole('textbox', { name: 'Name' }), { target: { value: 'Theater' } })
+      fireEvent.click(within(created).getByRole('button', { name: 'Anlegen' }))
+
+      await waitFor(() => expect(screen.getByLabelText('Unterkategorie (optional)')).toHaveValue('62'))
+      expect(screen.getByLabelText('Kategorie')).toHaveValue('6')
+      expect(sent(fetchMock, 'POST')).toEqual({
+        url: '/api/categories',
+        body: { name: 'Theater', icon: 'music', parentId: 6 },
+      })
+    })
   })
 })
