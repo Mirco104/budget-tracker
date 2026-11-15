@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.importer;
 
+import io.github.mirco104.budget.bankaccount.AccountRole;
 import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.bankaccount.BankAccountSource;
@@ -190,8 +191,9 @@ public class ImportService {
                         .ifPresent(suggestion -> suggestions.put(c.index(), suggestion));
             }
         }
+        Set<Integer> savingRows = savingRows(fresh, transfers, candidates, sources, accounts, storedById);
         Map<Long, Long> autoEntries = new HashMap<>();
-        Map<Integer, Planned> matches = occurrenceMatches(fresh, transfers, suggestions, autoEntries);
+        Map<Integer, Planned> matches = occurrenceMatches(fresh, transfers, savingRows, suggestions, autoEntries);
 
         // R33: the stored mappings of the bank categories
         Map<String, Long> mapped = BANK_CATEGORY_PROFILES.contains(profile) ? mappingService.valid(profile) : Map.of();
@@ -200,7 +202,7 @@ public class ImportService {
         for (Candidate c : candidates) {
             if (imported.contains(c.fingerprint())) {
                 entries.put(c.line().number(),
-                        entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null, null, null));
+                        entry(c, Status.DUPLICATE, "schon importiert", null, null, null, null, null, null, null, false));
                 continue;
             }
             ImportMatcher.Transfer transfer = transfers.get(c.index());
@@ -212,8 +214,11 @@ public class ImportService {
                 duplicateId = null;
             }
             Status status = duplicateId != null ? Status.POSSIBLE_DUPLICATE : Status.NEW;
-            // P5: a matching term goes before the suggestion, with the category of its item
-            Suggestion suggestion = match != null ? new Suggestion(match.categoryId(), true) : suggestions.get(c.index());
+            // P5: a matching term goes before the suggestion, with the category of its item; a saving item has none
+            Suggestion suggestion = match == null ? suggestions.get(c.index())
+                    : match.categoryId() == null ? null : new Suggestion(match.categoryId(), true);
+            // Decision 67: a transfer to a savings or depot account, or a row that fulfils a saving item, is saving
+            boolean saving = match != null ? match.categoryId() == null : savingRows.contains(c.index());
             DuplicateOf duplicateOf = duplicateId == null ? null : duplicateOf(storedById.get(duplicateId));
             // R33: the mapped category is set, unless the history is certain about another one (decision 62)
             Long mappedId = null;
@@ -226,7 +231,8 @@ public class ImportService {
                 }
             }
             entries.put(c.line().number(), entry(c, status, null, suggestion, transfer,
-                    transferPeer(transfer, candidates, storedById, sources), match, autoEntry, duplicateOf, mappedId));
+                    transferPeer(transfer, candidates, storedById, sources), match, autoEntry, duplicateOf, mappedId,
+                    saving));
         }
         List<Entry> ordered = file.lines().stream()
                 .map(line -> line.row() == null ? Entry.skipped(line.number(), line.skipReason())
@@ -238,7 +244,7 @@ public class ImportService {
         int skipped = (int) ordered.stream().filter(e -> e.status() == Status.SKIPPED).count();
         return new ImportPreviewResponse(profile, profile.label(), ordered.size(), ordered.size() - duplicateCount - skipped,
                 duplicateCount, skipped, List.copyOf(sources.values()), ordered,
-                seriesSuggestions(fresh, transfers, matches, suggestions),
+                seriesSuggestions(fresh, transfers, savingRows, matches, suggestions),
                 bankCategories(profile, fresh, transfers, mapped));
     }
 
@@ -338,14 +344,15 @@ public class ImportService {
                 t.getImportBatch() != null);
     }
 
-    // R31: monthly series among the new rows that are no transfer and fulfil no term of a planned item
+    // R31: monthly series among the new rows that are no transfer (except saving, decision 67) and fulfil no term
     private static List<ImportPreviewResponse.SeriesSuggestion> seriesSuggestions(List<Candidate> fresh,
-            Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Planned> matches,
+            Map<Integer, ImportMatcher.Transfer> transfers, Set<Integer> savingRows, Map<Integer, Planned> matches,
             Map<Integer, Suggestion> suggestions) {
         Map<Integer, Candidate> byIndex = new HashMap<>();
         List<SeriesDetector.Row> rows = new ArrayList<>();
         for (Candidate c : fresh) {
-            if (!transfers.containsKey(c.index()) && !matches.containsKey(c.index())) {
+            boolean booking = !transfers.containsKey(c.index()) || savingRows.contains(c.index());
+            if (booking && !matches.containsKey(c.index())) {
                 byIndex.put(c.index(), c);
                 rows.add(new SeriesDetector.Row(c.index(), c.line().row().bookingDate(), c.line().row().amount(),
                         CategorySuggester.key(c.text()), c.description()));
@@ -359,20 +366,24 @@ public class ImportService {
                     .collect(java.util.stream.Collectors.groupingBy(Suggestion::categoryId,
                             java.util.stream.Collectors.counting()));
             Long category = votes.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+            boolean saving = covered.stream().allMatch(c -> savingRows.contains(c.index()));
             return new ImportPreviewResponse.SeriesSuggestion(
                     covered.stream().map(c -> c.line().number()).toList(), series.startDate(), series.amount(),
-                    series.lowest(), series.highest(), series.description(), covered.getLast().source(), category);
+                    series.lowest(), series.highest(), series.description(), covered.getLast().source(),
+                    saving ? null : category, saving);
         }).toList();
     }
 
-    // P5: open terms around the dates of the file that the rows (no transfers) fulfil; saving items have no category
+    // P5: open terms around the dates of the file that the rows (no transfers, except saving) fulfil; since decision 67
+    // also the terms of saving items, which have no category
     private Map<Integer, Planned> occurrenceMatches(
-            List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Map<Integer, Suggestion> suggestions,
-            Map<Long, Long> autoEntries) {
+            List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers, Set<Integer> savingRows,
+            Map<Integer, Suggestion> suggestions, Map<Long, Long> autoEntries) {
         List<TermMatcher.Booking> bookings = fresh.stream()
-                .filter(c -> !transfers.containsKey(c.index()))
+                .filter(c -> !transfers.containsKey(c.index()) || savingRows.contains(c.index()))
                 .map(c -> new TermMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(), c.text(),
-                        suggestions.containsKey(c.index()) ? suggestions.get(c.index()).categoryId() : null))
+                        suggestions.containsKey(c.index()) ? suggestions.get(c.index()).categoryId() : null,
+                        savingRows.contains(c.index())))
                 .toList();
         if (bookings.isEmpty()) {
             return Map.of();
@@ -381,14 +392,57 @@ public class ImportService {
         LocalDate to = bookings.stream().map(TermMatcher.Booking::date).max(Comparator.naturalOrder()).orElseThrow();
         List<Planned> planned = new ArrayList<>();
         for (TermService.ImportTerm term : termService.importTerms(from.minusDays(7), to.plusDays(7))) {
-            if (term.planned().categoryId() != null) {
-                planned.add(term.planned());
-                if (term.autoEntryId() != null) {
-                    autoEntries.put(autoKey(term.planned()), term.autoEntryId());
-                }
+            planned.add(term.planned());
+            if (term.autoEntryId() != null) {
+                autoEntries.put(autoKey(term.planned()), term.autoEntryId());
             }
         }
         return TermMatcher.match(bookings, planned);
+    }
+
+    /**
+     * Decision 67: the transfers (R27) that bring money from an everyday account, or a new one, to a savings or depot
+     * account: a negative amount whose other side (the own account with the IBAN of the counterparty, the stored
+     * counterpart or the counterpart row of the file) is on an account with that role.
+     */
+    private static Set<Integer> savingRows(List<Candidate> fresh, Map<Integer, ImportMatcher.Transfer> transfers,
+            List<Candidate> candidates, Map<String, Source> sources, List<BankAccount> accounts,
+            Map<Long, Transaction> storedById) {
+        Map<Long, BankAccount> byId = new HashMap<>();
+        accounts.forEach(account -> byId.put(account.getId(), account));
+        Set<Integer> result = new HashSet<>();
+        for (Candidate c : fresh) {
+            ImportMatcher.Transfer transfer = transfers.get(c.index());
+            if (transfer == null || c.line().row().amount().signum() >= 0) {
+                continue;
+            }
+            BankAccount own = accountOf(c, sources, byId);
+            if (own != null && own.getRole() != AccountRole.EVERYDAY) {
+                continue;
+            }
+            String iban = Iban.normalize(c.line().row().counterpartyIban());
+            BankAccount peer = iban == null ? null : accounts.stream()
+                    .filter(account -> iban.equals(account.getIban()) && account != own)
+                    .findFirst()
+                    .orElse(null);
+            if (peer == null && transfer.peerTransactionId() != null) {
+                Transaction stored = storedById.get(transfer.peerTransactionId());
+                peer = stored == null ? null : stored.getAccount();
+            }
+            if (peer == null && transfer.peerIndex() != null) {
+                peer = accountOf(candidates.get(transfer.peerIndex()), sources, byId);
+            }
+            if (peer != null && peer.getRole() != AccountRole.EVERYDAY) {
+                result.add(c.index());
+            }
+        }
+        return result;
+    }
+
+    // The own account a source of the file goes to so far; null for a new account (everyday by default)
+    private static BankAccount accountOf(Candidate c, Map<String, Source> sources, Map<Long, BankAccount> byId) {
+        Long id = sources.get(c.source()).accountId();
+        return id == null ? null : byId.get(id);
     }
 
     // A term by item version and planned date, for the automatic entries of the preview
@@ -415,7 +469,7 @@ public class ImportService {
 
     private static Entry entry(Candidate c, Status status, String reason, Suggestion suggestion,
             ImportMatcher.Transfer transfer, ImportPreviewResponse.TransferPeer transferPeer, Planned match,
-            Long autoEntry, DuplicateOf duplicateOf, Long mappedCategoryId) {
+            Long autoEntry, DuplicateOf duplicateOf, Long mappedCategoryId, boolean saving) {
         BankTransaction row = c.line().row();
         return new Entry(c.line().number(), status, reason, c.fingerprint(), c.source(), row.bookingDate(), row.amount(),
                 c.description(), c.counterparty(), c.bankCategory(), CategorySuggester.key(c.text()),
@@ -425,7 +479,7 @@ public class ImportService {
                 match == null ? null
                         : new Replaces(match.itemId(), match.date(), match.description(), match.amount().abs(),
                                 match.categoryId(), autoEntry),
-                duplicateOf, details(row), mappedCategoryId);
+                duplicateOf, details(row), mappedCategoryId, saving);
     }
 
     // Issue #119: the fields of the bank for the details of a row; the purpose with its whitespace joined, at most 500
@@ -506,6 +560,18 @@ public class ImportService {
             if (series.amount().signum() == 0) {
                 throw new InvalidFieldException(field + ".amount", "Der Betrag darf nicht 0 sein.");
             }
+            if (series.isSaving()) {
+                if (series.amount().signum() > 0) {
+                    throw new InvalidFieldException(field + ".amount", "Sparen ist ein negativer Betrag.");
+                }
+                if (series.categoryId() != null) {
+                    throw new InvalidFieldException(field + ".categoryId", "Ein Sparposten hat keine Kategorie.");
+                }
+                continue;
+            }
+            if (series.categoryId() == null) {
+                throw new InvalidFieldException(field + ".categoryId", "Die Kategorie ist Pflicht.");
+            }
             try {
                 categoryService.findBookable(series.categoryId());
             } catch (InvalidFieldException e) {
@@ -531,7 +597,7 @@ public class ImportService {
             Transaction peer = row.transferPeerId() == null ? null : peerOf(owner, row, field);
             TermRef replaced = null;
             if (row.replaces() != null) {
-                if (Boolean.TRUE.equals(row.transfer())) {
+                if (row.isPlainTransfer()) {
                     throw new InvalidFieldException(field + ".replaces", "Eine Umbuchung erfüllt keinen Termin.");
                 }
                 replaced = row.replaces();
@@ -543,8 +609,13 @@ public class ImportService {
                 if (row.series() < 0 || row.series() >= newSeries.size()) {
                     throw new InvalidFieldException(field + ".series", "Diese Serie gibt es nicht.");
                 }
-                if (Boolean.TRUE.equals(row.transfer())) {
+                if (row.isPlainTransfer()) {
                     throw new InvalidFieldException(field + ".series", "Eine Umbuchung kann zu keiner Serie gehören.");
+                }
+                // Decision 67: the rows of a saving series are saving, the rows of another series are not
+                if (newSeries.get(row.series()).isSaving() != row.isSaving()) {
+                    throw new InvalidFieldException(field + ".series", newSeries.get(row.series()).isSaving()
+                            ? "Die Zeilen eines Sparpostens sind Sparen." : "Eine Sparzeile gehört zu keinem Posten mit Kategorie.");
                 }
                 if (row.replaces() != null) {
                     throw new InvalidFieldException(field + ".series",
@@ -582,6 +653,8 @@ public class ImportService {
                     row.description().trim(), row.date(), c.category(), accounts.get(row.source()));
             transaction.markImported(batch, row.fingerprint(), blankToNull(row.counterparty()),
                     blankToNull(row.bankCategory()));
+            // P1, decision 67: the kind Sparen
+            transaction.markSaving(row.isSaving());
             created.add(transaction);
             if (c.peer() != null && !c.peer().isTransfer()) {
                 c.peer().makeTransfer(batch);
@@ -599,8 +672,11 @@ public class ImportService {
             if (c.series() != null) {
                 PlannedItem item = createdSeries.computeIfAbsent(c.series(), index -> {
                     ImportRequest.NewSeries series = newSeries.get(index);
-                    return planService.createMonthlyForImport(series.description(), series.amount(),
-                            series.categoryId(), accounts.get(series.source()), series.startDate(), batch);
+                    return series.isSaving()
+                            ? planService.createMonthlySavingForImport(series.description(), series.amount(),
+                                    accounts.get(series.source()), series.startDate(), batch)
+                            : planService.createMonthlyForImport(series.description(), series.amount(),
+                                    series.categoryId(), accounts.get(series.source()), series.startDate(), batch);
                 });
                 termService.link(item.getItemKey(), seriesOccurrences.get(c.index()), created.get(i));
             }
@@ -640,7 +716,7 @@ public class ImportService {
 
     // R27: a transfer has no category; every other row needs one
     private Category categoryOf(ImportRequest.Row row, String field) {
-        if (Boolean.TRUE.equals(row.transfer())) {
+        if (Boolean.TRUE.equals(row.transfer()) || row.isSaving()) {
             if (row.categoryId() != null) {
                 throw new InvalidFieldException(field + ".categoryId", "Eine Umbuchung hat keine Kategorie.");
             }

@@ -1310,7 +1310,8 @@ button.add-category {
   min-width: 0;
 }
 
-.category-picker.compact {
+/* Only in a row of a card: in the column of an import row the basis would be its height (#143) */
+.import-series-actions .category-picker.compact {
   flex: 1 1 14rem;
 }
 

@@ -26,8 +26,16 @@ public final class TermMatcher {
     /** A shared word needs at least this many letters (R28). */
     static final int MIN_WORD = 4;
 
-    /** A new booking: index in the caller's list, the text of R29 and its suggested category (null without one). */
-    public record Booking(int index, LocalDate date, BigDecimal amount, String text, Long suggestedCategoryId) {
+    /**
+     * A new booking: index in the caller's list, the text of R29 and its suggested category (null without one); saving
+     * when it is suggested as the kind Sparen (decision 67).
+     */
+    public record Booking(int index, LocalDate date, BigDecimal amount, String text, Long suggestedCategoryId,
+            boolean saving) {
+
+        public Booking(int index, LocalDate date, BigDecimal amount, String text, Long suggestedCategoryId) {
+            this(index, date, amount, text, suggestedCategoryId, false);
+        }
     }
 
     /**
@@ -79,7 +87,9 @@ public final class TermMatcher {
         boolean sameAmountAndCategory = difference.signum() == 0
                 && occurrence.categoryId() != null
                 && Objects.equals(booking.suggestedCategoryId(), occurrence.categoryId());
-        return sharedWord || sameAmountAndCategory;
+        // Decision 67: a saving item has no category; the same amount counts for a booking suggested as saving
+        boolean sameAmountSaving = difference.signum() == 0 && occurrence.categoryId() == null && booking.saving();
+        return sharedWord || sameAmountAndCategory || sameAmountSaving;
     }
 
     private static boolean sharesWord(Set<String> words, Planned occurrence) {

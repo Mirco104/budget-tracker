@@ -123,6 +123,27 @@ class TermMatcherTest {
                 .containsExactly(Map.entry(0, shifted));
     }
 
+    @Test
+    void aSavingTermMatchesTheSameAmountOnlyForASavingRow() {
+        // Decision 67: a saving item has no category, so the same amount counts for a row suggested as saving
+        Planned saving = new Planned(50, new UUID(0, 50), LocalDate.parse("2026-11-03"), LocalDate.parse("2026-11-03"),
+                new BigDecimal("-200"), "Notgroschen", null, 5);
+        Booking savingRow = new Booking(0, LocalDate.parse("2026-11-04"), new BigDecimal("-200"), "Person A", null, true);
+        assertThat(TermMatcher.match(List.of(savingRow), List.of(saving))).containsExactly(Map.entry(0, saving));
+
+        // Not for a row that is no saving, and not for another amount without a shared word
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-04", "-200", "Person A", null)), List.of(saving)))
+                .isEmpty();
+        Booking other = new Booking(0, LocalDate.parse("2026-11-04"), new BigDecimal("-210"), "Person A", null, true);
+        assertThat(TermMatcher.match(List.of(other), List.of(saving))).isEmpty();
+        // The shared word still matches
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-04", "-210", "NOTGROSCHEN", null)), List.of(saving)))
+                .containsExactly(Map.entry(0, saving));
+        // A saving row never matches the same amount of a term with a category
+        Planned rent = planned(51, "2026-11-03", "-200", "Miete", WOHNEN);
+        assertThat(TermMatcher.match(List.of(savingRow), List.of(rent))).isEmpty();
+    }
+
     private static Booking booking(int index, String date, String amount, String text, Long suggestedCategoryId) {
         return new Booking(index, LocalDate.parse(date), new BigDecimal(amount), text, suggestedCategoryId);
     }
