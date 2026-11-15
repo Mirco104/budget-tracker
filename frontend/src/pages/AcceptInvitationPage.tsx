@@ -1,15 +1,37 @@
 import { useState, type FormEvent } from 'react'
 import { errorText } from '../api/client'
 import { useAcceptInvitation } from '../api/invitations'
+import { LoginPage } from './LoginPage'
 
 interface Props {
   token: string
-  /** Called after the account exists and is signed in, e.g. to remove the token from the address. */
+  /**
+   * Called after the account exists and is signed in, or after an existing user signed in here (ticket #133), e.g. to
+   * remove the token from the address.
+   */
   onAccepted: () => void
 }
 
-/** US15: whoever opens the link chooses e-mail, display name and password and gets the default categories. */
+/**
+ * US15: whoever opens the link chooses e-mail, display name and password and gets the default categories. Ticket #133:
+ * whoever already has an account signs in here instead; the invitation stays unused.
+ */
 export function AcceptInvitationPage({ token, onAccepted }: Props) {
+  const [signingIn, setSigningIn] = useState(false)
+  if (signingIn) {
+    return (
+      <>
+        <LoginPage onSignedIn={onAccepted} />
+        <button type="button" className="link-button" onClick={() => setSigningIn(false)}>
+          Zurück zur Einladung
+        </button>
+      </>
+    )
+  }
+  return <Register token={token} onAccepted={onAccepted} onSignIn={() => setSigningIn(true)} />
+}
+
+function Register({ token, onAccepted, onSignIn }: Props & { onSignIn: () => void }) {
   const accept = useAcceptInvitation()
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -76,6 +98,9 @@ export function AcceptInvitationPage({ token, onAccepted }: Props) {
           </p>
         )}
       </form>
+      <button type="button" className="link-button" onClick={onSignIn}>
+        Schon ein Konto? Anmelden
+      </button>
     </section>
   )
 }

@@ -64,4 +64,27 @@ describe('AcceptInvitationPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Die Einladung ist abgelaufen oder wurde schon benutzt.')
     expect(onAccepted).not.toHaveBeenCalled()
   })
+
+  it('lets a user with an account sign in instead, ticket #133', async () => {
+    const { fetchMock, onAccepted } = renderPage(() => Promise.resolve(new Response(null, { status: 204 })))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schon ein Konto? Anmelden' }))
+    expect(screen.getByRole('heading', { name: 'Anmelden' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('E-Mail'), { target: { value: 'person-a@example.test' } })
+    fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'test-only-password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }))
+
+    await waitFor(() => expect(onAccepted).toHaveBeenCalled())
+    const [url] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/auth/login')
+  })
+
+  it('goes back from the sign-in to the invitation', () => {
+    renderPage(() => new Promise(() => {}))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schon ein Konto? Anmelden' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Einladung' }))
+
+    expect(screen.getByRole('heading', { name: 'Einladung annehmen' })).toBeInTheDocument()
+  })
 })
