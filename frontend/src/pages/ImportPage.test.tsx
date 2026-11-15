@@ -143,11 +143,11 @@ function sent(fetchMock: ReturnType<typeof vi.fn>, url: string) {
 }
 
 describe('ImportPage', () => {
-  it('names the supported banks, the Sparkasse and the VR-Bank included (decisions 47 and 64)', () => {
+  it('names the supported banks, the Sparkasse, the VR-Bank and the Deutsche Bank included (decisions 47, 64, 68)', () => {
     renderPage()
 
     expect(screen.getByRole('region', { name: 'Datei wählen' })).toHaveTextContent(
-      'Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier CSV-Exporte) und die VR-Bank (Volks- und Raiffeisenbanken).',
+      'Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier CSV-Exporte), die VR-Bank (Volks- und Raiffeisenbanken) und die Deutsche Bank (Kontoumsätze).',
     )
   })
 

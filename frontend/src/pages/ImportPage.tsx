@@ -1219,8 +1219,8 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
 }
 
 /**
- * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic, N26, the Sparkasse or the
- * VR-Bank, check the preview and take the rows over; earlier imports can be undone.
+ * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic, N26, the Sparkasse, the
+ * VR-Bank or the Deutsche Bank, check the preview and take the rows over; earlier imports can be undone.
  */
 export function ImportPage() {
   const accounts = useBankAccounts()
@@ -1305,7 +1305,8 @@ export function ImportPage() {
         <section className="card import-upload" aria-label="Datei wählen">
           <p>
             CSV-Export deiner Bank hochladen. Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier
-            CSV-Exporte) und die VR-Bank (Volks- und Raiffeisenbanken). Die Datei wird nur gelesen und nicht
+            CSV-Exporte), die VR-Bank (Volks- und Raiffeisenbanken) und die Deutsche Bank (Kontoumsätze). Die Datei
+            wird nur gelesen und nicht
             gespeichert; vorgemerkte Umsätze werden übersprungen.
           </p>
           <label className="button-link primary file-button">

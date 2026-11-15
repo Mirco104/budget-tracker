@@ -434,6 +434,37 @@ class ImportControllerTest {
         assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
     }
 
+    // --- Deutsche Bank (decision 68) ---
+
+    @Test
+    void aDeutscheBankFileIsImportedOnceWithTheAccountOfThePreamble() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.DEUTSCHE_BANK);
+        assertThat(JsonPath.<String>read(preview, "$.profile")).isEqualTo("DEUTSCHE_BANK");
+        assertThat(JsonPath.<String>read(preview, "$.profileLabel")).isEqualTo("Deutsche Bank");
+        assertThat(JsonPath.<Integer>read(preview, "$.rows")).isEqualTo(6);
+        assertThat(JsonPath.<Integer>read(preview, "$.newRows")).isEqualTo(5);
+        assertThat(JsonPath.<Integer>read(preview, "$.skipped")).isEqualTo(1);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].key")).isEqualTo("DEUTSCHE_BANK:" + GIRO_IBAN);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].suggestedName")).isEqualTo("Deutsche Bank …3000");
+        Map<String, Object> debit = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 9)]").getFirst();
+        assertThat(debit.get("counterparty")).isEqualTo("Beispiel Medien GmbH");
+        assertThat(debit.get("bankCategory")).isEqualTo("SEPA Lastschrift");
+        List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
+        assertThat(reasons).containsExactly("ohne Betrag");
+        // R33: the Deutsche Bank only delivers the kind of booking
+        assertThat(JsonPath.<List<Object>>read(preview, "$.bankCategories")).isEmpty();
+
+        long freizeit = category(user, "Freizeit");
+        commit(mockMvc, preview, entry -> freizeit, true)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(5))
+                .andExpect(jsonPath("$.batch.profile").value("DEUTSCHE_BANK"));
+
+        String again = previewJson(mockMvc, BankCsvTest.DEUTSCHE_BANK);
+        assertThat(JsonPath.<Integer>read(again, "$.duplicates")).isEqualTo(5);
+        assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
+    }
+
     // --- R30 possible duplicates ---
 
     @Test

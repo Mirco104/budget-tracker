@@ -146,6 +146,37 @@ class ImportRulesTest {
         assertThat(ImportRules.accountName(BankProfile.VR_BANK, "")).isEqualTo("VR-Bank");
     }
 
+    // Decision 68: the Deutsche Bank like the Sparkasse and the VR-Bank
+    @Test
+    void namesADeutscheBankAccountByTheEndOfItsIban() {
+        assertThat(ImportRules.sourceKey(BankProfile.DEUTSCHE_BANK, "DE89370400440532013000"))
+                .isEqualTo("DEUTSCHE_BANK:DE89370400440532013000");
+        assertThat(ImportRules.accountName(BankProfile.DEUTSCHE_BANK, "DE89370400440532013000"))
+                .isEqualTo("Deutsche Bank …3000");
+        assertThat(ImportRules.accountName(BankProfile.DEUTSCHE_BANK, "")).isEqualTo("Deutsche Bank");
+    }
+
+    @Test
+    void aDeutscheBankFingerprintLeavesOutThePurpose() {
+        BankTransaction row = row(BankCsv.read(BankCsvTest.DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8)), 9);
+        BankTransaction otherPurpose = new BankTransaction(row.accountName(), row.accountIban(), row.bookingDate(),
+                row.valueDate(), row.amount(), row.currency(), row.status(), row.counterpartyName(),
+                row.counterpartyIban(), row.counterpartyBic(), "Abo 11/2026", row.endToEndId(), row.mandateId(),
+                row.creditorId(), row.bankTransactionCode(), row.entryReference(), row.bankCategory());
+
+        assertThat(ImportRules.fingerprint(BankProfile.DEUTSCHE_BANK, otherPurpose, 1))
+                .isEqualTo(ImportRules.fingerprint(BankProfile.DEUTSCHE_BANK, row, 1))
+                .isNotEqualTo(ImportRules.fingerprint(BankProfile.VR_BANK, row, 1));
+    }
+
+    @Test
+    void describesDeutscheBankRows() {
+        BankCsv.BankFile file = BankCsv.read(BankCsvTest.DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(describe(row(file, 9))).isEqualTo("Beispiel Medien GmbH · Abo 11/2026 Kunde 4711");
+        assertThat(describe(row(file, 12))).isEqualTo("Depotpreis 07.2026-09.2026");
+    }
+
     private static String describe(BankTransaction row) {
         return ImportRules.describe(row.counterpartyName(), ImportRules.cleanPurpose(row.remittanceInformation()),
                 row.bankTransactionCode());
