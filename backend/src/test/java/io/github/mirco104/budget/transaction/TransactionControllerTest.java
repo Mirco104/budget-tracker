@@ -345,6 +345,79 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.errors[0].field").value("amount"));
     }
 
+    // --- POST /api/transactions/categorize (ticket #136) ---
+
+    @Test
+    void categorizesSeveralBookingsAtOnce() throws Exception {
+        long first = create(body("-10", "Kino", "2026-10-05", categoryId("Freizeit")));
+        long second = create(body("-20", "Bahn", "2026-10-06", categoryId("Freizeit")));
+        long other = create(body("-30", "Bleibt", "2026-10-07", categoryId("Freizeit")));
+        long mobility = categoryId("Mobilität");
+
+        categorize("[%d, %d]".formatted(first, second), mobility)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].categoryName").value("Mobilität"));
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.id == %d)].categoryName".formatted(first)).value(contains("Mobilität")))
+                .andExpect(jsonPath("$[?(@.id == %d)].categoryName".formatted(second)).value(contains("Mobilität")))
+                .andExpect(jsonPath("$[?(@.id == %d)].categoryName".formatted(other)).value(contains("Freizeit")));
+    }
+
+    // R27: a transfer has no category; the selection never offers it
+    @Test
+    void categorizeRejectsATransferAndChangesNothing() throws Exception {
+        long booking = create(body("-10", "Kino", "2026-10-05", categoryId("Freizeit")));
+        String json = postTransaction("""
+                {"amount": -500, "description": "Aufs Tagesgeld", "date": "2026-10-02", "transfer": true}""")
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long transfer = ((Number) JsonPath.read(json, "$.id")).longValue();
+
+        categorize("[%d, %d]".formatted(booking, transfer), categoryId("Mobilität"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("ids"));
+
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.id == %d)].categoryName".formatted(booking)).value(contains("Freizeit")));
+    }
+
+    // R15: another user's booking in the body is 400
+    @Test
+    void categorizeRejectsAnotherUsersBooking() throws Exception {
+        User other = TestUsers.create(userService, "person-c@example.test");
+        MockMvc otherMvc = TestUsers.mockMvcFor(context, other);
+        long otherCategory = categoryRepository.findAllByOwner(other).getFirst().getId();
+        String json = otherMvc.perform(post("/api/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("-10", "Fremd", "2026-10-05", otherCategory)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long foreign = ((Number) JsonPath.read(json, "$.id")).longValue();
+
+        categorize("[%d]".formatted(foreign), categoryId("Mobilität"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("ids"));
+    }
+
+    @Test
+    void categorizeNeedsBookingsAndACategory() throws Exception {
+        long booking = create(body("-10", "Kino", "2026-10-05", categoryId("Freizeit")));
+
+        categorize("[]", categoryId("Mobilität"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("ids"));
+        mockMvc.perform(post("/api/transactions/categorize")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\": [%d]}".formatted(booking)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
+        categorize("[%d]".formatted(booking), 999_999)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
+    }
+
     // --- DELETE /api/transactions/{id} (US4) ---
 
     @Test
@@ -378,6 +451,12 @@ class TransactionControllerTest {
         return mockMvc.perform(post("/api/transactions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
+    }
+
+    private ResultActions categorize(String ids, long categoryId) throws Exception {
+        return mockMvc.perform(post("/api/transactions/categorize")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ids\": %s, \"categoryId\": %d}".formatted(ids, categoryId)));
     }
 
     private ResultActions putTransaction(long id, String body) throws Exception {

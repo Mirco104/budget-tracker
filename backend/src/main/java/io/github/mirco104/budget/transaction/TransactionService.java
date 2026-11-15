@@ -145,6 +145,34 @@ public class TransactionService {
     }
 
     /**
+     * Ticket #136: gives several bookings of the user one category, all or none. An unknown or another user's booking
+     * and a transfer or Sparen (no category, R27, P1) are 400 on field ids; amount, date, account and the term a
+     * booking fulfils stay as they are, like a change of the category in the dialog.
+     */
+    @Transactional
+    public List<TransactionResponse> categorize(List<Long> ids, long categoryId) {
+        Category category = categoryService.findBookable(categoryId);
+        List<Long> distinct = ids.stream().distinct().toList();
+        List<Transaction> transactions = transactionRepository.findByIdInAndOwner(distinct, currentUser.get());
+        if (transactions.size() != distinct.size()) {
+            throw new InvalidFieldException("ids", "Eine der Buchungen wurde nicht gefunden.");
+        }
+        if (transactions.stream().anyMatch(Transaction::isTransfer)) {
+            throw new InvalidFieldException("ids", "Eine Umbuchung hat keine Kategorie.");
+        }
+        for (Transaction transaction : transactions) {
+            transaction.update(transaction.getAmount(), transaction.getDescription(), transaction.getDate(), category,
+                    transaction.getAccount());
+        }
+        LocalDate from = transactions.stream().map(Transaction::getDate).min(LocalDate::compareTo).orElseThrow();
+        LocalDate to = transactions.stream().map(Transaction::getDate).max(LocalDate::compareTo).orElseThrow();
+        Set<Long> fix = termService.fixIds(from, to);
+        return transactions.stream()
+                .map(transaction -> TransactionResponse.from(transaction, fix.contains(transaction.getId())))
+                .toList();
+    }
+
+    /**
      * Deletes the booking. A term it was linked to keeps its row without a booking, so a deleted automatic entry is
      * not entered again (P6, section 19.6).
      */

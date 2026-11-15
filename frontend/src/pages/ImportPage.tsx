@@ -22,6 +22,7 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { AccountDialog } from '../components/AccountDialog'
 import { CategoryPicker } from '../components/CategoryPicker'
+import { SelectionBar } from '../components/SelectionBar'
 import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
@@ -128,6 +129,8 @@ function PreviewRow({
   outsideFilter,
   onJumpToPeer,
   onChange,
+  chosen,
+  onToggleChosen,
 }: {
   entry: ImportEntry
   choice: Choice
@@ -139,6 +142,9 @@ function PreviewRow({
   outsideFilter: boolean
   onJumpToPeer: (line: number) => void
   onChange: (choice: Choice) => void
+  /** Ticket #136: in the selection mode whether the row is chosen, undefined outside of it. */
+  chosen?: boolean
+  onToggleChosen?: () => void
 }) {
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
@@ -146,16 +152,29 @@ function PreviewRow({
   return (
     <li
       id={`import-line-${entry.line}`}
-      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}`}
+      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}${chosen ? ' chosen' : ''}`}
       aria-label={description}
     >
-      <input
-        type="checkbox"
-        className="import-check"
-        aria-label={`${description} importieren`}
-        checked={choice.selected}
-        onChange={(e) => onChange({ ...choice, selected: e.target.checked })}
-      />
+      <span className="import-checks">
+        <input
+          type="checkbox"
+          className="import-check"
+          aria-label={`${description} importieren`}
+          checked={choice.selected}
+          onChange={(e) => onChange({ ...choice, selected: e.target.checked })}
+        />
+        {chosen !== undefined && (
+          <input
+            type="checkbox"
+            className="import-check select"
+            aria-label={`${description} auswählen`}
+            title="Für „Zuordnen“ auswählen"
+            checked={chosen}
+            disabled={!choice.selected}
+            onChange={onToggleChosen}
+          />
+        )}
+      </span>
       <span className="import-date">{entry.date && formatDate(entry.date)}</span>
       <span className="import-main">
         <span className="import-description">{description}</span>
@@ -529,6 +548,9 @@ function Preview({
   // starts with Einmalig; a row edited in the list or jumped to stays shown until the filters change
   const [filters, setFilters] = useState<Filters>(IMPORT_FILTERS)
   const [pinned, setPinned] = useState<string[]>([])
+  // Ticket #136: the selection mode with the chosen rows (by fingerprint) and the category for them
+  const [selecting, setSelecting] = useState(false)
+  const [chosenRows, setChosenRows] = useState<string[]>([])
   const [assignCategory, setAssignCategory] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -604,13 +626,20 @@ function Preview({
     kind: kindOfRow,
     direction: () => '',
   })
-  // The shown chosen rows without category, for "Zuordnen"
-  const assignable = filterActive
-    ? listed.filter((entry) => {
-        const choice = choices[entry.fingerprint as string]
-        return choice.selected && choice.category === ''
-      })
-    : []
+  // Ticket #136: the shown rows that are imported can be chosen; only the shown chosen ones get the category
+  const choosable = listed.filter((entry) => choices[entry.fingerprint as string].selected)
+  const chosenShown = choosable.filter((entry) => chosenRows.includes(entry.fingerprint as string))
+
+  function toggleChosen(entry: ImportEntry) {
+    const key = entry.fingerprint as string
+    setChosenRows((current) => (current.includes(key) ? current.filter((k) => k !== key) : [...current, key]))
+  }
+
+  function stopSelecting() {
+    setSelecting(false)
+    setChosenRows([])
+    setAssignCategory('')
+  }
 
   // A change of the filters lets go of the pinned rows
   function changeFilters(next: Filters) {
@@ -704,10 +733,11 @@ function Preview({
     }
   }
 
-  // Ticket #84: the shown chosen rows without category get one category at once; a category (not a transfer) becomes
-  // the suggestion of the rows with the same key (R29), as a choice in a row does
-  function assignShown() {
-    const targets = assignable
+  // Ticket #136 (before #84 for the shown rows without category): the chosen rows get one category at once, also an
+  // uncertain transfer, as the user chose it; a category (not a transfer) becomes the suggestion of the rows with the
+  // same key (R29), as a choice in a row does
+  function assignChosen() {
+    const targets = chosenShown
     setChoices((current) => {
       const updated = { ...current }
       for (const entry of targets) {
@@ -730,6 +760,7 @@ function Preview({
       assignCategory === TRANSFER ? 'Umbuchung' : (categories.find((c) => String(c.id) === assignCategory)?.name ?? '')
     setNotice(`${targets.length === 1 ? '1 Zeile' : `${targets.length} Zeilen`} „${name}“ zugeordnet.`)
     setAssignCategory('')
+    setChosenRows([])
   }
 
   // Decision 46: one click takes over the shown suggestion of every open row
@@ -974,30 +1005,27 @@ function Preview({
               )}
             </p>
           )}
-          {assignable.length > 0 && (
-            <section className="import-assign" aria-label="Zuordnen">
-              <span>
-                {assignable.length === 1
-                  ? 'Der angezeigten Zeile ohne Kategorie zuordnen:'
-                  : `Den ${assignable.length} angezeigten Zeilen ohne Kategorie zuordnen:`}
-              </span>
-              <select
-                aria-label="Kategorie für die angezeigten Zeilen"
-                value={assignCategory}
-                onChange={(e) => setAssignCategory(e.target.value)}
-              >
-                <option value="">Kategorie wählen …</option>
-                <option value={TRANSFER}>Umbuchung (zählt nicht)</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.path}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="primary" disabled={assignCategory === ''} onClick={assignShown}>
-                Zuordnen
-              </button>
-            </section>
+          <button
+            type="button"
+            className="chip plain import-select-toggle"
+            aria-pressed={selecting}
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+          >
+            Auswählen
+          </button>
+          {selecting && (
+            <SelectionBar
+              count={chosenShown.length}
+              shown={choosable.length}
+              onSelectAll={() => setChosenRows(choosable.map((entry) => entry.fingerprint as string))}
+              onClear={() => setChosenRows([])}
+              categories={categories}
+              value={assignCategory}
+              onChange={setAssignCategory}
+              leading={<option value={TRANSFER}>Umbuchung (zählt nicht)</option>}
+              onAssign={assignChosen}
+              onDone={stopSelecting}
+            />
           )}
         </div>
       )}
@@ -1015,6 +1043,8 @@ function Preview({
               outsideFilter={outsideFilter(entry)}
               onJumpToPeer={jumpToPeer}
               onChange={(next) => change(entry, next)}
+              chosen={selecting ? chosenRows.includes(entry.fingerprint as string) : undefined}
+              onToggleChosen={() => toggleChosen(entry)}
             />
           ))}
           {listed.length === 0 && (

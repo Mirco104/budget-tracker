@@ -78,6 +78,12 @@ public class TransactionController {
         return ResponseEntity.created(location).body(created);
     }
 
+    /** Ticket #136: one category for several bookings of the list; transfers and Sparen are not allowed (R27). */
+    @PostMapping("/categorize")
+    public List<TransactionResponse> categorize(@Valid @RequestBody CategorizeRequest request) {
+        return transactionService.categorize(request.ids(), request.categoryId());
+    }
+
     @PutMapping("/{id}")
     public TransactionResponse update(@PathVariable long id, @Valid @RequestBody TransactionRequest request) {
         return transactionService.update(id, request);

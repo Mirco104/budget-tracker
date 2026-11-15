@@ -72,3 +72,19 @@ export function useDeleteTransaction() {
   const onSuccess = useInvalidateAfterChange()
   return useMutation({ mutationFn: deleteTransaction, onSuccess })
 }
+
+/** Ticket #136: one category for several bookings; transfers and Sparen cannot be chosen (R27). */
+export function categorizeTransactions(ids: number[], categoryId: number): Promise<Transaction[]> {
+  return request<Transaction[]>('/transactions/categorize', {
+    method: 'POST',
+    body: JSON.stringify({ ids, categoryId }),
+  })
+}
+
+export function useCategorizeTransactions() {
+  const onSuccess = useInvalidateAfterChange()
+  return useMutation({
+    mutationFn: ({ ids, categoryId }: { ids: number[]; categoryId: number }) => categorizeTransactions(ids, categoryId),
+    onSuccess,
+  })
+}
