@@ -38,6 +38,14 @@ function renderPage() {
                   due: false, nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0 }],
               },
             ]
+          : url === '/api/bank-accounts'
+            ? [
+                { id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true, role: 'EVERYDAY' },
+                { id: 2, name: 'Tagesgeld', iban: null, defaultAccount: false, archived: false, used: true, role: 'SAVINGS' },
+                { id: 3, name: 'Altes Konto', iban: null, defaultAccount: false, archived: true, used: true, role: 'EVERYDAY' },
+              ]
+          : url === '/api/bank-accounts/1/merge'
+            ? { account: { id: 2, name: 'Tagesgeld' }, movedTransactions: 3, deletedTransfers: 1 }
           : url.startsWith('/api/plan')
             ? { items: [] }
             : url === '/api/saving-goals' && (init?.method ?? 'GET') === 'GET'
@@ -86,6 +94,28 @@ describe('AccountsPage', () => {
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Differenz −50,00 €: fehlt eine Buchung?')
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/1/balances')).toBe(true))
     expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/bank-accounts/1' && init?.method === 'PUT')).toBe(false)
+  })
+
+  // Ticket #139: an account goes into another one; an archived account is no target
+  it('merges an account into another one after confirming', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Girokonto' })
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Zusammenführen …' }))
+    const confirm = within(dialog).getByRole('group', { name: 'Zusammenführen' })
+    const target = within(confirm).getByLabelText('In Konto')
+    expect(Array.from((target as HTMLSelectElement).options).map((o) => o.text)).toEqual(['Konto wählen …', 'Tagesgeld'])
+    expect(within(confirm).getByRole('button', { name: 'Zusammenführen' })).toBeDisabled()
+    fireEvent.change(target, { target: { value: '2' } })
+    expect(confirm).toHaveTextContent('gehen auf „Tagesgeld“ über')
+    expect(confirm).toHaveTextContent('und das Zielkonto wird Standardkonto')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Zusammenführen' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/1/merge')
+    expect(call?.[1]?.method).toBe('POST')
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ targetId: 2 })
   })
 
   it('changes the Kontoart in the window of the account', async () => {

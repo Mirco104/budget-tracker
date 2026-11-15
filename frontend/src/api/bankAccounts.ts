@@ -51,3 +51,28 @@ export function useDeleteBankAccount() {
   const onSuccess = useInvalidateAfterAccountChange()
   return useMutation({ mutationFn: deleteBankAccount, onSuccess })
 }
+
+export interface MergeResult {
+  account: BankAccount
+  movedTransactions: number
+  deletedTransfers: number
+}
+
+/** Ticket #139: moves everything of the account to the target account and deletes it (R26). */
+export function mergeBankAccount(id: number, targetId: number): Promise<MergeResult> {
+  return request<MergeResult>(`/bank-accounts/${id}/merge`, { method: 'POST', body: JSON.stringify({ targetId }) })
+}
+
+export function useMergeBankAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, targetId }: { id: number; targetId: number }) => mergeBankAccount(id, targetId),
+    // Bookings, items, reserve pots and balances change their account
+    onSuccess: () =>
+      Promise.all(
+        ['bank-accounts', 'transactions', 'accounts', 'dashboard', 'plan', 'terms', 'reserves', 'notifications'].map(
+          (key) => queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      ),
+  })
+}

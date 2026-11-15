@@ -1858,6 +1858,23 @@ button.budget-toggle {
   z-index: 1;
 }
 
+/* Ticket #139: target, explanation and buttons of a merge one below the other */
+.dialog-actions.merge-confirm {
+  flex-direction: column;
+  align-items: stretch;
+  /* An action, not a plain delete: blue instead of red */
+  border: 1px solid var(--primary);
+  background: var(--surface);
+}
+
+.dialog-actions.merge-confirm .hint {
+  margin: 0;
+}
+
+.dialog-actions.merge-confirm .dialog-buttons {
+  justify-content: flex-end;
+}
+
 .dialog-buttons {
   display: flex;
   flex-wrap: wrap;

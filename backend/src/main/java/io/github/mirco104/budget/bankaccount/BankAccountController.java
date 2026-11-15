@@ -46,6 +46,12 @@ public class BankAccountController {
         return bankAccountService.update(id, request);
     }
 
+    /** Ticket #139: moves everything of the account to the target account and deletes it. */
+    @PostMapping("/{id}/merge")
+    public MergeBankAccountResponse merge(@PathVariable long id, @Valid @RequestBody MergeBankAccountRequest request) {
+        return bankAccountService.merge(id, request.targetId());
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long id) {

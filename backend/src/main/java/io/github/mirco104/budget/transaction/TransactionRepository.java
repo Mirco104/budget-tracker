@@ -105,4 +105,26 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from Transaction t where t.owner = :owner")
     void deleteByOwner(User owner);
+
+    // Ticket #139: the transfer bookings on one account whose other side lies on the other account
+    @Query("select t.id from Transaction t where t.account = :one and t.transferPeer.account = :other")
+    List<Long> findTransferIdsBetween(
+            io.github.mirco104.budget.bankaccount.BankAccount one,
+            io.github.mirco104.budget.bankaccount.BankAccount other);
+
+    // Ticket #139: the pairs go together; the link between both sides is undone first (foreign key)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Transaction t set t.transferPeer = null where t.id in :ids")
+    void unpair(java.util.Collection<Long> ids);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Transaction t where t.id in :ids")
+    void deleteByIds(java.util.Collection<Long> ids);
+
+    // Ticket #139: every booking of an account moves to another one
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Transaction t set t.account = :target where t.account = :source")
+    int moveAccount(
+            io.github.mirco104.budget.bankaccount.BankAccount source,
+            io.github.mirco104.budget.bankaccount.BankAccount target);
 }

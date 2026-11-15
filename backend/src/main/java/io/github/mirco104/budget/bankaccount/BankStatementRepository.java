@@ -19,4 +19,9 @@ public interface BankStatementRepository extends JpaRepository<BankStatement, Lo
     @Modifying
     @Query("delete from BankStatement s where s.owner = :owner")
     void deleteByOwner(User owner);
+
+    // Ticket #139: the balances of a merged account go; the target keeps its own
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from BankStatement s where s.account = :account")
+    void deleteByAccount(BankAccount account);
 }
