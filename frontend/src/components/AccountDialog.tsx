@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useReconcile, useSetLowerLimit } from '../api/accounts'
-import { useBankAccounts, useCreateBankAccount, useDeleteBankAccount, useUpdateBankAccount } from '../api/bankAccounts'
+import {
+  useBankAccounts,
+  useCreateBankAccount,
+  useDeleteBankAccount,
+  useMergeBankAccount,
+  useUpdateBankAccount,
+} from '../api/bankAccounts'
 import { errorText } from '../api/client'
 import type { AccountLine, AccountRole, LowerLimitMode } from '../api/types'
 import { formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
@@ -15,7 +21,7 @@ function toAmountText(amount: number | null): string {
 /**
  * 27f4 (decision 60): one window per account on the page Konten, for a new account (account null) and for editing
  * one: name, IBAN, Kontoart, default account, lower limit (P12, 27h), the balance from the bank (P11, books nothing),
- * archive and delete (US30).
+ * archive and delete (US30), and since ticket #139 merge into another account.
  */
 export function AccountDialog({
   account,
@@ -35,7 +41,11 @@ export function AccountDialog({
   const remove = useDeleteBankAccount()
   const reconcile = useReconcile()
   const setLowerLimit = useSetLowerLimit()
-  const used = useBankAccounts().data?.find((a) => a.id === account?.id)?.used ?? true
+  const merge = useMergeBankAccount()
+  const bankAccounts = useBankAccounts().data ?? []
+  const used = bankAccounts.find((a) => a.id === account?.id)?.used ?? true
+  // Ticket #139: an archived account takes over nothing
+  const mergeTargets = bankAccounts.filter((a) => a.id !== account?.id && !a.archived)
 
   const [name, setName] = useState(account?.name ?? initialName)
   const [iban, setIban] = useState(account?.iban ?? '')
@@ -51,7 +61,15 @@ export function AccountDialog({
   const [balance, setBalance] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const busy = create.isPending || update.isPending || remove.isPending || reconcile.isPending || setLowerLimit.isPending
+  const [merging, setMerging] = useState(false)
+  const [mergeTarget, setMergeTarget] = useState('')
+  const busy =
+    create.isPending ||
+    update.isPending ||
+    remove.isPending ||
+    reconcile.isPending ||
+    setLowerLimit.isPending ||
+    merge.isPending
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -134,6 +152,20 @@ export function AccountDialog({
     }
   }
 
+  async function handleMerge() {
+    if (account === null || mergeTarget === '') {
+      return
+    }
+    setError(null)
+    try {
+      await merge.mutateAsync({ id: account.id, targetId: Number(mergeTarget) })
+      onClose()
+    } catch (e) {
+      setError(errorText(e, 'Zusammenführen fehlgeschlagen.'))
+    }
+  }
+
+  const targetName = mergeTargets.find((a) => String(a.id) === mergeTarget)?.name
   const result = reconcile.data
   return (
     <Dialog title={account ? `Konto ${account.name}` : 'Neues Konto'} onClose={onClose}>
@@ -230,7 +262,40 @@ export function AccountDialog({
               : `Die App hatte ${formatEuro(result.appBalance)}. Differenz ${formatSigned(result.difference)}: fehlt eine Buchung?`}
           </p>
         )}
-        {confirmingDelete ? (
+        {merging ? (
+          <div className="dialog-actions confirm merge-confirm" role="group" aria-label="Zusammenführen">
+            <label className="field">
+              In Konto
+              <select value={mergeTarget} onChange={(e) => setMergeTarget(e.target.value)}>
+                <option value="">Konto wählen …</option>
+                {mergeTargets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="hint">
+              Alle Buchungen, geplanten Posten und Rücklagen von „{account?.name}“ gehen auf{' '}
+              {targetName ? `„${targetName}“` : 'das gewählte Konto'} über. Umbuchungen zwischen den beiden Konten werden
+              gelöscht, ebenso die Kontostände von „{account?.name}“. Danach wird „{account?.name}“ gelöscht
+              {account?.defaultAccount ? ' und das Zielkonto wird Standardkonto' : ''}.
+            </p>
+            <div className="dialog-buttons">
+              <button type="button" onClick={() => setMerging(false)} disabled={busy}>
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void handleMerge()}
+                disabled={busy || mergeTarget === ''}
+              >
+                Zusammenführen
+              </button>
+            </div>
+          </div>
+        ) : confirmingDelete ? (
           <div className="dialog-actions confirm" role="group" aria-label="Löschen bestätigen">
             <span>„{account?.name}“ löschen?</span>
             <div className="dialog-buttons">
@@ -248,6 +313,11 @@ export function AccountDialog({
               {account !== null && !account.defaultAccount && (
                 <button type="button" disabled={busy} onClick={() => void archive(!account.archived)}>
                   {account.archived ? 'Wiederherstellen' : 'Archivieren'}
+                </button>
+              )}
+              {account !== null && mergeTargets.length > 0 && (
+                <button type="button" disabled={busy} onClick={() => setMerging(true)}>
+                  Zusammenführen …
                 </button>
               )}
               {account !== null && !used && (

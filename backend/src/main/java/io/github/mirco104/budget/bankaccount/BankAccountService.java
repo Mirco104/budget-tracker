@@ -5,6 +5,7 @@ import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
 import io.github.mirco104.budget.notification.DismissedNotificationRepository;
 import io.github.mirco104.budget.notification.NotificationService;
+import io.github.mirco104.budget.plan.ItemTermRepository;
 import io.github.mirco104.budget.plan.PlannedItemRepository;
 import io.github.mirco104.budget.transaction.TransactionRepository;
 import io.github.mirco104.budget.user.CurrentUser;
@@ -24,11 +25,14 @@ public class BankAccountService {
     private final BankAccountSourceRepository sourceRepository;
     private final CurrentUser currentUser;
     private final DismissedNotificationRepository dismissedRepository;
+    private final ItemTermRepository termRepository;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
             PlannedItemRepository itemRepository, BankStatementRepository statementRepository, BankAccountSourceRepository sourceRepository,
-            CurrentUser currentUser, DismissedNotificationRepository dismissedRepository) {
+            CurrentUser currentUser, DismissedNotificationRepository dismissedRepository,
+            ItemTermRepository termRepository) {
+        this.termRepository = termRepository;
         this.dismissedRepository = dismissedRepository;
         this.sourceRepository = sourceRepository;
         this.bankAccountRepository = bankAccountRepository;
@@ -118,6 +122,52 @@ public class BankAccountService {
         // 27h: the dismissed lower limit notification of the account goes with it
         dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);
         bankAccountRepository.deleteById(id);
+    }
+
+    /**
+     * Ticket #139 (R26): merges the account into the target account, e.g. the default "Girokonto" into the imported
+     * bank account. Transfers between the two (both sides) are deleted, since they would be transfers on one account;
+     * a term they fulfilled keeps its row without a booking. All other bookings, the planned items, the reserve pots
+     * linked to the account and the import sources (R30) move to the target. The balances of the merged account go,
+     * the target keeps its own (P11). A default account hands that over to the target. Then the account is deleted.
+     * 404 for an unknown or another user's account, 400 on field targetId for the same, an unknown, another user's
+     * or an archived target.
+     */
+    @Transactional
+    public MergeBankAccountResponse merge(long id, long targetId) {
+        BankAccount source = find(id);
+        if (targetId == id) {
+            throw new InvalidFieldException("targetId", "Bitte ein anderes Konto wählen.");
+        }
+        BankAccount target = bankAccountRepository.findByIdAndOwner(targetId, currentUser.get())
+                .orElseThrow(() -> new InvalidFieldException("targetId", "Das Zielkonto existiert nicht."));
+        if (target.isArchived()) {
+            throw new InvalidFieldException("targetId", "Ein archiviertes Konto kann nichts übernehmen.");
+        }
+        boolean wasDefault = source.isDefaultAccount();
+
+        java.util.Set<Long> transfers = new java.util.HashSet<>(transactionRepository.findTransferIdsBetween(source, target));
+        transfers.addAll(transactionRepository.findTransferIdsBetween(target, source));
+        if (!transfers.isEmpty()) {
+            termRepository.unlinkTransactions(transfers);
+            transactionRepository.unpair(transfers);
+            transactionRepository.deleteByIds(transfers);
+        }
+        int moved = transactionRepository.moveAccount(source, target);
+        itemRepository.moveAccount(source, target);
+        itemRepository.moveReserveAccount(source, target);
+        sourceRepository.moveAccount(source, target);
+        statementRepository.deleteByAccount(source);
+        dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);
+        bankAccountRepository.deleteNow(id);
+
+        // The bulk statements cleared the persistence context, so the target is loaded again
+        BankAccount merged = find(targetId);
+        if (wasDefault) {
+            merged.setDefaultAccount(true);
+        }
+        return new MergeBankAccountResponse(BankAccountResponse.from(merged, isUsed(merged)), moved,
+                transfers.size() / 2);
     }
 
     /**

@@ -24,4 +24,9 @@ public interface BankAccountSourceRepository extends JpaRepository<BankAccountSo
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from BankAccountSource s where s.owner = :owner")
     void deleteByOwner(User owner);
+
+    // Ticket #139: the next import of these sources lands on the target account
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update BankAccountSource s set s.account = :target where s.account = :source")
+    void moveAccount(BankAccount source, BankAccount target);
 }

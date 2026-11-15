@@ -26,4 +26,9 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, Long> 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from BankAccount a where a.owner = :owner")
     void deleteByOwner(User owner);
+
+    // Ticket #139: deleted at once, so a reference left on the account fails here and not at commit
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from BankAccount a where a.id = :id")
+    void deleteNow(Long id);
 }

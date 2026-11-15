@@ -136,6 +136,20 @@ public class PlanService {
     }
 
     /**
+     * Decision 67: a monthly saving item created by the import, without category and entered when ticked off (decision
+     * 51); the rows of the import fulfil its terms.
+     */
+    @Transactional
+    public PlannedItem createMonthlySavingForImport(
+            String name, BigDecimal amount, BankAccount account, LocalDate anchor, ImportBatch batch) {
+        PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID(), LocalDate.now(clock));
+        item.update(name.trim(), amount.setScale(2, RoundingMode.HALF_UP), true, null, account, RhythmUnit.MONTH, 1,
+                anchor, EntryMode.TICK, false, YearMonth.from(anchor));
+        item.markImported(batch);
+        return itemRepository.save(item);
+    }
+
+    /**
      * "Gilt ab" (section 19.3): a change from the month of the version changes it; a later month ends the version in
      * the previous month and starts a new version with the same item key. A month before the version is only allowed
      * when no earlier version of the item exists.

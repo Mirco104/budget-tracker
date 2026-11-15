@@ -1310,7 +1310,8 @@ button.add-category {
   min-width: 0;
 }
 
-.category-picker.compact {
+/* Only in a row of a card: in the column of an import row the basis would be its height (#143) */
+.import-series-actions .category-picker.compact {
   flex: 1 1 14rem;
 }
 
@@ -1856,6 +1857,23 @@ button.budget-toggle {
   position: sticky;
   bottom: 0;
   z-index: 1;
+}
+
+/* Ticket #139: target, explanation and buttons of a merge one below the other */
+.dialog-actions.merge-confirm {
+  flex-direction: column;
+  align-items: stretch;
+  /* An action, not a plain delete: blue instead of red */
+  border: 1px solid var(--primary);
+  background: var(--surface);
+}
+
+.dialog-actions.merge-confirm .hint {
+  margin: 0;
+}
+
+.dialog-actions.merge-confirm .dialog-buttons {
+  justify-content: flex-end;
 }
 
 .dialog-buttons {

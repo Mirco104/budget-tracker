@@ -45,14 +45,15 @@ export interface ImportEntry {
   } | null
   /**
    * P5: the term of a planned item the row fulfils (recurringId is the id of the item version); categoryId is then the
-   * category of the item. autoEntryId: the automatic entry of the term the row replaces (P6).
+   * category of the item, null for a saving item (decision 67). autoEntryId: the automatic entry of the term the row
+   * replaces (P6).
    */
   replaces: {
     recurringId: number
     date: string
     description: string
     amount: number
-    categoryId: number
+    categoryId: number | null
     autoEntryId?: number | null
   } | null
   duplicateOf: { id: number; date: string; description: string } | null
@@ -60,6 +61,11 @@ export interface ImportEntry {
   details: ImportDetails | null
   /** R33: the category the stored mapping of its bank category sets; null without one (decision 62). */
   mappedCategoryId: number | null
+  /**
+   * Decision 67: suggested as the kind Sparen, a transfer to a savings or depot account or a row that fulfils a saving
+   * item.
+   */
+  saving?: boolean
 }
 
 export type BankCategoryStatus = 'EXISTING' | 'GUESSED' | 'NEW'
@@ -112,6 +118,8 @@ export interface ImportSeries {
   description: string
   source: string
   categoryId: number | null
+  /** Decision 67: all its rows are suggested as the kind Sparen; then there is no category. */
+  saving?: boolean
 }
 
 export interface ImportPreview {
@@ -145,9 +153,18 @@ export interface ImportRequest {
     replaces?: { recurringId: number; date: string }
     /** R31: the index of the new series in series whose occurrence the row replaces. */
     series?: number
+    /** Decision 67: the kind Sparen, without category. */
+    saving?: boolean
   }[]
-  /** R31: monthly series the import creates (code review, 08.11.2026). */
-  series?: { startDate: string; amount: number; description: string; categoryId: number; source: string }[]
+  /** R31: monthly series the import creates (code review, 08.11.2026); a saving series has no category (decision 67). */
+  series?: {
+    startDate: string
+    amount: number
+    description: string
+    categoryId?: number
+    source: string
+    saving?: boolean
+  }[]
 }
 
 export interface ImportBatch {
