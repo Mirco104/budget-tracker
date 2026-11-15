@@ -44,4 +44,28 @@ class AccountBalanceTest {
         assertThat(AccountBalance.difference(null, ENTRIES, new Statement(LocalDate.parse("2026-11-01"),
                 new BigDecimal("2450")))).isEqualByComparingTo("0.00");
     }
+
+    @Test
+    void theHistoryShowsEveryStatementNewestFirstWithTheDifferenceFromTheOneBefore() {
+        // Ticket #135: entered out of order on purpose
+        List<Statement> statements = List.of(
+                new Statement(LocalDate.parse("2026-11-10"), new BigDecimal("2000")),
+                new Statement(LocalDate.parse("2026-11-01"), new BigDecimal("2450")));
+
+        List<AccountBalance.Reconciled> history = AccountBalance.history(statements, ENTRIES);
+
+        assertThat(history).extracting(r -> r.statement().date())
+                .containsExactly(LocalDate.parse("2026-11-10"), LocalDate.parse("2026-11-01"));
+        // 10 November: app from the statement of 1 November is 2450 - 900 - 40.10 = 1509.90
+        assertThat(history.get(0).appBalance()).isEqualByComparingTo("1509.90");
+        assertThat(history.get(0).difference()).isEqualByComparingTo("490.10");
+        // 1 November: no statement before, app is the sum of the bookings up to that day
+        assertThat(history.get(1).appBalance()).isEqualByComparingTo("2450.00");
+        assertThat(history.get(1).difference()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void anEmptyHistoryStaysEmpty() {
+        assertThat(AccountBalance.history(List.of(), ENTRIES)).isEmpty();
+    }
 }

@@ -55,6 +55,10 @@ public class AccountOverviewService {
     public record ReconcileResult(BigDecimal appBalance, BigDecimal bankBalance, BigDecimal difference) {
     }
 
+    /** Ticket #135: one balance from the bank of an account with the app balance on its day and the difference. */
+    public record BalanceLine(long id, LocalDate date, BigDecimal amount, BigDecimal appBalance, BigDecimal difference) {
+    }
+
     @Transactional(readOnly = true)
     public List<RoleGroup> groups() {
         LocalDate today = LocalDate.now(clock);
@@ -125,6 +129,41 @@ public class AccountOverviewService {
         statementRepository.save(statement);
         return new ReconcileResult(app, bank.amount(),
                 AccountBalance.difference(previous == null ? null : previous.statement(), entries, bank));
+    }
+
+    /** Ticket #135: the balances from the bank of the account, newest first (P11). */
+    @Transactional(readOnly = true)
+    public List<BalanceLine> history(long accountId) {
+        BankAccount account = ownAccount(accountId);
+        Map<LocalDate, BankStatement> byDate = statementsOf(account).stream()
+                .collect(Collectors.toMap(BankStatement::getDate, s -> s));
+        List<AccountBalance.Statement> statements = byDate.values().stream().map(BankStatement::statement).toList();
+        return AccountBalance.history(statements, entriesByAccount().getOrDefault(accountId, List.of())).stream()
+                .map(r -> new BalanceLine(byDate.get(r.statement().date()).getId(), r.statement().date(),
+                        r.statement().amount(), r.appBalance(), r.difference()))
+                .toList();
+    }
+
+    /** Ticket #135: deletes a wrong balance from the bank; the app balance then counts from the one before (P11). */
+    @Transactional
+    public void deleteBalance(long accountId, long balanceId) {
+        BankAccount account = ownAccount(accountId);
+        BankStatement statement = statementsOf(account).stream()
+                .filter(s -> s.getId() == balanceId)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Kontostand " + balanceId + " wurde nicht gefunden."));
+        statementRepository.delete(statement);
+    }
+
+    private BankAccount ownAccount(long accountId) {
+        return accountRepository.findByIdAndOwner(accountId, currentUser.get())
+                .orElseThrow(() -> new NotFoundException("Konto " + accountId + " wurde nicht gefunden."));
+    }
+
+    private List<BankStatement> statementsOf(BankAccount account) {
+        return statementRepository.findByOwnerOrderByDateAsc(currentUser.get()).stream()
+                .filter(s -> s.getAccount().getId().equals(account.getId()))
+                .toList();
     }
 
     private Map<Long, List<AccountBalance.Entry>> entriesByAccount() {
