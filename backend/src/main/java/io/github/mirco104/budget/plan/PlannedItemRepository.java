@@ -45,4 +45,17 @@ public interface PlannedItemRepository extends JpaRepository<PlannedItem, Long> 
     @Modifying
     @Query("delete from PlannedItem i where i.owner = :owner")
     void deleteByOwner(User owner);
+
+    // Ticket #139: the items of an account and the reserve pots linked to it move to another account
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update PlannedItem i set i.account = :target where i.account = :source")
+    void moveAccount(
+            io.github.mirco104.budget.bankaccount.BankAccount source,
+            io.github.mirco104.budget.bankaccount.BankAccount target);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update PlannedItem i set i.reserveAccount = :target where i.reserveAccount = :source")
+    void moveReserveAccount(
+            io.github.mirco104.budget.bankaccount.BankAccount source,
+            io.github.mirco104.budget.bankaccount.BankAccount target);
 }

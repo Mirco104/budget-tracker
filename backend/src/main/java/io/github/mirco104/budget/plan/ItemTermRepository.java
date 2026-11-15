@@ -41,4 +41,9 @@ public interface ItemTermRepository extends JpaRepository<ItemTerm, Long> {
     @Modifying
     @Query("delete from ItemTerm t where t.owner = :owner")
     void deleteByOwner(User owner);
+
+    // Ticket #139: a term keeps its row without the deleted booking, like after deleting it by hand (P6)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ItemTerm t set t.transaction = null where t.transaction.id in :ids")
+    void unlinkTransactions(Collection<Long> ids);
 }
