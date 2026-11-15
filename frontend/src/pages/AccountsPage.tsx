@@ -270,15 +270,16 @@ function AccountRow({ account, onOpen }: { account: AccountLine; onOpen: () => v
             {account.statementDate
               ? `Bank am ${formatDate(account.statementDate)}: ${formatEuro(account.statementAmount)}`
               : 'noch kein Kontostand eingetragen'}
-            {account.comfortAmount !== null && (
-              <span className={account.belowComfort ? 'below-comfort' : undefined}>
+            {/* P12: an own limit is named, 0 € only when the balance is below it */}
+            {account.lowerLimit !== null && (account.belowLimit || account.lowerLimitMode === 'CUSTOM') && (
+              <span className={account.belowLimit ? 'below-limit' : undefined}>
                 {' '}
-                · {account.belowComfort ? 'unter ' : ''}Wohlfühlbetrag {formatEuro(account.comfortAmount)}
+                · {account.belowLimit ? 'unter ' : ''}Untergrenze {formatEuro(account.lowerLimit)}
               </span>
             )}
           </span>
         </span>
-        <span className={account.belowComfort ? 'item-amount below-comfort' : 'item-amount'}>
+        <span className={account.belowLimit ? 'item-amount below-limit' : 'item-amount'}>
           {formatEuro(account.balance)}
         </span>
       </button>

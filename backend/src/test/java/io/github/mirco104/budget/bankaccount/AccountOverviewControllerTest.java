@@ -165,26 +165,35 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$[0].missing").value(0.00));
     }
 
+    // P12 (27h): the lower limit replaces the comfort amount; everyday accounts start at 0 €, others without one
     @Test
-    void aBalanceBelowTheComfortAmountIsMarked() throws Exception {
+    void aBalanceBelowTheLowerLimitIsMarked() throws Exception {
         book("{\"amount\": 400, \"description\": \"Einzahlung\", \"date\": \"%s\", \"accountId\": %d, \"transfer\": true}"
                 .formatted(today, tagesgeld));
-        mockMvc.perform(put("/api/bank-accounts/{id}/comfort-amount", tagesgeld).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"amount\": 500}"))
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$[0].accounts[0].lowerLimitMode").value("ZERO"))
+                .andExpect(jsonPath("$[0].accounts[0].lowerLimit").value(0))
+                .andExpect(jsonPath("$[0].accounts[0].belowLimit").value(false));
+        mockMvc.perform(put("/api/bank-accounts/{id}/lower-limit", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\": \"CUSTOM\", \"amount\": 500}"))
                 .andExpect(status().isNoContent());
         mockMvc.perform(get("/api/accounts"))
-                .andExpect(jsonPath("$[1].accounts[0].comfortAmount").value(500.00))
-                .andExpect(jsonPath("$[1].accounts[0].belowComfort").value(true))
-                .andExpect(jsonPath("$[0].accounts[0].comfortAmount").doesNotExist())
-                .andExpect(jsonPath("$[0].accounts[0].belowComfort").value(false));
-        mockMvc.perform(put("/api/bank-accounts/{id}/comfort-amount", tagesgeld).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"amount\": -1}"))
+                .andExpect(jsonPath("$[1].accounts[0].lowerLimitMode").value("CUSTOM"))
+                .andExpect(jsonPath("$[1].accounts[0].lowerLimit").value(500.00))
+                .andExpect(jsonPath("$[1].accounts[0].belowLimit").value(true));
+        mockMvc.perform(put("/api/bank-accounts/{id}/lower-limit", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\": \"CUSTOM\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("amount"));
+        mockMvc.perform(put("/api/bank-accounts/{id}/lower-limit", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\": \"CUSTOM\", \"amount\": -1}"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(put("/api/bank-accounts/{id}/comfort-amount", tagesgeld).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"amount\": null}"))
+        mockMvc.perform(put("/api/bank-accounts/{id}/lower-limit", tagesgeld).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\": \"OFF\", \"amount\": 500}"))
                 .andExpect(status().isNoContent());
         mockMvc.perform(get("/api/accounts"))
-                .andExpect(jsonPath("$[1].accounts[0].belowComfort").value(false));
+                .andExpect(jsonPath("$[1].accounts[0].lowerLimit").doesNotExist())
+                .andExpect(jsonPath("$[1].accounts[0].belowLimit").value(false));
     }
 
     private void book(String json) throws Exception {

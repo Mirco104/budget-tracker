@@ -3358,8 +3358,8 @@ a.summary-link:hover {
   color: var(--muted);
   font-weight: 400;
 }
-.below-comfort,
-.link-button.below-comfort {
+.below-limit,
+.link-button.below-limit {
   color: var(--warn);
   font-weight: 600;
 }
@@ -3574,4 +3574,143 @@ button.account-open:hover {
 }
 .filter-more select {
   width: 100%;
+}
+
+/* --- Bell and lower limit (AP 27h) --- */
+.limit-row {
+  align-items: center;
+}
+.bell {
+  position: relative;
+  margin-left: auto;
+  /* bell and avatar sit 8px apart instead of the header gap */
+  margin-right: -16px;
+}
+.bell + .account-menu {
+  margin-left: 0;
+}
+/* 27h: with the bell the tabs get narrower before they move to the bottom bar */
+@media (max-width: 1100px) {
+  .app-header-inner {
+    gap: 16px;
+  }
+  .tab {
+    padding: 0 8px;
+  }
+}
+.bell-button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+}
+.bell-button:hover:not(:disabled) {
+  background: var(--primary-soft);
+}
+.bell-count {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+}
+.bell-menu {
+  width: min(360px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.bell-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* Each notification is a card with a heading; blue edge for a question, orange for a warning */
+.bell-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.bell-item.warn {
+  border-left-color: var(--warn);
+}
+.bell-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.bell-item p {
+  margin: 0;
+}
+.bell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+/* Compact buttons in the card, so two fit next to each other on the phone */
+.bell-actions button,
+.bell-actions .button-link {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+/* The name field of a new saving goal takes its own line below the buttons */
+.bell-actions .inline-create,
+.closing-actions .inline-create {
+  flex-basis: 100%;
+  order: 1;
+}
+.bell-skip {
+  justify-self: start;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+.summary-value.over,
+.budget-amount.over {
+  color: var(--warn);
+}
+.closing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 16px;
+}
+/* 27h: between the phone and a wide window the tabs show only their icon, so header, bell and avatar fit */
+@media (min-width: 721px) and (max-width: 1000px) {
+  .tab .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 720px) {
+  .bell-menu {
+    position: fixed;
+    top: calc(var(--header-height) + 4px);
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
 }
