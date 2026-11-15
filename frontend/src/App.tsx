@@ -6,6 +6,8 @@ import type { Me } from './api/types'
 import { AccountMenu } from './components/ui/AccountMenu'
 import { Icon, type IconName } from './components/ui/Icon'
 import { ModeBadge } from './components/ui/ModeBadge'
+import { ReleaseBadge } from './components/ui/ReleaseBadge'
+import { APP_COMMIT, APP_VERSION } from './version'
 import { currentMonth } from './format'
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -91,17 +93,24 @@ function Brand() {
         B
       </span>
       Budget-Tracker
-      <ModeBadge />
+      {/* Ticket #129: side by side, on the phone one above the other */}
+      <span className="brand-badges">
+        <ReleaseBadge />
+        <ModeBadge />
+      </span>
     </div>
   )
 }
 
-// Static pages in public/, reachable with and without sign-in (section 15)
+// Static pages in public/, reachable with and without sign-in (section 15); ticket #129: the version, the commit on hover
 function LegalLinks() {
   return (
     <footer className="legal">
       <a href="/impressum.html">Impressum</a>
       <a href="/datenschutz.html">Datenschutz</a>
+      <span className="app-version" title={APP_COMMIT ? `Commit ${APP_COMMIT}` : undefined}>
+        Version {APP_VERSION}
+      </span>
     </footer>
   )
 }

@@ -2908,6 +2908,27 @@ label.tx.disabled {
   display: none;
 }
 
+/* Ticket #129: the stage of the app next to the brand, on every page */
+.brand-badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.release-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.legal .app-version {
+  color: var(--muted);
+}
+
 /* On the phone only the short name fits next to the brand */
 @media (max-width: 480px) {
   .brand {
@@ -2920,6 +2941,20 @@ label.tx.disabled {
 
   .mode-short {
     display: inline;
+  }
+
+  /* Ticket #129: Alpha and the local mode one above the other, so bell and avatar keep their place at 360 px */
+  .brand-badges {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .brand-badges .release-badge,
+  .brand-badges .mode-badge {
+    padding: 0 6px;
+    font-size: 0.65rem;
+    line-height: 1.4;
   }
 }
 
@@ -3829,4 +3864,12 @@ button.account-open:hover {
     left: 16px;
     width: auto;
   }
+}
+
+/* --- Ticket #135: history of the balances from the bank --- */
+.link-button.balance-history-open {
+  align-self: flex-start;
+}
+.balance-row {
+  flex-wrap: wrap;
 }

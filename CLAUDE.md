@@ -13,7 +13,7 @@ Budget tracker web app: set target budgets per category, record income and expen
 ## Commands
 - Backend: `cd backend && ./mvnw -B verify` (build and tests), `./mvnw spring-boot:run` (profile `dev`, empty), `./mvnw spring-boot:run -Dspring-boot.run.profiles=sample` (sample data), `scripts/reset-db.sh dev|sample`
 - Frontend: `cd frontend && npm ci && npm run lint && npm test && npm run build`, `npm run dev`
-- Docker: `docker compose up -d --build` (values from `.env`, template `.env.example`), `scripts/backup.sh`, `scripts/restore.sh <dump>`
+- Docker: `scripts/update.sh [--no-https]` (backup, pull, build with the commit) or `docker compose up -d --build` (values from `.env`, template `.env.example`), `scripts/backup.sh`, `scripts/restore.sh <dump>`
 
 ## Language
 - UI text: German

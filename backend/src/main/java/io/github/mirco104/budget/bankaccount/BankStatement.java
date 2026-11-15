@@ -49,6 +49,10 @@ public class BankStatement {
         this.amount = amount;
     }
 
+    public Long getId() {
+        return id;
+    }
+
     public BankAccount getAccount() {
         return account;
     }

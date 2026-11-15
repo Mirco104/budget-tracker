@@ -211,6 +211,8 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Anmelden' })
     expect(screen.getByRole('link', { name: 'Impressum' })).toHaveAttribute('href', '/impressum.html')
     expect(screen.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', '/datenschutz.html')
+    // Ticket #129: the version in the footer, on every page
+    expect(screen.getByRole('contentinfo')).toHaveTextContent(/Version \d+\.\d+\.\d+/)
   })
 
   // US14

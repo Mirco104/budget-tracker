@@ -1,0 +1,36 @@
+# Ticket #129 (decision 69): when the version of the app changes on main, tag that commit as v<version>.
+# The version comes from frontend/package.json; the CI checks that backend/pom.xml has the same.
+name: Release tag
+
+on:
+  push:
+    branches: [main]
+    # The workflow file itself too, so merging it tags the current version once
+    paths: [frontend/package.json, .github/workflows/release-tag.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check that both versions match
+        run: node scripts/check-version.mjs
+      - name: Tag the version if the tag does not exist yet
+        run: |
+          version=$(node -p "require('./frontend/package.json').version")
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag exists already, nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Version $version"
+          git push origin "$tag"
+          echo "Tagged $GITHUB_SHA as $tag."
