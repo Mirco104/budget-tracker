@@ -15,8 +15,10 @@ In `.env` jeden Platzhalter ersetzen: ein langes Datenbank-Passwort, E-Mail, Pas
 Die Domain muss per DNS auf den Server zeigen, Ports 80 und 443 müssen offen sein. Dann:
 
 ```bash
-docker compose --profile https up -d --build
+scripts/update.sh
 ```
+
+Das Skript startet die App mit `docker compose --profile https up -d --build` (Details unter *Update*).
 
 Caddy holt das Zertifikat von Let's Encrypt automatisch und leitet HTTP auf HTTPS um. Die App selbst lauscht nur auf `127.0.0.1:8080`, von außen ist sie nur über Caddy erreichbar. Beim ersten Start legt sie den Systemadmin aus `.env` an; danach kommen weitere Nutzer nur über Einladungen (US15). Systemadmin ist bei jedem Start das Konto mit der E-Mail aus `ADMIN_EMAIL` (US25), deshalb bleibt `ADMIN_EMAIL` in `.env` stehen. `ADMIN_PASSWORD` wirkt nur, wenn das Konto neu angelegt wird; danach kann es aus `.env` entfernt werden. Das Passwort ändert der Systemadmin in der App unter *Einstellungen › Konto*.
 
@@ -38,17 +40,22 @@ SESSION_COOKIE_SECURE=false
 APP_BIND=0.0.0.0
 ```
 
-und ohne Caddy starten: `docker compose up -d --build`. Die App ist dann unter `http://<IP>:8080` erreichbar. Das Session-Cookie geht so unverschlüsselt über das Netz, deshalb nur mit Testdaten.
+und ohne Caddy starten: `scripts/update.sh --no-https`. Die App ist dann unter `http://<IP>:8080` erreichbar. Das Session-Cookie geht so unverschlüsselt über das Netz, deshalb nur mit Testdaten.
 
 ## Update
 
 ```bash
-scripts/backup.sh
-git pull
-APP_COMMIT=$(git rev-parse --short HEAD) docker compose --profile https up -d --build
+scripts/update.sh             # mit Caddy und HTTPS
+scripts/update.sh --no-https  # Test im Heimnetz ohne Caddy
 ```
 
-Die Flyway-Migrationen laufen beim Start der App automatisch. `APP_COMMIT` ist optional: Damit zeigt *Einstellungen* neben der Version auch den Commit (das Image selbst hat kein `.git`).
+Das Skript macht nacheinander:
+
+1. ein Backup mit `scripts/backup.sh`, wenn die Datenbank läuft (beim ersten Start gibt es noch keine),
+2. `git pull --ff-only`,
+3. `APP_COMMIT=$(git rev-parse --short HEAD) docker compose --profile https up -d --build`.
+
+Bricht ein Schritt ab, laufen die folgenden nicht. Die Flyway-Migrationen laufen beim Start der App automatisch. `APP_COMMIT` sorgt dafür, dass *Einstellungen* neben der Version auch den Commit zeigt (das Image selbst hat kein `.git`); wer `docker compose` von Hand startet, sieht nur die Version.
 
 ## Version
 
