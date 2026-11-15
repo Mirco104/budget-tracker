@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useBankAccounts, useCreateBankAccount } from '../api/bankAccounts'
-import { InlineCreate } from './ui/InlineCreate'
+import { useBankAccounts } from '../api/bankAccounts'
+import { AccountDialog } from './AccountDialog'
 
 const NEW = 'new'
 
@@ -19,21 +19,15 @@ interface Props {
 
 /**
  * 27f4: the one account selection of the app. It hides archived accounts (except the chosen one) and ends with
- * "+ Neues Konto …", which creates the account (Alltag) right here and chooses it (08.11.2026).
+ * "+ Neues Konto …", which opens the window "Neues Konto" and chooses the new account (decision 66).
  */
 export function AccountSelect({ value, onChange, empty, exclude, ariaLabel, labelledBy, invalid }: Props) {
   const accounts = useBankAccounts().data ?? []
-  const create = useCreateBankAccount()
   const [creating, setCreating] = useState(false)
   const defaultAccount = accounts.find((a) => a.defaultAccount)
   const shown = value === '' && empty === undefined ? String(defaultAccount?.id ?? '') : value
   const options = accounts.filter((a) => (!a.archived || String(a.id) === shown) && String(a.id) !== exclude)
 
-  async function handleCreate(name: string) {
-    const account = await create.mutateAsync({ name })
-    setCreating(false)
-    onChange(String(account.id))
-  }
 
   return (
     <>
@@ -42,14 +36,7 @@ export function AccountSelect({ value, onChange, empty, exclude, ariaLabel, labe
         aria-labelledby={labelledBy}
         value={shown}
         aria-invalid={invalid ? true : undefined}
-        onChange={(e) => {
-          if (e.target.value === NEW) {
-            setCreating(true)
-          } else {
-            setCreating(false)
-            onChange(e.target.value)
-          }
-        }}
+        onChange={(e) => (e.target.value === NEW ? setCreating(true) : onChange(e.target.value))}
       >
         {empty !== undefined && <option value="">{empty}</option>}
         {options.map((a) => (
@@ -60,11 +47,10 @@ export function AccountSelect({ value, onChange, empty, exclude, ariaLabel, labe
         <option value={NEW}>+ Neues Konto …</option>
       </select>
       {creating && (
-        <InlineCreate
-          label="Neues Konto"
-          placeholder="Name des Kontos"
-          onCreate={handleCreate}
-          onCancel={() => setCreating(false)}
+        <AccountDialog
+          account={null}
+          onCreated={(id) => onChange(String(id))}
+          onClose={() => setCreating(false)}
         />
       )}
     </>

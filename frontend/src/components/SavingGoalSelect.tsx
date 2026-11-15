@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
-import { InlineCreate } from './ui/InlineCreate'
+import { useSavingGoals } from '../api/goals'
+import { SavingGoalDialog } from './SavingGoalDialog'
 
 const NEW_GOAL = 'new'
 
@@ -16,26 +16,17 @@ interface Props {
 }
 
 /**
- * The choice of a saving goal, the same everywhere (27h): the goals and "+ Neues Sparziel …", which opens a name field
- * right there and chooses the new goal. Without goals and without noneLabel it offers "Sparziel erstellen" instead.
+ * The choice of a saving goal, the same everywhere (27h): the goals and "+ Neues Sparziel …", which opens the window
+ * "Neues Sparziel" (decision 66) and chooses the new goal. Without goals and without noneLabel it offers "Sparziel
+ * erstellen" instead.
  */
 export function SavingGoalSelect({ value, onChange, noneLabel, label = 'Sparziel', labelledBy }: Props) {
   const goalsQuery = useSavingGoals()
   const goals = goalsQuery.data ?? []
-  const create = useCreateSavingGoal()
   const [creating, setCreating] = useState(false)
 
-  const inline = creating && (
-    <InlineCreate
-      label="Neues Sparziel"
-      placeholder="z. B. Notgroschen"
-      onCreate={async (name) => {
-        const goal = await create.mutateAsync({ name, targetAmount: null, targetDate: null })
-        onChange(String(goal.id))
-        setCreating(false)
-      }}
-      onCancel={() => setCreating(false)}
-    />
+  const dialog = creating && (
+    <SavingGoalDialog goal={null} onCreated={(goal) => onChange(String(goal.id))} onClose={() => setCreating(false)} />
   )
 
   if (noneLabel === undefined && goals.length === 0) {
@@ -44,14 +35,13 @@ export function SavingGoalSelect({ value, onChange, noneLabel, label = 'Sparziel
       return null
     }
     return (
-      inline || (
-        <p className="hint">
-          Noch kein Sparziel.{' '}
-          <button type="button" className="link-button" onClick={() => setCreating(true)}>
-            Sparziel erstellen
-          </button>
-        </p>
-      )
+      <p className="hint">
+        Noch kein Sparziel.{' '}
+        <button type="button" className="link-button" onClick={() => setCreating(true)}>
+          Sparziel erstellen
+        </button>
+        {dialog}
+      </p>
     )
   }
   return (
@@ -70,7 +60,7 @@ export function SavingGoalSelect({ value, onChange, noneLabel, label = 'Sparziel
         ))}
         <option value={NEW_GOAL}>+ Neues Sparziel …</option>
       </select>
-      {inline}
+      {dialog}
     </>
   )
 }

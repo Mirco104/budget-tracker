@@ -29,12 +29,14 @@ export function Bell() {
       return
     }
     function handlePointer(event: MouseEvent) {
-      if (root.current && !root.current.contains(event.target as Node)) {
+      const target = event.target as Element
+      // A dialog opened from the bell (decision 66) lies in the body but keeps the bell open
+      if (root.current && !root.current.contains(target) && !target.closest?.('.overlay')) {
         setOpen(false)
       }
     }
     function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !document.querySelector('.overlay')) {
         setOpen(false)
       }
     }

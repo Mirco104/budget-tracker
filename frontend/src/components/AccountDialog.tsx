@@ -17,7 +17,19 @@ function toAmountText(amount: number | null): string {
  * one: name, IBAN, Kontoart, default account, lower limit (P12, 27h), the balance from the bank (P11, books nothing),
  * archive and delete (US30).
  */
-export function AccountDialog({ account, onClose }: { account: AccountLine | null; onClose: () => void }) {
+export function AccountDialog({
+  account,
+  initialName = '',
+  onCreated,
+  onClose,
+}: {
+  account: AccountLine | null
+  /** Decision 66: the name a new account starts with, e.g. the suggestion of the import. */
+  initialName?: string
+  /** Decision 66: gets the id of a new account, e.g. to choose it in the selection that opened the window. */
+  onCreated?: (id: number) => void
+  onClose: () => void
+}) {
   const create = useCreateBankAccount()
   const update = useUpdateBankAccount()
   const remove = useDeleteBankAccount()
@@ -25,7 +37,7 @@ export function AccountDialog({ account, onClose }: { account: AccountLine | nul
   const setLowerLimit = useSetLowerLimit()
   const used = useBankAccounts().data?.find((a) => a.id === account?.id)?.used ?? true
 
-  const [name, setName] = useState(account?.name ?? '')
+  const [name, setName] = useState(account?.name ?? initialName)
   const [iban, setIban] = useState(account?.iban ?? '')
   const [role, setRole] = useState<AccountRole>(account?.role ?? 'EVERYDAY')
   const [defaultAccount, setDefaultAccount] = useState(account?.defaultAccount ?? false)
@@ -65,6 +77,7 @@ export function AccountDialog({ account, onClose }: { account: AccountLine | nul
       let id = account?.id
       if (account === null) {
         id = (await create.mutateAsync({ name: name.trim(), iban: ibanValue, role })).id
+        onCreated?.(id)
       } else if (
         name.trim() !== account.name ||
         ibanValue !== account.iban ||
