@@ -59,7 +59,7 @@ interface Props {
   /** The group of a new item (from the "+" of a group). */
   group?: PlanGroup
   /** Prefilled values of a new item, e.g. "Zum Sparen" with the unplanned rest. */
-  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number }
+  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number; accountId?: number; day?: number }
   onClose: () => void
   onDone: (message: string) => void
 }
@@ -91,12 +91,12 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const [categoryId, setCategoryId] = useState(
     item?.categoryId ? String(item.categoryId) : preset?.categoryId ? String(preset.categoryId) : '',
   )
-  const [accountId, setAccountId] = useState(item ? String(item.accountId) : '')
+  const [accountId, setAccountId] = useState(item ? String(item.accountId) : preset?.accountId ? String(preset.accountId) : '')
   const [goalId, setGoalId] = useState(
     item?.savingGoalId ? String(item.savingGoalId) : preset?.savingGoalId ? String(preset.savingGoalId) : '',
   )
   const [rhythm, setRhythm] = useState(initialRhythm)
-  const [day, setDay] = useState(anchor ? String(anchor.day) : '1')
+  const [day, setDay] = useState(anchor ? String(anchor.day) : preset?.day ? String(preset.day) : '1')
   const [dueMonth, setDueMonth] = useState(anchor ? anchor.month : Number(month.slice(5, 7)))
   const [firstDate, setFirstDate] = useState(item?.anchorDate ?? `${month}-01`)
   const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? defaultMode(kindOf(item, group), initialRhythm))

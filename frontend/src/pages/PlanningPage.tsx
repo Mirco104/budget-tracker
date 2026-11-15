@@ -1,6 +1,7 @@
+import { useDismissNotification } from '../api/notifications'
 import { useState } from 'react'
 import { useCategories, useCreateCategory } from '../api/categories'
-import { useCreatePlannedItem, usePlan, useUpdatePlannedItem } from '../api/plan'
+import { useCreatePlannedItem, usePlan, usePlanSuggestions, useUpdatePlannedItem, type PlanSuggestion } from '../api/plan'
 import type { Category, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
 import { SplitSavingDialog } from '../components/SplitSavingDialog'
@@ -10,7 +11,7 @@ import { Loading } from '../components/ui/Loading'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Toast } from '../components/ui/Toast'
-import { currentMonth, formatEuro, formatMonth } from '../format'
+import { currentMonth, formatDate, formatEuro, formatMonth } from '../format'
 import { rhythmLabel } from '../labels'
 
 /** The standard catch-all budget (concept 3.7); created on first use. */
@@ -31,7 +32,13 @@ const GROUPS: { group: PlanGroup; title: string; hint: string }[] = [
   },
 ]
 
-type DialogState = { item: PlannedItem | null; group?: PlanGroup; preset?: { name?: string; amount?: number; categoryId?: number } }
+type DialogState = {
+  item: PlannedItem | null
+  group?: PlanGroup
+  preset?: { name?: string; amount?: number; categoryId?: number; accountId?: number; day?: number }
+  /** 27i: the suggestion the item comes from; it is hidden once the item is saved */
+  suggestionKey?: string
+}
 
 /**
  * The normal month shown and the default of "Gilt ab" (section 19, decision 49). The month is shared with the
@@ -222,6 +229,9 @@ function GroupSection({
   onEdit,
   onAdd,
   iconOf,
+  suggestions,
+  onTakeSuggestion,
+  onHideSuggestion,
 }: {
   title: string
   hint: string
@@ -230,6 +240,9 @@ function GroupSection({
   onEdit: (item: PlannedItem) => void
   onAdd: () => void
   iconOf: (categoryId: number) => string
+  suggestions: PlanSuggestion[]
+  onTakeSuggestion: (suggestion: PlanSuggestion) => void
+  onHideSuggestion: (suggestion: PlanSuggestion) => void
 }) {
   const items = plan.items.filter((item) => item.group === group)
   const total = { INCOME: plan.income, FIXED: plan.fixed, BUDGET: plan.budgets, SAVING: plan.saving }[group]
@@ -248,7 +261,7 @@ function GroupSection({
       {group === 'INCOME' && plan.averageIncome !== null && plan.minimumIncome !== null && (
         <div className="income-stats-block">
           <div className="income-stats">
-              <div className="income-stat">
+            <div className="income-stat">
               <span className="income-stat-label">Durchschnitt</span>
               <span className="income-stat-value">{formatEuro(plan.averageIncome)}</span>
               <span className="income-stat-note">pro Monat</span>
@@ -290,6 +303,36 @@ function GroupSection({
           ))}
         </ul>
       )}
+      {/* 27i: monthly series in the bookings that no item covers yet */}
+      {suggestions.length > 0 && (
+        <div className="plan-suggestions" role="group" aria-label="Gefunden in deinen Buchungen">
+          <h3>Gefunden in deinen Buchungen</h3>
+          <ul className="item-list">
+            {suggestions.map((suggestion) => (
+              <li key={suggestion.key} className="suggestion-row">
+                <span className="item-main">
+                  <span className="item-name">{suggestion.name}</span>
+                  <span className="tx-meta">
+                    monatlich · {suggestion.categoryName} · {suggestion.months} Monate, zuletzt am{' '}
+                    {formatDate(suggestion.anchorDate)}
+                  </span>
+                </span>
+                <span className={suggestion.amount > 0 ? 'item-amount income' : 'item-amount'}>
+                  {formatEuro(Math.abs(suggestion.amount))}
+                </span>
+                <span className="suggestion-actions">
+                  <button type="button" className="link-button" onClick={() => onTakeSuggestion(suggestion)}>
+                    Übernehmen
+                  </button>
+                  <button type="button" className="link-button muted" onClick={() => onHideSuggestion(suggestion)}>
+                    Ausblenden
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <button type="button" className="link-button" onClick={onAdd}>
         + Posten
       </button>
@@ -304,6 +347,9 @@ function PlanningContent({ month }: { month: string }) {
   const createItem = useCreatePlannedItem()
   const updateItem = useUpdatePlannedItem()
   const [dialog, setDialog] = useState<DialogState | null>(null)
+  // 27i: suggestions from the bookings; "Ausblenden" and a taken suggestion are stored like a dismissed notification
+  const suggestions = usePlanSuggestions()
+  const dismiss = useDismissNotification()
   const [toast, setToast] = useState<string | null>(null)
   const [splitting, setSplitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -391,6 +437,22 @@ function PlanningContent({ month }: { month: string }) {
           plan={data}
           onEdit={(item) => setDialog({ item })}
           onAdd={() => setDialog({ item: null, group })}
+          suggestions={(suggestions.data ?? []).filter((s) => s.group === group)}
+          onTakeSuggestion={(s) =>
+            setDialog({
+              item: null,
+              group,
+              suggestionKey: s.key,
+              preset: {
+                name: s.name,
+                amount: Math.abs(s.amount),
+                categoryId: s.categoryId ?? undefined,
+                accountId: s.accountId ?? undefined,
+                day: Number(s.anchorDate.slice(8, 10)),
+              },
+            })
+          }
+          onHideSuggestion={(s) => dismiss.mutate(s.key)}
           iconOf={(id) => categories.data?.find((c) => c.id === id)?.icon ?? 'tag'}
         />
       ))}
@@ -403,6 +465,9 @@ function PlanningContent({ month }: { month: string }) {
           preset={dialog.preset}
           onClose={() => setDialog(null)}
           onDone={(message) => {
+            if (dialog.suggestionKey) {
+              dismiss.mutate(dialog.suggestionKey)
+            }
             setDialog(null)
             setToast(message)
           }}
