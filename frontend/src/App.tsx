@@ -92,8 +92,11 @@ function Brand() {
         B
       </span>
       Budget-Tracker
-      <ReleaseBadge />
-      <ModeBadge />
+      {/* Ticket #129: side by side, on the phone one above the other */}
+      <span className="brand-badges">
+        <ReleaseBadge />
+        <ModeBadge />
+      </span>
     </div>
   )
 }
