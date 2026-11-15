@@ -110,7 +110,7 @@ describe('AccountsPage', () => {
     const fetchMock = renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
     const account = screen.getByRole('dialog', { name: 'Konto Girokonto' })
-    fireEvent.click(within(account).getByRole('button', { name: 'Verlauf der Kontostände ansehen' }))
+    fireEvent.click(await within(account).findByRole('button', { name: 'Verlauf der Kontostände ansehen' }))
 
     const history = await screen.findByRole('dialog', { name: /Kontostände von Girokonto/ })
     const rows = within(await within(history).findByRole('list', { name: 'Kontostände' })).getAllByRole('listitem')
@@ -129,6 +129,17 @@ describe('AccountsPage', () => {
         fetchMock.mock.calls.some(([url, init]) => url === '/api/bank-accounts/1/balances/8' && init?.method === 'DELETE'),
       ).toBe(true),
     )
+  })
+
+  it('offers the history only for an account with bank balances', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Tagesgeld bearbeiten' }))
+    const account = screen.getByRole('dialog', { name: 'Konto Tagesgeld' })
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/2/balances')).toBe(true),
+    )
+    expect(within(account).queryByRole('button', { name: 'Verlauf der Kontostände ansehen' })).not.toBeInTheDocument()
   })
 
   // Ticket #139: an account goes into another one; an archived account is no target
@@ -201,7 +212,10 @@ describe('AccountsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/2/lower-limit')
     expect(call?.[1]?.body).toBe(JSON.stringify({ mode: 'CUSTOM', amount: 500 }))
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/balances'))).toBe(false)
+    // No bank balance was entered (the history is only read)
+    expect(
+      fetchMock.mock.calls.some(([url, init]) => String(url).includes('/balances') && init?.method === 'POST'),
+    ).toBe(false)
   })
 
   it('switches the lower limit off', async () => {

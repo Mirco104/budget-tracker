@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useReconcile, useSetLowerLimit } from '../api/accounts'
+import { useBalanceHistory, useReconcile, useSetLowerLimit } from '../api/accounts'
 import {
   useBankAccounts,
   useCreateBankAccount,
@@ -41,6 +41,8 @@ export function AccountDialog({
   const update = useUpdateBankAccount()
   const remove = useDeleteBankAccount()
   const reconcile = useReconcile()
+  // Ticket #135: the history only when there is a balance; it reloads after a new or deleted one
+  const hasBalances = (useBalanceHistory(account?.id ?? null).data ?? []).length > 0
   const setLowerLimit = useSetLowerLimit()
   const merge = useMergeBankAccount()
   const bankAccounts = useBankAccounts().data ?? []
@@ -252,8 +254,8 @@ export function AccountDialog({
             </label>
           </div>
         )}
-        {/* Ticket #135: the history in its own window, it can get long */}
-        {account !== null && (
+        {/* Ticket #135: the history in its own window, it can get long; only with at least one balance */}
+        {account !== null && hasBalances && (
           <button type="button" className="link-button balance-history-open" onClick={() => setHistoryOpen(true)}>
             Verlauf der Kontostände ansehen
           </button>

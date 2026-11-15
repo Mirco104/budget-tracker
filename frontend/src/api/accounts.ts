@@ -52,11 +52,15 @@ export function useSetLowerLimit() {
   })
 }
 
-/** Ticket #135: the balances from the bank of an account, newest first; refreshed with every change of ['accounts']. */
-export function useBalanceHistory(accountId: number) {
+/**
+ * Ticket #135: the balances from the bank of an account, newest first; refreshed with every change of ['accounts'].
+ * Without an account (a new one) nothing is loaded.
+ */
+export function useBalanceHistory(accountId: number | null) {
   return useQuery({
     queryKey: ['accounts', 'balances', accountId],
     queryFn: () => request<BalanceLine[]>(`/bank-accounts/${accountId}/balances`),
+    enabled: accountId !== null,
   })
 }
 
