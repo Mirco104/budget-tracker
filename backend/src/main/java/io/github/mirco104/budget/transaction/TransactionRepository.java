@@ -12,6 +12,10 @@ import org.springframework.data.jpa.repository.Query;
 /** Every query is scoped to the owner (R15). */
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
+    // Ticket #136: the bookings of a multiple selection, only the user's own (R15)
+    List<Transaction> findByIdInAndOwner(java.util.Collection<Long> ids, User owner);
+
+
     @EntityGraph(attributePaths = {"category", "account"})
     List<Transaction> findByOwnerAndDateBetweenOrderByDateDescIdDesc(User owner, LocalDate from, LocalDate to);
 

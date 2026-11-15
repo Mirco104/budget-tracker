@@ -3,10 +3,12 @@ import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
 import { useReserves } from '../api/reserves'
-import { useTransactionRange, useTransactionsBetween } from '../api/transactions'
+import { useCategorizeTransactions, useTransactionRange, useTransactionsBetween } from '../api/transactions'
 import type { Category, Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { BookingList } from '../components/BookingList'
+import { SelectionBar } from '../components/SelectionBar'
+import { Toast } from '../components/ui/Toast'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -54,6 +56,9 @@ function matchesFilters(entry: Transaction, filters: Filters, categories: Catego
   )
 }
 
+/** Ticket #136: a transfer or Sparen has no category (R27), so the selection leaves it out. */
+const selectable = (entry: Transaction) => !entry.transfer
+
 const FACET_KEYS = {
   category: categoryOf,
   account: (entry: Transaction) => String(entry.accountId),
@@ -99,6 +104,13 @@ export function TransactionsPage({
   // Compact reserve pot (R14, decision 15); details on the Auswertung page.
   const reserves = useReserves()
   const booking = useBookingDialog({ categories: categories.data, defaultDate: today })
+  // Ticket #136: the selection mode with the chosen bookings and the category for them
+  const [selecting, setSelecting] = useState(false)
+  const [chosenIds, setChosenIds] = useState<Set<number>>(() => new Set())
+  const [chosenCategory, setChosenCategory] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
+  const [selectionError, setSelectionError] = useState<string | null>(null)
+  const categorize = useCategorizeTransactions()
 
   function choosePreset(next: PeriodPreset) {
     if (next === 'custom' && preset !== 'custom') {
@@ -119,6 +131,41 @@ export function TransactionsPage({
   const hidden = [filters.category, filters.kind, filters.account, filters.direction].filter((v) => v !== '').length
   const filtered = hidden > 0 || filters.query.trim() !== ''
   const accounts = bankAccounts.data ?? []
+  // Only the shown bookings count, so a filter change never assigns hidden ones
+  const choosable = shown.filter(selectable)
+  const chosen = choosable.filter((entry) => chosenIds.has(entry.id))
+
+  function toggle(entry: Transaction) {
+    setChosenIds((current) => {
+      const next = new Set(current)
+      if (next.has(entry.id)) {
+        next.delete(entry.id)
+      } else {
+        next.add(entry.id)
+      }
+      return next
+    })
+  }
+
+  function stopSelecting() {
+    setSelecting(false)
+    setChosenIds(new Set())
+    setChosenCategory('')
+    setSelectionError(null)
+  }
+
+  async function assignChosen() {
+    setSelectionError(null)
+    try {
+      await categorize.mutateAsync({ ids: chosen.map((entry) => entry.id), categoryId: Number(chosenCategory) })
+      const name = categoryList.find((c) => String(c.id) === chosenCategory)?.name ?? ''
+      setToast(`${chosen.length === 1 ? '1 Buchung' : `${chosen.length} Buchungen`} „${name}“ zugeordnet.`)
+      setChosenIds(new Set())
+      setChosenCategory('')
+    } catch (e) {
+      setSelectionError(errorText(e, 'Zuordnen fehlgeschlagen.'))
+    }
+  }
 
   return (
     <section>
@@ -191,6 +238,14 @@ export function TransactionsPage({
                 <Icon name="filter" size={16} />
                 Filter{hidden > 0 && ` (${hidden})`}
               </button>
+              <button
+                type="button"
+                className="chip plain"
+                aria-pressed={selecting}
+                onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+              >
+                Auswählen
+              </button>
               {filtered && (
                 <button type="button" className="link-button" onClick={() => setFilters(NO_FILTERS)}>
                   Filter zurücksetzen
@@ -229,6 +284,27 @@ export function TransactionsPage({
           {filtered ? 'Keine Einträge für diesen Filter.' : 'Keine Einträge in diesem Zeitraum.'}
         </p>
       )}
+      {selecting && (
+        <>
+          <SelectionBar
+            count={chosen.length}
+            shown={choosable.length}
+            onSelectAll={() => setChosenIds(new Set(choosable.map((entry) => entry.id)))}
+            onClear={() => setChosenIds(new Set())}
+            categories={categoryList}
+            value={chosenCategory}
+            onChange={setChosenCategory}
+            onAssign={() => void assignChosen()}
+            onDone={stopSelecting}
+            busy={categorize.isPending}
+          />
+          {selectionError && (
+            <p className="error" role="alert">
+              {selectionError}
+            </p>
+          )}
+        </>
+      )}
       {shown.length > 0 && (
         <BookingList
           entries={shown}
@@ -236,6 +312,7 @@ export function TransactionsPage({
           today={today}
           showAccount={accounts.length > 1}
           onSelect={booking.openEdit}
+          selection={selecting ? { ids: chosenIds, toggle, selectable } : undefined}
         />
       )}
 
@@ -251,6 +328,7 @@ export function TransactionsPage({
 
       <AddBookingFab onClick={booking.openNew} />
       {booking.element}
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </section>
   )
 }

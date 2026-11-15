@@ -1964,7 +1964,8 @@ button.add-booking {
   border-top: 1px solid var(--line);
 }
 
-button.tx {
+button.tx,
+label.tx {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -1978,8 +1979,69 @@ button.tx {
   text-align: left;
 }
 
-button.tx:hover:not(:disabled) {
+button.tx:hover:not(:disabled),
+label.tx:hover:not(.disabled) {
   background: var(--surface-2);
+}
+
+/* Ticket #136: a row of the selection mode; a transfer cannot be chosen */
+label.tx {
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+label.tx.chosen {
+  background: var(--primary-soft);
+}
+
+label.tx.disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.tx-check {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+/* Ticket #136: the bar of the multiple selection (Transaktionen and import) */
+.selection-bar {
+  position: sticky;
+  top: calc(var(--header-height) + 8px);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.selection-count,
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.selection-actions .category-picker {
+  min-width: 12rem;
+}
+
+.import-checks {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.import-row.chosen {
+  background: var(--primary-soft);
 }
 
 .tx-main {
@@ -2690,7 +2752,7 @@ button.tx:hover:not(:disabled) {
     font-size: 0.85rem;
   }
 
-  .import-check {
+  .import-checks {
     grid-row: 1 / 3;
   }
 

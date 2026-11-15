@@ -816,7 +816,8 @@ describe('ImportPage', () => {
     expect(listed()).toEqual(['Auf Pocket'])
   })
 
-  it('gives the shown rows without category one category', async () => {
+  // Ticket #136: the selection mode replaces "Den N angezeigten Zeilen ohne Kategorie zuordnen"
+  it('gives the chosen rows one category in the selection mode', async () => {
     const fetchMock = renderPage()
     await upload()
     const [first, second] = row('Spiele Shop')
@@ -824,24 +825,46 @@ describe('ImportPage', () => {
     fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord importieren' }))
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'o' } })
 
-    const assign = screen.getByRole('region', { name: 'Zuordnen' })
-    // Spiele Shop (first) and Auf Pocket have no category; Kino Nord is not chosen, the second Spiele Shop has one
-    expect(assign).toHaveTextContent('Den 2 angezeigten Zeilen ohne Kategorie zuordnen:')
-    fireEvent.change(within(assign).getByLabelText('Kategorie für die angezeigten Zeilen'), { target: { value: '8' } })
-    fireEvent.click(within(assign).getByRole('button', { name: 'Zuordnen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Auswählen' }))
+    const bar = screen.getByRole('region', { name: 'Auswahl' })
+    // A row that is not imported cannot be chosen
+    expect(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord auswählen' })).toBeDisabled()
+    fireEvent.click(within(bar).getByRole('button', { name: 'Alle 3 angezeigten auswählen' }))
+    fireEvent.click(within(second).getByRole('checkbox', { name: 'Spiele Shop auswählen' }))
+    expect(bar).toHaveTextContent('2 ausgewählt')
+    fireEvent.change(within(bar).getByLabelText('Kategorie für die Auswahl'), { target: { value: '8' } })
+    fireEvent.click(within(bar).getByRole('button', { name: 'Zuordnen' }))
 
-    expect(screen.getByRole('status')).toHaveTextContent('2 Zeilen „Freizeit“ zugeordnet.')
+    expect(screen.getByText('2 Zeilen „Freizeit“ zugeordnet.')).toBeInTheDocument()
     expect(within(first).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
     expect(within(second).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('1')
     expect(within(row('Auf Pocket')[0]).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('8')
     expect(within(row('Kino Nord')[0]).getByLabelText('Kategorie für Kino Nord')).toHaveValue('')
-    expect(screen.queryByRole('region', { name: 'Zuordnen' })).not.toBeInTheDocument()
+    expect(bar).toHaveTextContent('0 ausgewählt')
+    fireEvent.click(within(bar).getByRole('button', { name: 'Fertig' }))
+    expect(screen.queryByRole('region', { name: 'Auswahl' })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '3 Buchungen übernehmen' }))
     await waitFor(() => expect(sent(fetchMock, '/api/imports')).toBeDefined())
     const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
     expect(body.rows.map((r: { categoryId: number | null }) => r.categoryId)).toEqual([8, 1, 8])
+  })
+
+  it('can give a chosen row a transfer, also without a filter', async () => {
+    renderPage()
+    await upload()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auswählen' }))
+    fireEvent.click(within(row('Auf Pocket')[0]).getByRole('checkbox', { name: 'Auf Pocket auswählen' }))
+    const bar = screen.getByRole('region', { name: 'Auswahl' })
+    // Decision 67: Sparen is offered like Umbuchung
+    expect(within(bar).getByRole('option', { name: 'Sparen (zählt als Sparen)' })).toBeInTheDocument()
+    fireEvent.change(within(bar).getByLabelText('Kategorie für die Auswahl'), { target: { value: 'transfer' } })
+    fireEvent.click(within(bar).getByRole('button', { name: 'Zuordnen' }))
+
+    expect(screen.getByText('1 Zeile „Umbuchung“ zugeordnet.')).toBeInTheDocument()
+    expect(within(row('Auf Pocket')[0]).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('transfer')
   })
 
   it('shows only the rows without category with the filter Ohne Kategorie', async () => {

@@ -214,6 +214,49 @@ describe('TransactionsPage', () => {
     expect(within(dialog).getByLabelText('Beschreibung')).toHaveValue('Kino')
   })
 
+  // Ticket #136: choose several bookings and give them one category; a transfer cannot be chosen (R27)
+  it('gives several chosen bookings one category in the selection mode', async () => {
+    const transfer: Transaction = {
+      id: 11, amount: -500, description: 'Aufs Tagesgeld', date: '2026-10-15', categoryId: null, categoryName: null,
+      accountId: 1, accountName: 'Girokonto', transfer: true, auto: false, fix: false,
+    }
+    const fetchMock = renderPage([...transactions, transfer])
+    await screen.findByRole('button', { name: /Kino/ })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auswählen' }))
+    const bar = screen.getByRole('region', { name: 'Auswahl' })
+    expect(screen.getByRole('checkbox', { name: 'Aufs Tagesgeld auswählen' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Kino auswählen' }))
+    // A click on a row chooses it instead of opening the dialog
+    fireEvent.click(screen.getByText('Konzert'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(bar).toHaveTextContent('2 ausgewählt')
+    fireEvent.change(within(bar).getByLabelText('Kategorie für die Auswahl'), { target: { value: '20' } })
+    fireEvent.click(within(bar).getByRole('button', { name: 'Zuordnen' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('2 Buchungen „Gehalt“ zugeordnet.')
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/transactions/categorize')
+    expect(call?.[1]?.method).toBe('POST')
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ ids: [7, 9], categoryId: 20 })
+    expect(bar).toHaveTextContent('0 ausgewählt')
+  })
+
+  it('chooses all shown bookings except transfers and ends the selection mode', async () => {
+    renderPage()
+    await screen.findByRole('button', { name: /Kino/ })
+    fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'n' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auswählen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Alle 4 angezeigten auswählen' }))
+    expect(screen.getByRole('region', { name: 'Auswahl' })).toHaveTextContent('4 ausgewählt')
+    fireEvent.click(screen.getByRole('button', { name: 'Auswahl aufheben' }))
+    expect(screen.getByRole('region', { name: 'Auswahl' })).toHaveTextContent('0 ausgewählt')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    expect(screen.queryByRole('region', { name: 'Auswahl' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Kino/ })).toBeInTheDocument()
+  })
+
   it('closes the dialog and confirms briefly after saving', async () => {
     const fetchMock = renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /Kino/ }))
