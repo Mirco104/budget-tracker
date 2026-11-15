@@ -3865,3 +3865,11 @@ button.account-open:hover {
     width: auto;
   }
 }
+
+/* --- Ticket #135: history of the balances from the bank --- */
+.link-button.balance-history-open {
+  align-self: flex-start;
+}
+.balance-row {
+  flex-wrap: wrap;
+}

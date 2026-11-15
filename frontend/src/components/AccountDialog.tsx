@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useReconcile, useSetLowerLimit } from '../api/accounts'
+import { useBalanceHistory, useReconcile, useSetLowerLimit } from '../api/accounts'
 import {
   useBankAccounts,
   useCreateBankAccount,
@@ -11,6 +11,7 @@ import { errorText } from '../api/client'
 import type { AccountLine, AccountRole, LowerLimitMode } from '../api/types'
 import { formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
 import { ROLE_NAMES } from '../accountRoles'
+import { BalanceHistoryDialog } from './BalanceHistoryDialog'
 import { Dialog } from './ui/Dialog'
 import { InfoTip } from './ui/InfoTip'
 
@@ -40,6 +41,8 @@ export function AccountDialog({
   const update = useUpdateBankAccount()
   const remove = useDeleteBankAccount()
   const reconcile = useReconcile()
+  // Ticket #135: the history only when there is a balance; it reloads after a new or deleted one
+  const hasBalances = (useBalanceHistory(account?.id ?? null).data ?? []).length > 0
   const setLowerLimit = useSetLowerLimit()
   const merge = useMergeBankAccount()
   const bankAccounts = useBankAccounts().data ?? []
@@ -63,6 +66,7 @@ export function AccountDialog({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [merging, setMerging] = useState(false)
   const [mergeTarget, setMergeTarget] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const busy =
     create.isPending ||
     update.isPending ||
@@ -250,6 +254,12 @@ export function AccountDialog({
             </label>
           </div>
         )}
+        {/* Ticket #135: the history in its own window, it can get long; only with at least one balance */}
+        {account !== null && hasBalances && (
+          <button type="button" className="link-button balance-history-open" onClick={() => setHistoryOpen(true)}>
+            Verlauf der Kontostände ansehen
+          </button>
+        )}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -337,6 +347,9 @@ export function AccountDialog({
           </div>
         )}
       </form>
+      {historyOpen && account !== null && (
+        <BalanceHistoryDialog accountId={account.id} accountName={account.name} onClose={() => setHistoryOpen(false)} />
+      )}
     </Dialog>
   )
 }
