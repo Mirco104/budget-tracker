@@ -45,10 +45,21 @@ und ohne Caddy starten: `docker compose up -d --build`. Die App ist dann unter `
 ```bash
 scripts/backup.sh
 git pull
-docker compose --profile https up -d --build
+APP_COMMIT=$(git rev-parse --short HEAD) docker compose --profile https up -d --build
 ```
 
-Die Flyway-Migrationen laufen beim Start der App automatisch.
+Die Flyway-Migrationen laufen beim Start der App automatisch. `APP_COMMIT` ist optional: Damit zeigt *Einstellungen* neben der Version auch den Commit (das Image selbst hat kein `.git`).
+
+## Version
+
+Die App hat eine Version nach SemVer mit Vorabkennung (Ticket #129, Entscheidung 69): `0.1.0-alpha` ist die erste. Solange nur der Bekanntenkreis testet, bleibt die Null vorne und die Kennung `-alpha`, später `-beta`; `1.0.0` erst für eine öffentliche Nutzung. Die Version steht neben dem Namen der App auf jeder Seite (Alpha, Beta) und unten in *Einstellungen*; angemeldet liefert `/actuator/info` sie auch.
+
+Eine neue Version:
+
+1. Die Version in `frontend/package.json` (dazu `npm install --package-lock-only` für `package-lock.json`) und in `backend/pom.xml` gleich setzen; die CI prüft das (`node scripts/check-version.mjs`).
+2. Nach dem Merge auf `main` ein Tag setzen: `git tag v0.1.0-alpha && git push origin v0.1.0-alpha`.
+
+Neue Funktionen erhöhen die mittlere Zahl, reine Fehlerbehebungen die letzte.
 
 ## Backup
 
