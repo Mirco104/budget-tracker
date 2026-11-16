@@ -91,6 +91,28 @@ class ReserveControllerTest {
     }
 
     @Test
+    void lookBackSumsEachCategoryOverThePeriod() throws Exception {
+        postTransaction("2500.00", "Gehalt", "2026-08-01", categoryId("Gehalt/Lohn (netto)"));
+        postTransaction("-800.00", "Miete", "2026-08-03", categoryId("Wohnen"));
+        postTransaction("-800.00", "Miete", "2026-09-03", categoryId("Wohnen"));
+        postTransaction("-45.00", "Einkauf", "2026-09-05", categoryId("Lebensmittel"));
+
+        mockMvc.perform(get("/api/history").param("from", "2026-08").param("to", "2026-09"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.expensesByCategory", hasSize(2)))
+                .andExpect(jsonPath("$.expensesByCategory[0].id").value(categoryId("Wohnen")))
+                .andExpect(jsonPath("$.expensesByCategory[0].total").value(1600.00))
+                .andExpect(jsonPath("$.expensesByCategory[0].average").value(800.00))
+                .andExpect(jsonPath("$.expensesByCategory[0].monthsWithAmount").value(2))
+                .andExpect(jsonPath("$.expensesByCategory[1].name").value("Lebensmittel"))
+                .andExpect(jsonPath("$.expensesByCategory[1].average").value(22.50))
+                .andExpect(jsonPath("$.expensesByCategory[1].icon").isString())
+                .andExpect(jsonPath("$.incomeByCategory", hasSize(1)))
+                .andExpect(jsonPath("$.incomeByCategory[0].total").value(2500.00))
+                .andExpect(jsonPath("$.incomeByCategory[0].average").value(1250.00));
+    }
+
+    @Test
     void looksBackOverACalendarYear() throws Exception {
         postSeries("-900.00", "Miete", categoryId("Wohnen"), "MONTHLY", "2025-01-01");
 

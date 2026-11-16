@@ -3,6 +3,7 @@ package io.github.mirco104.budget.reserve;
 import io.github.mirco104.budget.plan.RhythmUnit;
 import io.github.mirco104.budget.plan.TermSchedule;
 import io.github.mirco104.budget.reserve.HistoryResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.HistoryResponse.CategoryTotal;
 import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.HistoryResponse.Total;
 import io.github.mirco104.budget.reserve.ReserveResponse.ForecastEntry;
@@ -17,9 +18,12 @@ import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -130,7 +134,37 @@ public class ReserveCalculator {
                 average(history.stream().map(HistoryMonth::income), months),
                 average(history.stream().map(HistoryMonth::expenses), months),
                 average(history.stream().map(HistoryMonth::surplus), months),
-                total, history);
+                total, history,
+                categoryTotals(history, HistoryMonth::incomeCategories, months),
+                categoryTotals(history, HistoryMonth::expenseCategories, months));
+    }
+
+    /**
+     * R34: each category with a positive sum over the counted months, its average over all of them and the months
+     * with an amount; the largest sum first, then by name and id. Name and icon come from the last month.
+     */
+    private static List<CategoryTotal> categoryTotals(
+            List<HistoryMonth> history, Function<HistoryMonth, List<CategoryAmount>> amounts, int months) {
+        Map<Long, CategoryAmount> latest = new LinkedHashMap<>();
+        Map<Long, BigDecimal> sums = new LinkedHashMap<>();
+        Map<Long, Integer> counts = new LinkedHashMap<>();
+        for (HistoryMonth month : history) {
+            for (CategoryAmount line : amounts.apply(month)) {
+                if (line.amount().signum() <= 0) {
+                    continue;
+                }
+                latest.put(line.id(), line);
+                sums.merge(line.id(), line.amount(), BigDecimal::add);
+                counts.merge(line.id(), 1, Integer::sum);
+            }
+        }
+        return latest.values().stream()
+                .map(line -> new CategoryTotal(line.id(), line.name(), line.icon(), money(sums.get(line.id())),
+                        average(Stream.of(sums.get(line.id())), months), counts.get(line.id())))
+                .sorted(Comparator.comparing(CategoryTotal::total).reversed()
+                        .thenComparing(CategoryTotal::name)
+                        .thenComparingLong(CategoryTotal::id))
+                .toList();
     }
 
     /** Reserve pot and forecast from the month on (the current month in the app, R14). */

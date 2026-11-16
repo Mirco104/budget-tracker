@@ -112,7 +112,9 @@ class SubcategoryCalculationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.history[0].expenseCategories", hasSize(1)))
                 .andExpect(jsonPath("$.history[0].expenseCategories[0].id").value(versicherungen))
-                .andExpect(jsonPath("$.history[0].expenseCategories[0].amount").value(30.00));
+                .andExpect(jsonPath("$.history[0].expenseCategories[0].amount").value(30.00))
+                .andExpect(jsonPath("$.expensesByCategory", hasSize(1)))
+                .andExpect(jsonPath("$.expensesByCategory[0].id").value(versicherungen));
     }
 
     @Test

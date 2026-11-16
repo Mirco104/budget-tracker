@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import io.github.mirco104.budget.plan.RhythmUnit;
 import io.github.mirco104.budget.plan.TermSchedule;
 import io.github.mirco104.budget.reserve.HistoryResponse.CategoryAmount;
+import io.github.mirco104.budget.reserve.HistoryResponse.CategoryTotal;
 import io.github.mirco104.budget.reserve.HistoryResponse.HistoryMonth;
 import io.github.mirco104.budget.reserve.ReserveCalculator.CategoryData;
 import io.github.mirco104.budget.reserve.ReserveCalculator.PastMonth;
@@ -214,6 +215,91 @@ class ReserveCalculatorTest {
         assertThat(august.expenseCategories()).isEmpty();
         assertThat(response.averageIncome()).isEqualByComparingTo("166.67");
         assertThat(response.averageSurplus()).isEqualByComparingTo("16.67");
+    }
+
+    // --- per category over the look back (R34) ---
+
+    private static PastMonth withCategories(String month, List<CategoryData> income, List<CategoryData> expenses) {
+        BigDecimal in = income.stream().map(CategoryData::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal out = expenses.stream().map(CategoryData::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new PastMonth(month(month), in, out, income, expenses);
+    }
+
+    private static CategoryData category(long id, String name, String amount) {
+        return new CategoryData(id, name, "icon-" + id, money(amount));
+    }
+
+    @Test
+    void sumsAndAveragesEachCategoryOverAllCountedMonths() {
+        HistoryResponse response = history("2026-07", "2026-09", month("2026-01"),
+                withCategories("2026-07", List.of(category(20, "Gehalt", "3000.00")),
+                        List.of(category(1, "Wohnen", "900.00"), category(2, "Essen", "300.00"))),
+                withCategories("2026-08", List.of(category(20, "Gehalt", "3000.00")),
+                        List.of(category(1, "Wohnen", "900.00"))),
+                withCategories("2026-09", List.of(category(20, "Gehalt", "3000.00"), category(21, "Bonus", "500.00")),
+                        List.of(category(1, "Wohnen", "900.00"), category(2, "Essen", "100.00"))));
+
+        assertThat(response.expensesByCategory()).containsExactly(
+                new CategoryTotal(1, "Wohnen", "icon-1", money("2700.00"), money("900.00"), 3),
+                // August without Essen counts as 0: 400 / 3
+                new CategoryTotal(2, "Essen", "icon-2", money("400.00"), money("133.33"), 2));
+        assertThat(response.incomeByCategory()).extracting(CategoryTotal::name, CategoryTotal::total,
+                CategoryTotal::average, CategoryTotal::monthsWithAmount).containsExactly(
+                        tuple("Gehalt", money("9000.00"), money("3000.00"), 3),
+                        tuple("Bonus", money("500.00"), money("166.67"), 1));
+        assertThat(response.expensesByCategory().get(1).average().scale()).isEqualTo(2);
+    }
+
+    @Test
+    void ordersCategoriesByTotalThenNameThenId() {
+        HistoryResponse response = history("2026-09", "2026-09", month("2026-01"),
+                withCategories("2026-09", List.of(), List.of(
+                        category(3, "Bücher", "50.00"),
+                        category(5, "Kino", "80.00"),
+                        category(4, "Auto", "50.00"),
+                        category(2, "Auto", "50.00"))));
+
+        assertThat(response.expensesByCategory()).extracting(CategoryTotal::id).containsExactly(5L, 2L, 4L, 3L);
+    }
+
+    @Test
+    void takesNameAndIconFromTheLastMonthOfTheCategory() {
+        HistoryResponse response = history("2026-08", "2026-09", month("2026-01"),
+                withCategories("2026-08", List.of(), List.of(new CategoryData(1, "Lebensmittel", "cart", money("10.00")))),
+                withCategories("2026-09", List.of(), List.of(new CategoryData(1, "Essen", "food", money("20.00")))));
+
+        assertThat(response.expensesByCategory()).containsExactly(
+                new CategoryTotal(1, "Essen", "food", money("30.00"), money("15.00"), 2));
+    }
+
+    @Test
+    void leavesOutMonthsOutsideThePeriodAndBeforeTheFirstEntry() {
+        HistoryResponse response = history("2026-07", "2026-09", month("2026-08"),
+                withCategories("2026-06", List.of(), List.of(category(1, "Wohnen", "900.00"))),
+                withCategories("2026-07", List.of(), List.of(category(1, "Wohnen", "900.00"))),
+                withCategories("2026-09", List.of(), List.of(category(1, "Wohnen", "600.00"))));
+
+        // Counted are August and September only
+        assertThat(response.expensesByCategory()).containsExactly(
+                new CategoryTotal(1, "Wohnen", "icon-1", money("600.00"), money("300.00"), 1));
+    }
+
+    @Test
+    void leavesOutCategoriesWithoutAPositiveAmount() {
+        HistoryResponse response = history("2026-09", "2026-09", month("2026-01"),
+                withCategories("2026-09", List.of(category(20, "Erstattung", "0.00")),
+                        List.of(category(1, "Wohnen", "0.00"), category(2, "Essen", "-5.00"))));
+
+        assertThat(response.incomeByCategory()).isEmpty();
+        assertThat(response.expensesByCategory()).isEmpty();
+    }
+
+    @Test
+    void hasNoCategoriesWithoutACountedMonth() {
+        HistoryResponse response = history("2026-07", "2026-09", null);
+
+        assertThat(response.incomeByCategory()).isEmpty();
+        assertThat(response.expensesByCategory()).isEmpty();
     }
 
     @Test
