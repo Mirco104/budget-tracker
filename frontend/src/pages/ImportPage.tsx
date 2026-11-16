@@ -670,6 +670,7 @@ function Preview({
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
     direction: () => '',
+    imported: () => '',
   })
   // Ticket #136: the shown rows that are imported can be chosen; only the shown chosen ones get the category
   const choosable = listed.filter((entry) => choices[entry.fingerprint as string].selected)

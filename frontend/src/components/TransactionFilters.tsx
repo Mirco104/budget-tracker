@@ -30,6 +30,7 @@ export function TransactionFilters({
   counts,
   kinds = KINDS,
   directions,
+  importedOptions,
   toggle,
   expanded = true,
 }: {
@@ -42,6 +43,8 @@ export function TransactionFilters({
   kinds?: FilterOption[]
   /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter (the import) */
   directions?: FilterOption[]
+  /** AP 31: Ja / Nein for bookings from a bank import; without it the bar has no such filter (the import) */
+  importedOptions?: FilterOption[]
   /** 27f4: a button after the search that folds the other filters (Transaktionen) */
   toggle?: ReactNode
   /** 27f4: false shows only the search and the toggle */
@@ -123,6 +126,12 @@ export function TransactionFilters({
             <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
               <option value="">{directions ? 'Fix und variabel' : 'Alle Arten'}</option>
               {options('kind', kinds)}
+            </select>
+          )}
+          {importedOptions && (
+            <select aria-label="Importiert filtern" value={filters.imported} onChange={(e) => set('imported', e.target.value)}>
+              <option value="">Importiert: alle</option>
+              {options('imported', importedOptions)}
             </select>
           )}
         </div>

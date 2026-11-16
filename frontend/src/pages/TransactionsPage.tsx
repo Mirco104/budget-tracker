@@ -13,7 +13,7 @@ import { TransactionFilters } from '../components/TransactionFilters'
 import { Icon } from '../components/ui/Icon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { useBookingDialog } from '../components/useBookingDialog'
-import { categoryFits, DIRECTIONS, facetCounts, NO_FILTERS, type Filters } from '../filters'
+import { categoryFits, DIRECTIONS, facetCounts, IMPORTED_OPTIONS, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
@@ -38,13 +38,18 @@ function directionOf(entry: Transaction): string {
   return entry.amount > 0 ? 'INCOME' : 'EXPENSE'
 }
 
+/** AP 31: for the filter Importiert (decision 70). */
+function importedOf(entry: Transaction): string {
+  return entry.imported ? 'YES' : 'NO'
+}
+
 /** The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking. */
 const TRANSFER_CATEGORY = 'transfer'
 function categoryOf(entry: Transaction): string {
   return entry.transfer ? TRANSFER_CATEGORY : String(entry.categoryId)
 }
 
-/** US26: whether an entry passes the filters (description, category with its subcategories R32, account, kind). */
+/** US26: whether an entry passes the filters (description, category with its subcategories R32, account, kind, imported). */
 function matchesFilters(entry: Transaction, filters: Filters, categories: Category[]): boolean {
   const search = filters.query.trim().toLocaleLowerCase('de-DE')
   return (
@@ -52,6 +57,7 @@ function matchesFilters(entry: Transaction, filters: Filters, categories: Catego
     (filters.account === '' || String(entry.accountId) === filters.account) &&
     (filters.kind === '' || kindOf(entry) === filters.kind) &&
     (filters.direction === '' || directionOf(entry) === filters.direction) &&
+    (filters.imported === '' || importedOf(entry) === filters.imported) &&
     (search === '' || entry.description.toLocaleLowerCase('de-DE').includes(search))
   )
 }
@@ -64,6 +70,7 @@ const FACET_KEYS = {
   account: (entry: Transaction) => String(entry.accountId),
   kind: (entry: Transaction) => kindOf(entry),
   direction: directionOf,
+  imported: importedOf,
 }
 
 /**
@@ -128,7 +135,7 @@ export function TransactionsPage({
   const counts = facetCounts(loaded, filters, matches, FACET_KEYS)
   const sums = totals(shown)
   // The active filters behind the button "Filter"; the search is always shown
-  const hidden = [filters.category, filters.kind, filters.account, filters.direction].filter((v) => v !== '').length
+  const hidden = [filters.category, filters.kind, filters.account, filters.direction, filters.imported].filter((v) => v !== '').length
   const filtered = hidden > 0 || filters.query.trim() !== ''
   const accounts = bankAccounts.data ?? []
   // Only the shown bookings count, so a filter change never assigns hidden ones
@@ -221,6 +228,7 @@ export function TransactionsPage({
           categories={categories.data ?? []}
           extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
           directions={DIRECTIONS}
+          importedOptions={IMPORTED_OPTIONS}
           accounts={accounts.map((account) => ({
             value: String(account.id),
             label: account.archived ? `${account.name} (archiviert)` : account.name,
