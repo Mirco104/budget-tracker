@@ -16,6 +16,7 @@ export type Page = keyof typeof ROUTES
 export const EVALUATION_ROUTES = {
   history: '#/auswertung/rueckblick',
   outlook: '#/auswertung/vorausschau',
+  categories: '#/auswertung/kategorien',
 } as const
 
 export type EvaluationPage = keyof typeof EVALUATION_ROUTES
@@ -98,7 +99,9 @@ export function useTransactionsRoute(): {
   return { hash, importPage: false, expected: false, period }
 }
 
-/** The sub page of the Auswertung in the address bar; the look back unless the outlook is chosen. */
+/** The sub page of the Auswertung in the address bar; the look back unless another one is chosen. */
 export function useEvaluationPage(): EvaluationPage {
-  return useHash() === EVALUATION_ROUTES.outlook ? 'outlook' : 'history'
+  const hash = useHash()
+  const match = (Object.keys(EVALUATION_ROUTES) as EvaluationPage[]).find((page) => EVALUATION_ROUTES[page] === hash)
+  return match ?? 'history'
 }

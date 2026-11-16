@@ -522,7 +522,56 @@ th.number {
 }
 
 /* A small note below a tile value, e.g. the period of the Ø income */
-.summary dd.tile-note {
+.summary dd/* Auswertung › Kategorien (US39): a row per category with its months and a bar relative to the largest one */
+.category-analysis .chips {
+  margin-bottom: 12px;
+}
+
+.history .category-total {
+  cursor: pointer;
+}
+
+.history .category-total th {
+  font-weight: normal;
+  width: 55%;
+}
+
+.history .category-total button {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.category-total-months {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.category-total .progress {
+  margin-top: 4px;
+}
+
+/* Income in petrol, as everywhere else */
+.category-analysis.income .progress-fill {
+  background: var(--chart-income);
+}
+
+.category-chart {
+  margin-top: 20px;
+}
+
+.category-chart h3 {
+  margin-bottom: 8px;
+}
+
+.tile-note {
   margin-top: 4px;
   font-size: 0.85rem;
   font-weight: 400;

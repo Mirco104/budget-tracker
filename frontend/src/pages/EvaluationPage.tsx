@@ -18,24 +18,31 @@ import {
   shiftMonth,
 } from '../format'
 import { rhythmLabel } from '../labels'
-import { EVALUATION_ROUTES, useEvaluationPage } from '../router'
+import { EVALUATION_ROUTES, useEvaluationPage, type EvaluationPage as EvaluationSubPage } from '../router'
 import { Loading } from '../components/ui/Loading'
+import { CategoryAnalysis } from './CategoryAnalysis'
 
-/** Analysis (R14, US13, decision 29): look back over a period and outlook from the current month on. */
+/**
+ * Analysis (R14, US13, decision 29): look back over a period, the same period per category (R34, US39) and the
+ * outlook from the current month on. The period stays while switching between look back and categories (decision 70).
+ */
 export function EvaluationPage() {
   const page = useEvaluationPage()
+  const period = usePeriodChoice()
+  const link = (target: EvaluationSubPage, label: string) => (
+    <a href={EVALUATION_ROUTES[target]} aria-current={page === target ? 'page' : undefined}>
+      {label}
+    </a>
+  )
   return (
     <section>
       <PageHeader title="Auswertung" />
       <nav className="subtabs" aria-label="Auswertung">
-        <a href={EVALUATION_ROUTES.history} aria-current={page === 'history' ? 'page' : undefined}>
-          Rückblick
-        </a>
-        <a href={EVALUATION_ROUTES.outlook} aria-current={page === 'outlook' ? 'page' : undefined}>
-          Vorausschau
-        </a>
+        {link('history', 'Rückblick')}
+        {link('categories', 'Kategorien')}
+        {link('outlook', 'Vorausschau')}
       </nav>
-      {page === 'history' ? <LookBack /> : <Outlook />}
+      {page === 'outlook' ? <Outlook /> : <LookBack choice={period} categories={page === 'categories'} />}
     </section>
   )
 }
@@ -89,15 +96,16 @@ function signClass(value: number | null): string | undefined {
   return value < 0 ? 'negative' : 'positive'
 }
 
-function LookBack() {
+type PeriodChoice = ReturnType<typeof usePeriodChoice>
+
+/** The chosen period of the look back: a quick choice or a free period from month to month. */
+function usePeriodChoice() {
   const current = currentMonth()
   const choices = presets(current)
   const [preset, setPreset] = useState<Preset>('last12')
   const [custom, setCustom] = useState<MonthPeriod>(() => choices[2].period as MonthPeriod)
   const period = preset === 'custom' ? custom : (choices.find((c) => c.value === preset)?.period as MonthPeriod)
   const complete = MONTH_PATTERN.test(period.from) && MONTH_PATTERN.test(period.to)
-  const { data, error, isPending } = useHistory(period.from, period.to, complete)
-  const [active, setActive] = useState<string | null>(null)
 
   function choose(next: Preset) {
     if (next === 'custom' && preset !== 'custom') {
@@ -107,19 +115,28 @@ function LookBack() {
     setPreset(next)
   }
 
+  return { current, choices, preset, custom, setCustom, period, complete, choose }
+}
+
+function LookBack({ choice, categories }: { choice: PeriodChoice; categories: boolean }) {
+  const { current, choices, preset, custom, setCustom, period, complete, choose } = choice
+  const { data, error, isPending } = useHistory(period.from, period.to, complete)
+  const [active, setActive] = useState<string | null>(null)
+  const requested = monthCount(period)
+
   return (
     <>
       <div className="filters">
         <div className="chips" role="group" aria-label="Zeitraum">
-          {choices.map((choice) => (
+          {choices.map((option) => (
             <button
-              key={choice.value}
+              key={option.value}
               type="button"
               className="chip plain"
-              aria-pressed={preset === choice.value}
-              onClick={() => choose(choice.value)}
+              aria-pressed={preset === option.value}
+              onClick={() => choose(option.value)}
             >
-              {choice.label}
+              {option.label}
             </button>
           ))}
         </div>
@@ -149,11 +166,39 @@ function LookBack() {
       </div>
 
       {!complete && <p className="hint">Bitte „Von“ und „Bis“ vollständig angeben.</p>}
-      {complete && isPending && <Loading text="Lade Rückblick …" />}
+      {complete && isPending && <Loading text={categories ? 'Lade Kategorien …' : 'Lade Rückblick …'} />}
       {error && <p className="error">Rückblick konnte nicht geladen werden: {errorText(error, 'Unbekannter Fehler')}</p>}
-      {data && !error && <LookBackContent data={data} requested={monthCount(period)} active={active} onActive={setActive} />}
+      {data && !error && categories && (
+        <>
+          <CountedMonthsHint data={data} requested={requested} />
+          <CategoryAnalysis data={data} />
+        </>
+      )}
+      {data && !error && !categories && (
+        <LookBackContent data={data} requested={requested} active={active} onActive={setActive} />
+      )}
     </>
   )
+}
+
+/** R14: names the months that count when the period starts before the first entry, or that none counts. */
+function CountedMonthsHint({ data, requested }: { data: HistoryData; requested: number }) {
+  if (data.months === 0) {
+    return (
+      <p className="hint">
+        In diesem Zeitraum gibt es noch keinen Monat mit Einträgen. Gezählt wird ab dem Monat des ersten Eintrags.
+      </p>
+    )
+  }
+  if (data.months < requested) {
+    return (
+      <p className="hint">
+        Es zählen {data.months === 1 ? '1 Monat' : `${data.months} Monate`} von {requested}, weil es erst ab{' '}
+        {formatMonth(data.history[0].month)} Einträge gibt.
+      </p>
+    )
+  }
+  return null
 }
 
 function LookBackContent({ data, requested, active, onActive }: {
@@ -180,17 +225,7 @@ function LookBackContent({ data, requested, active, onActive }: {
           </dd>
         </div>
       </dl>
-      {data.months === 0 && (
-        <p className="hint">
-          In diesem Zeitraum gibt es noch keinen Monat mit Einträgen. Gezählt wird ab dem Monat des ersten Eintrags.
-        </p>
-      )}
-      {data.months > 0 && data.months < requested && (
-        <p className="hint">
-          Es zählen {data.months === 1 ? '1 Monat' : `${data.months} Monate`} von {requested}, weil es erst ab{' '}
-          {formatMonth(data.history[0].month)} Einträge gibt.
-        </p>
-      )}
+      <CountedMonthsHint data={data} requested={requested} />
       {data.history.length > 0 && (
         <>
           <HistoryChart history={data.history} active={active} onActive={onActive} />
