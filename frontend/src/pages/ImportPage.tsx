@@ -104,6 +104,24 @@ function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
 
 type View = 'all' | 'skipped'
 
+/**
+ * Ticket #162, decision 72: rows with the same description, the same IBAN of the counterparty (two rows without one count
+ * as the same) and the same direction belong together.
+ */
+function sameRowKey(entry: ImportEntry): string {
+  const description = (entry.description ?? '').trim().toLocaleLowerCase('de-DE')
+  const iban = (entry.details?.counterpartyIban ?? '').replace(/\s/g, '').toUpperCase()
+  const direction = entry.amount !== null && entry.amount > 0 ? '+' : '-'
+  return `${direction}|${description}|${iban}`
+}
+
+/** Ticket #162: after a category was chosen in a row, the offer to give it to the open rows of the same kind. */
+interface SameOffer {
+  line: number
+  category: string
+  fingerprints: string[]
+}
+
 /** The value of the category filter for the chosen rows without a category (ticket #84). */
 const WITHOUT_CATEGORY = 'open'
 
@@ -149,6 +167,7 @@ function PreviewRow({
   onChange,
   chosen,
   onToggleChosen,
+  sameOffer,
 }: {
   entry: ImportEntry
   choice: Choice
@@ -163,6 +182,8 @@ function PreviewRow({
   /** Ticket #136: in the selection mode whether the row is chosen, undefined outside of it. */
   chosen?: boolean
   onToggleChosen?: () => void
+  /** Ticket #162: the open rows of the same kind that can get the category just chosen. */
+  sameOffer?: { count: number; onApply: () => void; onDismiss: () => void }
 }) {
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
@@ -263,6 +284,20 @@ function PreviewRow({
           </button>
         )}
       </span>
+      {sameOffer && (
+        <span className="import-same" role="group" aria-label={`Gleiche Zeilen wie ${description}`}>
+          <span>
+            Auch für {sameOffer.count === 1 ? '1 weitere Zeile' : `${sameOffer.count} weitere Zeilen`} mit „{description}“
+            {entry.details?.counterpartyIban ? ' und gleicher IBAN' : ''} übernehmen?
+          </span>
+          <button type="button" className="primary" onClick={sameOffer.onApply}>
+            Übernehmen
+          </button>
+          <button type="button" onClick={sameOffer.onDismiss}>
+            Nein
+          </button>
+        </span>
+      )}
     </li>
   )
 }
@@ -608,6 +643,8 @@ function Preview({
   const [highlighted, setHighlighted] = useState<number | null>(null)
   // The last category the user chose per key; it is a suggestion for the other rows with that key
   const [chosenByKey, setChosenByKey] = useState<Record<string, string>>({})
+  // Ticket #162: the offer after the last category chosen in a row
+  const [sameOffer, setSameOffer] = useState<SameOffer | null>(null)
 
   const rows = preview.entries.filter(importable)
   const notImportable = preview.entries.filter((entry) => !importable(entry))
@@ -776,6 +813,35 @@ function Preview({
     if (chose && next.category !== TRANSFER && next.category !== SAVING && entry.suggestionKey) {
       setChosenByKey((current) => ({ ...current, [entry.suggestionKey as string]: next.category }))
     }
+    // Ticket #162: a category (no transfer or saving) chosen in a row is offered to the open rows of the same kind
+    const key = sameRowKey(entry)
+    const same =
+      chose && next.category !== TRANSFER && next.category !== SAVING
+        ? open.filter((other) => other !== entry && sameRowKey(other) === key)
+        : []
+    setSameOffer(
+      same.length > 0
+        ? { line: entry.line, category: next.category, fingerprints: same.map((other) => other.fingerprint as string) }
+        : null,
+    )
+  }
+
+  // Ticket #162: the rows of the offer that are still open get its category
+  function applySameOffer(offer: SameOffer) {
+    const targets = offer.fingerprints.filter((fingerprint) => {
+      const choice = choices[fingerprint]
+      return choice?.selected && choice.category === ''
+    })
+    setChoices((current) => {
+      const updated = { ...current }
+      for (const fingerprint of targets) {
+        updated[fingerprint] = { ...updated[fingerprint], category: offer.category }
+      }
+      return updated
+    })
+    const name = categories.find((c) => String(c.id) === offer.category)?.path ?? ''
+    setNotice(`${targets.length === 1 ? '1 weitere Zeile' : `${targets.length} weitere Zeilen`} „${name}“ zugeordnet.`)
+    setSameOffer(null)
   }
 
   // Ticket #136 (before #84 for the shown rows without category): the chosen rows get one category at once, also an
@@ -1101,6 +1167,15 @@ function Preview({
               onChange={(next) => change(entry, next)}
               chosen={selecting ? chosenRows.includes(entry.fingerprint as string) : undefined}
               onToggleChosen={() => toggleChosen(entry)}
+              sameOffer={
+                sameOffer?.line === entry.line && choices[entry.fingerprint as string].category === sameOffer.category
+                  ? {
+                      count: sameOffer.fingerprints.length,
+                      onApply: () => applySameOffer(sameOffer),
+                      onDismiss: () => setSameOffer(null),
+                    }
+                  : undefined
+              }
             />
           ))}
           {listed.length === 0 && (
