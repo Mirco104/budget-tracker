@@ -42,7 +42,7 @@ Ein Eintrag im normalen Monat.
 - Der **Monatsanteil** wird nie eingetippt, die App rechnet ihn (1.200 € jährlich = 100 € im Monat) und zeigt ihn im Bearbeiten-Fenster an.
 - **Gruppen** ergeben sich aus den Feldern: Einkommen (positiver Betrag) · **Fixkosten** (Ausgabe mit Termin) · **Budgets (variable Kosten)** (Ausgabe ohne festen Termin) · **Sparen** (Sparrate, Sparziel, Rücklage von Hand).
 - **Budget einer Kategorie** = Summe aller ihrer Posten (fest und variabel, seltene mit Monatsanteil). Ein eigenes Kategorie-Soll gibt es nicht mehr.
-- **Vorgaben der Eintragungsart:** Einkommen und Fixkosten automatisch, Sparen beim Abhaken, Budgets selbst anlegen.
+- **Vorgaben der Eintragungsart:** Einkommen und Fixkosten automatisch, Sparen beim Abhaken, Budgets selbst anlegen. *(Seit Entscheidung 70 der Spezifikation ist „beim Abhaken“ die Vorgabe für jeden Posten mit Termin.)*
 - **Änderungen gelten ab einem Monat:** Ändert der Nutzer einen Posten, fragt die App „ab welchem Monat?" (Vorgabe: aktueller Monat). Vergangene Monate behalten ihren Plan. Ein beendeter Posten gilt bis zum Vormonat.
 - **Nur in Euro:** Beträge werden in Euro eingegeben. Die Eingabe in Prozent der Einnahmen entfällt; die Anteile zeigt der Balken der Planung.
 

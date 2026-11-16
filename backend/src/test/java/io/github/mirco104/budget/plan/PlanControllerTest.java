@@ -71,7 +71,7 @@ class PlanControllerTest {
                 .andExpect(jsonPath("$.items[?(@.name == 'Lebensmittel')].entryMode").value("MANUAL"))
                 .andExpect(jsonPath("$.items[?(@.name == 'Notgroschen')].entryMode").value("TICK"))
                 .andExpect(jsonPath("$.items[?(@.name == 'Notgroschen')].amount").value(-300.00))
-                .andExpect(jsonPath("$.items[?(@.name == 'Miete')].entryMode").value("AUTO"))
+                .andExpect(jsonPath("$.items[?(@.name == 'Miete')].entryMode").value("TICK"))
                 .andExpect(jsonPath("$.categories[?(@.group == 'FIXED' && @.categoryName == 'Mobilität')].total")
                         .value(143.33));
 
