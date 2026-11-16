@@ -26,7 +26,7 @@ import { SelectionBar } from '../components/SelectionBar'
 import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { categoryFits, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
+import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
@@ -103,6 +103,17 @@ function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
 }
 
 type View = 'all' | 'skipped'
+
+/** Decision 74: the options of the filter Importieren. */
+const IMPORT_STATES = [
+  { value: 'YES', label: 'Wird übernommen' },
+  { value: 'NO', label: 'Wird nicht übernommen' },
+]
+
+/** Decision 74: Einnahmen or Ausgaben, as on Transaktionen. */
+function directionOf(entry: ImportEntry): string {
+  return entry.amount !== null && entry.amount > 0 ? 'INCOME' : 'EXPENSE'
+}
 
 /** The value of the category filter for the chosen rows without a category (ticket #84). */
 const WITHOUT_CATEGORY = 'open'
@@ -610,6 +621,8 @@ function Preview({
   // starts with Einmalig; a row edited in the list or jumped to stays shown until the filters change
   const [filters, setFilters] = useState<Filters>(IMPORT_FILTERS)
   const [pinned, setPinned] = useState<string[]>([])
+  // Decision 74: '' all rows, YES the rows taken over, NO the others
+  const [importFilter, setImportFilter] = useState('')
   // Ticket #136: the selection mode with the chosen rows (by fingerprint) and the category for them
   const [selecting, setSelecting] = useState(false)
   const [chosenRows, setChosenRows] = useState<string[]>([])
@@ -661,24 +674,38 @@ function Preview({
     return choice.selected && choice.category === '' ? WITHOUT_CATEGORY : choice.category
   }
 
-  function matchesFilter(entry: ImportEntry, current: Filters): boolean {
+  // Decision 74: whether the row is taken over, for the filter Importieren
+  const importStateOf = (entry: ImportEntry) => (choices[entry.fingerprint as string].selected ? 'YES' : 'NO')
+
+  function matchesFilter(entry: ImportEntry, current: Filters, imported = importFilter): boolean {
     const search = current.query.trim().toLocaleLowerCase('de-DE')
     return (
       categoryFits(categoryKey(entry), current.category, categories) &&
       (current.account === '' || entry.source === current.account) &&
       (current.kind === '' || kindOfRow(entry) === current.kind) &&
+      (current.direction === '' || directionOf(entry) === current.direction) &&
+      (imported === '' || importStateOf(entry) === imported) &&
       (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
     )
   }
   const filterActive =
-    filters.query.trim() !== '' || filters.category !== '' || filters.account !== '' || filters.kind !== ''
+    filters.query.trim() !== '' ||
+    filters.category !== '' ||
+    filters.account !== '' ||
+    filters.kind !== '' ||
+    filters.direction !== '' ||
+    importFilter !== ''
   const filtersChanged =
     filters.query !== IMPORT_FILTERS.query ||
     filters.category !== IMPORT_FILTERS.category ||
     filters.account !== IMPORT_FILTERS.account ||
-    filters.kind !== IMPORT_FILTERS.kind
+    filters.kind !== IMPORT_FILTERS.kind ||
+    filters.direction !== IMPORT_FILTERS.direction ||
+    importFilter !== ''
   const outsideFilter = (entry: ImportEntry) => !matchesFilter(entry, filters)
   const listed = rows.filter((entry) => !outsideFilter(entry) || pinned.includes(entry.fingerprint as string))
+  // Decision 74: the shown rows that no longer fit the filters, until "Filter aktualisieren"
+  const stale = listed.filter(outsideFilter).length
   // The chosen rows the filters hide; they are taken over all the same
   const hiddenSelected = selected.filter((entry) => !listed.includes(entry)).length
   // Ticket #84: the hits of each filter option with the other filters
@@ -686,8 +713,15 @@ function Preview({
     category: categoryKey,
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
-    direction: () => '',
+    direction: directionOf,
   })
+  // Decision 74: the hits of the filter Importieren with the other filters
+  const importCounts = new Map<string, number>()
+  for (const entry of rows) {
+    if (matchesFilter(entry, filters, '')) {
+      importCounts.set(importStateOf(entry), (importCounts.get(importStateOf(entry)) ?? 0) + 1)
+    }
+  }
   // Ticket #136: the shown rows that are imported can be chosen; only the shown chosen ones get the category
   const choosable = listed.filter((entry) => choices[entry.fingerprint as string].selected)
   const chosenShown = choosable.filter((entry) => chosenRows.includes(entry.fingerprint as string))
@@ -706,6 +740,11 @@ function Preview({
   // A change of the filters lets go of the pinned rows
   function changeFilters(next: Filters) {
     setFilters(next)
+    setPinned([])
+  }
+
+  function changeImportFilter(next: string) {
+    setImportFilter(next)
     setPinned([])
   }
 
@@ -1060,6 +1099,8 @@ function Preview({
             onChange={changeFilters}
             counts={counts}
             kinds={IMPORT_KINDS}
+            directions={DIRECTIONS}
+            incomeHasKinds
             categories={categories}
             accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
             extraCategoryOptions={[
@@ -1067,12 +1108,46 @@ function Preview({
               { value: TRANSFER, label: 'Umbuchung' },
               { value: SAVING, label: 'Sparen' },
             ]}
+            extra={
+              // Decision 74: whether the row is taken over (the switch of the row)
+              <select
+                aria-label="Importieren filtern"
+                value={importFilter}
+                onChange={(e) => changeImportFilter(e.target.value)}
+              >
+                <option value="">Übernehmen und nicht</option>
+                {IMPORT_STATES.filter(
+                  (option) => (importCounts.get(option.value) ?? 0) > 0 || option.value === importFilter,
+                ).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({importCounts.get(option.value) ?? 0})
+                  </option>
+                ))}
+              </select>
+            }
           />
           {filterActive && (
             <p className="hint import-filter-summary">
               {listed.length} von {rows.length} Zeilen
+              {/* Decision 74: an edited row stays in sight although it no longer fits; this applies the filters again */}
+              {stale > 0 && (
+                <>
+                  {' · '}
+                  {stale === 1 ? '1 passt nicht mehr zum Filter' : `${stale} passen nicht mehr zum Filter`}
+                  <button type="button" className="link-button" onClick={() => setPinned([])}>
+                    Filter aktualisieren
+                  </button>
+                </>
+              )}
               {filtersChanged && (
-                <button type="button" className="link-button" onClick={() => changeFilters(IMPORT_FILTERS)}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    changeFilters(IMPORT_FILTERS)
+                    setImportFilter('')
+                  }}
+                >
                   Filter zurücksetzen
                 </button>
               )}
