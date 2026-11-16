@@ -63,7 +63,7 @@ Die App hat eine Version nach SemVer mit Vorabkennung (Ticket #129, Entscheidung
 
 Eine neue Version:
 
-1. In `CHANGELOG.md` die Punkte unter „Noch in keiner Version“ in einen neuen Abschnitt `## <Version> (<Datum>)` verschieben (Ticket #159); die App zeigt ihn beim Klick auf die Version.
+1. In `CHANGELOG.md` einen neuen Abschnitt `## <Version> (<Datum>)` oben anlegen (Ticket #159); die App zeigt ihn beim Klick auf die Version. Bis dahin kommt jede für Nutzer sichtbare Änderung in den Abschnitt der aktuellen Version.
 2. Die Version in `frontend/package.json` (dazu `npm install --package-lock-only` für `package-lock.json`) und in `backend/pom.xml` gleich setzen; die CI prüft das (`node scripts/check-version.mjs`).
 3. Nach dem Merge auf `main` setzt die GitHub Action *Release tag* (`.github/workflows/release-tag.yml`) das Tag `v<Version>` auf den Merge-Commit, wenn es noch nicht existiert. Sie läuft bei jeder Änderung von `frontend/package.json` (oder der Action selbst) auf `main` und lässt sich unter *Actions* auch von Hand starten.
 
