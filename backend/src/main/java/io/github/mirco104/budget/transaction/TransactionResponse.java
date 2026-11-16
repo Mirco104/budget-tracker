@@ -6,7 +6,8 @@ import java.time.LocalDate;
 
 /**
  * A booking of the transaction list. Only real bookings appear (P1). A transfer (R27) has no category; auto marks an
- * entry the app made from the plan (P6); fix marks an expense that fulfils a term (P5).
+ * entry the app made from the plan (P6); fix marks an expense that fulfils a term (P5); imported marks a booking a bank
+ * import created, also after it was edited (decision 70).
  */
 public record TransactionResponse(
         Long id,
@@ -19,6 +20,7 @@ public record TransactionResponse(
         String accountName,
         boolean transfer,
         boolean auto,
+        boolean imported,
         boolean fix,
         java.util.UUID reserveItemKey,
         Long savingGoalId,
@@ -48,6 +50,7 @@ public record TransactionResponse(
                 transaction.getAccount().getName(),
                 transaction.isTransfer(),
                 transaction.isAuto(),
+                transaction.getImportBatch() != null,
                 fix,
                 transaction.reserveOf(termItemKey),
                 transaction.getSavingGoal() == null ? null : transaction.getSavingGoal().getId(),
