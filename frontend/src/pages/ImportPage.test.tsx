@@ -851,6 +851,37 @@ describe('ImportPage', () => {
     expect(body.rows.map((r: { categoryId: number | null }) => r.categoryId)).toEqual([8, 1, 8])
   })
 
+  // Ticket #160: the whole row is the hit area, the bar stands above the list
+  it('chooses a row with a click anywhere in it while selecting', async () => {
+    renderPage()
+    await upload()
+    const [first] = row('Spiele Shop')
+
+    // Outside the selection mode a click in the row chooses nothing
+    fireEvent.click(within(first).getByText('Spiele Shop'))
+    expect(within(first).queryByRole('checkbox', { name: 'Spiele Shop auswählen' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auswählen' }))
+    const bar = screen.getByRole('region', { name: 'Auswahl' })
+    expect(bar.compareDocumentPosition(screen.getByRole('list', { name: 'Neue Zeilen' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    fireEvent.click(within(first).getByText('Spiele Shop'))
+    expect(within(first).getByRole('checkbox', { name: 'Spiele Shop auswählen' })).toBeChecked()
+    expect(bar).toHaveTextContent('1 ausgewählt')
+
+    // The own fields of the row keep their meaning
+    fireEvent.click(within(first).getByLabelText('Kategorie für Spiele Shop'))
+    fireEvent.click(within(first).getByRole('checkbox', { name: 'Spiele Shop importieren' }))
+    expect(within(first).getByRole('checkbox', { name: 'Spiele Shop importieren' })).not.toBeChecked()
+    expect(within(first).getByRole('checkbox', { name: 'Spiele Shop auswählen' })).toBeDisabled()
+
+    // A row that is not imported cannot be chosen by a click either
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord importieren' }))
+    fireEvent.click(within(row('Kino Nord')[0]).getByText('Kino Nord'))
+    expect(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord auswählen' })).not.toBeChecked()
+  })
+
   it('can give a chosen row a transfer, also without a filter', async () => {
     renderPage()
     await upload()

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { useDeleteTransaction } from '../api/transactions'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
@@ -166,22 +166,25 @@ function PreviewRow({
 }) {
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
+  const selectable = chosen !== undefined && choice.selected
+
+  // Ticket #160: in the selection mode a click anywhere in the row chooses it, except on its own fields and links
+  function handleRowClick(event: MouseEvent<HTMLLIElement>) {
+    const target = event.target as HTMLElement
+    if (selectable && !target.closest('input, select, button, label, a, textarea')) {
+      onToggleChosen?.()
+    }
+  }
 
   return (
     <li
       id={`import-line-${entry.line}`}
-      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}${chosen ? ' chosen' : ''}`}
+      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}${chosen ? ' chosen' : ''}${selectable ? ' selectable' : ''}`}
       aria-label={description}
+      onClick={handleRowClick}
     >
-      <span className="import-checks">
-        <input
-          type="checkbox"
-          className="import-check"
-          aria-label={`${description} importieren`}
-          checked={choice.selected}
-          onChange={(e) => onChange({ ...choice, selected: e.target.checked })}
-        />
-        {chosen !== undefined && (
+      {chosen !== undefined && (
+        <span className="import-pick">
           <input
             type="checkbox"
             className="import-check select"
@@ -191,8 +194,8 @@ function PreviewRow({
             disabled={!choice.selected}
             onChange={onToggleChosen}
           />
-        )}
-      </span>
+        </span>
+      )}
       <span className="import-date">{entry.date && formatDate(entry.date)}</span>
       <span className="import-main">
         <span className="import-description">{description}</span>
@@ -263,6 +266,20 @@ function PreviewRow({
           </button>
         )}
       </span>
+      {/* Ticket #160: a switch at the end of the row, so it is not mixed up with the selection on the left */}
+      <label className="import-toggle">
+        <input
+          type="checkbox"
+          className="switch"
+          aria-label={`${description} importieren`}
+          checked={choice.selected}
+          onChange={(e) => onChange({ ...choice, selected: e.target.checked })}
+        />
+        <span className="import-toggle-text">
+          <span className="import-toggle-label">Importieren</span>
+          <span className="import-toggle-state">{choice.selected ? 'wird übernommen' : 'wird nicht übernommen'}</span>
+        </span>
+      </label>
     </li>
   )
 }
@@ -1069,25 +1086,38 @@ function Preview({
           >
             Auswählen
           </button>
-          {selecting && (
-            <SelectionBar
-              count={chosenShown.length}
-              shown={choosable.length}
-              onSelectAll={() => setChosenRows(choosable.map((entry) => entry.fingerprint as string))}
-              onClear={() => setChosenRows([])}
-              categories={categories}
-              value={assignCategory}
-              onChange={setAssignCategory}
-              leading={KIND_OPTIONS}
-              onAssign={assignChosen}
-              onDone={stopSelecting}
-            />
-          )}
         </div>
       )}
 
+      {/* Ticket #160: the bar sits above the list and stays at the top while the list scrolls */}
+      {selecting && view !== 'skipped' && (
+        <SelectionBar
+          count={chosenShown.length}
+          shown={choosable.length}
+          onSelectAll={() => setChosenRows(choosable.map((entry) => entry.fingerprint as string))}
+          onClear={() => setChosenRows([])}
+          categories={categories}
+          value={assignCategory}
+          onChange={setAssignCategory}
+          leading={KIND_OPTIONS}
+          onAssign={assignChosen}
+          onDone={stopSelecting}
+        />
+      )}
+
+      {view !== 'skipped' && listed.length > 0 && (
+        // Ticket #160: the column heads of the table; the rows below use the same columns
+        <div className={`import-row import-head${selecting ? ' selecting' : ''}`} aria-hidden="true">
+          {selecting && <span className="import-pick" />}
+          <span className="import-date">Datum</span>
+          <span className="import-main">Beschreibung</span>
+          <span className="import-amount">Betrag</span>
+          <span className="import-category">Kategorie</span>
+          <span className="import-toggle">Importieren</span>
+        </div>
+      )}
       {view !== 'skipped' && (
-        <ul className="import-list" aria-label="Neue Zeilen">
+        <ul className={`import-list${selecting ? ' selecting' : ''}`} aria-label="Neue Zeilen">
           {listed.map((entry) => (
             <PreviewRow
               key={entry.fingerprint}
