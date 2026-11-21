@@ -143,6 +143,42 @@ function sent(fetchMock: ReturnType<typeof vi.fn>, url: string) {
 }
 
 describe('ImportPage', () => {
+
+  it('says so when the file is fully imported already (ticket #161)', async () => {
+    const all: ImportPreview = {
+      ...preview, rows: 2, newRows: 0, duplicates: 2, skipped: 0,
+      entries: [
+        entry({ line: 2, fingerprint: '1'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Alt' }),
+        entry({ line: 3, fingerprint: '2'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Älter' }),
+      ],
+    }
+    renderPage(() => json(all))
+    await upload()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Diese Datei ist schon vollständig importiert. Es wird nichts übernommen.')
+    expect(screen.queryByRole('button', { name: /übernehmen/ })).not.toBeInTheDocument()
+  })
+
+  it('says so when a file has no new rows but not only duplicates (ticket #161)', async () => {
+    const none: ImportPreview = {
+      ...preview, rows: 2, newRows: 0, duplicates: 1, skipped: 1,
+      entries: [
+        entry({ line: 2, fingerprint: '1'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Alt' }),
+        { ...entry({ line: 3 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
+      ],
+    }
+    renderPage(() => json(none))
+    await upload()
+
+    expect(screen.getByRole('status')).toHaveTextContent('In dieser Datei gibt es keine Einträge, die noch nicht angelegt sind.')
+  })
+
+  it('shows no such notice while there are new rows (ticket #161)', async () => {
+    renderPage()
+    await upload()
+
+    expect(screen.queryByText(/schon vollständig importiert/)).not.toBeInTheDocument()
+  })
   it('names the supported banks, the Sparkasse, the VR-Bank and the Deutsche Bank included (decisions 47, 64, 68)', () => {
     renderPage()
 
