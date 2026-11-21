@@ -143,6 +143,60 @@ function sent(fetchMock: ReturnType<typeof vi.fn>, url: string) {
 }
 
 describe('ImportPage', () => {
+  // Ticket #162, decision 72
+  it('offers the chosen category to the open rows with the same description and IBAN', async () => {
+    renderPage()
+    await upload()
+    const [first, second] = row('Spiele Shop')
+
+    fireEvent.change(within(first).getByRole('combobox', { name: 'Kategorie für Spiele Shop' }), { target: { value: '1' } })
+    const offer = within(first).getByRole('group', { name: 'Gleiche Zeilen wie Spiele Shop' })
+    expect(offer).toHaveTextContent('Auch für 1 weitere Zeile mit „Spiele Shop“ übernehmen?')
+    expect(within(second).getByRole('combobox', { name: 'Kategorie für Spiele Shop' })).toHaveValue('')
+
+    fireEvent.click(within(offer).getByRole('button', { name: 'Übernehmen' }))
+
+    expect(within(second).getByRole('combobox', { name: 'Kategorie für Spiele Shop' })).toHaveValue('1')
+    expect(screen.getByRole('status')).toHaveTextContent('1 weitere Zeile „Wohnen“ zugeordnet.')
+    expect(screen.queryByRole('group', { name: 'Gleiche Zeilen wie Spiele Shop' })).not.toBeInTheDocument()
+  })
+
+  it('lets the offer go with Nein and makes none for a transfer (ticket #162)', async () => {
+    renderPage()
+    await upload()
+    const [first, second] = row('Spiele Shop')
+
+    fireEvent.change(within(first).getByRole('combobox', { name: 'Kategorie für Spiele Shop' }), { target: { value: '1' } })
+    fireEvent.click(within(first).getByRole('button', { name: 'Nein' }))
+    expect(screen.queryByRole('group', { name: 'Gleiche Zeilen wie Spiele Shop' })).not.toBeInTheDocument()
+    expect(within(second).getByRole('combobox', { name: 'Kategorie für Spiele Shop' })).toHaveValue('')
+
+    fireEvent.change(within(second).getByRole('combobox', { name: 'Kategorie für Spiele Shop' }), { target: { value: 'transfer' } })
+    expect(screen.queryByRole('group', { name: 'Gleiche Zeilen wie Spiele Shop' })).not.toBeInTheDocument()
+  })
+
+  it('makes no offer for rows with another IBAN (ticket #162)', async () => {
+    const details = (iban: string) => ({ counterpartyIban: iban, purpose: null, kind: null, valueDate: null, mandateId: null, creditorId: null })
+    renderPage(() =>
+      json({
+        ...preview,
+        entries: [
+          entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Miete', details: details('DE02 1203 0000 0000 2020 51') }),
+          entry({ line: 3, fingerprint: 'b'.repeat(64), description: 'Miete', details: details('DE88 1001 0010 0000 0000 00') }),
+          entry({ line: 4, fingerprint: 'c'.repeat(64), description: 'miete ', details: details('DE02120300000000202051') }),
+        ],
+      }),
+    )
+    await upload()
+    const [first] = row('Miete')
+
+    fireEvent.change(within(first).getByRole('combobox', { name: 'Kategorie für Miete' }), { target: { value: '1' } })
+
+    expect(within(first).getByRole('group', { name: 'Gleiche Zeilen wie Miete' })).toHaveTextContent(
+      'Auch für 1 weitere Zeile mit „Miete“ und gleicher IBAN übernehmen?',
+    )
+  })
+
 
   it('says so when the file is fully imported already (ticket #161)', async () => {
     const all: ImportPreview = {

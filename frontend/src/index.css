@@ -2719,6 +2719,24 @@ input.switch:focus-visible {
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Ticket #162: the offer to give the chosen category to the rows of the same kind, under the whole row */
+.import-same {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-radius: var(--radius, 8px);
+  background: var(--primary-soft);
+  font-size: 0.9rem;
+}
+
+.import-same > span {
+  flex: 1 1 16rem;
+}
+
 .import-row.highlight {
   background: var(--primary-soft);
   box-shadow: inset 4px 0 0 var(--primary);
