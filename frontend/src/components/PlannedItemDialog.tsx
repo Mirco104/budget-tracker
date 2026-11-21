@@ -23,8 +23,8 @@ const KINDS: { value: Kind; label: string }[] = [
 ]
 
 const ENTRY_MODES: { value: EntryMode; label: string }[] = [
-  { value: 'AUTO', label: 'automatisch am Termin' },
   { value: 'TICK', label: 'beim Abhaken' },
+  { value: 'AUTO', label: 'automatisch am Termin' },
   { value: 'MANUAL', label: 'selbst anlegen' },
 ]
 
@@ -42,12 +42,13 @@ function kindOf(item: PlannedItem | null, group: PlanGroup | undefined): Kind {
   return g === 'INCOME' ? 'income' : g === 'SAVING' ? 'saving' : 'expense'
 }
 
-// Decision 51: income and fixed costs automatically, saving when ticked off, budgets by the user
-function defaultMode(kind: Kind, rhythm: string): EntryMode {
+// Decision 51, changed by decision 70: a dated item is ticked off, one without a date entered by the user
+function defaultMode(rhythm: string): EntryMode {
   if (rhythm === NONE) {
     return 'MANUAL'
   }
-  return kind === 'saving' ? 'TICK' : 'AUTO'
+  // Decision 70 (ticket #163): entering automatically is a deliberate choice
+  return 'TICK'
 }
 
 interface Props {
@@ -99,7 +100,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const [day, setDay] = useState(anchor ? String(anchor.day) : preset?.day ? String(preset.day) : '1')
   const [dueMonth, setDueMonth] = useState(anchor ? anchor.month : Number(month.slice(5, 7)))
   const [firstDate, setFirstDate] = useState(item?.anchorDate ?? `${month}-01`)
-  const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? defaultMode(kindOf(item, group), initialRhythm))
+  const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? defaultMode(initialRhythm))
   const [workdaysOnly, setWorkdaysOnly] = useState(item?.workdaysOnly ?? false)
   // A change applies from the month the page shows, never before the version starts
   const [validFrom, setValidFrom] = useState(item && item.validFrom > month ? item.validFrom : month)
@@ -138,14 +139,14 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
     if (next === NONE && entryMode === 'AUTO') {
       setEntryMode('MANUAL')
     } else if (rhythm === NONE && next !== NONE && entryMode === 'MANUAL' && kind !== 'expense') {
-      setEntryMode(defaultMode(kind, next))
+      setEntryMode(defaultMode(next))
     }
   }
 
   function chooseKind(next: Kind) {
     setKind(next)
     if (!item) {
-      setEntryMode(defaultMode(next, rhythm))
+      setEntryMode(defaultMode(rhythm))
     }
   }
 

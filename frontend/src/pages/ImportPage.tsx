@@ -978,6 +978,16 @@ function Preview({
           {preview.duplicates > 0 && `, ${preview.duplicates} schon importiert`}
           {preview.skipped > 0 && `, ${preview.skipped} nicht importierbar`}
         </p>
+        {rows.length === 0 && (
+          <p className="import-nothing-new" role="status">
+            <strong>
+              {preview.rows > 0 && preview.duplicates === preview.rows
+                ? 'Diese Datei ist schon vollständig importiert.'
+                : 'In dieser Datei gibt es keine Einträge, die noch nicht angelegt sind.'}
+            </strong>{' '}
+            Es wird nichts übernommen.
+          </p>
+        )}
         {preview.sources.length > 0 && (
           <div className="import-sources">
             <h3>Konten</h3>
@@ -1169,14 +1179,16 @@ function Preview({
             Fertige übernehmen ({finished.length})
           </button>
         )}
-        <button
-          type="button"
-          className="primary"
-          disabled={selected.length === 0 || open.length > 0 || commit.isPending}
-          onClick={() => void handleCommit()}
-        >
-          {selected.length === 1 ? '1 Buchung übernehmen' : `${selected.length} Buchungen übernehmen`}
-        </button>
+        {rows.length > 0 && (
+          <button
+            type="button"
+            className="primary"
+            disabled={selected.length === 0 || open.length > 0 || commit.isPending}
+            onClick={() => void handleCommit()}
+          >
+            {selected.length === 1 ? '1 Buchung übernehmen' : `${selected.length} Buchungen übernehmen`}
+          </button>
+        )}
       </div>
       {open.length > 0 && (
         <p className="hint import-open">
