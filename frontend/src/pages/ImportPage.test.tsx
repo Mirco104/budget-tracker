@@ -755,6 +755,47 @@ describe('ImportPage', () => {
       .map((item) => item.getAttribute('aria-label'))
   }
 
+  // Decision 74: Einnahmen / Ausgaben as on Transaktionen, Importieren, and "Filter aktualisieren"
+  it('filters by income or expense and by importing, and applies the filters again', async () => {
+    renderPage(() =>
+      json({
+        ...preview,
+        entries: [
+          ...preview.entries,
+          entry({ line: 9, fingerprint: '9'.repeat(64), description: 'Erstattung', suggestionKey: 'erstattung', amount: 12 }),
+        ],
+      }),
+    )
+    await upload()
+    const names = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+
+    expect(names('Einnahmen oder Ausgaben filtern')).toEqual(['Einnahmen und Ausgaben', 'Einnahmen (1)', 'Ausgaben (5)'])
+    fireEvent.change(screen.getByLabelText('Einnahmen oder Ausgaben filtern'), { target: { value: 'INCOME' } })
+    expect(listed()).toEqual(['Erstattung'])
+    // The kinds of the import apply to income too
+    expect(screen.getByLabelText('Art filtern')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Einnahmen oder Ausgaben filtern'), { target: { value: '' } })
+
+    // The possible duplicate is not ticked at the start
+    expect(names('Importieren filtern')).toEqual(['Übernehmen und nicht', 'Wird übernommen (5)', 'Wird nicht übernommen (1)'])
+    fireEvent.change(screen.getByLabelText('Importieren filtern'), { target: { value: 'NO' } })
+    expect(listed()).toEqual(['Bäcker'])
+
+    fireEvent.change(screen.getByLabelText('Importieren filtern'), { target: { value: 'YES' } })
+    fireEvent.click(within(row('Spiele Shop')[0]).getByRole('checkbox', { name: 'Spiele Shop importieren' }))
+    // The edited row stays in sight until the filters are applied again
+    expect(listed()).toEqual(['Kino Nord', 'Spiele Shop', 'Spiele Shop', 'Auf Pocket', 'Erstattung'])
+    expect(screen.getByText(/1 passt nicht mehr zum Filter/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter aktualisieren' }))
+    expect(listed()).toEqual(['Kino Nord', 'Spiele Shop', 'Auf Pocket', 'Erstattung'])
+    expect(screen.queryByRole('button', { name: 'Filter aktualisieren' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
+    expect(screen.getByLabelText('Importieren filtern')).toHaveValue('')
+    expect(screen.getByLabelText('Einnahmen oder Ausgaben filtern')).toHaveValue('')
+  })
+
   it('filters the rows by description and resets the filter', async () => {
     renderPage()
     await upload()
