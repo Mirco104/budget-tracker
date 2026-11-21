@@ -38,7 +38,7 @@ function directionOf(entry: Transaction): string {
   return entry.amount > 0 ? 'INCOME' : 'EXPENSE'
 }
 
-/** AP 32: for the filter Importiert (decision 76). */
+/** AP 32: for the filter Importiert (decision 75). */
 function importedOf(entry: Transaction): string {
   return entry.imported ? 'YES' : 'NO'
 }

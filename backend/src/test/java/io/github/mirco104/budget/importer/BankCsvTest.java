@@ -84,7 +84,7 @@ class BankCsvTest {
             Girokonto;DE89370400440532013000;GENODEF1XXX;Beispielbank eG;;11.11.2026;Beispiel Payment GmbH;GB82WEST12345698765432;WESTGB2L;Kartenzahlung girocard;Kiosk Beispiel/Musterstadt/DE         11.11.2026 um 09:00:00 Uhr 12345678/123458/ECTL/      12345678/0001234567/1/1230 REF 123458/260024;-3,00;EUR;;;;;
             """;
 
-    // Deutsche Bank (decision 68): a preamble with the account (name, number, IBAN) before the header in line 8, ";",
+    // Deutsche Bank (decision 76): a preamble with the account (name, number, IBAN) before the header in line 8, ";",
     // d.M.yyyy without leading zeros, signed German amounts in Betrag and again in Soll/Haben, a footer with the balance.
     // All values fictional, the IBANs are ISO 13616 examples.
     static final String DEUTSCHE_BANK = """

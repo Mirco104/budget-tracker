@@ -233,7 +233,7 @@ describe('ImportPage', () => {
 
     expect(screen.queryByText(/schon vollständig importiert/)).not.toBeInTheDocument()
   })
-  it('names the supported banks, the Sparkasse, the VR-Bank and the Deutsche Bank included (decisions 47, 64, 68)', () => {
+  it('names the supported banks, the Sparkasse, the VR-Bank and the Deutsche Bank included (decisions 47, 64, 76)', () => {
     renderPage()
 
     expect(screen.getByRole('region', { name: 'Datei wählen' })).toHaveTextContent(
