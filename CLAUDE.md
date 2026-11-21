@@ -44,7 +44,7 @@ Budget tracker web app: set target budgets per category, record income and expen
 - Acceptance criteria of the user story are met
 - Tests written and green, lint green, CI green
 - No TODOs left without a note in the PR
-- Every change users can see has a German line in `CHANGELOG.md`, in the section of the version that is not released yet; open a new section and raise the version (see `docs/betrieb.md`, "Version") when the top section is already released (tagged)
+- Every change users can see has a German line in `CHANGELOG.md`, in the section of the version that is not released yet; open a new section and raise the version (see `docs/betrieb.md`, "Version") when the top section is already released (tagged). Every section splits its points into `### Neu` (new features) and `### Änderungen` (changes and fixes of what exists), in this order; a group without points is left out
 
 ## Public repository: do not commit
 - Real financial data, names, account details, secrets, `.env` files, local database files

@@ -6,12 +6,17 @@ Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt dies
 
 Nachbesserungen nach dem ersten Test im Bekanntenkreis.
 
-- **Änderungen:** Ein Klick auf die Version in der Fußzeile zeigt diese Liste.
+### Neu
+
+- **Liste der Änderungen:** Ein Klick auf die Version in der Fußzeile zeigt diese Liste.
 - **Auswertung je Kategorie:** Die neue Unterseite *Kategorien* zeigt für den Zeitraum des Rückblicks je Kategorie Summe und Durchschnitt pro Monat, für Ausgaben oder Einnahmen, und den Verlauf einer gewählten Kategorie als Diagramm.
 - **Filter „Importiert“:** Auf *Transaktionen* lassen sich Buchungen danach filtern, ob sie aus einem Import stammen.
-- **Import als Tabelle:** Die Zeilen des Imports stehen in festen Spalten; ein Schalter am Ende jeder Zeile sagt, ob sie übernommen wird, getrennt vom Auswählen mehrerer Zeilen.
 - **Mehr Filter im Import:** Einnahmen oder Ausgaben, übernommen oder nicht, und „Filter aktualisieren“, wenn eine bearbeitete Zeile nicht mehr zum Filter passt.
 - **Gleiche Zeilen im Import:** Nach der Wahl einer Kategorie bietet der Import an, sie auch den weiteren Zeilen mit derselben Beschreibung (und IBAN) zu geben.
+
+### Änderungen
+
+- **Import als Tabelle:** Die Zeilen des Imports stehen in festen Spalten; ein Schalter am Ende jeder Zeile sagt, ob sie übernommen wird, getrennt vom Auswählen mehrerer Zeilen.
 - **Bessere Erkennung geplanter Termine im Import:** Der Verwendungszweck zählt mit (z. B. „Lohn/Gehalt“), ein Gehalt darf bis zu 10 Tage vor dem Termin kommen und wird nicht mehr doppelt gebucht, und Fixkosten mit festem Betrag werden auch ohne passenden Namen erkannt.
 - **Schon importierte Datei:** Bringt eine Datei nichts Neues, sagt der Import das deutlich, statt nur ausgegraute Zeilen zu zeigen.
 - **Abhaken als Vorgabe:** Neue Posten werden standardmäßig abgehakt statt automatisch eingetragen; bestehende Posten bleiben, wie sie sind.
@@ -21,6 +26,8 @@ Nachbesserungen nach dem ersten Test im Bekanntenkreis.
 ## 0.1.0-alpha (15.11.2026)
 
 Die erste Version für den Test im Bekanntenkreis.
+
+### Neu
 
 - **Anmeldung und Konto:** Anmelden mit E-Mail und Passwort, Einladung per Link, Passwort vergessen über einen Link vom Admin, eigene Daten herunterladen oder löschen. Jede Person sieht nur ihre eigenen Daten.
 - **Übersicht:** Der Monat auf einen Blick mit Einnahmen, Ausgaben und Plan gegen Ist je Kategorie; eine Glocke meldet Kontostände unter der Untergrenze, geänderte Preise und eine überplante Planung.
