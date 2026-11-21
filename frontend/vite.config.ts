@@ -8,6 +8,10 @@ import { defineConfig } from 'vite'
 const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string })
   .version
 
+// Ticket #159: the changes of every version, shown on a click on the version (CHANGELOG.md in the root of the repository;
+// the Docker build copies it next to the frontend)
+const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf-8')
+
 // Ticket #129: the commit of the build; in the Docker image there is no .git, there it comes from APP_COMMIT
 function commit(): string {
   if (process.env.APP_COMMIT) {
@@ -26,6 +30,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __APP_COMMIT__: JSON.stringify(commit()),
+    __APP_CHANGELOG__: JSON.stringify(changelog),
   },
   server: {
     proxy: {

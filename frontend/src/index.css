@@ -2083,12 +2083,6 @@ label.tx.disabled {
   min-width: 12rem;
 }
 
-.import-checks {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .import-row.chosen {
   background: var(--primary-soft);
 }
@@ -2607,17 +2601,166 @@ label.tx.disabled {
   list-style: none;
 }
 
+/* Ticket #160: the rows are a table with fixed columns; in the selection mode a column for the round tick comes first */
 .import-row {
   display: grid;
-  grid-template-columns: auto 6.5rem minmax(0, 1fr) auto minmax(12rem, 16rem);
+  grid-template-areas: 'date main amount cat imp';
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto minmax(12rem, 16rem) 7.5rem;
   gap: 8px 12px;
   align-items: center;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
 }
 
-.import-row.unselected {
+.import-list.selecting .import-row,
+.import-head.selecting {
+  grid-template-areas: 'pick date main amount cat imp';
+  grid-template-columns: 2rem 6.5rem minmax(0, 1fr) auto minmax(12rem, 16rem) 7.5rem;
+}
+
+.import-list.skipped .import-row {
+  grid-template-areas: 'date main amount';
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+}
+
+.import-pick {
+  display: flex;
+  grid-area: pick;
+  justify-content: center;
+}
+
+.import-date {
+  grid-area: date;
+}
+
+.import-main {
+  grid-area: main;
+}
+
+.import-amount {
+  grid-area: amount;
+}
+
+.import-category {
+  grid-area: cat;
+}
+
+.import-toggle {
+  grid-area: imp;
+}
+
+.import-head {
+  padding-block: 8px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface-3);
   color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.import-head .import-main {
+  display: block;
+}
+
+/* A row that is not imported fades, its amount is struck through; the switch stays clear */
+.import-row.unselected > :not(.import-toggle) {
+  opacity: 0.55;
+}
+
+.import-row.unselected .import-amount {
+  text-decoration: line-through;
+}
+
+.import-row.selectable {
+  cursor: pointer;
+}
+
+.import-row.selectable:hover:not(.chosen) {
+  background: var(--surface-2);
+}
+
+/* Ticket #160: importing is a switch, green when the row is taken over */
+.import-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+input.switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  appearance: none;
+  transition: background-color 0.15s ease;
+}
+
+input.switch::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  content: '';
+  transition: left 0.15s ease;
+}
+
+input.switch:checked {
+  background: var(--saving);
+}
+
+input.switch:checked::after {
+  left: 19px;
+}
+
+input.switch:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.import-toggle-text {
+  display: none;
+}
+
+/* Ticket #160: choosing a row is a round blue tick, unlike the switch */
+.import-check.select {
+  display: inline-grid;
+  place-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  cursor: pointer;
+  appearance: none;
+}
+
+.import-check.select:checked {
+  background: var(--primary);
+}
+
+.import-check.select:checked::after {
+  width: 6px;
+  height: 10px;
+  border: solid var(--on-primary);
+  border-width: 0 2px 2px 0;
+  content: '';
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.import-check.select:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 
 /* R27: the counterpart a hint jumped to, for a moment */
@@ -2639,7 +2782,9 @@ label.tx.disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .import-row {
+  .import-row,
+  input.switch,
+  input.switch::after {
     transition: none;
   }
 }
@@ -2647,11 +2792,6 @@ label.tx.disabled {
 /* An open row still needs its category (US33) */
 .import-row.open .import-category select {
   border-color: var(--warn);
-}
-
-.import-check {
-  width: 20px;
-  height: 20px;
 }
 
 .import-date {
@@ -2789,34 +2929,66 @@ label.tx.disabled {
 }
 
 @media (max-width: 720px) {
-  /* Cards instead of a table on phones */
+  /* Cards instead of a table on phones (ticket #160: the switch with its label at the bottom of the card) */
   .import-row {
+    grid-template-areas:
+      'date date'
+      'main amount'
+      'cat cat'
+      'imp imp';
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .import-list.selecting .import-row {
+    grid-template-areas:
+      'pick date date'
+      'pick main amount'
+      'cat cat cat'
+      'imp imp imp';
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
+  .import-list.skipped .import-row {
+    grid-template-areas:
+      'date date'
+      'main amount';
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .import-head {
+    display: none;
+  }
+
+  .import-pick {
+    align-self: start;
+    padding-top: 2px;
+  }
+
   .import-date {
-    grid-column: 2 / 4;
-    grid-row: 1;
     color: var(--muted);
     font-size: 0.85rem;
   }
 
-  .import-checks {
-    grid-row: 1 / 3;
+  .import-toggle {
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
   }
 
-  .import-main {
-    grid-column: 2;
-    grid-row: 2;
+  .import-toggle-text {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    justify-content: space-between;
+    width: 100%;
   }
 
-  .import-amount {
-    grid-column: 3;
-    grid-row: 2;
+  .import-toggle-label {
+    font-weight: 600;
   }
 
-  .import-category {
-    grid-column: 1 / 4;
+  .import-toggle-state {
+    color: var(--muted);
+    font-size: 0.85rem;
   }
 
   .import-open {
@@ -2975,7 +3147,42 @@ label.tx.disabled {
   white-space: nowrap;
 }
 .legal .app-version {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.legal .app-version:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
+}
+
+/* Ticket #159: the changes of every version */
+.changelog section + section {
+  margin-top: 20px;
+}
+
+.changelog h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.changelog p {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.changelog ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
 }
 
 /* On the phone only the short name fits next to the brand */
@@ -3026,6 +3233,7 @@ label.tx.disabled {
 /* --- Planning (section 19, AP 27b) --- */
 :root {
   --saving: #2e7d4f;
+  --saving-hover: #24643f;
   --saving-soft: #e8f5ed;
   --plan-fixed: #2f5bd3;
   --plan-budget: #7b9cf2;
@@ -3034,6 +3242,7 @@ label.tx.disabled {
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --saving: #6cc493;
+    --saving-hover: #8fd6ad;
     --saving-soft: #17301f;
     --plan-fixed: #7b9cf2;
     --plan-budget: #3e5aa8;
@@ -3042,6 +3251,7 @@ label.tx.disabled {
 }
 :root[data-theme="dark"] {
   --saving: #6cc493;
+  --saving-hover: #8fd6ad;
   --saving-soft: #17301f;
   --plan-fixed: #7b9cf2;
   --plan-budget: #3e5aa8;
@@ -3112,6 +3322,11 @@ button.saving-button {
   background: var(--saving);
   border-color: var(--saving);
   color: var(--surface);
+}
+/* Ticket #164: the general button hover would turn the background light and the light text unreadable */
+button.saving-button:hover:not(:disabled) {
+  background: var(--saving-hover);
+  border-color: var(--saving-hover);
 }
 .plan-done {
   margin: 0;

@@ -143,6 +143,42 @@ function sent(fetchMock: ReturnType<typeof vi.fn>, url: string) {
 }
 
 describe('ImportPage', () => {
+
+  it('says so when the file is fully imported already (ticket #161)', async () => {
+    const all: ImportPreview = {
+      ...preview, rows: 2, newRows: 0, duplicates: 2, skipped: 0,
+      entries: [
+        entry({ line: 2, fingerprint: '1'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Alt' }),
+        entry({ line: 3, fingerprint: '2'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Älter' }),
+      ],
+    }
+    renderPage(() => json(all))
+    await upload()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Diese Datei ist schon vollständig importiert. Es wird nichts übernommen.')
+    expect(screen.queryByRole('button', { name: /übernehmen/ })).not.toBeInTheDocument()
+  })
+
+  it('says so when a file has no new rows but not only duplicates (ticket #161)', async () => {
+    const none: ImportPreview = {
+      ...preview, rows: 2, newRows: 0, duplicates: 1, skipped: 1,
+      entries: [
+        entry({ line: 2, fingerprint: '1'.repeat(64), status: 'DUPLICATE', reason: 'schon importiert', description: 'Alt' }),
+        { ...entry({ line: 3 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
+      ],
+    }
+    renderPage(() => json(none))
+    await upload()
+
+    expect(screen.getByRole('status')).toHaveTextContent('In dieser Datei gibt es keine Einträge, die noch nicht angelegt sind.')
+  })
+
+  it('shows no such notice while there are new rows (ticket #161)', async () => {
+    renderPage()
+    await upload()
+
+    expect(screen.queryByText(/schon vollständig importiert/)).not.toBeInTheDocument()
+  })
   it('names the supported banks, the Sparkasse, the VR-Bank and the Deutsche Bank included (decisions 47, 64, 68)', () => {
     renderPage()
 
@@ -719,6 +755,47 @@ describe('ImportPage', () => {
       .map((item) => item.getAttribute('aria-label'))
   }
 
+  // Decision 74: Einnahmen / Ausgaben as on Transaktionen, Importieren, and "Filter aktualisieren"
+  it('filters by income or expense and by importing, and applies the filters again', async () => {
+    renderPage(() =>
+      json({
+        ...preview,
+        entries: [
+          ...preview.entries,
+          entry({ line: 9, fingerprint: '9'.repeat(64), description: 'Erstattung', suggestionKey: 'erstattung', amount: 12 }),
+        ],
+      }),
+    )
+    await upload()
+    const names = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
+
+    expect(names('Einnahmen oder Ausgaben filtern')).toEqual(['Einnahmen und Ausgaben', 'Einnahmen (1)', 'Ausgaben (5)'])
+    fireEvent.change(screen.getByLabelText('Einnahmen oder Ausgaben filtern'), { target: { value: 'INCOME' } })
+    expect(listed()).toEqual(['Erstattung'])
+    // The kinds of the import apply to income too
+    expect(screen.getByLabelText('Art filtern')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Einnahmen oder Ausgaben filtern'), { target: { value: '' } })
+
+    // The possible duplicate is not ticked at the start
+    expect(names('Importieren filtern')).toEqual(['Übernehmen und nicht', 'Wird übernommen (5)', 'Wird nicht übernommen (1)'])
+    fireEvent.change(screen.getByLabelText('Importieren filtern'), { target: { value: 'NO' } })
+    expect(listed()).toEqual(['Bäcker'])
+
+    fireEvent.change(screen.getByLabelText('Importieren filtern'), { target: { value: 'YES' } })
+    fireEvent.click(within(row('Spiele Shop')[0]).getByRole('checkbox', { name: 'Spiele Shop importieren' }))
+    // The edited row stays in sight until the filters are applied again
+    expect(listed()).toEqual(['Kino Nord', 'Spiele Shop', 'Spiele Shop', 'Auf Pocket', 'Erstattung'])
+    expect(screen.getByText(/1 passt nicht mehr zum Filter/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter aktualisieren' }))
+    expect(listed()).toEqual(['Kino Nord', 'Spiele Shop', 'Auf Pocket', 'Erstattung'])
+    expect(screen.queryByRole('button', { name: 'Filter aktualisieren' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
+    expect(screen.getByLabelText('Importieren filtern')).toHaveValue('')
+    expect(screen.getByLabelText('Einnahmen oder Ausgaben filtern')).toHaveValue('')
+  })
+
   it('filters the rows by description and resets the filter', async () => {
     renderPage()
     await upload()
@@ -849,6 +926,37 @@ describe('ImportPage', () => {
     await waitFor(() => expect(sent(fetchMock, '/api/imports')).toBeDefined())
     const body = JSON.parse(String(sent(fetchMock, '/api/imports')?.body))
     expect(body.rows.map((r: { categoryId: number | null }) => r.categoryId)).toEqual([8, 1, 8])
+  })
+
+  // Ticket #160: the whole row is the hit area, the bar stands above the list
+  it('chooses a row with a click anywhere in it while selecting', async () => {
+    renderPage()
+    await upload()
+    const [first] = row('Spiele Shop')
+
+    // Outside the selection mode a click in the row chooses nothing
+    fireEvent.click(within(first).getByText('Spiele Shop'))
+    expect(within(first).queryByRole('checkbox', { name: 'Spiele Shop auswählen' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auswählen' }))
+    const bar = screen.getByRole('region', { name: 'Auswahl' })
+    expect(bar.compareDocumentPosition(screen.getByRole('list', { name: 'Neue Zeilen' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    fireEvent.click(within(first).getByText('Spiele Shop'))
+    expect(within(first).getByRole('checkbox', { name: 'Spiele Shop auswählen' })).toBeChecked()
+    expect(bar).toHaveTextContent('1 ausgewählt')
+
+    // The own fields of the row keep their meaning
+    fireEvent.click(within(first).getByLabelText('Kategorie für Spiele Shop'))
+    fireEvent.click(within(first).getByRole('checkbox', { name: 'Spiele Shop importieren' }))
+    expect(within(first).getByRole('checkbox', { name: 'Spiele Shop importieren' })).not.toBeChecked()
+    expect(within(first).getByRole('checkbox', { name: 'Spiele Shop auswählen' })).toBeDisabled()
+
+    // A row that is not imported cannot be chosen by a click either
+    fireEvent.click(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord importieren' }))
+    fireEvent.click(within(row('Kino Nord')[0]).getByText('Kino Nord'))
+    expect(within(row('Kino Nord')[0]).getByRole('checkbox', { name: 'Kino Nord auswählen' })).not.toBeChecked()
   })
 
   it('can give a chosen row a transfer, also without a filter', async () => {

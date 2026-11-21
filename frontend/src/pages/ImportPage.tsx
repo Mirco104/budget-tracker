@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { useDeleteTransaction } from '../api/transactions'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
@@ -26,7 +26,7 @@ import { SelectionBar } from '../components/SelectionBar'
 import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { categoryFits, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
+import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
 import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
@@ -104,6 +104,17 @@ function peerText(peer: NonNullable<ImportEntry['transferPeer']>): string {
 
 type View = 'all' | 'skipped'
 
+/** Decision 74: the options of the filter Importieren. */
+const IMPORT_STATES = [
+  { value: 'YES', label: 'Wird übernommen' },
+  { value: 'NO', label: 'Wird nicht übernommen' },
+]
+
+/** Decision 74: Einnahmen or Ausgaben, as on Transaktionen. */
+function directionOf(entry: ImportEntry): string {
+  return entry.amount !== null && entry.amount > 0 ? 'INCOME' : 'EXPENSE'
+}
+
 /** The value of the category filter for the chosen rows without a category (ticket #84). */
 const WITHOUT_CATEGORY = 'open'
 
@@ -166,22 +177,25 @@ function PreviewRow({
 }) {
   const description = entry.description ?? ''
   const open = choice.selected && choice.category === ''
+  const selectable = chosen !== undefined && choice.selected
+
+  // Ticket #160: in the selection mode a click anywhere in the row chooses it, except on its own fields and links
+  function handleRowClick(event: MouseEvent<HTMLLIElement>) {
+    const target = event.target as HTMLElement
+    if (selectable && !target.closest('input, select, button, label, a, textarea')) {
+      onToggleChosen?.()
+    }
+  }
 
   return (
     <li
       id={`import-line-${entry.line}`}
-      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}${chosen ? ' chosen' : ''}`}
+      className={`import-row${choice.selected ? '' : ' unselected'}${open ? ' open' : ''}${highlighted ? ' highlight' : ''}${chosen ? ' chosen' : ''}${selectable ? ' selectable' : ''}`}
       aria-label={description}
+      onClick={handleRowClick}
     >
-      <span className="import-checks">
-        <input
-          type="checkbox"
-          className="import-check"
-          aria-label={`${description} importieren`}
-          checked={choice.selected}
-          onChange={(e) => onChange({ ...choice, selected: e.target.checked })}
-        />
-        {chosen !== undefined && (
+      {chosen !== undefined && (
+        <span className="import-pick">
           <input
             type="checkbox"
             className="import-check select"
@@ -191,8 +205,8 @@ function PreviewRow({
             disabled={!choice.selected}
             onChange={onToggleChosen}
           />
-        )}
-      </span>
+        </span>
+      )}
       <span className="import-date">{entry.date && formatDate(entry.date)}</span>
       <span className="import-main">
         <span className="import-description">{description}</span>
@@ -263,6 +277,20 @@ function PreviewRow({
           </button>
         )}
       </span>
+      {/* Ticket #160: a switch at the end of the row, so it is not mixed up with the selection on the left */}
+      <label className="import-toggle">
+        <input
+          type="checkbox"
+          className="switch"
+          aria-label={`${description} importieren`}
+          checked={choice.selected}
+          onChange={(e) => onChange({ ...choice, selected: e.target.checked })}
+        />
+        <span className="import-toggle-text">
+          <span className="import-toggle-label">Importieren</span>
+          <span className="import-toggle-state">{choice.selected ? 'wird übernommen' : 'wird nicht übernommen'}</span>
+        </span>
+      </label>
     </li>
   )
 }
@@ -593,6 +621,8 @@ function Preview({
   // starts with Einmalig; a row edited in the list or jumped to stays shown until the filters change
   const [filters, setFilters] = useState<Filters>(IMPORT_FILTERS)
   const [pinned, setPinned] = useState<string[]>([])
+  // Decision 74: '' all rows, YES the rows taken over, NO the others
+  const [importFilter, setImportFilter] = useState('')
   // Ticket #136: the selection mode with the chosen rows (by fingerprint) and the category for them
   const [selecting, setSelecting] = useState(false)
   const [chosenRows, setChosenRows] = useState<string[]>([])
@@ -644,24 +674,38 @@ function Preview({
     return choice.selected && choice.category === '' ? WITHOUT_CATEGORY : choice.category
   }
 
-  function matchesFilter(entry: ImportEntry, current: Filters): boolean {
+  // Decision 74: whether the row is taken over, for the filter Importieren
+  const importStateOf = (entry: ImportEntry) => (choices[entry.fingerprint as string].selected ? 'YES' : 'NO')
+
+  function matchesFilter(entry: ImportEntry, current: Filters, imported = importFilter): boolean {
     const search = current.query.trim().toLocaleLowerCase('de-DE')
     return (
       categoryFits(categoryKey(entry), current.category, categories) &&
       (current.account === '' || entry.source === current.account) &&
       (current.kind === '' || kindOfRow(entry) === current.kind) &&
+      (current.direction === '' || directionOf(entry) === current.direction) &&
+      (imported === '' || importStateOf(entry) === imported) &&
       (search === '' || (entry.description ?? '').toLocaleLowerCase('de-DE').includes(search))
     )
   }
   const filterActive =
-    filters.query.trim() !== '' || filters.category !== '' || filters.account !== '' || filters.kind !== ''
+    filters.query.trim() !== '' ||
+    filters.category !== '' ||
+    filters.account !== '' ||
+    filters.kind !== '' ||
+    filters.direction !== '' ||
+    importFilter !== ''
   const filtersChanged =
     filters.query !== IMPORT_FILTERS.query ||
     filters.category !== IMPORT_FILTERS.category ||
     filters.account !== IMPORT_FILTERS.account ||
-    filters.kind !== IMPORT_FILTERS.kind
+    filters.kind !== IMPORT_FILTERS.kind ||
+    filters.direction !== IMPORT_FILTERS.direction ||
+    importFilter !== ''
   const outsideFilter = (entry: ImportEntry) => !matchesFilter(entry, filters)
   const listed = rows.filter((entry) => !outsideFilter(entry) || pinned.includes(entry.fingerprint as string))
+  // Decision 74: the shown rows that no longer fit the filters, until "Filter aktualisieren"
+  const stale = listed.filter(outsideFilter).length
   // The chosen rows the filters hide; they are taken over all the same
   const hiddenSelected = selected.filter((entry) => !listed.includes(entry)).length
   // Ticket #84: the hits of each filter option with the other filters
@@ -669,8 +713,15 @@ function Preview({
     category: categoryKey,
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
-    direction: () => '',
+    direction: directionOf,
   })
+  // Decision 74: the hits of the filter Importieren with the other filters
+  const importCounts = new Map<string, number>()
+  for (const entry of rows) {
+    if (matchesFilter(entry, filters, '')) {
+      importCounts.set(importStateOf(entry), (importCounts.get(importStateOf(entry)) ?? 0) + 1)
+    }
+  }
   // Ticket #136: the shown rows that are imported can be chosen; only the shown chosen ones get the category
   const choosable = listed.filter((entry) => choices[entry.fingerprint as string].selected)
   const chosenShown = choosable.filter((entry) => chosenRows.includes(entry.fingerprint as string))
@@ -689,6 +740,11 @@ function Preview({
   // A change of the filters lets go of the pinned rows
   function changeFilters(next: Filters) {
     setFilters(next)
+    setPinned([])
+  }
+
+  function changeImportFilter(next: string) {
+    setImportFilter(next)
     setPinned([])
   }
 
@@ -961,6 +1017,16 @@ function Preview({
           {preview.duplicates > 0 && `, ${preview.duplicates} schon importiert`}
           {preview.skipped > 0 && `, ${preview.skipped} nicht importierbar`}
         </p>
+        {rows.length === 0 && (
+          <p className="import-nothing-new" role="status">
+            <strong>
+              {preview.rows > 0 && preview.duplicates === preview.rows
+                ? 'Diese Datei ist schon vollständig importiert.'
+                : 'In dieser Datei gibt es keine Einträge, die noch nicht angelegt sind.'}
+            </strong>{' '}
+            Es wird nichts übernommen.
+          </p>
+        )}
         {preview.sources.length > 0 && (
           <div className="import-sources">
             <h3>Konten</h3>
@@ -1043,6 +1109,8 @@ function Preview({
             onChange={changeFilters}
             counts={counts}
             kinds={IMPORT_KINDS}
+            directions={DIRECTIONS}
+            incomeHasKinds
             categories={categories}
             accounts={preview.sources.map((source) => ({ value: source.key, label: source.name }))}
             extraCategoryOptions={[
@@ -1050,12 +1118,46 @@ function Preview({
               { value: TRANSFER, label: 'Umbuchung' },
               { value: SAVING, label: 'Sparen' },
             ]}
+            extra={
+              // Decision 74: whether the row is taken over (the switch of the row)
+              <select
+                aria-label="Importieren filtern"
+                value={importFilter}
+                onChange={(e) => changeImportFilter(e.target.value)}
+              >
+                <option value="">Übernehmen und nicht</option>
+                {IMPORT_STATES.filter(
+                  (option) => (importCounts.get(option.value) ?? 0) > 0 || option.value === importFilter,
+                ).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({importCounts.get(option.value) ?? 0})
+                  </option>
+                ))}
+              </select>
+            }
           />
           {filterActive && (
             <p className="hint import-filter-summary">
               {listed.length} von {rows.length} Zeilen
+              {/* Decision 74: an edited row stays in sight although it no longer fits; this applies the filters again */}
+              {stale > 0 && (
+                <>
+                  {' · '}
+                  {stale === 1 ? '1 passt nicht mehr zum Filter' : `${stale} passen nicht mehr zum Filter`}
+                  <button type="button" className="link-button" onClick={() => setPinned([])}>
+                    Filter aktualisieren
+                  </button>
+                </>
+              )}
               {filtersChanged && (
-                <button type="button" className="link-button" onClick={() => changeFilters(IMPORT_FILTERS)}>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    changeFilters(IMPORT_FILTERS)
+                    setImportFilter('')
+                  }}
+                >
                   Filter zurücksetzen
                 </button>
               )}
@@ -1069,25 +1171,38 @@ function Preview({
           >
             Auswählen
           </button>
-          {selecting && (
-            <SelectionBar
-              count={chosenShown.length}
-              shown={choosable.length}
-              onSelectAll={() => setChosenRows(choosable.map((entry) => entry.fingerprint as string))}
-              onClear={() => setChosenRows([])}
-              categories={categories}
-              value={assignCategory}
-              onChange={setAssignCategory}
-              leading={KIND_OPTIONS}
-              onAssign={assignChosen}
-              onDone={stopSelecting}
-            />
-          )}
         </div>
       )}
 
+      {/* Ticket #160: the bar sits above the list and stays at the top while the list scrolls */}
+      {selecting && view !== 'skipped' && (
+        <SelectionBar
+          count={chosenShown.length}
+          shown={choosable.length}
+          onSelectAll={() => setChosenRows(choosable.map((entry) => entry.fingerprint as string))}
+          onClear={() => setChosenRows([])}
+          categories={categories}
+          value={assignCategory}
+          onChange={setAssignCategory}
+          leading={KIND_OPTIONS}
+          onAssign={assignChosen}
+          onDone={stopSelecting}
+        />
+      )}
+
+      {view !== 'skipped' && listed.length > 0 && (
+        // Ticket #160: the column heads of the table; the rows below use the same columns
+        <div className={`import-row import-head${selecting ? ' selecting' : ''}`} aria-hidden="true">
+          {selecting && <span className="import-pick" />}
+          <span className="import-date">Datum</span>
+          <span className="import-main">Beschreibung</span>
+          <span className="import-amount">Betrag</span>
+          <span className="import-category">Kategorie</span>
+          <span className="import-toggle">Importieren</span>
+        </div>
+      )}
       {view !== 'skipped' && (
-        <ul className="import-list" aria-label="Neue Zeilen">
+        <ul className={`import-list${selecting ? ' selecting' : ''}`} aria-label="Neue Zeilen">
           {listed.map((entry) => (
             <PreviewRow
               key={entry.fingerprint}
@@ -1139,14 +1254,16 @@ function Preview({
             Fertige übernehmen ({finished.length})
           </button>
         )}
-        <button
-          type="button"
-          className="primary"
-          disabled={selected.length === 0 || open.length > 0 || commit.isPending}
-          onClick={() => void handleCommit()}
-        >
-          {selected.length === 1 ? '1 Buchung übernehmen' : `${selected.length} Buchungen übernehmen`}
-        </button>
+        {rows.length > 0 && (
+          <button
+            type="button"
+            className="primary"
+            disabled={selected.length === 0 || open.length > 0 || commit.isPending}
+            onClick={() => void handleCommit()}
+          >
+            {selected.length === 1 ? '1 Buchung übernehmen' : `${selected.length} Buchungen übernehmen`}
+          </button>
+        )}
       </div>
       {open.length > 0 && (
         <p className="hint import-open">
