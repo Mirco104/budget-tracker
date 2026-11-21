@@ -2,6 +2,22 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
+## 0.2.0-alpha (21.11.2026)
+
+Nachbesserungen nach dem ersten Test im Bekanntenkreis.
+
+- **Änderungen:** Ein Klick auf die Version in der Fußzeile zeigt diese Liste.
+- **Auswertung je Kategorie:** Die neue Unterseite *Kategorien* zeigt für den Zeitraum des Rückblicks je Kategorie Summe und Durchschnitt pro Monat, für Ausgaben oder Einnahmen, und den Verlauf einer gewählten Kategorie als Diagramm.
+- **Filter „Importiert“:** Auf *Transaktionen* lassen sich Buchungen danach filtern, ob sie aus einem Import stammen.
+- **Import als Tabelle:** Die Zeilen des Imports stehen in festen Spalten; ein Schalter am Ende jeder Zeile sagt, ob sie übernommen wird, getrennt vom Auswählen mehrerer Zeilen.
+- **Mehr Filter im Import:** Einnahmen oder Ausgaben, übernommen oder nicht, und „Filter aktualisieren“, wenn eine bearbeitete Zeile nicht mehr zum Filter passt.
+- **Gleiche Zeilen im Import:** Nach der Wahl einer Kategorie bietet der Import an, sie auch den weiteren Zeilen mit derselben Beschreibung (und IBAN) zu geben.
+- **Bessere Erkennung geplanter Termine im Import:** Der Verwendungszweck zählt mit (z. B. „Lohn/Gehalt“), ein Gehalt darf bis zu 10 Tage vor dem Termin kommen und wird nicht mehr doppelt gebucht, und Fixkosten mit festem Betrag werden auch ohne passenden Namen erkannt.
+- **Schon importierte Datei:** Bringt eine Datei nichts Neues, sagt der Import das deutlich, statt nur ausgegraute Zeilen zu zeigen.
+- **Abhaken als Vorgabe:** Neue Posten werden standardmäßig abgehakt statt automatisch eingetragen; bestehende Posten bleiben, wie sie sind.
+- **Verständliche Fehlermeldung:** Bei einem unerwarteten Fehler des Servers steht „Etwas ist schiefgelaufen. Bitte versuche es noch einmal.“ statt „Unbekannter Fehler“.
+- **Kleinere Korrekturen:** Der Knopf „Monatlich sparen“ bleibt beim Darüberfahren lesbar; bei der lokalen Entwicklung braucht es nach einer neuen Datenbank-Version keinen Neustart mehr.
+
 ## 0.1.0-alpha (15.11.2026)
 
 Die erste Version für den Test im Bekanntenkreis.
@@ -16,4 +32,3 @@ Die erste Version für den Test im Bekanntenkreis.
 - **Kategorien:** Mit Icon und Unterkategorien, sortierbar, archivieren oder löschen.
 - **Auswertung:** Rückblick über einen frei wählbaren Zeitraum und Vorausschau mit Rücklagen.
 - **Am Handy:** Bedienbar ab 360 px Breite, Hell- und Dunkelmodus nach Einstellung des Geräts.
-- **Änderungen:** Ein Klick auf die Version in der Fußzeile zeigt diese Liste.
