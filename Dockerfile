@@ -6,6 +6,8 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# Ticket #159: the changelog the app shows; vite.config.ts reads it from the parent directory
+COPY CHANGELOG.md /CHANGELOG.md
 # Ticket #129: the image has no .git; the commit shown in the settings comes from the build argument (may be empty)
 ARG APP_COMMIT=""
 RUN APP_COMMIT="$APP_COMMIT" npm run build

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { currentMonth, shiftMonth } from './format'
@@ -213,6 +213,22 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Datenschutz' })).toHaveAttribute('href', '/datenschutz.html')
     // Ticket #129: the version in the footer, on every page
     expect(screen.getByRole('contentinfo')).toHaveTextContent(/Version \d+\.\d+\.\d+/)
+  })
+
+  // Ticket #159: a click on the version shows the changes from CHANGELOG.md
+  it('shows the changes on a click on the version', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => json({ status: 401, title: 'Nicht angemeldet' }, 401)),
+    )
+    renderWithClient()
+
+    await screen.findByRole('heading', { name: 'Anmelden' })
+    fireEvent.click(screen.getByRole('button', { name: /^Version / }))
+    const dialog = screen.getByRole('dialog', { name: 'Änderungen' })
+    expect(within(dialog).getByRole('region', { name: /^0\.1\.0-alpha/ })).toHaveTextContent('Import von Kontoauszügen')
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   // US14

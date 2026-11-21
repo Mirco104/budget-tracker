@@ -1,4 +1,5 @@
 import { Bell } from './components/Bell'
+import { ChangelogDialog } from './components/ChangelogDialog'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
@@ -102,15 +103,24 @@ function Brand() {
   )
 }
 
-// Static pages in public/, reachable with and without sign-in (section 15); ticket #129: the version, the commit on hover
+// Static pages in public/, reachable with and without sign-in (section 15); ticket #129: the version, the commit on hover;
+// ticket #159: a click on it shows the changes
 function LegalLinks() {
+  const [changes, setChanges] = useState(false)
   return (
     <footer className="legal">
       <a href="/impressum.html">Impressum</a>
       <a href="/datenschutz.html">Datenschutz</a>
-      <span className="app-version" title={APP_COMMIT ? `Commit ${APP_COMMIT}` : undefined}>
+      <button
+        type="button"
+        className="app-version"
+        title={APP_COMMIT ? `Commit ${APP_COMMIT}` : undefined}
+        aria-haspopup="dialog"
+        onClick={() => setChanges(true)}
+      >
         Version {APP_VERSION}
-      </span>
+      </button>
+      {changes && <ChangelogDialog onClose={() => setChanges(false)} />}
     </footer>
   )
 }
