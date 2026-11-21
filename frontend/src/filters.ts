@@ -8,9 +8,11 @@ export interface Filters {
   kind: string
   /** 27f4: Einnahmen or Ausgaben, a filter of its own next to fix / variable (only Transaktionen) */
   direction: string
+  /** AP 32: YES for bookings a bank import created, NO for the others (only Transaktionen, decision 76) */
+  imported: string
 }
 
-export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind: '', direction: '' }
+export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind: '', direction: '', imported: '' }
 
 /**
  * The start of the import filters (ticket #84, after the test): only one-off rows, the series rows and transfers are
@@ -19,7 +21,7 @@ export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind:
 export const IMPORT_FILTERS: Filters = { ...NO_FILTERS, kind: 'SINGLE' }
 
 /** The fields of the filter bar whose options get a count. */
-export type FacetField = 'category' | 'account' | 'kind' | 'direction'
+export type FacetField = 'category' | 'account' | 'kind' | 'direction' | 'imported'
 
 /** The hits per option value of each field. */
 export type FacetCounts = Record<FacetField, Map<string, number>>
@@ -51,6 +53,7 @@ export function facetCounts<T>(
     account: count('account'),
     kind: count('kind'),
     direction: count('direction'),
+    imported: count('imported'),
   }
 }
 
@@ -70,6 +73,12 @@ export function categoryFits(entryValue: string, filterValue: string, categories
 export const DIRECTIONS: { value: string; label: string }[] = [
   { value: 'INCOME', label: 'Einnahmen' },
   { value: 'EXPENSE', label: 'Ausgaben' },
+]
+
+/** AP 32: whether a booking came from a bank import (decision 76). */
+export const IMPORTED_OPTIONS: { value: string; label: string }[] = [
+  { value: 'YES', label: 'Ja' },
+  { value: 'NO', label: 'Nein' },
 ]
 
 /** The kinds of the import: a row that fulfils a planned term or belongs to a new item is "Wiederkehrend". */

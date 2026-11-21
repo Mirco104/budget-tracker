@@ -714,6 +714,7 @@ function Preview({
     account: (entry) => entry.source ?? '',
     kind: kindOfRow,
     direction: directionOf,
+    imported: () => '',
   })
   // Decision 74: the hits of the filter Importieren with the other filters
   const importCounts = new Map<string, number>()
