@@ -194,7 +194,7 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$.batch").isEmpty());
     }
 
-    // Decision 70: a booking a file created is imported, also after it was edited; a booking by hand is not
+    // Decision 76: a booking a file created is imported, also after it was edited; a booking by hand is not
     @Test
     void importedBookingsStayImportedAfterAnEdit() throws Exception {
         long freizeit = category(user, "Freizeit");

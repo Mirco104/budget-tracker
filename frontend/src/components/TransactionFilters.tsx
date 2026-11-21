@@ -43,7 +43,7 @@ export function TransactionFilters({
   kinds?: FilterOption[]
   /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter (the import) */
   directions?: FilterOption[]
-  /** AP 31: Ja / Nein for bookings from a bank import; without it the bar has no such filter (the import) */
+  /** AP 32: Ja / Nein for bookings from a bank import; without it the bar has no such filter (the import) */
   importedOptions?: FilterOption[]
   /** 27f4: a button after the search that folds the other filters (Transaktionen) */
   toggle?: ReactNode

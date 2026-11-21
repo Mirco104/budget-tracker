@@ -7,7 +7,7 @@ import java.time.LocalDate;
 /**
  * A booking of the transaction list. Only real bookings appear (P1). A transfer (R27) has no category; auto marks an
  * entry the app made from the plan (P6); fix marks an expense that fulfils a term (P5); imported marks a booking a bank
- * import created, also after it was edited (decision 70).
+ * import created, also after it was edited (decision 76).
  */
 public record TransactionResponse(
         Long id,

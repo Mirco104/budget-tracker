@@ -375,7 +375,7 @@ describe('TransactionsPage', () => {
     expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 
-  // AP 31, decision 70: Importiert Ja / Nein with the hits of each option; the list itself marks nothing
+  // AP 32, decision 76: Importiert Ja / Nein with the hits of each option; the list itself marks nothing
   it('filters the bookings a bank import created', async () => {
     const imported = transactions.map((entry) => ({ ...entry, imported: entry.description === 'Kino' || entry.description === 'Lohn' }))
     renderPage(imported)

@@ -8,7 +8,7 @@ export interface Filters {
   kind: string
   /** 27f4: Einnahmen or Ausgaben, a filter of its own next to fix / variable (only Transaktionen) */
   direction: string
-  /** AP 31: YES for bookings a bank import created, NO for the others (only Transaktionen, decision 70) */
+  /** AP 32: YES for bookings a bank import created, NO for the others (only Transaktionen, decision 76) */
   imported: string
 }
 
@@ -75,7 +75,7 @@ export const DIRECTIONS: { value: string; label: string }[] = [
   { value: 'EXPENSE', label: 'Ausgaben' },
 ]
 
-/** AP 31: whether a booking came from a bank import (decision 70). */
+/** AP 32: whether a booking came from a bank import (decision 76). */
 export const IMPORTED_OPTIONS: { value: string; label: string }[] = [
   { value: 'YES', label: 'Ja' },
   { value: 'NO', label: 'Nein' },
