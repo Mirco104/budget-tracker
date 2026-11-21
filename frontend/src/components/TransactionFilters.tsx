@@ -30,6 +30,7 @@ export function TransactionFilters({
   counts,
   kinds = KINDS,
   directions,
+  importedOptions,
   toggle,
   expanded = true,
   incomeHasKinds = false,
@@ -44,6 +45,8 @@ export function TransactionFilters({
   kinds?: FilterOption[]
   /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter */
   directions?: FilterOption[]
+  /** AP 32: Ja / Nein for bookings from a bank import; without it the bar has no such filter (the import) */
+  importedOptions?: FilterOption[]
   /**
    * Decision 74: the kinds apply to income too (the import: Wiederkehrend / Einmalig), so Einnahmen keeps the kind filter;
    * on Transaktionen fix and variable are kinds of expenses only
@@ -136,6 +139,12 @@ export function TransactionFilters({
             <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
               <option value="">{directions && !incomeHasKinds ? 'Fix und variabel' : 'Alle Arten'}</option>
               {options('kind', kinds)}
+            </select>
+          )}
+          {importedOptions && (
+            <select aria-label="Importiert filtern" value={filters.imported} onChange={(e) => set('imported', e.target.value)}>
+              <option value="">Importiert: alle</option>
+              {options('imported', importedOptions)}
             </select>
           )}
           {extra}
