@@ -26,7 +26,7 @@ import io.github.mirco104.budget.importer.BankTransaction.Status;
  * decoded (UTF-8, else Windows-1252), split into records (";" or ","), the header found among the first 20 records
  * and every following record read with the profile of that header into a normalized BankTransaction (decision 46).
  * Only the Deutsche Bank reads the preamble before the header (the IBAN of the account) and has a footer that is
- * skipped (decision 68).
+ * skipped (decision 76).
  */
 public final class BankCsv {
 
@@ -34,7 +34,7 @@ public final class BankCsv {
     static final int HEADER_SEARCH = 20;
 
     private static final DateTimeFormatter GERMAN_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-    // Deutsche Bank (decision 68): "30.6.2026", leading zeros allowed ("30.06.2026")
+    // Deutsche Bank (decision 76): "30.6.2026", leading zeros allowed ("30.06.2026")
     private static final DateTimeFormatter SHORT_DAY_MONTH_DATE = DateTimeFormatter.ofPattern("d.M.yyyy");
     // Deutsche Bank: the IBAN of the account from the preamble, under a key no column can have
     private static final String PREAMBLE_IBAN = "\u0000preamble:iban";
@@ -190,7 +190,7 @@ public final class BankCsv {
         List<Line> lines = new ArrayList<>();
         for (Record record : records) {
             if (profile == BankProfile.DEUTSCHE_BANK && clean(record.fields().getFirst()).equalsIgnoreCase("Kontostand")) {
-                continue; // the footer with the balance is no booking (decision 68)
+                continue; // the footer with the balance is no booking (decision 76)
             }
             Map<String, String> values = new HashMap<>();
             for (int i = 0; i < header.size(); i++) {
@@ -240,7 +240,7 @@ public final class BankCsv {
         };
     }
 
-    // Deutsche Bank (decision 68): d.M.yyyy, signed German amounts in Betrag (empty: Haben, or Soll as a debit), the
+    // Deutsche Bank (decision 76): d.M.yyyy, signed German amounts in Betrag (empty: Haben, or Soll as a debit), the
     // account from the preamble; the export holds no pending bookings
     private static BankTransaction deutscheBank(Map<String, String> v) {
         LocalDate date = date(get(v, "Buchungstag"), SHORT_DAY_MONTH_DATE);

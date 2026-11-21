@@ -49,7 +49,7 @@ export interface Transaction {
   transfer: boolean
   /** Entered by the app from the plan (P6). */
   auto: boolean
-  /** Created by a bank import, also after it was edited (decision 76). */
+  /** Created by a bank import, also after it was edited (decision 75). */
   imported?: boolean
   /** An expense that fulfils a term of a planned item (P5). */
   fix: boolean

@@ -24,7 +24,7 @@ import { CategoryAnalysis } from './CategoryAnalysis'
 
 /**
  * Analysis (R14, US13, decision 29): look back over a period, the same period per category (R34, US39) and the
- * outlook from the current month on. The period stays while switching between look back and categories (decision 75).
+ * outlook from the current month on. The period stays while switching between look back and categories (decision 77).
  */
 export function EvaluationPage() {
   const page = useEvaluationPage()

@@ -194,7 +194,7 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$.batch").isEmpty());
     }
 
-    // Decision 76: a booking a file created is imported, also after it was edited; a booking by hand is not
+    // Decision 75: a booking a file created is imported, also after it was edited; a booking by hand is not
     @Test
     void importedBookingsStayImportedAfterAnEdit() throws Exception {
         long freizeit = category(user, "Freizeit");
@@ -457,7 +457,7 @@ class ImportControllerTest {
         assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
     }
 
-    // --- Deutsche Bank (decision 68) ---
+    // --- Deutsche Bank (decision 76) ---
 
     @Test
     void aDeutscheBankFileIsImportedOnceWithTheAccountOfThePreamble() throws Exception {

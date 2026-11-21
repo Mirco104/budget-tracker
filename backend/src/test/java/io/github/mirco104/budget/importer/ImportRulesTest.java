@@ -146,7 +146,7 @@ class ImportRulesTest {
         assertThat(ImportRules.accountName(BankProfile.VR_BANK, "")).isEqualTo("VR-Bank");
     }
 
-    // Decision 68: the Deutsche Bank like the Sparkasse and the VR-Bank
+    // Decision 76: the Deutsche Bank like the Sparkasse and the VR-Bank
     @Test
     void namesADeutscheBankAccountByTheEndOfItsIban() {
         assertThat(ImportRules.sourceKey(BankProfile.DEUTSCHE_BANK, "DE89370400440532013000"))

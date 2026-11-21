@@ -16,7 +16,7 @@ interface MonthAmount {
 }
 
 /**
- * Auswertung › Kategorien (R34, US39, decision 75): sum and average per category over the period of the look back,
+ * Auswertung › Kategorien (R34, US39, decision 77): sum and average per category over the period of the look back,
  * and the months of one chosen category. All numbers come from the backend; this page only picks and formats them.
  */
 export function CategoryAnalysis({ data }: { data: HistoryData }) {
@@ -24,7 +24,7 @@ export function CategoryAnalysis({ data }: { data: HistoryData }) {
   const [chosen, setChosen] = useState<number | null>(null)
   const lines = side === 'expenses' ? data.expensesByCategory : data.incomeByCategory
   const selected = lines.find((line) => line.id === chosen) ?? lines[0]
-  // Bar length relative to the largest category, display only (decision 75)
+  // Bar length relative to the largest category, display only (decision 77)
   const largest = lines[0]?.total ?? 0
 
   if (data.months === 0) {

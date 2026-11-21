@@ -18,7 +18,7 @@ public enum BankProfile {
     // Decision 64: the export of the Volks- und Raiffeisenbanken; the purpose is padded, so it is not in the checksum
     VR_BANK("VR-Bank", List.of("Bezeichnung Auftragskonto", "IBAN Auftragskonto", "Buchungstag", "Name Zahlungsbeteiligter",
             "Betrag"), List.of(), false),
-    // Decision 68: the export of the account bookings; the account is in the preamble, the purpose not in the checksum
+    // Decision 76: the export of the account bookings; the account is in the preamble, the purpose not in the checksum
     DEUTSCHE_BANK("Deutsche Bank", List.of("Buchungstag", "Wert", "Umsatzart", "Begünstigter / Auftraggeber", "Betrag"),
             List.of(), false);
 
@@ -46,7 +46,7 @@ public enum BankProfile {
 
     /**
      * R30: whether the purpose is part of the checksum; not for the Sparkasse, the VR-Bank and the Deutsche Bank
-     * (decisions 47, 64 and 68).
+     * (decisions 47, 64 and 76).
      */
     boolean purposeInFingerprint() {
         return purposeInFingerprint;
