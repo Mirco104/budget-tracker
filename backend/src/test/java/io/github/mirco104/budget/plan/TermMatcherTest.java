@@ -52,10 +52,56 @@ class TermMatcherTest {
                 List.of(booking(0, "2026-11-02", "-900", "Person B", WOHNEN)), List.of(MIETE));
         assertThat(matches).containsExactly(Map.entry(0, MIETE));
 
-        // The same amount without the category is no match
+        // The same amount with another suggested category is no match
         assertThat(TermMatcher.match(List.of(booking(0, "2026-11-02", "-900", "Person B", FREIZEIT)), List.of(MIETE)))
                 .isEmpty();
-        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-02", "-900", "Person B", null)), List.of(MIETE)))
+    }
+
+    @Test
+    void theSameAmountAloneMatchesARowWithoutSuggestion() {
+        // Ticket #142: a fixed cost with a fixed amount is found without a shared word and without a suggestion
+        Planned handy = planned(14, "2026-11-10", "-24.99", "Handy", NEBENKOSTEN);
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-12", "-24.99", "Telefonica Germany", null)),
+                List.of(handy))).containsExactly(Map.entry(0, handy));
+
+        // Not for another amount, and not outside the days
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-12", "-25.99", "Telefonica Germany", null)),
+                List.of(handy))).isEmpty();
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-16", "-24.99", "Telefonica Germany", null)),
+                List.of(handy))).isEmpty();
+    }
+
+    @Test
+    void aMatchByTheSameAmountAloneComesAfterTheOtherMatches() {
+        // The earlier row only has the same amount; the later one shares a word, so it gets the term
+        Planned handy = planned(14, "2026-11-10", "-24.99", "Handy Vertrag", NEBENKOSTEN);
+        List<Booking> bookings = List.of(
+                booking(0, "2026-11-08", "-24.99", "Person C", null),
+                booking(1, "2026-11-11", "-24.99", "Handy Vertrag 11/2026", null));
+
+        assertThat(TermMatcher.match(bookings, List.of(handy))).containsExactly(Map.entry(1, handy));
+    }
+
+    @Test
+    void incomeOfAMonthlyItemMayComeUpToTenDaysEarly() {
+        // Ticket #142: the salary of November often comes at the end of October
+        Planned gehalt = new Planned(60, new UUID(0, 60), LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-02"),
+                new BigDecimal("2500"), "Gehalt", 9L, 5, 10);
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-10-23", "2480", "Lohn Gehalt", null)), List.of(gehalt)))
+                .containsExactly(Map.entry(0, gehalt));
+        // 11 days before the due date is too early
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-10-22", "2480", "Lohn Gehalt", null)), List.of(gehalt)))
+                .isEmpty();
+        // Afterwards still 5 days
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-11-08", "2480", "Lohn Gehalt", null)), List.of(gehalt)))
+                .isEmpty();
+    }
+
+    @Test
+    void anExpenseMayNotComeEarlierThanTheTolerance() {
+        Planned miete = new Planned(61, new UUID(0, 61), LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-01"),
+                new BigDecimal("-900"), "Miete Wohnung", WOHNEN, 5, TermSchedule.earlyDays(RhythmUnit.MONTH, 1, false));
+        assertThat(TermMatcher.match(List.of(booking(0, "2026-10-26", "-900", "Miete", null)), List.of(miete)))
                 .isEmpty();
     }
 
