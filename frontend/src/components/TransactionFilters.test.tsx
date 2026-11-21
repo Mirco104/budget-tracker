@@ -9,7 +9,7 @@ const categories: Category[] = [
   { id: 9, name: 'Alt', icon: 'tag', archived: true, incomeOnly: false, parentId: null, path: 'Alt' },
   { id: 1, name: 'Wohnen', icon: 'home', archived: false, incomeOnly: false, parentId: null, path: 'Wohnen' },
 ]
-const empty: Filters = { query: '', category: '', account: '', kind: '', direction: '' }
+const empty: Filters = { query: '', category: '', account: '', kind: '', direction: '', imported: '' }
 
 describe('TransactionFilters', () => {
   it('shows search, category and kind, and the account only with more than one option', () => {
@@ -58,6 +58,7 @@ describe('TransactionFilters', () => {
       account: new Map([['2', 4]]),
       kind: new Map([['VARIABLE', 4]]),
       direction: new Map(),
+      imported: new Map(),
     }
     render(
       <TransactionFilters

@@ -194,6 +194,28 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$.batch").isEmpty());
     }
 
+    // Decision 76: a booking a file created is imported, also after it was edited; a booking by hand is not
+    @Test
+    void importedBookingsStayImportedAfterAnEdit() throws Exception {
+        long freizeit = category(user, "Freizeit");
+        book(mockMvc, -12, "Kino von Hand", "2026-11-02", freizeit);
+        commit(mockMvc, previewJson(mockMvc, BankCsvTest.C24), entry -> freizeit, true).andExpect(status().isCreated());
+
+        String list = mockMvc.perform(get("/api/transactions").param("month", "2026-11"))
+                .andExpect(jsonPath("$[?(@.description == 'Kino von Hand')].imported").value(false))
+                .andReturn().getResponse().getContentAsString();
+        List<Map<String, Object>> imported = JsonPath.read(list, "$[?(@.imported == true)]");
+        assertThat(imported).hasSize(4);
+
+        Map<String, Object> first = imported.getFirst();
+        mockMvc.perform(put("/api/transactions/{id}", ((Number) first.get("id")).longValue())
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"amount": -1.23, "description": "Von Hand geändert", "date": "%s", "categoryId": %d}"""
+                                .formatted(first.get("date"), freizeit)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imported").value(true));
+    }
+
     @Test
     void theCounterpartyTeachesTheSuggestion() throws Exception {
         String preview = previewJson(mockMvc, BankCsvTest.N26);
@@ -258,6 +280,7 @@ class ImportControllerTest {
         commit(mockMvc, preview, entry -> category(user, "Investitionen"), true).andExpect(status().isCreated());
         mockMvc.perform(get("/api/transactions").param("month", "2026-01"))
                 .andExpect(jsonPath("$[?(@.description == 'Aufs Depot')].transfer").value(true))
+                .andExpect(jsonPath("$[?(@.description == 'Aufs Depot')].imported").value(false))
                 .andExpect(jsonPath("$[?(@.description == 'Aufs Depot')].categoryId",
                         org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
     }

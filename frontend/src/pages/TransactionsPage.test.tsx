@@ -375,6 +375,33 @@ describe('TransactionsPage', () => {
     expect(screen.getByText('Keine Einträge für diesen Filter.')).toBeInTheDocument()
   })
 
+  // AP 32, decision 76: Importiert Ja / Nein with the hits of each option; the list itself marks nothing
+  it('filters the bookings a bank import created', async () => {
+    const imported = transactions.map((entry) => ({ ...entry, imported: entry.description === 'Kino' || entry.description === 'Lohn' }))
+    renderPage(imported)
+    await screen.findByText('Kino')
+    expect(screen.queryByText(/importiert/i)).not.toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Filter' }))
+    const filter = screen.getByLabelText('Importiert filtern')
+    expect(within(filter).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Importiert: alle',
+      'Ja (2)',
+      'Nein (2)',
+    ])
+
+    fireEvent.change(filter, { target: { value: 'YES' } })
+    expect(screen.getByText('Kino')).toBeInTheDocument()
+    expect(screen.getByText('Lohn')).toBeInTheDocument()
+    expect(screen.queryByText('Konzert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
+
+    fireEvent.change(filter, { target: { value: 'NO' } })
+    expect(screen.getByText('Konzert')).toBeInTheDocument()
+    expect(screen.getByText('Streaming')).toBeInTheDocument()
+    expect(screen.queryByText('Kino')).not.toBeInTheDocument()
+  })
+
   // 27f4: the search is always shown; the other filters fold behind a button that counts the active ones
   it('folds the filters except the search behind a button and resets them', async () => {
     renderPage()
