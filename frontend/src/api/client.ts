@@ -1,10 +1,14 @@
 import type { ProblemDetail } from './types'
 
+export const SERVER_ERROR = 'Etwas ist schiefgelaufen. Bitte versuche es noch einmal.'
+
 export class ApiError extends Error {
   readonly problem: ProblemDetail
 
   constructor(problem: ProblemDetail) {
-    super(problem.detail ?? problem.title ?? 'Unbekannter Fehler')
+    // Ticket #147: an unexpected server error has no German text of its own
+    const serverError = (problem.status ?? 0) >= 500 ? SERVER_ERROR : undefined
+    super(problem.detail ?? serverError ?? problem.title ?? 'Unbekannter Fehler')
     this.problem = problem
   }
 }

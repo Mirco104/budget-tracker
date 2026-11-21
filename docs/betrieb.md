@@ -108,7 +108,7 @@ So geprüft am 02.11.2026: HTTP leitet auf HTTPS um, das Session-Cookie ist `Sec
 
 ## Lokale H2-Datenbank nach einer neuen Migration
 
-Mit H2 2.4.240 (Profile `dev` und `sample`) kann direkt nach einer Migration, die eine Tabelle mit einer `check`-Bedingung ändert (z. B. V20 an `bank_accounts`), jedes Speichern in dieser Tabelle mit „Check constraint invalid“ scheitern; die App zeigt „Unbekannter Fehler“. Ein Neustart des Backends behebt es. PostgreSQL ist nicht betroffen.
+Mit H2 2.4.240 (Profile `dev` und `sample`) scheiterte direkt nach einer Migration jedes Speichern in einer Tabelle mit `check`-Bedingung mit „Check constraint invalid“, bis das Backend neu gestartet wurde (Ticket #147). Seitdem ist H2 in `backend/pom.xml` auf 2.3.232 festgelegt, die Version, mit der Flyway geprüft ist; ein Neustart nach einer Migration ist nicht mehr nötig. Der Test `H2MigrationTest` schlägt fehl, wenn eine spätere H2-Version (z. B. ein Update von Dependabot) den Fehler zurückbringt. PostgreSQL war nie betroffen.
 
 ## Logs
 
