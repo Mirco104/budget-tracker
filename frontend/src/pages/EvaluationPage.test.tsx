@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForecastMonth, HistoryData, HistoryMonth, ReserveData } from '../api/types'
 import { EvaluationPage } from './EvaluationPage'
@@ -36,6 +36,12 @@ const history: HistoryData = {
   averageSurplus: 1974,
   total: { income: 27000, expenses: 9234, surplus: 17766 },
   history: months,
+  incomeByCategory: [{ id: 15, name: 'Gehalt/Lohn (netto)', icon: 'wallet', total: 3000, average: 333.33, monthsWithAmount: 1 }],
+  expensesByCategory: [
+    { id: 7, name: 'Lebensmittel', icon: 'cart', total: 999, average: 111, monthsWithAmount: 1 },
+    { id: 1, name: 'Wohnen', icon: 'home', total: 900, average: 100, monthsWithAmount: 1 },
+    { id: 8, name: 'Freizeit', icon: 'music', total: 15, average: 1.67, monthsWithAmount: 1 },
+  ],
 }
 
 const emptyHistory: HistoryData = {
@@ -47,6 +53,8 @@ const emptyHistory: HistoryData = {
   averageSurplus: null,
   total: null,
   history: [],
+  incomeByCategory: [],
+  expensesByCategory: [],
 }
 
 const outlook: ReserveData = {
@@ -118,6 +126,13 @@ function renderPage(historyData: HistoryData | (() => Promise<Response>) = histo
   return fetchMock
 }
 
+function goTo(hash: string) {
+  act(() => {
+    window.location.hash = hash
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  })
+}
+
 function tile(label: string) {
   return screen.getByText(label, { selector: 'dt' }).nextSibling as HTMLElement
 }
@@ -142,6 +157,7 @@ describe('EvaluationPage', () => {
     expect(within(nav).getByRole('link', { name: 'Rückblick' })).toHaveAttribute('href', '#/auswertung/rueckblick')
     expect(within(nav).getByRole('link', { name: 'Rückblick' })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).getByRole('link', { name: 'Vorausschau' })).toHaveAttribute('href', '#/auswertung/vorausschau')
+    expect(within(nav).getByRole('link', { name: 'Kategorien' })).toHaveAttribute('href', '#/auswertung/kategorien')
     expect(await screen.findByRole('table', { name: 'Rückblick' })).toBeInTheDocument()
   })
 
@@ -373,5 +389,88 @@ describe('EvaluationPage', () => {
     fireEvent.pointerDown(document.body)
     fireEvent.click(screen.getByRole('button', { name: 'Erklärung: Vorschau 12 Monate' }))
     expect(screen.getByRole('tooltip')).toHaveTextContent(/Blau ist der Teil/)
+  })
+
+  // --- Kategorien (R34, US39, decision 75) ---
+
+  it('shows each category with sum, average and months with an amount', async () => {
+    window.location.hash = '#/auswertung/kategorien'
+    renderPage()
+
+    const table = await screen.findByRole('table', { name: 'Kategorien' })
+    expect(screen.getByRole('link', { name: 'Kategorien' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: 'Ausgaben' })).toHaveAttribute('aria-pressed', 'true')
+    const rows = within(table).getAllByRole('row')
+    // header, 3 categories, Gesamt
+    expect(rows).toHaveLength(5)
+    expect(rows[1]).toHaveTextContent('Lebensmittel')
+    expect(rows[1]).toHaveTextContent('in 1 von 9 Monaten')
+    expect(rows[1]).toHaveTextContent('999,00111,00')
+    expect(rows[1].querySelector('.category-icon')).toHaveAttribute('data-icon', 'cart')
+    expect(rows[3]).toHaveTextContent('15,001,67')
+    expect(within(table).getByRole('row', { name: /Gesamt/ })).toHaveTextContent('9.234,001.026,00')
+    // Bars relative to the largest category, display only
+    expect(within(rows[1]).getByTestId('progress').firstElementChild).toHaveStyle({ width: '100%' })
+    expect(within(rows[2]).getByTestId('progress').firstElementChild).toHaveStyle({ width: '90.09009009009009%' })
+  })
+
+  it('shows the months of the chosen category, the first one by default', async () => {
+    window.location.hash = '#/auswertung/kategorien'
+    renderPage()
+
+    expect(await screen.findByRole('img', { name: 'Diagramm Lebensmittel je Monat' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Lebensmittel' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Ø 111,00 € pro Monat')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Wohnen').closest('tr') as HTMLElement)
+
+    expect(screen.getByRole('img', { name: 'Diagramm Wohnen je Monat' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Wohnen' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Lebensmittel' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Ø 100,00 € pro Monat')).toBeInTheDocument()
+  })
+
+  it('switches to the income per category', async () => {
+    window.location.hash = '#/auswertung/kategorien'
+    renderPage()
+    await screen.findByRole('table', { name: 'Kategorien' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Einnahmen' }))
+
+    const table = screen.getByRole('table', { name: 'Kategorien' })
+    expect(within(table).getAllByRole('row')).toHaveLength(3)
+    expect(within(table).getByText('Gehalt/Lohn (netto)').closest('tr')).toHaveTextContent('3.000,00333,33')
+    expect(within(table).getByRole('row', { name: /Gesamt/ })).toHaveTextContent('27.000,003.000,00')
+    expect(screen.getByRole('img', { name: 'Diagramm Gehalt/Lohn (netto) je Monat' })).toBeInTheDocument()
+  })
+
+  it('keeps the period when switching between look back and categories', async () => {
+    const fetchMock = renderPage()
+    await screen.findByRole('table', { name: 'Rückblick' })
+    fireEvent.click(screen.getByRole('button', { name: 'Letzte 3 Monate' }))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/history?from=2026-08&to=2026-10', expect.anything()),
+    )
+
+    goTo('#/auswertung/kategorien')
+
+    expect(await screen.findByRole('table', { name: 'Kategorien' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Letzte 3 Monate' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('explains categories without a counted month or without an entry', async () => {
+    window.location.hash = '#/auswertung/kategorien'
+    renderPage(emptyHistory)
+
+    expect(await screen.findByText(/noch keinen Monat mit Einträgen/)).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Kategorien' })).not.toBeInTheDocument()
+  })
+
+  it('says when a period has no expenses with a category', async () => {
+    window.location.hash = '#/auswertung/kategorien'
+    renderPage({ ...history, expensesByCategory: [] })
+
+    expect(await screen.findByText('In diesem Zeitraum gibt es keine Ausgaben mit Kategorie.')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Kategorien' })).not.toBeInTheDocument()
   })
 })

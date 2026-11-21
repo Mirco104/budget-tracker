@@ -483,6 +483,19 @@ export interface HistoryData {
   averageSurplus: number | null
   total: { income: number; expenses: number; surplus: number } | null
   history: HistoryMonth[]
+  /** R34: each category over the counted months, the largest sum first. */
+  incomeByCategory: CategoryTotal[]
+  expensesByCategory: CategoryTotal[]
+}
+
+/** A category over the counted months of the look back (R34): sum, average over all months, months with an amount. */
+export interface CategoryTotal {
+  id: number
+  name: string
+  icon: string
+  total: number
+  average: number
+  monthsWithAmount: number
 }
 
 /** Outlook from the current month on (R14, decision 29). */
