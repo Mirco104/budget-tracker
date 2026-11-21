@@ -32,7 +32,13 @@ public final class Fulfillment {
      */
     public record Term(
             long itemId, UUID itemKey, LocalDate date, LocalDate dueDate, BigDecimal amount, String name,
-            Long categoryId, int toleranceDays, Long linkedTransactionId, boolean skipped) {
+            Long categoryId, int toleranceDays, int earlyDays, Long linkedTransactionId, boolean skipped) {
+
+        public Term(long itemId, UUID itemKey, LocalDate date, LocalDate dueDate, BigDecimal amount, String name,
+                Long categoryId, int toleranceDays, Long linkedTransactionId, boolean skipped) {
+            this(itemId, itemKey, date, dueDate, amount, name, categoryId, toleranceDays, toleranceDays,
+                    linkedTransactionId, skipped);
+        }
 
         String key() {
             return itemKey + "|" + date;
@@ -76,7 +82,7 @@ public final class Fulfillment {
                 statuses.put(term.key(), Status.SKIPPED);
             } else {
                 open.add(new TermMatcher.Planned(term.itemId(), term.itemKey(), term.date(), term.dueDate(),
-                        term.amount(), term.name(), term.categoryId(), term.toleranceDays()));
+                        term.amount(), term.name(), term.categoryId(), term.toleranceDays(), term.earlyDays()));
                 openByKey.put(term.key(), term);
             }
         }
