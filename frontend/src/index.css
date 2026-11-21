@@ -3196,6 +3196,13 @@ input.switch:focus-visible {
   color: var(--muted);
 }
 
+/* The groups Neu and Änderungen of a version */
+.changelog h4 {
+  margin: 12px 0 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 .changelog ul {
   display: grid;
   gap: 6px;

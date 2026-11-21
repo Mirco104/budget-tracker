@@ -21,34 +21,48 @@ export function releaseStage(version: string): string | null {
   return STAGES[stage] ?? stage
 }
 
-/** Ticket #159: one section of the changelog, e.g. "0.1.0-alpha (15.11.2026)" with its text and its points. */
+/** Points of a section under a "### " heading ("Neu" or "Änderungen"); title null for points without heading. */
+export interface ChangelogGroup {
+  title: string | null
+  items: string[]
+}
+
+/** Ticket #159: one section of the changelog, e.g. "0.1.0-alpha (15.11.2026)" with its text and its groups. */
 export interface ChangelogSection {
   title: string
   paragraphs: string[]
-  items: string[]
+  groups: ChangelogGroup[]
 }
 
 /** The changelog of the app as written in CHANGELOG.md. */
 export const APP_CHANGELOG: string = __APP_CHANGELOG__
 
 /**
- * Reads the sections of the changelog: each "## " heading starts one, "- " lines are its points, other lines its text;
- * the title and text above the first section are left out.
+ * Reads the sections of the changelog: each "## " heading starts one, "### " a group of points in it ("Neu",
+ * "Änderungen"), "- " lines are the points, other lines its text; the title and text above the first section are left
+ * out.
  */
 export function changelogSections(markdown: string): ChangelogSection[] {
   const sections: ChangelogSection[] = []
   for (const raw of markdown.split(/\r?\n/)) {
     const line = raw.trim()
     if (line.startsWith('## ')) {
-      sections.push({ title: line.slice(3).trim(), paragraphs: [], items: [] })
+      sections.push({ title: line.slice(3).trim(), paragraphs: [], groups: [] })
       continue
     }
     const current = sections[sections.length - 1]
     if (!current || line === '') {
       continue
     }
-    if (line.startsWith('- ')) {
-      current.items.push(line.slice(2).trim())
+    if (line.startsWith('### ')) {
+      current.groups.push({ title: line.slice(4).trim(), items: [] })
+    } else if (line.startsWith('- ')) {
+      let group = current.groups[current.groups.length - 1]
+      if (!group) {
+        group = { title: null, items: [] }
+        current.groups.push(group)
+      }
+      group.items.push(line.slice(2).trim())
     } else {
       current.paragraphs.push(line)
     }

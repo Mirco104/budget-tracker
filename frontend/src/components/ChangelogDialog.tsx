@@ -21,13 +21,16 @@ export function ChangelogDialog({ onClose, changelog = APP_CHANGELOG }: { onClos
             {section.paragraphs.map((text) => (
               <p key={text}>{inline(text)}</p>
             ))}
-            {section.items.length > 0 && (
-              <ul>
-                {section.items.map((item) => (
-                  <li key={item}>{inline(item)}</li>
-                ))}
-              </ul>
-            )}
+            {section.groups.map((group) => (
+              <Fragment key={group.title ?? ''}>
+                {group.title && <h4>{group.title}</h4>}
+                <ul>
+                  {group.items.map((item) => (
+                    <li key={item}>{inline(item)}</li>
+                  ))}
+                </ul>
+              </Fragment>
+            ))}
           </section>
         ))}
         {sections.length === 0 && <p className="hint">Noch keine Änderungen eingetragen.</p>}
