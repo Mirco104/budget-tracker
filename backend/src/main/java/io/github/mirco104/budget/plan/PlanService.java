@@ -123,14 +123,14 @@ public class PlanService {
         return PlannedItemResponse.from(itemRepository.save(item));
     }
 
-    /** R31: a monthly item from a series found in an import, entered automatically from its first occurrence. */
+    /** R31: a monthly item from a series found in an import, ticked off like every new item (decision 70). */
     @Transactional
     public PlannedItem createMonthlyForImport(
             String name, BigDecimal amount, long categoryId, BankAccount account, LocalDate anchor,
             ImportBatch batch) {
         PlannedItem item = new PlannedItem(currentUser.get(), UUID.randomUUID(), LocalDate.now(clock));
         item.update(name.trim(), amount.setScale(2, RoundingMode.HALF_UP), false, categoryService.findBookable(categoryId),
-                account, RhythmUnit.MONTH, 1, anchor, EntryMode.AUTO, false, YearMonth.from(anchor));
+                account, RhythmUnit.MONTH, 1, anchor, EntryMode.TICK, false, YearMonth.from(anchor));
         item.markImported(batch);
         return itemRepository.save(item);
     }
@@ -268,7 +268,8 @@ public class PlanService {
     // Decision 51: income and fixed costs automatically, saving when ticked off, budgets by the user
     static EntryMode defaultMode(boolean saving, BigDecimal amount, RhythmUnit unit) {
         return switch (PlanCalculator.groupOf(saving, amount, unit)) {
-            case INCOME, FIXED -> unit == null ? EntryMode.MANUAL : EntryMode.AUTO;
+            // Decision 70 (ticket #163): entering automatically is a deliberate choice, a dated item is ticked off
+            case INCOME, FIXED -> unit == null ? EntryMode.MANUAL : EntryMode.TICK;
             case SAVING -> EntryMode.TICK;
             case BUDGET -> EntryMode.MANUAL;
         };
