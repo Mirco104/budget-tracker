@@ -697,7 +697,7 @@ Geklärt am 15.11.2026 (Deutsche Bank, AP 30, mit dem Nutzer abgestimmt):
 
 Geklärt am 16.11.2026 (Auswertung je Kategorie, AP 31, mit dem Nutzer abgestimmt):
 
-70. **Auswertung je Kategorie als eigene Unterseite, nur Ist:** Die Unterseite *Kategorien* der Auswertung zeigt für den Zeitraum des Rückblicks je Kategorie Summe und Ø pro Monat und den Verlauf einer gewählten Kategorie (R34, US39). Sie rechnet je Rechenkategorie (R32) und nur mit Buchungen (P1). Plan gegen Ist je Kategorie und Monat und eine Aufschlüsselung nach Unterkategorien kommen später (Abschnitt 16). Der Ø zählt jeden Monat des Zeitraums, auch die ohne Betrag der Kategorie, damit er mit dem Ø Ausgaben des Rückblicks zusammenpasst (die Ø der Kategorien ergeben zusammen den Ø Ausgaben, bis auf Rundung). Werte nur in Euro, ohne Anteile in Prozent (Entscheidung 34); die Länge der Balken in der Tabelle (Summe im Verhältnis zur größten Kategorie) ist reine Anzeige wie in Entscheidung 15. Der Zeitraum gilt für Rückblick und *Kategorien* gemeinsam, solange die Seite offen ist.
+75. **Auswertung je Kategorie als eigene Unterseite, nur Ist:** Die Unterseite *Kategorien* der Auswertung zeigt für den Zeitraum des Rückblicks je Kategorie Summe und Ø pro Monat und den Verlauf einer gewählten Kategorie (R34, US39). Sie rechnet je Rechenkategorie (R32) und nur mit Buchungen (P1). Plan gegen Ist je Kategorie und Monat und eine Aufschlüsselung nach Unterkategorien kommen später (Abschnitt 16). Der Ø zählt jeden Monat des Zeitraums, auch die ohne Betrag der Kategorie, damit er mit dem Ø Ausgaben des Rückblicks zusammenpasst (die Ø der Kategorien ergeben zusammen den Ø Ausgaben, bis auf Rundung). Werte nur in Euro, ohne Anteile in Prozent (Entscheidung 34); die Länge der Balken in der Tabelle (Summe im Verhältnis zur größten Kategorie) ist reine Anzeige wie in Entscheidung 15. Der Zeitraum gilt für Rückblick und *Kategorien* gemeinsam, solange die Seite offen ist.
 
 ## 12. Testfixtures F1, F2 und Sonderfall Einnahmen = 0
 
@@ -1134,7 +1134,7 @@ Ticket #120, mit dem Nutzer abgestimmt am 14.11.2026 (Entscheidungen 61 bis 63).
 
 ## 21. Auswertung je Kategorie ab 16.11.2026
 
-Mit dem Nutzer abgestimmt am 16.11.2026 (Entscheidung 70). Ziel: Der Nutzer sieht, wofür über einen Zeitraum wie viel Geld ausgegeben wurde und wie sich eine Kategorie über die Monate entwickelt. Die Rechnung lebt im `ReserveCalculator` neben dem Rückblick (R14), Tests zuerst.
+Mit dem Nutzer abgestimmt am 16.11.2026 (Entscheidung 75). Ziel: Der Nutzer sieht, wofür über einen Zeitraum wie viel Geld ausgegeben wurde und wie sich eine Kategorie über die Monate entwickelt. Die Rechnung lebt im `ReserveCalculator` neben dem Rückblick (R14), Tests zuerst.
 
 ### 21.1 Regel
 
@@ -1156,4 +1156,4 @@ Mit dem Nutzer abgestimmt am 16.11.2026 (Entscheidung 70). Ziel: Der Nutzer sieh
 
 | AP | Inhalt | Ergebnis |
 |---|---|---|
-| 31 | Auswertung je Kategorie (R34, US39, Entscheidung 70): Summen je Kategorie im `ReserveCalculator` (Tests zuerst), `/api/history` erweitert, Unterseite *Auswertung › Kategorien* mit gemeinsamem Zeitraum | Unit-, Integrations- und Frontend-Tests grün |
+| 31 | Auswertung je Kategorie (R34, US39, Entscheidung 75): Summen je Kategorie im `ReserveCalculator` (Tests zuerst), `/api/history` erweitert, Unterseite *Auswertung › Kategorien* mit gemeinsamem Zeitraum | Unit-, Integrations- und Frontend-Tests grün |

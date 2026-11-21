@@ -391,7 +391,7 @@ describe('EvaluationPage', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent(/Blau ist der Teil/)
   })
 
-  // --- Kategorien (R34, US39, decision 70) ---
+  // --- Kategorien (R34, US39, decision 75) ---
 
   it('shows each category with sum, average and months with an amount', async () => {
     window.location.hash = '#/auswertung/kategorien'
