@@ -186,6 +186,8 @@ describe('PlanningPage', () => {
     const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
     fireEvent.click(within(fixed).getByRole('button', { name: '+ Posten' }))
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    // Only an automatic item enters past terms; it is a deliberate choice (decision 70)
+    fireEvent.change(within(dialog).getByLabelText('Eintragen'), { target: { value: 'AUTO' } })
     const pastTermCalls = () => fetchMock.mock.calls.filter(([url]) => url === '/api/planned-items/past-terms').length
     await waitFor(() => expect(pastTermCalls()).toBe(1))
 
@@ -209,6 +211,8 @@ describe('PlanningPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Fällig im'), { target: { value: '3' } })
     fireEvent.change(within(dialog).getByLabelText('Am Tag'), { target: { value: '15' } })
     fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: '1' } })
+    // Decision 70 (ticket #163): a new item is ticked off unless the user chooses otherwise
+    expect(within(dialog).getByLabelText('Eintragen')).toHaveValue('TICK')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/planned-items')).toBe(true))
@@ -222,7 +226,7 @@ describe('PlanningPage', () => {
       rhythmUnit: 'MONTH',
       rhythmCount: 12,
       anchorDate: `${month.slice(0, 4)}-03-15`,
-      entryMode: 'AUTO',
+      entryMode: 'TICK',
       workdaysOnly: false,
       validFrom: month,
       savingGoalId: null,
@@ -284,6 +288,7 @@ describe('PlanningPage', () => {
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Streaming Abo')
     expect(within(dialog).getByLabelText(/Betrag/)).toHaveValue('12,99')
+    expect(within(dialog).getByLabelText('Eintragen')).toHaveValue('TICK')
 
     fireEvent.click(within(found).getByRole('button', { name: 'Ausblenden' }))
     await waitFor(() =>

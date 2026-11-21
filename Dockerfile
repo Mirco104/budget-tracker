@@ -6,11 +6,13 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# Ticket #159: the changelog the app shows; vite.config.ts reads it from the parent directory
+COPY CHANGELOG.md /CHANGELOG.md
 # Ticket #129: the image has no .git; the commit shown in the settings comes from the build argument (may be empty)
 ARG APP_COMMIT=""
 RUN APP_COMMIT="$APP_COMMIT" npm run build
 
-FROM eclipse-temurin:21.0.13_9-jdk-alpine AS backend
+FROM eclipse-temurin:21-jdk-alpine AS backend
 WORKDIR /build
 COPY backend/mvnw backend/pom.xml ./
 COPY backend/.mvn .mvn
@@ -19,7 +21,7 @@ COPY backend/src src
 COPY --from=frontend /build/dist src/main/resources/static
 RUN ./mvnw -B -q package -DskipTests && cp target/budget-*.jar app.jar
 
-FROM eclipse-temurin:21.0.13_9-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S budget && adduser -S budget -G budget
 WORKDIR /app
 COPY --from=backend /build/app.jar app.jar

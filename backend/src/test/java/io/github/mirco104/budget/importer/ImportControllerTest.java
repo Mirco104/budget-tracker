@@ -641,7 +641,7 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].name").value("Firma Beispiel · Lohn"))
                 .andExpect(jsonPath("$.items[0].accountName").value("N26 Hauptkonto"))
-                .andExpect(jsonPath("$.items[0].entryMode").value("AUTO"));
+                .andExpect(jsonPath("$.items[0].entryMode").value("TICK"));
         // Every occurrence is replaced: September counts the salary of 31 August once, as recurring
         mockMvc.perform(get("/api/dashboard").param("month", "2026-09"))
                 .andExpect(jsonPath("$.incomeTotal").value(0.00));
