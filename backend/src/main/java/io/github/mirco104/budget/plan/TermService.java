@@ -28,8 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TermService {
 
-    /** Bookings this many days around a period can fulfil its terms (largest tolerance plus a weekend). */
-    private static final int MATCH_WINDOW_DAYS = 7;
+    /**
+     * Bookings this many days around a period can fulfil its terms: the early income of decision 78, which is more than
+     * the largest tolerance plus a weekend.
+     */
+    private static final int MATCH_WINDOW_DAYS = TermSchedule.EARLY_INCOME_DAYS;
 
     private final PlannedItemRepository itemRepository;
     private final ItemTermRepository termRepository;
@@ -242,7 +245,8 @@ public class TermService {
                 if (!handled.contains(key(item.getItemKey(), date))) {
                     Fulfillment.Term term = term(item, date, null, false);
                     open.add(new TermMatcher.Planned(item.getId(), item.getItemKey(), date, term.dueDate(),
-                            item.getAmount(), item.getName(), term.categoryId(), term.toleranceDays()));
+                            item.getAmount(), item.getName(), term.categoryId(), term.toleranceDays(),
+                            term.earlyDays()));
                 }
             }
         }
@@ -273,7 +277,8 @@ public class TermService {
                 if (row == null || auto != null) {
                     Fulfillment.Term term = term(item, date, null, false);
                     terms.add(new ImportTerm(new TermMatcher.Planned(item.getId(), item.getItemKey(), date,
-                            term.dueDate(), item.getAmount(), item.getName(), term.categoryId(), term.toleranceDays()),
+                            term.dueDate(), item.getAmount(), item.getName(), term.categoryId(), term.toleranceDays(),
+                            term.earlyDays()),
                             auto));
                 }
             }
@@ -336,7 +341,9 @@ public class TermService {
         LocalDate due = item.isWorkdaysOnly() ? TermSchedule.nextWorkingDay(date) : date;
         return new Fulfillment.Term(item.getId(), item.getItemKey(), date, due, item.getAmount(), item.getName(),
                 item.getCategory() == null ? null : item.getCategory().getId(),
-                TermSchedule.toleranceDays(item.getRhythmUnit(), item.getRhythmCount()), linked, skipped);
+                TermSchedule.toleranceDays(item.getRhythmUnit(), item.getRhythmCount()),
+                TermSchedule.earlyDays(item.getRhythmUnit(), item.getRhythmCount(), item.getAmount().signum() > 0),
+                linked, skipped);
     }
 
     private static String key(UUID itemKey, LocalDate date) {

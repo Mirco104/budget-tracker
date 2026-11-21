@@ -21,6 +21,7 @@ import io.github.mirco104.budget.plan.PlannedItem;
 import io.github.mirco104.budget.plan.PlannedItemRepository;
 import io.github.mirco104.budget.plan.TermMatcher;
 import io.github.mirco104.budget.plan.TermMatcher.Planned;
+import io.github.mirco104.budget.plan.TermSchedule;
 import io.github.mirco104.budget.plan.TermRef;
 import io.github.mirco104.budget.plan.TermService;
 import io.github.mirco104.budget.importer.ImportPreviewResponse.Source;
@@ -381,7 +382,9 @@ public class ImportService {
             Map<Integer, Suggestion> suggestions, Map<Long, Long> autoEntries) {
         List<TermMatcher.Booking> bookings = fresh.stream()
                 .filter(c -> !transfers.containsKey(c.index()) || savingRows.contains(c.index()))
-                .map(c -> new TermMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(), c.text(),
+                // Ticket #142: the counterparty and the description, like the bookings on the planning page
+                .map(c -> new TermMatcher.Booking(c.index(), c.line().row().bookingDate(), c.line().row().amount(),
+                        c.counterparty() != null ? c.counterparty() + " " + c.description() : c.description(),
                         suggestions.containsKey(c.index()) ? suggestions.get(c.index()).categoryId() : null,
                         savingRows.contains(c.index())))
                 .toList();
@@ -391,7 +394,9 @@ public class ImportService {
         LocalDate from = bookings.stream().map(TermMatcher.Booking::date).min(Comparator.naturalOrder()).orElseThrow();
         LocalDate to = bookings.stream().map(TermMatcher.Booking::date).max(Comparator.naturalOrder()).orElseThrow();
         List<Planned> planned = new ArrayList<>();
-        for (TermService.ImportTerm term : termService.importTerms(from.minusDays(7), to.plusDays(7))) {
+        // Wide enough for the tolerance plus a weekend and for the early income of decision 78
+        int window = TermSchedule.EARLY_INCOME_DAYS;
+        for (TermService.ImportTerm term : termService.importTerms(from.minusDays(window), to.plusDays(window))) {
             planned.add(term.planned());
             if (term.autoEntryId() != null) {
                 autoEntries.put(autoKey(term.planned()), term.autoEntryId());

@@ -16,6 +16,8 @@ import java.util.List;
 public class TermSchedule {
 
     private static final int MAX_TOLERANCE_DAYS = 5;
+    /** Days income of a monthly item may come before its term (P5, decision 78). */
+    public static final int EARLY_INCOME_DAYS = 10;
 
     private final RhythmUnit unit;
     private final int count;
@@ -71,6 +73,14 @@ public class TermSchedule {
     public static int toleranceDays(RhythmUnit unit, int count) {
         int spacingDays = unit == RhythmUnit.WEEK ? 7 * count : 30 * count;
         return Math.min(MAX_TOLERANCE_DAYS, spacingDays / 2);
+    }
+
+    /**
+     * P5 (decision 78): days a booking may lie before the term; income of an item with a rhythm of months up to
+     * 10 days (the salary at the end of the previous month), otherwise the tolerance.
+     */
+    public static int earlyDays(RhythmUnit unit, int count, boolean income) {
+        return income && unit == RhythmUnit.MONTH ? EARLY_INCOME_DAYS : toleranceDays(unit, count);
     }
 
     /** P5: the date itself on a working day, otherwise the next working day (weekend and nationwide holidays). */
