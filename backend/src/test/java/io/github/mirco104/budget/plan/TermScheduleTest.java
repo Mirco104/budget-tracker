@@ -83,6 +83,15 @@ class TermScheduleTest {
     }
 
     @Test
+    void incomeOfAMonthlyItemMayComeTenDaysEarlyOtherwiseTheTolerance() {
+        // Ticket #142: only income with a rhythm of months; a weekly or biweekly term keeps its tolerance
+        assertThat(TermSchedule.earlyDays(RhythmUnit.MONTH, 1, true)).isEqualTo(10);
+        assertThat(TermSchedule.earlyDays(RhythmUnit.MONTH, 3, true)).isEqualTo(10);
+        assertThat(TermSchedule.earlyDays(RhythmUnit.WEEK, 2, true)).isEqualTo(5);
+        assertThat(TermSchedule.earlyDays(RhythmUnit.MONTH, 1, false)).isEqualTo(5);
+    }
+
+    @Test
     void previousTermIsTheLatestBeforeTheDate() {
         TermSchedule halfYearly = new TermSchedule(RhythmUnit.MONTH, 6, d("2025-04-01"), YearMonth.of(2025, 4), null);
         TermSchedule yearly = new TermSchedule(RhythmUnit.MONTH, 12, d("2025-03-15"), YearMonth.of(2025, 1), null);

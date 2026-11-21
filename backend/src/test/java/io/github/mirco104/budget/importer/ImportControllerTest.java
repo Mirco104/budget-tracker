@@ -607,6 +607,33 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$[?(@.amount == -50.0)]", hasSize(0)));
     }
 
+    // Ticket #142 (decision 78): the purpose counts for the shared word, the salary may come at the end of the previous
+    // month, and a fixed cost with the same amount needs no shared word
+    @Test
+    void findsTheTermsByThePurposeTheEarlySalaryAndTheSameAmount() throws Exception {
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Gehalt", "amount": 2500, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "2026-10-01", "validFrom": "2026-10"}"""
+                        .formatted(category(user, "Gehalt/Lohn (netto)"))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Handy", "amount": -24.99, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "2026-10-10", "validFrom": "2026-10"}""".formatted(category(user, "Nebenkosten"))))
+                .andExpect(status().isCreated());
+
+        String file = """
+                "Booking Date","Value Date","Partner Name","Partner Iban",Type,"Payment Reference","Account Name","Amount (EUR)"
+                2026-10-27,2026-10-27,"Firma Beispiel",,"Credit Transfer","Lohn/Gehalt 11/2026",Hauptkonto,2480.00
+                2026-10-12,2026-10-12,"Mobilfunk Nord",,"Direct Debit","Kundennr 4711",Hauptkonto,-24.99
+                """;
+        String preview = previewJson(mockMvc, file);
+
+        assertThat(JsonPath.<List<String>>read(preview, "$.entries[?(@.line == 2)].replaces.date"))
+                .containsExactly("2026-11-01");
+        assertThat(JsonPath.<List<String>>read(preview, "$.entries[?(@.line == 3)].replaces.date"))
+                .containsExactly("2026-10-10");
+    }
+
     private long autoItem(String name, String amount, long account, java.time.LocalDate anchor) throws Exception {
         return idOf(mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
                         {"name": "%s", "amount": %s, "categoryId": %d, "accountId": %d, "rhythmUnit": "MONTH",
