@@ -32,6 +32,8 @@ export function TransactionFilters({
   directions,
   toggle,
   expanded = true,
+  incomeHasKinds = false,
+  extra,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
@@ -40,8 +42,15 @@ export function TransactionFilters({
   extraCategoryOptions?: FilterOption[]
   counts?: FacetCounts
   kinds?: FilterOption[]
-  /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter (the import) */
+  /** 27f4: Einnahmen / Ausgaben; without it the bar has no such filter */
   directions?: FilterOption[]
+  /**
+   * Decision 74: the kinds apply to income too (the import: Wiederkehrend / Einmalig), so Einnahmen keeps the kind filter;
+   * on Transaktionen fix and variable are kinds of expenses only
+   */
+  incomeHasKinds?: boolean
+  /** Decision 74: further filters of the page after the others (the import: Importieren) */
+  extra?: ReactNode
   /** 27f4: a button after the search that folds the other filters (Transaktionen) */
   toggle?: ReactNode
   /** 27f4: false shows only the search and the toggle */
@@ -112,19 +121,24 @@ export function TransactionFilters({
               value={filters.direction}
               // Fix and variable are kinds of expenses; with Einnahmen they do not apply
               onChange={(e) =>
-                onChange({ ...filters, direction: e.target.value, kind: e.target.value === 'INCOME' ? '' : filters.kind })
+                onChange({
+                  ...filters,
+                  direction: e.target.value,
+                  kind: e.target.value === 'INCOME' && !incomeHasKinds ? '' : filters.kind,
+                })
               }
             >
               <option value="">Einnahmen und Ausgaben</option>
               {options('direction', directions)}
             </select>
           )}
-          {filters.direction !== 'INCOME' && (
+          {(filters.direction !== 'INCOME' || incomeHasKinds) && (
             <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
-              <option value="">{directions ? 'Fix und variabel' : 'Alle Arten'}</option>
+              <option value="">{directions && !incomeHasKinds ? 'Fix und variabel' : 'Alle Arten'}</option>
               {options('kind', kinds)}
             </select>
           )}
+          {extra}
         </div>
       )}
     </div>
