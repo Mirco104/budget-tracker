@@ -11,12 +11,28 @@ import java.util.List;
  */
 public record ImportPreviewResponse(
         BankProfile profile, String profileLabel, int rows, int newRows, int duplicates, int skipped,
-        List<Source> sources, List<Entry> entries, List<SeriesSuggestion> series) {
+        List<Source> sources, List<Entry> entries, List<SeriesSuggestion> series,
+        List<io.github.mirco104.budget.plan.BudgetSuggester.Suggestion> budgetSuggestions, Income income) {
+
+    /**
+     * Decision 91: the income of the new rows of the file for the setup wizard (IncomeAverage, R23): average and
+     * minimum per month; both null without income.
+     */
+    public record Income(BigDecimal average, BigDecimal minimum, int months) {
+    }
 
     public enum Status { NEW, POSSIBLE_DUPLICATE, DUPLICATE, SKIPPED }
 
-    /** A source account of the file; accountId is the own account it is put on so far, else null. */
-    public record Source(String key, String name, Long accountId, String suggestedName) {
+    /**
+     * A source account of the file; accountId is the own account it is put on so far, else null. balanceDate and
+     * balanceAmount are the balance the file delivers for it (decision 92), else null.
+     */
+    public record Source(String key, String name, Long accountId, String suggestedName, LocalDate balanceDate,
+            BigDecimal balanceAmount) {
+
+        Source withBalance(LocalDate date, BigDecimal amount) {
+            return new Source(key, name, accountId, suggestedName, date, amount);
+        }
     }
 
     /**

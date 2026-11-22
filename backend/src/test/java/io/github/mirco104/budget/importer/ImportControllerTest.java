@@ -456,6 +456,32 @@ class ImportControllerTest {
         assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
     }
 
+    // Decision 92: the balance of the file comes with its source and can be taken over alone (stage 1, decision 91)
+    @Test
+    void theBalanceOfTheFileCanBeTakenOverWithoutRows() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.VR_BANK);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].balanceDate")).isEqualTo("2026-11-10");
+        assertThat(JsonPath.<Double>read(preview, "$.sources[0].balanceAmount")).isEqualTo(1395.85);
+        // Decision 91: the setup wizard gets budget suggestions and the income of the file
+        assertThat(JsonPath.<List<Object>>read(preview, "$.budgetSuggestions")).isNotNull();
+        assertThat(JsonPath.<Map<String, Object>>read(preview, "$.income")).containsKey("months");
+
+        String key = JsonPath.read(preview, "$.sources[0].key");
+        String withoutBalance = "{\"profile\":\"VR_BANK\",\"sources\":[{\"key\":\"%s\",\"newAccountName\":\"VR Giro\"}],\"rows\":[]}"
+                .formatted(key);
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(withoutBalance))
+                .andExpect(status().isBadRequest());
+
+        String onlyBalance = ("{\"profile\":\"VR_BANK\",\"sources\":[{\"key\":\"%s\",\"newAccountName\":\"VR Giro\","
+                + "\"balanceDate\":\"2026-11-10\",\"balanceAmount\":1395.85}],\"rows\":[]}").formatted(key);
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(onlyBalance))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(0));
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$[0].accounts[?(@.name == 'VR Giro')].statementAmount").value(1395.85))
+                .andExpect(jsonPath("$[0].accounts[?(@.name == 'VR Giro')].statementDate").value("2026-11-10"));
+    }
+
     // --- Deutsche Bank (decision 76) ---
 
     @Test

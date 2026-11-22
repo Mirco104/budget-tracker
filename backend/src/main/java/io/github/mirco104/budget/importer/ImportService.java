@@ -78,7 +78,10 @@ public class ImportService {
             CategoryService categoryService, BookingSuggestionService suggestionService,
             TermService termService, PlanService planService, PlannedItemRepository itemRepository,
             ItemTermRepository termRepository, CurrentUser currentUser,
-            Clock clock) {
+            Clock clock, io.github.mirco104.budget.plan.PlanSuggestionService planSuggestionService,
+            io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository) {
+        this.planSuggestionService = planSuggestionService;
+        this.statementRepository = statementRepository;
         this.termService = termService;
         this.planService = planService;
         this.itemRepository = itemRepository;
@@ -92,6 +95,9 @@ public class ImportService {
         this.currentUser = currentUser;
         this.clock = clock;
     }
+
+    private final io.github.mirco104.budget.plan.PlanSuggestionService planSuggestionService;
+    private final io.github.mirco104.budget.bankaccount.BankStatementRepository statementRepository;
 
     /** A new row of the file with its fingerprint and the values the preview shows. */
     private record Candidate(int index, Line line, String source, String fingerprint, String description,
@@ -135,6 +141,11 @@ public class ImportService {
                 String key = ImportRules.sourceKey(profile, line.row().accountName());
                 sources.computeIfAbsent(key, k -> source(profile, line.row().accountName(), k, remembered, accounts));
             }
+        }
+        // Decision 92: the balance the file delivers for a source
+        for (BankCsv.Balance balance : file.balances()) {
+            String key = ImportRules.sourceKey(profile, balance.accountName());
+            sources.computeIfPresent(key, (k, source) -> source.withBalance(balance.date(), balance.amount()));
         }
 
         // Fingerprints, with the number of equal rows (R30)
@@ -227,9 +238,43 @@ public class ImportService {
 
         int duplicateCount = (int) ordered.stream().filter(e -> e.status() == Status.DUPLICATE).count();
         int skipped = (int) ordered.stream().filter(e -> e.status() == Status.SKIPPED).count();
+        List<ImportPreviewResponse.SeriesSuggestion> series = seriesSuggestions(fresh, transfers, savingRows, matches, suggestions);
+
+        // Decision 91: what the setup wizard suggests from the file: budgets from the expenses that are no series, no
+        // term, no transfer and no saving; the income from all income rows that are no transfer
+        Set<Integer> seriesLines = series.stream().flatMap(s -> s.lines().stream()).collect(Collectors.toSet());
+        List<io.github.mirco104.budget.plan.PlanSuggestionService.FileRow> counted = new ArrayList<>();
+        List<io.github.mirco104.budget.plan.PlanSuggestionService.FileRow> variable = new ArrayList<>();
+        for (Candidate c : fresh) {
+            if (transfers.containsKey(c.index()) || savingRows.contains(c.index())) {
+                continue;
+            }
+            Suggestion suggestion = suggestions.get(c.index());
+            var row = new io.github.mirco104.budget.plan.PlanSuggestionService.FileRow(c.line().row().bookingDate(),
+                    c.line().row().amount(), suggestion == null ? null : suggestion.categoryId(), c.bankCategory());
+            counted.add(row);
+            if (!seriesLines.contains(c.line().number()) && !matches.containsKey(c.index())) {
+                variable.add(row);
+            }
+        }
+        var income = planSuggestionService.income(counted);
         return new ImportPreviewResponse(profile, profile.label(), ordered.size(), ordered.size() - duplicateCount - skipped,
-                duplicateCount, skipped, List.copyOf(sources.values()), ordered,
-                seriesSuggestions(fresh, transfers, savingRows, matches, suggestions));
+                duplicateCount, skipped, List.copyOf(sources.values()), ordered, series,
+                planSuggestionService.budgetSuggestions(variable),
+                new ImportPreviewResponse.Income(income.average(), income.minimum(), income.months()));
+    }
+
+    // Decision 92: stores the balance of the file for its day (replacing one of the same day), never over a newer one
+    private void takeBalance(User owner, BankAccount account, java.time.LocalDate date, java.math.BigDecimal amount) {
+        boolean newer = statementRepository.findByOwnerOrderByDateAsc(owner).stream()
+                .anyMatch(s -> s.getAccount().getId().equals(account.getId()) && s.getDate().isAfter(date));
+        if (newer) {
+            return;
+        }
+        var statement = statementRepository.findByAccountAndDate(account, date)
+                .orElseGet(() -> new io.github.mirco104.budget.bankaccount.BankStatement(owner, account, date));
+        statement.setAmount(amount.setScale(2, java.math.RoundingMode.HALF_UP));
+        statementRepository.save(statement);
     }
 
     /** R33: only C24 and the Sparkasse deliver a category; the others only the kind of booking. */
@@ -268,7 +313,8 @@ public class ImportService {
                     .findFirst()
                     .orElse(null);
         }
-        return new Source(key, name == null || name.isBlank() ? profile.label() : name, accountId, suggestedName);
+        return new Source(key, name == null || name.isBlank() ? profile.label() : name, accountId, suggestedName, null,
+                null);
     }
 
     private List<Transaction> storedAround(User owner, List<Candidate> fresh) {
@@ -481,7 +527,8 @@ public class ImportService {
     @Transactional
     public ImportResultResponse commit(ImportRequest request) {
         User owner = currentUser.get();
-        if (request.rows().isEmpty()) {
+        // Decision 92: a balance of the file alone may be taken over (stage 1 stores no rows, decision 91)
+        if (request.rows().isEmpty() && request.sources().stream().noneMatch(ImportRequest.SourceMapping::takesBalance)) {
             throw new InvalidFieldException("rows", "Es ist keine Zeile ausgewählt.");
         }
         Map<String, BankAccount> existingAccounts = new HashMap<>();
@@ -595,6 +642,13 @@ public class ImportService {
         accounts.forEach((key, account) -> sourceRepository.findByOwnerAndSourceKey(owner, key).ifPresentOrElse(
                 source -> source.moveTo(account),
                 () -> sourceRepository.save(new BankAccountSource(owner, account, key))));
+        // Decision 92: the balance of the file becomes the balance of the account, unless it has a newer one
+        for (ImportRequest.SourceMapping mapping : request.sources()) {
+            BankAccount account = accounts.get(mapping.key());
+            if (mapping.takesBalance() && account != null) {
+                takeBalance(owner, account, mapping.balanceDate(), mapping.balanceAmount());
+            }
+        }
         if (checked.isEmpty()) {
             return new ImportResultResponse(null, 0, skipped, 0, List.of());
         }

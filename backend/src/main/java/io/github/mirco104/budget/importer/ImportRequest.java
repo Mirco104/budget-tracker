@@ -71,7 +71,23 @@ public record ImportRequest(
             Long accountId,
 
             @Size(max = 50, message = "Der Name darf höchstens 50 Zeichen haben.")
-            String newAccountName) {
+            String newAccountName,
+
+            // Decision 92: the balance of the file taken over for the account; both or none
+            @jakarta.validation.constraints.PastOrPresent(message = "Der Stichtag darf nicht in der Zukunft liegen.")
+            LocalDate balanceDate,
+
+            @Digits(integer = 10, fraction = 2, message = "Der Betrag darf höchstens 2 Nachkommastellen haben.")
+            BigDecimal balanceAmount) {
+
+        public SourceMapping(String key, Long accountId, String newAccountName) {
+            this(key, accountId, newAccountName, null, null);
+        }
+
+        /** Whether the balance of the file is taken over. */
+        public boolean takesBalance() {
+            return balanceDate != null && balanceAmount != null;
+        }
     }
 
     /**
