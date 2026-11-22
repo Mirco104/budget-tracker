@@ -257,7 +257,8 @@ export interface Totals {
 
 /** actual is the expense of the category (positive). */
 export interface CategoryLine {
-  id: number
+  /** R37: null for the row "Ohne Kategorie" */
+  id: number | null
   name: string
   target: number | null
   actual: number
@@ -266,7 +267,8 @@ export interface CategoryLine {
 
 /** actual is the net of the category (positive). */
 export interface IncomeLine {
-  id: number
+  /** R37: null for the row "Ohne Kategorie" */
+  id: number | null
   name: string
   actual: number
 }

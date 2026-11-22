@@ -268,7 +268,8 @@ describe('BookingDialog', () => {
     expect(screen.getByText('Der Betrag ist Pflicht.')).toBeInTheDocument()
     expect(screen.getByText('Die Beschreibung ist Pflicht.')).toBeInTheDocument()
     expect(screen.getByText('Das Datum ist Pflicht.')).toBeInTheDocument()
-    expect(screen.getByText('Die Kategorie ist Pflicht.')).toBeInTheDocument()
+    // R37: a booking may be without a category
+    expect(screen.queryByText('Die Kategorie ist Pflicht.')).not.toBeInTheDocument()
     expect(sent(fetchMock, 'POST')).toBeUndefined()
   })
 

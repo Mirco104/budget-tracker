@@ -137,8 +137,8 @@ function DashboardContent({
               ) : (
                 <ul>
                   {data.income.map((line) => (
-                    <li key={line.id}>
-                      <CategoryIcon icon={iconOf(line.id)} size={14} />
+                    <li key={line.id ?? 'without'}>
+                      <CategoryIcon icon={line.id === null ? 'tag' : iconOf(line.id)} size={14} />
                       <span>{line.name}</span>
                       <span className="income">{formatEuro(line.actual)}</span>
                     </li>
@@ -217,7 +217,10 @@ function DashboardContent({
                 <p className="hint">In diesem Monat gibt es weder Soll-Werte noch Ausgaben.</p>
               ) : (
                 <ul className="budget-list">
-                  {data.categories.map((line) => (
+                  {data.categories.map((line) =>
+                    line.id === null ? (
+                      <WithoutCategoryRow key="without" line={line} month={month} />
+                    ) : (
                     <BudgetItem
                       key={line.id}
                       line={line}
@@ -227,7 +230,8 @@ function DashboardContent({
                       onEditBooking={onEditBooking}
                       onOpenItem={openItem}
                     />
-                  ))}
+                    ),
+                  )}
                   <li className="budget-item budget-total">
                     <div className="budget-head">
                       <span className="budget-name">Gesamt</span>
@@ -387,7 +391,7 @@ function BudgetItem({
       {open && (
         <CategoryBookings
           month={month}
-          categoryId={line.id}
+          categoryId={line.id ?? 0}
           pots={pots}
           onEditBooking={onEditBooking}
           onOpenItem={onOpenItem}
@@ -589,5 +593,23 @@ function PlanOnly({ plan, iconOf }: { plan: Plan; iconOf: (id: number) => string
         </section>
       )}
     </>
+  )
+}
+
+/** R37: the expenses without a category; they count as variable, but in no budget. */
+function WithoutCategoryRow({ line, month }: { line: CategoryLine; month: string }) {
+  return (
+    <li className="budget-item budget-without">
+      <div className="budget-head">
+        <span className="budget-name">Ohne Kategorie</span>
+        <span className="budget-amount">
+          <span>{formatEuro(line.actual)}</span>
+          <span className="budget-left">zählt zu den variablen Kosten, aber zu keinem Budget</span>
+        </span>
+      </div>
+      <a className="summary-link" href={transactionsPeriodHref(`${month}-01`, lastDayOf(month))}>
+        Zuordnen ›
+      </a>
+    </li>
   )
 }

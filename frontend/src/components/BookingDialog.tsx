@@ -190,9 +190,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
     if (date === '') {
       found.date = 'Das Datum ist Pflicht.'
     }
-    if (categoryId === '') {
-      found.categoryId = 'Die Kategorie ist Pflicht.'
-    }
+    // R37: a booking may be without a category
     return found
   }
 

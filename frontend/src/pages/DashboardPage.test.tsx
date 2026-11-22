@@ -367,3 +367,20 @@ describe('DashboardPage per Ist stage', () => {
     expect(screen.getByText(/Einzelne Budgets siehst du in Stufe 4/)).toBeInTheDocument()
   })
 })
+
+// R37: the expenses without a category stand in a row of their own, in no budget
+describe('DashboardPage without category', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows the row Ohne Kategorie with a link to assign', async () => {
+    renderPage({
+      ...dashboard,
+      categories: [...dashboard.categories, { id: null, name: 'Ohne Kategorie', target: null, actual: 45, difference: null }],
+    })
+
+    const row = (await screen.findByText('Ohne Kategorie')).closest('li') as HTMLElement
+    expect(row).toHaveTextContent('45,00 €')
+    expect(row).toHaveTextContent('zählt zu den variablen Kosten, aber zu keinem Budget')
+    expect(within(row).getByRole('link', { name: 'Zuordnen ›' })).toBeInTheDocument()
+  })
+})

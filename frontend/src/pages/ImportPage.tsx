@@ -998,7 +998,8 @@ function Preview({
           description: entry.description as string,
           counterparty: entry.counterparty,
           bankCategory: entry.bankCategory,
-          categoryId: transfer || saving ? null : Number(category),
+          // R37, R40: a row without a category becomes a booking without category
+          categoryId: transfer || saving || category === '' ? null : Number(category),
           transfer,
           ...(saving ? { saving } : {}),
           ...((transfer || saving) && entry.transferPeerId !== null ? { transferPeerId: entry.transferPeerId } : {}),
@@ -1304,7 +1305,7 @@ function Preview({
           <button
             type="button"
             className="primary"
-            disabled={selected.length === 0 || open.length > 0 || commit.isPending}
+            disabled={selected.length === 0 || commit.isPending}
             onClick={() => void handleCommit()}
           >
             {selected.length === 1 ? '1 Buchung übernehmen' : `${selected.length} Buchungen übernehmen`}
@@ -1313,7 +1314,8 @@ function Preview({
       </div>
       {open.length > 0 && (
         <p className="hint import-open">
-          {open.length === 1 ? 'Einer Zeile fehlt' : `${open.length} Zeilen fehlt`} noch die Kategorie.
+          {open.length === 1 ? '1 Zeile hat' : `${open.length} Zeilen haben`} keine Kategorie. Sie werden als Buchungen
+          ohne Kategorie übernommen und stehen auf der Übersicht unter „Ohne Kategorie“.
         </p>
       )}
       {hiddenSelected > 0 && (

@@ -272,8 +272,8 @@ describe('ImportPage', () => {
     expect(within(baker).getByLabelText('Bäcker importieren')).not.toBeChecked()
     expect(baker).toHaveTextContent('Schon von Hand gebucht? „Brötchen“ vom 03.11.2026')
     expect(within(row('Spiele Shop')[0]).queryByRole('option', { name: 'Alt' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeDisabled()
-    expect(screen.getByText('3 Zeilen fehlt noch die Kategorie.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
+    expect(screen.getByText(/3 Zeilen haben keine Kategorie/)).toBeInTheDocument()
   })
 
   it('takes over every shown suggestion with one button', async () => {
@@ -290,7 +290,7 @@ describe('ImportPage', () => {
     // Code review 08.11.2026: an uncertain transfer is only set by its own button
     const pocket = row('Auf Pocket')[0]
     expect(within(pocket).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('')
-    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
     fireEvent.click(within(pocket).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
   })

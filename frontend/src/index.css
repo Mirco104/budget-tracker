@@ -4410,3 +4410,11 @@ button.account-open:hover {
     bottom: 0;
   }
 }
+
+/* R37: the row "Ohne Kategorie" on the overview, in the warning color like an open point */
+.budget-item.budget-without {
+  background: var(--warn-soft);
+}
+.budget-without .budget-name {
+  color: var(--warn);
+}
