@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useChangeSetup, useChangeStage } from '../api/account'
 import { useAccounts } from '../api/accounts'
+import { useTransactionRange } from '../api/transactions'
 import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
-import { useImports } from '../api/imports'
 import { useDismissNotification } from '../api/notifications'
 import { useBudgetSuggestions, useCreatePlannedItem, usePlan, usePlanSuggestions, useUpdatePlannedItem, type PlanSuggestion } from '../api/plan'
 import type { AccountLine, Category, EntryMode, IstStage, Me, Plan, PlanGroup, PlannedItem } from '../api/types'
@@ -75,6 +75,31 @@ const STEP_LINES: Record<number, string> = {
   8: 'Wofür sparst du? Freiwillig.',
 }
 const ANSWERS_KEY = 'setup-stage-answers'
+// The way chosen on the step Import, in the browser session (also after the import page)
+const PATH_KEY = 'setup-path'
+
+/**
+ * Decision 94: the way of the step Import: a new bank file, the stored bookings (only for a user with bookings) or
+ * entering the plan by hand (only without bookings).
+ */
+type SetupPath = 'import' | 'stored' | 'plan'
+
+function readPath(): SetupPath | null {
+  try {
+    const stored = window.sessionStorage.getItem(PATH_KEY)
+    return stored === 'import' || stored === 'stored' || stored === 'plan' ? stored : null
+  } catch {
+    return null
+  }
+}
+
+function writePath(path: SetupPath) {
+  try {
+    window.sessionStorage.setItem(PATH_KEY, path)
+  } catch {
+    // only a convenience
+  }
+}
 // Decision 91: the key prefix of a suggestion from a file read in the setup
 const FILE_KEY = 'file:'
 
@@ -217,9 +242,15 @@ export function SetupPage({ me }: { me: Me }) {
   const categories = useCategories(month)
   const accounts = useAccounts()
   const goals = useSavingGoals()
-  const imports = useImports()
   const changeSetup = useChangeSetup()
-  const [path, setPath] = useState<'plan' | 'import' | null>(null)
+  const [path, setPathState] = useState<SetupPath | null>(readPath)
+  function setPath(next: SetupPath) {
+    setPathState(next)
+    writePath(next)
+  }
+  // Decision 94: a user with bookings gets suggestions from them instead of entering the plan by hand
+  const range = useTransactionRange()
+  const hasBookings = (range.data?.from ?? null) !== null
   // Decision 86: the answers to the two questions of the step "Tracking-Stufe", only in the browser session
   const [answers, setAnswersState] = useState<Answers>(readAnswers)
   function setAnswers(next: Answers) {
@@ -243,7 +274,6 @@ export function SetupPage({ me }: { me: Me }) {
   )
   const data = plan.data
   const existing = (data?.items.length ?? 0) > 0
-  const imported = (imports.data?.length ?? 0) > 0
   // Decision 91: the suggestions of a file read in this setup (also in stage 1, where nothing is stored)
   const fromFile = readSetupImport()
 
@@ -253,7 +283,8 @@ export function SetupPage({ me }: { me: Me }) {
     }
     // Decision 91: the way comes after the stage
     if (at === 2) {
-      return existing || imported || fromFile !== null || path === 'plan'
+      // Decision 94: only the chosen way unlocks the step; the import way once a file was read in this setup
+      return path === 'stored' || path === 'plan' || fromFile !== null
     }
     if (at === 3) {
       return (
@@ -297,7 +328,7 @@ export function SetupPage({ me }: { me: Me }) {
     try {
       await changeSetup.mutateAsync(true)
       writeReached(0)
-      clearSetupSession([ANSWERS_KEY])
+      clearSetupSession([ANSWERS_KEY, PATH_KEY])
       openOverview()
     } catch (e) {
       setError(errorText(e, 'Die Einrichtung konnte nicht abgeschlossen werden.'))
@@ -322,7 +353,7 @@ export function SetupPage({ me }: { me: Me }) {
           <ImportStep
             stage={me.istStage}
             existing={existing}
-            imported={imported || fromFile !== null}
+            hasBookings={hasBookings}
             summary={fromFile}
             path={path}
             onPath={setPath}
@@ -335,7 +366,15 @@ export function SetupPage({ me }: { me: Me }) {
       case 6:
       case 7:
         return (
-          <PlanStep step={step} plan={data} categories={categories.data} month={month} accounts={accountLines} stage={me.istStage} fromFile={fromFile} />
+          <PlanStep
+            step={step}
+            plan={data}
+            categories={categories.data}
+            month={month}
+            accounts={accountLines}
+            stage={me.istStage}
+            fromFile={path === 'stored' || path === 'plan' ? null : fromFile}
+          />
         )
       case 8:
         return <GoalsStep />
@@ -370,7 +409,7 @@ export function SetupPage({ me }: { me: Me }) {
       </nav>
       {step > 0 && step < LAST && <p className="setup-count">Schritt {step} von {LAST - 1}</p>}
       {body}
-      {!complete(step) && step > 0 && step < LAST && <p className="setup-missing">{missingText(step, me.istStage)}</p>}
+      {!complete(step) && step > 0 && step < LAST && <p className="setup-missing">{missingText(step, me.istStage, hasBookings)}</p>}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -401,9 +440,11 @@ export function SetupPage({ me }: { me: Me }) {
   )
 }
 
-function missingText(step: number, stage: IstStage): string {
+function missingText(step: number, stage: IstStage, hasBookings: boolean): string {
   if (step === 2) {
-    return 'Wähle, ob ein Kontoauszug deinen Plan vorschlagen soll, um weiterzumachen.'
+    return hasBookings
+      ? 'Importiere einen Kontoauszug oder wähle „Vorschläge aus meinen Buchungen“, um weiterzumachen.'
+      : 'Importiere einen Kontoauszug oder wähle „Plan selbst eintragen“, um weiterzumachen.'
   }
   if (step === 3) {
     return stage === 2
@@ -488,19 +529,20 @@ const IMPORT_TAKES: [string, string, string, string][] = [
 function ImportStep({
   stage,
   existing,
-  imported,
+  hasBookings,
   summary,
   path,
   onPath,
 }: {
   stage: IstStage
   existing: boolean
-  imported: boolean
+  hasBookings: boolean
   summary: SetupImport | null
-  path: 'plan' | 'import' | null
-  onPath: (path: 'plan' | 'import') => void
+  path: SetupPath | null
+  onPath: (path: SetupPath) => void
 }) {
-  const fileWay = path === 'import' || imported
+  // After the import page the file way stays chosen even when the session lost the choice
+  const fileWay = path === 'import' || (path === null && summary !== null)
   const sentence =
     summary === null
       ? null
@@ -518,21 +560,41 @@ function ImportStep({
         speichert, hängt von deiner Stufe ab (Stufe {stage}: {stageName(stage)}).
         {existing ? ' Deine bisherige Planung bleibt; ein Import ergänzt nur Vorschläge.' : ''}
       </Lead>
-      <div className="setup-choices">
-        <button type="button" className={fileWay ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('import')}>
-          <span className="badge planned">Empfohlen</span>
-          <strong>Plan aus Kontoauszügen vorschlagen</strong>
-          <span className="tx-meta">
-            Du lädst deine Kontoauszüge als CSV-Datei hoch, mindestens 3 Monate, besser 6 bis 12. Die App schlägt Einkommen,
-            Fixkosten und Budgets vor, du prüfst jeden Vorschlag.
-          </span>
-        </button>
-        <button type="button" className={path === 'plan' && !imported ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('plan')}>
-          <span className="badge">Ohne Kontoauszug</span>
-          <strong>Plan selbst eintragen</strong>
-          <span className="tx-meta">Du trägst deine Beträge selbst ein. Wir geben typische Posten vor.</span>
-        </button>
-      </div>
+      {/* Decision 94: a user with bookings chooses between them and a new file; everyone else as before */}
+      {hasBookings ? (
+        <div className="setup-choices">
+          <button type="button" className={path === 'stored' ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('stored')}>
+            <span className="badge planned">Empfohlen</span>
+            <strong>Vorschläge aus meinen Buchungen</strong>
+            <span className="tx-meta">
+              Deine gespeicherten Buchungen schlagen Einkommen, Fixkosten und Budgets vor. Es wird nichts neu importiert.
+            </span>
+          </button>
+          <button type="button" className={fileWay ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('import')}>
+            <span className="badge">CSV-Datei</span>
+            <strong>Neuen Kontoauszug importieren</strong>
+            <span className="tx-meta">
+              Die Datei schlägt den Plan vor; deine Stufe bestimmt, was davon gespeichert wird. Weiter geht es nach dem Import.
+            </span>
+          </button>
+        </div>
+      ) : (
+        <div className="setup-choices">
+          <button type="button" className={fileWay ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('import')}>
+            <span className="badge planned">Empfohlen</span>
+            <strong>Plan aus Kontoauszügen vorschlagen</strong>
+            <span className="tx-meta">
+              Du lädst deine Kontoauszüge als CSV-Datei hoch, mindestens 3 Monate, besser 6 bis 12. Die App schlägt Einkommen,
+              Fixkosten und Budgets vor, du prüfst jeden Vorschlag.
+            </span>
+          </button>
+          <button type="button" className={path === 'plan' ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('plan')}>
+            <span className="badge">Ohne Kontoauszug</span>
+            <strong>Plan selbst eintragen</strong>
+            <span className="tx-meta">Du trägst deine Beträge selbst ein. Wir geben typische Posten vor.</span>
+          </button>
+        </div>
+      )}
       {fileWay && (
         <section className="card setup-import" aria-label="Kontoauszug">
           {summary === null ? (

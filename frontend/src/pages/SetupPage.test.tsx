@@ -63,13 +63,18 @@ const budgetSuggestions: BudgetSuggestion[] = [
   { name: 'Shopping', categoryId: null, bankCategory: 'Shopping', average: 138.42, proposal: 138, months: 6 },
 ]
 
-function renderSetup(hash: string, { me = newUser, plan = emptyPlan, suggestions = [] as BudgetSuggestion[] } = {}) {
+function renderSetup(
+  hash: string,
+  { me = newUser, plan = emptyPlan, suggestions = [] as BudgetSuggestion[], range = { from: null, to: null } as { from: string | null; to: string | null } } = {},
+) {
   window.location.hash = hash
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     let body: unknown = []
     if (url === '/api/auth/me') {
       body = me
+    } else if (url === '/api/transactions/range') {
+      body = range
     } else if (url === '/api/account/stage' || url === '/api/account/setup') {
       body = { ...me, ...JSON.parse(init?.body as string) }
     } else if (url === '/api/plan/budget-suggestions') {
@@ -128,6 +133,22 @@ describe('SetupPage', () => {
     expect(own).toHaveTextContent('nur die regelmäßigen (Einkommen, Fixkosten, Sparraten)')
     expect(next).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /Plan selbst eintragen/ }))
+    expect(next).toBeEnabled()
+  })
+
+  // Decision 94: a user with bookings chooses between them and a new file; only the chosen way unlocks the step
+  it('offers the stored bookings to a user who has some', async () => {
+    renderSetup('#/einrichtung/2', { me: { ...newUser, istStage: 4 }, plan: fullPlan, range: { from: '2026-01-02', to: '2026-11-20' } })
+
+    expect(await screen.findByRole('button', { name: /Vorschläge aus meinen Buchungen/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Plan selbst eintragen/ })).not.toBeInTheDocument()
+    const next = screen.getByRole('button', { name: 'Weiter' })
+    expect(next).toBeDisabled()
+    expect(screen.getByText('Importiere einen Kontoauszug oder wähle „Vorschläge aus meinen Buchungen“, um weiterzumachen.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Neuen Kontoauszug importieren/ }))
+    expect(next).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /Vorschläge aus meinen Buchungen/ }))
     expect(next).toBeEnabled()
   })
 
