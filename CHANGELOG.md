@@ -2,6 +2,21 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
+## 0.3.1-alpha (unveröffentlicht)
+
+Nachbesserungen nach der ersten Nutzung von 0.3.0.
+
+### Änderungen
+
+- **Einrichtung abschließen:** Am Handy führte „Einrichtung abschließen“ manchmal zurück an den Anfang der Einrichtung. Das ist behoben.
+- **Dein Monat im Plan am Handy:** Statt des Diagramms, dessen Beschriftungen sich am schmalen Bildschirm überlagerten, zeigt die Seite „Fertig“ am Handy eine Liste: je Bereich die Summe, ein Balken und die Kategorien darunter.
+- **Balken der Einrichtung:** Das Einkommen steht über dem Balken, die Beträge darunter stehen in einem geordneten Raster. Am Handy nimmt die Leiste unten weniger Platz ein.
+- **Puffer rückgängig machen:** Nach „Als Puffer in „Sonstiges““ lässt sich der Schritt in der Einrichtung und in der Planung mit „Rückgängig“ zurücknehmen.
+- **Kontostand mit Datum:** Im Fenster eines Kontos stehen Kontostand und Datum zusammen in einem Kasten, darunter der letzte Kontostand. Ein neues Konto kann gleich seinen ersten Kontostand bekommen.
+- **Kontoarten erklärt:** Ein Satz unter der Kontoart und ein Info-Tipp auf der Seite *Konten* sagen, was Alltag, Sparen und Depot bewirken.
+- **Zahltag eines Postens:** Das Feld „Am Tag“ liest sich jetzt als Satz: „Zahltag: am 1. des Monats“.
+- **Plan selbst eintragen:** Die Einrichtung sagt dazu, dass Kontoauszüge später jederzeit importiert werden können.
+
 ## 0.3.0-alpha (22.11.2026)
 
 Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
