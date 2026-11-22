@@ -2,7 +2,7 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
-## 0.3.0-alpha (noch nicht veröffentlicht)
+## 0.3.0-alpha (22.11.2026)
 
 Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
 
