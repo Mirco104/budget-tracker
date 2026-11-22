@@ -21,6 +21,7 @@ import io.github.mirco104.budget.user.Role;
 import io.github.mirco104.budget.user.User;
 import io.github.mirco104.budget.user.UserRepository;
 import io.github.mirco104.budget.user.UserService;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -130,6 +131,42 @@ class AccountControllerTest {
                         .content("{\"displayName\": \"%s\"}".formatted("x".repeat(51))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].message").value("Der Anzeigename darf höchstens 50 Zeichen haben."));
+    }
+
+    // --- PUT /api/account/stage and /setup (R35, US40) ---
+
+    @Test
+    void aNewUserStartsWithStageTwoAndAnOpenSetup() throws Exception {
+        asB.perform(get("/api/auth/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.istStage").value(2))
+                .andExpect(jsonPath("$.setupDone").value(false));
+    }
+
+    @Test
+    void changesTheStageAndOnlyAcceptsOneToFour() throws Exception {
+        asB.perform(put("/api/account/stage").contentType(MediaType.APPLICATION_JSON).content("{\"stage\": 4}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.istStage").value(4));
+        assertThat(userRepository.findById(b.getId()).orElseThrow().getIstStage()).isEqualTo(4);
+
+        for (String body : List.of("{\"stage\": 0}", "{\"stage\": 5}", "{}")) {
+            asB.perform(put("/api/account/stage").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors[0].field").value("stage"));
+        }
+        assertThat(userRepository.findById(b.getId()).orElseThrow().getIstStage()).isEqualTo(4);
+    }
+
+    @Test
+    void marksTheSetupDoneAndOpenAgain() throws Exception {
+        asB.perform(put("/api/account/setup").contentType(MediaType.APPLICATION_JSON).content("{\"done\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.setupDone").value(true));
+        asB.perform(put("/api/account/setup").contentType(MediaType.APPLICATION_JSON).content("{\"done\": false}"))
+                .andExpect(jsonPath("$.setupDone").value(false));
+        asB.perform(put("/api/account/setup").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     // --- PUT /api/account/email ---

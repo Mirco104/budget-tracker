@@ -18,4 +18,10 @@ public class PlanSuggestionController {
     public List<PlanSuggestionService.PlanSuggestion> suggestions() {
         return service.suggestions();
     }
+
+    /** R38: budget suggestions of the setup wizard. */
+    @GetMapping("/api/plan/budget-suggestions")
+    public List<BudgetSuggester.Suggestion> budgetSuggestions() {
+        return service.budgetSuggestions();
+    }
 }

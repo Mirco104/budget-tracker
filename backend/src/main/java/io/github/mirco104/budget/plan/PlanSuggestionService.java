@@ -97,6 +97,40 @@ public class PlanSuggestionService {
         }
     }
 
+    /**
+     * R38: budget suggestions for the setup wizard from the bookings of the 6 full months before the current one,
+     * without saving and without bookings that fulfil a term; categories with a budget item valid now drop out.
+     */
+    @Transactional(readOnly = true)
+    public List<BudgetSuggester.Suggestion> budgetSuggestions() {
+        LocalDate today = LocalDate.now(clock);
+        YearMonth current = YearMonth.from(today);
+        LocalDate from = current.minusMonths(BudgetSuggester.MONTHS).atDay(1);
+        LocalDate to = current.minusMonths(1).atEndOfMonth();
+        Set<Long> fulfilling = termService.fixIds(from, to);
+        List<BudgetSuggester.Booking> bookings = transactionRepository.findCountedBetween(currentUser.get(), from, to)
+                .stream()
+                .filter(t -> !t.isSaving() && !fulfilling.contains(t.getId()))
+                .map(t -> {
+                    Category plan = t.getCategory() == null ? null : planCategory(t.getCategory());
+                    return new BudgetSuggester.Booking(t.getDate(), t.getAmount(), plan == null ? null : plan.getId(),
+                            plan == null ? null : plan.getName(), t.getBankCategory());
+                })
+                .toList();
+        Set<Long> budgeted = planService.findAll().stream()
+                .filter(item -> PlanCalculator.validIn(item.data(), current)
+                        && PlanCalculator.groupOf(item.data()) == PlanCalculator.Group.BUDGET
+                        && item.getCategory() != null)
+                .map(item -> planCategory(item.getCategory()).getId())
+                .collect(Collectors.toSet());
+        return BudgetSuggester.suggest(bookings, current, budgeted);
+    }
+
+    // R32: a subcategory counts as its parent
+    private static Category planCategory(Category category) {
+        return category.getParent() != null ? category.getParent() : category;
+    }
+
     // The bookings of the last 12 months that count, with a category and not saving
     private List<Transaction> counted() {
         LocalDate today = LocalDate.now(clock);

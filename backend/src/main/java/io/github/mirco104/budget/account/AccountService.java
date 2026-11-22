@@ -101,6 +101,21 @@ public class AccountService {
         user.changePasswordHash(passwordEncoder.encode(request.newPassword()));
     }
 
+    /** R35: a new stage only changes what the app shows, never data. */
+    @Transactional
+    public User changeStage(ChangeStageRequest request) {
+        User user = signedInUser();
+        user.changeIstStage(request.stage());
+        return user;
+    }
+
+    @Transactional
+    public User changeSetup(ChangeSetupRequest request) {
+        User user = signedInUser();
+        user.changeSetupDone(request.done());
+        return user;
+    }
+
     @Transactional
     public User changeDisplayName(ChangeDisplayNameRequest request) {
         User user = signedInUser();
