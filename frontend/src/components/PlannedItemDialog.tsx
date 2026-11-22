@@ -327,14 +327,22 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
                 </select>
               </label>
             )}
+            {/* Field test after 0.3.0: "Am Tag" alone was not understood; the field reads as a sentence now */}
             <label className="field">
-              Am Tag
-              <input
-                inputMode="numeric"
-                value={day}
-                onChange={(e) => setDay(e.target.value)}
-                aria-invalid={errors.day ? true : undefined}
-              />
+              {rare ? 'Am Tag' : 'Zahltag'}
+              <span className="day-sentence">
+                {!rare && <span aria-hidden="true">am</span>}
+                <input
+                  className="day-input"
+                  inputMode="numeric"
+                  maxLength={2}
+                  aria-label="Tag im Monat"
+                  value={day}
+                  onChange={(e) => setDay(e.target.value)}
+                  aria-invalid={errors.day ? true : undefined}
+                />
+                <span aria-hidden="true">{rare ? '.' : '. des Monats'}</span>
+              </span>
               {errors.day && <span className="error">{errors.day}</span>}
             </label>
           </div>
