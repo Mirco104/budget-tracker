@@ -18,6 +18,7 @@ Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
 ### Änderungen
 
 - **Nur die nötigen Seiten:** In Stufe 1 sind *Transaktionen* und *Auswertung* ausgeblendet, die Unterseite *Auswertung › Kategorien* gibt es nur in Stufe 4.
+- **Kategorien der Bank nur als Vorschlag:** Die Karte „Kategorien der Bank“ im Import und die gespeicherten Zuordnungen entfallen; die Kategorie der Bank fließt nur noch in den Vorschlag ein, gleich nach der sicheren Zuordnung aus der Gegenseite.
 
 ## 0.2.0-alpha (21.11.2026)
 

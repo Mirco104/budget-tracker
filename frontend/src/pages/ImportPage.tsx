@@ -24,7 +24,6 @@ import { Icon } from '../components/ui/Icon'
 import { AccountDialog } from '../components/AccountDialog'
 import { CategoryPicker } from '../components/CategoryPicker'
 import { SelectionBar } from '../components/SelectionBar'
-import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
@@ -150,9 +149,8 @@ function initialChoices(preview: ImportPreview): Record<string, Choice> {
     if (!importable(entry) || entry.fingerprint === null) {
       continue
     }
-    // R33: a stored mapping of the bank category sets the category (decision 62); otherwise no row is preset
-    const mapped = entry.mappedCategoryId === null || entry.mappedCategoryId === undefined ? '' : String(entry.mappedCategoryId)
-    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: mapped }
+    // R40: the bank category is only a suggestion; no row is preset
+    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: '' }
   }
   return choices
 }
@@ -842,26 +840,6 @@ function Preview({
    * from its old mapping) get its category, except
    * transfers, rows that fulfil a term and rows whose certain history names another category (decision 62).
    */
-  function applyBankCategories(categoryByBankCategory: Record<string, number>) {
-    setChoices((current) => {
-      const next = { ...current }
-      for (const entry of preview.entries) {
-        const id = entry.bankCategory === null ? undefined : categoryByBankCategory[entry.bankCategory]
-        const choice = entry.fingerprint === null ? undefined : next[entry.fingerprint]
-        // A row keeps a category the user chose; one preset from a mapping that changed follows the new mapping
-        const preset = choice?.category === '' || choice?.category === String(entry.mappedCategoryId)
-        if (id === undefined || !choice || !preset || entry.transfer || entry.replaces) {
-          continue
-        }
-        if (entry.certain && entry.categoryId !== null && entry.categoryId !== id) {
-          continue
-        }
-        next[entry.fingerprint as string] = { ...choice, category: String(id) }
-      }
-      return next
-    })
-  }
-
   function change(entry: ImportEntry, next: Choice) {
     setChoices((current) => ({ ...current, [entry.fingerprint as string]: next }))
     // The row stays in sight while it is edited, even when it no longer passes the filters
@@ -1110,14 +1088,6 @@ function Preview({
         )}
       </section>
 
-      {(preview.bankCategories ?? []).length > 0 && (
-        <BankCategoryCard
-          profile={preview.profile}
-          items={preview.bankCategories}
-          categories={categories}
-          onApplied={applyBankCategories}
-        />
-      )}
 
       {matches.map((match) => (
         <MatchCard
