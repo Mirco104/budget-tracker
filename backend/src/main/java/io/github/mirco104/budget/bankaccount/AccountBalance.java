@@ -102,13 +102,16 @@ public final class AccountBalance {
 
     /**
      * R36: the differences of the balances of one account dated in the month, each against the balance before it;
-     * from is the day of the balance before the first one (null without one), to the day of the last one (null when the
-     * month has no balance).
+     * from is the day of the balance before the first one, to the day of the last one (both null when the month has no
+     * balance with one before it).
      */
     public record Period(List<BigDecimal> differences, LocalDate from, LocalDate to) {
     }
 
-    /** R36 (23.11.2026): a balance on any day of the month counts, not only on the last day. */
+    /**
+     * R36 (23.11.2026): a balance on any day of the month counts, not only on the last day. The very first balance of
+     * an account is its start (P11) and measures no spending.
+     */
     public static Period inMonth(java.time.YearMonth month, List<Statement> statements, List<Entry> entries) {
         List<Statement> sorted = statements.stream().sorted(Comparator.comparing(Statement::date)).toList();
         List<BigDecimal> differences = new ArrayList<>();
@@ -116,9 +119,9 @@ public final class AccountBalance {
         LocalDate to = null;
         Statement previous = null;
         for (Statement statement : sorted) {
-            if (java.time.YearMonth.from(statement.date()).equals(month)) {
+            if (previous != null && java.time.YearMonth.from(statement.date()).equals(month)) {
                 if (differences.isEmpty()) {
-                    from = previous == null ? null : previous.date();
+                    from = previous.date();
                 }
                 differences.add(difference(previous, entries, statement));
                 to = statement.date();

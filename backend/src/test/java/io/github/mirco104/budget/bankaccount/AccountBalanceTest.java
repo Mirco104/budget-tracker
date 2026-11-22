@@ -133,6 +133,15 @@ class AccountBalanceTest {
     }
 
     @Test
+    void theFirstBalanceOfAnAccountIsItsStartAndMeasuresNoSpending() {
+        List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-11-15"), new BigDecimal("2400.00")));
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
+
+        assertThat(period.differences()).isEmpty();
+    }
+
+    @Test
     void withoutABalanceInTheMonthThePeriodIsEmpty() {
         List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00")));
 
