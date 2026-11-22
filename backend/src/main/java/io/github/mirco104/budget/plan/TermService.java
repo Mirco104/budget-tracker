@@ -130,12 +130,22 @@ public class TermService {
     @Transactional
     public int enterDue() {
         LocalDate today = LocalDate.now(clock);
-        List<PlannedItem> automatic = itemRepository.findAllOf(currentUser.get()).stream()
+        var user = currentUser.get();
+        // R35: in stage 1 the app enters no bookings
+        if (user.getIstStage() == 1) {
+            return 0;
+        }
+        List<PlannedItem> automatic = itemRepository.findAllOf(user).stream()
                 .filter(item -> item.getEntryMode() == EntryMode.AUTO && item.schedule() != null)
                 .toList();
         // 27f2: from the month "Gilt ab" of the item on; terms fulfilled by a booking are not entered again
         LocalDate first = automatic.stream().map(item -> item.getValidFrom().atDay(1))
                 .min(Comparator.naturalOrder()).orElse(null);
+        // Decision 90: not before the day chosen when leaving stage 1
+        LocalDate since = user.getAutoEntriesFrom();
+        if (first != null && since != null && since.isAfter(first)) {
+            first = since;
+        }
         if (first == null || first.isAfter(today)) {
             return 0;
         }
@@ -158,12 +168,13 @@ public class TermService {
      * today (before fulfilment by existing bookings), for the hint in the item dialog.
      */
     public static int pastTerms(RhythmUnit unit, Integer count, LocalDate anchor, java.time.YearMonth validFrom,
-            boolean workdaysOnly, LocalDate today) {
+            boolean workdaysOnly, LocalDate today, LocalDate since) {
         if (unit == null || count == null || anchor == null) {
             return 0;
         }
+        LocalDate from = since != null && since.isAfter(validFrom.atDay(1)) ? since : validFrom.atDay(1);
         return (int) new TermSchedule(unit, count, anchor, validFrom, null)
-                .termsBetween(validFrom.atDay(1), today).stream()
+                .termsBetween(from, today).stream()
                 .filter(date -> !(workdaysOnly ? TermSchedule.nextWorkingDay(date) : date).isAfter(today))
                 .count();
     }
@@ -331,7 +342,7 @@ public class TermService {
     // A saving item has no category: its booking is the kind Sparen, a transfer that counts as saving (P1)
     private Transaction book(PlannedItem item, BigDecimal amount, LocalDate date) {
         Transaction booking = new Transaction(
-                currentUser.get(), amount, item.getName(), date, item.getCategory(), item.getAccount());
+                currentUser.get(), amount, item.getName(), date, item.getCategory(), item.getAccount(), item.isSaving());
         // P1: a saving item is booked as the kind Sparen
         booking.markSaving(item.isSaving());
         return transactionRepository.save(booking);

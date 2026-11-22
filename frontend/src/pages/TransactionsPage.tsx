@@ -43,10 +43,17 @@ function importedOf(entry: Transaction): string {
   return entry.imported ? 'YES' : 'NO'
 }
 
-/** The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking. */
+/**
+ * The value of the filter Kategorie for an entry: a transfer (R27) is chosen like a category when booking; a booking
+ * without category (R37) has its own value.
+ */
 const TRANSFER_CATEGORY = 'transfer'
+const WITHOUT_CATEGORY = 'without'
 function categoryOf(entry: Transaction): string {
-  return entry.transfer ? TRANSFER_CATEGORY : String(entry.categoryId)
+  if (entry.transfer) {
+    return TRANSFER_CATEGORY
+  }
+  return entry.categoryId === null ? WITHOUT_CATEGORY : String(entry.categoryId)
 }
 
 /** US26: whether an entry passes the filters (description, category with its subcategories R32, account, kind, imported). */
@@ -226,7 +233,10 @@ export function TransactionsPage({
           onChange={setFilters}
           counts={counts}
           categories={categories.data ?? []}
-          extraCategoryOptions={[{ value: TRANSFER_CATEGORY, label: 'Umbuchung' }]}
+          extraCategoryOptions={[
+            { value: WITHOUT_CATEGORY, label: 'Ohne Kategorie' },
+            { value: TRANSFER_CATEGORY, label: 'Umbuchung' },
+          ]}
           directions={DIRECTIONS}
           importedOptions={IMPORTED_OPTIONS}
           accounts={accounts.map((account) => ({

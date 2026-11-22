@@ -106,7 +106,8 @@ public class TransactionService {
                 request.description().trim(),
                 request.date(),
                 categoryOf(request),
-                bankAccountService.findBookable(request.accountId()));
+                bankAccountService.findBookable(request.accountId()),
+                transferOf(request));
         transaction.markSaving(Boolean.TRUE.equals(request.saving()));
         payFrom(transaction, request);
         Transaction saved = transactionRepository.save(transaction);
@@ -128,14 +129,15 @@ public class TransactionService {
                 request.description().trim(),
                 request.date(),
                 categoryOf(request),
-                bankAccountService.findBookable(request.accountId()));
+                bankAccountService.findBookable(request.accountId()),
+                transferOf(request));
         transaction.markSaving(Boolean.TRUE.equals(request.saving()));
         payFrom(transaction, request);
         // 27f3: amount and description apply to the other side too, with the opposite sign; the date stays per side
         Transaction peer = transaction.getTransferPeer();
         if (peer != null) {
             peer.update(transaction.getAmount().negate(), transaction.getDescription(), peer.getDate(), null,
-                    peer.getAccount());
+                    peer.getAccount(), true);
         }
         // R27: a transfer fulfils no term
         if (transaction.isTransfer()) {
@@ -162,7 +164,7 @@ public class TransactionService {
         }
         for (Transaction transaction : transactions) {
             transaction.update(transaction.getAmount(), transaction.getDescription(), transaction.getDate(), category,
-                    transaction.getAccount());
+                    transaction.getAccount(), false);
         }
         LocalDate from = transactions.stream().map(Transaction::getDate).min(LocalDate::compareTo).orElseThrow();
         LocalDate to = transactions.stream().map(Transaction::getDate).max(LocalDate::compareTo).orElseThrow();
@@ -231,14 +233,19 @@ public class TransactionService {
             throw new InvalidFieldException("targetAccountId", "Quell- und Zielkonto müssen verschieden sein.");
         }
         BigDecimal outflow = saved.getAmount().abs().negate();
-        saved.update(outflow, saved.getDescription(), saved.getDate(), null, saved.getAccount());
+        saved.update(outflow, saved.getDescription(), saved.getDate(), null, saved.getAccount(), true);
         Transaction inflow = transactionRepository.save(new Transaction(
-                currentUser.get(), outflow.negate(), saved.getDescription(), saved.getDate(), null, target));
+                currentUser.get(), outflow.negate(), saved.getDescription(), saved.getDate(), null, target, true));
         saved.setTransferPeer(inflow);
         inflow.setTransferPeer(saved);
     }
 
-    // R27: a transfer has no category (400 if one is sent), every other booking needs one
+    // R27, P1: a transfer and Sparen are transfers (Sparen with its own mark)
+    private static boolean transferOf(TransactionRequest request) {
+        return Boolean.TRUE.equals(request.transfer()) || Boolean.TRUE.equals(request.saving());
+    }
+
+    // R27: a transfer has no category (400 if one is sent); R37: every other booking may be without one
     private Category categoryOf(TransactionRequest request) {
         if (Boolean.TRUE.equals(request.transfer()) || Boolean.TRUE.equals(request.saving())) {
             if (request.categoryId() != null) {
@@ -247,7 +254,7 @@ public class TransactionService {
             return null;
         }
         if (request.categoryId() == null) {
-            throw new InvalidFieldException("categoryId", "Die Kategorie ist Pflicht.");
+            return null;
         }
         return categoryService.findBookable(request.categoryId());
     }

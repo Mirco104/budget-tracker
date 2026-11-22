@@ -11,22 +11,28 @@ import java.util.List;
  */
 public record ImportPreviewResponse(
         BankProfile profile, String profileLabel, int rows, int newRows, int duplicates, int skipped,
-        List<Source> sources, List<Entry> entries, List<SeriesSuggestion> series, List<BankCategory> bankCategories) {
+        List<Source> sources, List<Entry> entries, List<SeriesSuggestion> series,
+        List<io.github.mirco104.budget.plan.BudgetSuggester.Suggestion> budgetSuggestions, Income income) {
 
     /**
-     * R33, US38: a bank category of the new rows (no transfers) with the number of its rows, the match of its parent and
-     * child with the own categories (child fields null without a child) and the category of a valid stored mapping.
+     * Decision 91: the income of the new rows of the file for the setup wizard (IncomeAverage, R23): average and
+     * minimum per month; both null without income.
      */
-    public record BankCategory(
-            String bankCategory, String parent, String child, int rows, BankCategoryMatcher.Status parentStatus,
-            Long parentCategoryId, BankCategoryMatcher.Status childStatus, Long childCategoryId,
-            Long mappedCategoryId) {
+    public record Income(BigDecimal average, BigDecimal minimum, int months) {
     }
 
     public enum Status { NEW, POSSIBLE_DUPLICATE, DUPLICATE, SKIPPED }
 
-    /** A source account of the file; accountId is the own account it is put on so far, else null. */
-    public record Source(String key, String name, Long accountId, String suggestedName) {
+    /**
+     * A source account of the file; accountId is the own account it is put on so far, else null. balanceDate and
+     * balanceAmount are the balance the file delivers for it (decision 92), else null.
+     */
+    public record Source(String key, String name, Long accountId, String suggestedName, LocalDate balanceDate,
+            BigDecimal balanceAmount) {
+
+        Source withBalance(LocalDate date, BigDecimal amount) {
+            return new Source(key, name, accountId, suggestedName, date, amount);
+        }
     }
 
     /**
@@ -74,8 +80,7 @@ public record ImportPreviewResponse(
      * certain its certainty; transfer is the suggestion of R27 with transferCertain, transferPeerId a stored
      * counterpart that becomes a transfer as well and transferPeer the counterpart for the hint; replaces is the occurrence the row replaces (R28), and then
      * categoryId is the category of its series. details is what else the bank says about the row (issue #119).
-     * mappedCategoryId is the category the row gets set from the stored mapping of its bank category (R33): not for a
-     * transfer or a row that fulfils a term, and not when a certain suggestion (R29) names another category. saving is
+     * The bank category is only a suggestion (R40); no row is preset from it. saving is
      * the suggestion of the kind Sparen (decision 67): a transfer to a savings or depot account or a row that fulfils a
      * saving item.
      */
@@ -84,11 +89,11 @@ public record ImportPreviewResponse(
             String description, String counterparty, String bankCategory, String suggestionKey, Long categoryId,
             boolean certain, boolean transfer, boolean transferCertain, Long transferPeerId, TransferPeer transferPeer,
             Replaces replaces,
-            DuplicateOf duplicateOf, Details details, Long mappedCategoryId, boolean saving) {
+            DuplicateOf duplicateOf, Details details, boolean saving) {
 
         static Entry skipped(int line, String reason) {
             return new Entry(line, Status.SKIPPED, reason, null, null, null, null, null, null, null, null, null, false,
-                    false, false, null, null, null, null, null, null, false);
+                    false, false, null, null, null, null, null, false);
         }
     }
 }

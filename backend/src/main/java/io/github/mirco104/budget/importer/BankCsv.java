@@ -64,7 +64,14 @@ public final class BankCsv {
     public record Line(int number, BankTransaction row, String skipReason) {
     }
 
-    public record BankFile(BankProfile profile, List<Line> lines) {
+    /**
+     * Decision 92: the balance of an account the file names (accountName as in its rows) at the end of a day; only the
+     * Deutsche Bank (footer) and the VR-Bank (column "Saldo nach Buchung") deliver one.
+     */
+    public record Balance(String accountName, LocalDate date, BigDecimal amount) {
+    }
+
+    public record BankFile(BankProfile profile, List<Line> lines, List<Balance> balances) {
     }
 
     /** The file has no header of a known profile among its first records. */
@@ -89,8 +96,9 @@ public final class BankCsv {
                 List<String> header = records.get(i).fields().stream().map(BankCsv::clean).toList();
                 for (BankProfile profile : BankProfile.values()) {
                     if (hasColumns(header, profile.requiredColumns())) {
+                        List<Balance> balances = new ArrayList<>();
                         return new BankFile(profile, readLines(profile, header, records.subList(0, i),
-                                records.subList(i + 1, records.size())));
+                                records.subList(i + 1, records.size()), balances), balances);
                     }
                 }
             }
@@ -184,13 +192,20 @@ public final class BankCsv {
 
     // --- rows per profile ---
 
+    // balances collects the balances the file delivers (decision 92)
     private static List<Line> readLines(BankProfile profile, List<String> header, List<Record> preamble,
-            List<Record> records) {
+            List<Record> records, List<Balance> balances) {
         String preambleIban = profile == BankProfile.DEUTSCHE_BANK ? preambleIban(preamble) : null;
         List<Line> lines = new ArrayList<>();
+        // VR-Bank: per account the "Saldo nach Buchung" of its newest booked row; on the same day the row the export
+        // lists as the newest (review 23.11.2026: the order of the file decides, newest first or last)
+        Map<String, Balance> newest = new java.util.LinkedHashMap<>();
+        Map<String, Balance> latestOfDay = new java.util.LinkedHashMap<>();
         for (Record record : records) {
             if (profile == BankProfile.DEUTSCHE_BANK && clean(record.fields().getFirst()).equalsIgnoreCase("Kontostand")) {
-                continue; // the footer with the balance is no booking (decision 76)
+                // the footer with the balance is no booking (decision 76), but the balance of the account (decision 92)
+                footerBalance(record, preambleIban).ifPresent(balances::add);
+                continue;
             }
             Map<String, String> values = new HashMap<>();
             for (int i = 0; i < header.size(); i++) {
@@ -200,12 +215,52 @@ public final class BankCsv {
                 values.put(PREAMBLE_IBAN, preambleIban);
             }
             try {
-                lines.add(new Line(record.line(), read(profile, values), null));
+                BankTransaction row = read(profile, values);
+                lines.add(new Line(record.line(), row, null));
+                if (profile == BankProfile.VR_BANK && row.bookingDate() != null) {
+                    String text = get(values, "Saldo nach Buchung");
+                    BigDecimal saldo = text == null ? null : germanAmount(text);
+                    Balance known = newest.get(row.accountName());
+                    if (saldo != null && (known == null || row.bookingDate().isAfter(known.date()))) {
+                        newest.put(row.accountName(), new Balance(row.accountName(), row.bookingDate(), saldo));
+                    }
+                    Balance last = latestOfDay.get(row.accountName());
+                    if (saldo != null && (last == null || !row.bookingDate().isBefore(last.date()))) {
+                        latestOfDay.put(row.accountName(), new Balance(row.accountName(), row.bookingDate(), saldo));
+                    }
+                }
             } catch (SkipException skip) {
                 lines.add(new Line(record.line(), null, skip.getMessage()));
             }
         }
+        // A file with the oldest row first ends with the newest: then the last row of the newest day counts
+        boolean oldestFirst = isOldestFirst(lines);
+        balances.addAll((oldestFirst ? latestOfDay : newest).values());
         return lines;
+    }
+
+    // Whether the booked rows of the file run from the oldest to the newest day
+    private static boolean isOldestFirst(List<Line> lines) {
+        List<LocalDate> days = lines.stream()
+                .filter(line -> line.row() != null && line.row().bookingDate() != null)
+                .map(line -> line.row().bookingDate())
+                .toList();
+        return days.size() > 1 && days.getFirst().isBefore(days.getLast());
+    }
+
+    // Deutsche Bank footer "Kontostand;<Tag>;;;<Betrag>;EUR" (decision 92); empty when it cannot be read
+    private static java.util.Optional<Balance> footerBalance(Record record, String account) {
+        List<String> fields = record.fields();
+        if (account == null || fields.size() < 5) {
+            return java.util.Optional.empty();
+        }
+        BigDecimal amount = germanAmount(clean(fields.get(4)));
+        try {
+            LocalDate date = LocalDate.parse(clean(fields.get(1)), SHORT_DAY_MONTH_DATE);
+            return amount == null ? java.util.Optional.empty() : java.util.Optional.of(new Balance(account, date, amount));
+        } catch (java.time.format.DateTimeParseException e) {
+            return java.util.Optional.empty();
+        }
     }
 
     // Deutsche Bank: the preamble has a line with the column names "Konto;Filial-/Kontonummer;IBAN;Währung" and the

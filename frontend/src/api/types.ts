@@ -257,7 +257,8 @@ export interface Totals {
 
 /** actual is the expense of the category (positive). */
 export interface CategoryLine {
-  id: number
+  /** R37: null for the row "Ohne Kategorie" */
+  id: number | null
   name: string
   target: number | null
   actual: number
@@ -266,7 +267,8 @@ export interface CategoryLine {
 
 /** actual is the net of the category (positive). */
 export interface IncomeLine {
-  id: number
+  /** R37: null for the row "Ohne Kategorie" */
+  id: number | null
   name: string
   actual: number
 }
@@ -386,6 +388,8 @@ export interface ReconcileResult {
   appBalance: number
   bankBalance: number
   difference: number
+  /** Review 23.11.2026: the account had no earlier balance, so this one is its start */
+  start: boolean
 }
 
 export interface BankAccountInput {
@@ -455,9 +459,10 @@ export interface ForecastMonth {
 
 /** Income or expenses of a category in a past month, positive, with its icon (US28). */
 export interface CategoryAmount {
-  id: number
+  /** R37: null for the bookings without a category ("Ohne Kategorie") */
+  id: number | null
   name: string
-  icon: string
+  icon: string | null
   amount: number
 }
 
@@ -490,9 +495,10 @@ export interface HistoryData {
 
 /** A category over the counted months of the look back (R34): sum, average over all months, months with an amount. */
 export interface CategoryTotal {
-  id: number
+  /** R37: null for the bookings without a category ("Ohne Kategorie") */
+  id: number | null
   name: string
-  icon: string
+  icon: string | null
   total: number
   average: number
   monthsWithAmount: number
@@ -517,6 +523,22 @@ export interface Me {
   email: string
   displayName: string
   role: Role
+  /** R35: 1 Nur Plan, 2 Kontostand, 3 Buchungen, 4 Buchungen mit Kategorien */
+  istStage: IstStage
+  /** US40: the setup wizard was finished or put off */
+  setupDone: boolean
+}
+
+export type IstStage = 1 | 2 | 3 | 4
+
+/** R38: a budget suggestion of the setup wizard; categoryId for an own category, else bankCategory. */
+export interface BudgetSuggestion {
+  name: string
+  categoryId: number | null
+  bankCategory: string | null
+  average: number
+  proposal: number
+  months: number
 }
 
 /** One account in the user overview (US25); instants as ISO strings, lastLoginAt null without a sign-in. */

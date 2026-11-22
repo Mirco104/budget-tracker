@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { useDeleteTransaction } from '../api/transactions'
+import { useMe } from '../api/auth'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
@@ -16,18 +17,20 @@ import {
   type ImportSource,
   type MissingAuto,
 } from '../api/imports'
-import type { BankAccount, Category } from '../api/types'
+import type { BankAccount, Category, IstStage } from '../api/types'
+import { addSetupImport, isSetupOpen } from '../setupImport'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { AccountDialog } from '../components/AccountDialog'
 import { CategoryPicker } from '../components/CategoryPicker'
+import { KindSelect } from '../components/KindSelect'
+import { useShowsCategories } from '../useShowsCategories'
 import { SelectionBar } from '../components/SelectionBar'
-import { BankCategoryCard } from '../components/BankCategoryCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
-import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
+import { currentMonth, formatDate, formatDateTime, formatEuro, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
 
@@ -143,17 +146,110 @@ function importable(entry: ImportEntry): boolean {
  * R30, US33, decision 46: no category is preset, not even a certain suggestion or a transfer; the suggestion is offered
  * next to the field. A possible duplicate is not imported unless the user ticks it.
  */
-function initialChoices(preview: ImportPreview): Record<string, Choice> {
+function initialChoices(preview: ImportPreview, stage: IstStage): Record<string, Choice> {
   const choices: Record<string, Choice> = {}
+  // Decision 91: stage 2 takes only rows of a recurring series (R31) or rows that fulfil a term (P5)
+  const recurring = new Set(preview.series.flatMap((s) => s.lines))
   for (const entry of preview.entries) {
     if (!importable(entry) || entry.fingerprint === null) {
       continue
     }
-    // R33: a stored mapping of the bank category sets the category (decision 62); otherwise no row is preset
-    const mapped = entry.mappedCategoryId === null || entry.mappedCategoryId === undefined ? '' : String(entry.mappedCategoryId)
-    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: mapped }
+    const wanted = stage !== 2 || recurring.has(entry.line) || entry.replaces !== null
+    // R40: the bank category is only a suggestion; no row is preset
+    choices[entry.fingerprint] = { selected: entry.status === 'NEW' && wanted, category: '' }
   }
   return choices
+}
+
+/** Decision 92: per source with a balance in the file whether it is taken over (ticked at the start). */
+function initialBalances(preview: ImportPreview): Record<string, boolean> {
+  return Object.fromEntries(preview.sources.filter((s) => s.balanceAmount !== null).map((s) => [s.key, true]))
+}
+
+/** Decision 92: the checkbox that takes the balance of the file over for the account of a source. */
+function BalanceChoice({ source, checked, onChange }: { source: ImportSource; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="check-field">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      Kontostand aus der Datei übernehmen: {formatEuro(source.balanceAmount as number)} am{' '}
+      {formatDate(source.balanceDate as string)}
+    </label>
+  )
+}
+
+/**
+ * Decision 91: stage 1 stores no booking; the file only gives the suggestions of the setup wizard, and its balance
+ * (decision 92) can be taken over.
+ */
+function SuggestionsOnly({ preview, accounts }: { preview: ImportPreview; accounts: BankAccount[] }) {
+  const commit = useCommitImport()
+  const [balances, setBalances] = useState(() => initialBalances(preview))
+  const [error, setError] = useState<string | null>(null)
+  // Review 23.11.2026: the balance goes to an account the user picks, not always to a new one
+  const [mapped, setMapped] = useState(() => initialAccounts(preview, accounts))
+  const taken = preview.sources.filter((source) => balances[source.key])
+
+  async function done() {
+    setError(null)
+    try {
+      if (taken.length > 0) {
+        await commit.mutateAsync({
+          profile: preview.profile,
+          sources: taken.map((source) => ({
+            ...(mapped[source.key] === NEW_ACCOUNT
+              ? { key: source.key, newAccountName: source.suggestedName }
+              : { key: source.key, accountId: Number(mapped[source.key]) }),
+            balanceDate: source.balanceDate as string,
+            balanceAmount: source.balanceAmount as number,
+          })),
+          rows: [],
+        })
+      }
+      window.location.hash = `${ROUTES.setup}/2`
+    } catch (e) {
+      setError(errorText(e, 'Der Kontostand konnte nicht gespeichert werden.'))
+    }
+  }
+
+  return (
+    <section className="card import-summary" aria-label="Datei">
+      <h2>{preview.profileLabel}</h2>
+      <p>
+        <strong>Keine Buchung wird gespeichert.</strong> In Stufe 1 liefert die Datei nur die Vorschläge für deinen Plan:{' '}
+        {preview.series.length === 1 ? '1 regelmäßige Zahlung' : `${preview.series.length} regelmäßige Zahlungen`} und{' '}
+        {preview.budgetSuggestions.length === 1 ? '1 Budget-Vorschlag' : `${preview.budgetSuggestions.length} Budget-Vorschläge`}.
+      </p>
+      {preview.sources
+        .filter((source) => source.balanceAmount !== null)
+        .map((source) => (
+          <div key={source.key} className="import-sources">
+            <BalanceChoice
+              source={source}
+              checked={balances[source.key] ?? false}
+              onChange={(checked) => setBalances((current) => ({ ...current, [source.key]: checked }))}
+            />
+            {balances[source.key] && (
+              <SourceAccount
+                source={source}
+                accounts={accounts.filter((account) => !account.archived)}
+                value={mapped[source.key]}
+                onChange={(value) => setMapped((current) => ({ ...current, [source.key]: value }))}
+              />
+            )}
+          </div>
+        ))}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div>
+        <button type="button" className="primary" onClick={() => void done()} disabled={commit.isPending}>
+          Für Vorschläge nutzen
+        </button>
+      </div>
+    </section>
+  )
 }
 
 function initialAccounts(preview: ImportPreview, accounts: BankAccount[]): Record<string, string> {
@@ -196,7 +292,9 @@ function PreviewRow({
   sameOffer?: { count: number; onApply: () => void; onDismiss: () => void }
 }) {
   const description = entry.description ?? ''
-  const open = choice.selected && choice.category === ''
+  // R35: below stage 4 a row has no category, only its kind
+  const withCategories = useShowsCategories()
+  const open = withCategories && choice.selected && choice.category === ''
   const selectable = chosen !== undefined && choice.selected
 
   // Ticket #160: in the selection mode a click anywhere in the row chooses it, except on its own fields and links
@@ -278,6 +376,16 @@ function PreviewRow({
         {entry.amount !== null && formatSigned(entry.amount)}
       </span>
       <span className="import-category">
+        {!withCategories ? (
+          <KindSelect
+            ariaLabel={`Zählt als: ${description}`}
+            value={choice.category}
+            disabled={!choice.selected}
+            onChange={(value) => onChange({ ...choice, category: value })}
+            transferValue={TRANSFER}
+            savingValue={SAVING}
+          />
+        ) : (
         <CategoryPicker
           ariaLabel={`Kategorie für ${description}`}
           subAriaLabel={`Unterkategorie für ${description}`}
@@ -290,6 +398,7 @@ function PreviewRow({
           leading={KIND_OPTIONS}
           createLabel={`Neue Kategorie für ${description}`}
         />
+        )}
         {suggested && open && (
           <button type="button" className="chip" onClick={() => onChange({ ...choice, category: suggested.value })}>
             {suggested.icon && <CategoryIcon icon={suggested.icon} size={14} />}
@@ -647,8 +756,11 @@ function Preview({
   onReload: () => void
   onCancel: () => void
 }) {
+  const withCategories = useShowsCategories()
+  const stage = useMe().data?.istStage ?? 4
   const commit = useCommitImport()
-  const [choices, setChoices] = useState(() => initialChoices(preview))
+  const [choices, setChoices] = useState(() => initialChoices(preview, stage))
+  const [balances, setBalances] = useState(() => initialBalances(preview))
   const [sourceAccounts, setSourceAccounts] = useState(() => initialAccounts(preview, accounts))
   const [view, setView] = useState<View>('all')
   // Ticket #84: the same filters as Transaktionen, by what the user chose for each row
@@ -841,26 +953,6 @@ function Preview({
    * from its old mapping) get its category, except
    * transfers, rows that fulfil a term and rows whose certain history names another category (decision 62).
    */
-  function applyBankCategories(categoryByBankCategory: Record<string, number>) {
-    setChoices((current) => {
-      const next = { ...current }
-      for (const entry of preview.entries) {
-        const id = entry.bankCategory === null ? undefined : categoryByBankCategory[entry.bankCategory]
-        const choice = entry.fingerprint === null ? undefined : next[entry.fingerprint]
-        // A row keeps a category the user chose; one preset from a mapping that changed follows the new mapping
-        const preset = choice?.category === '' || choice?.category === String(entry.mappedCategoryId)
-        if (id === undefined || !choice || !preset || entry.transfer || entry.replaces) {
-          continue
-        }
-        if (entry.certain && entry.categoryId !== null && entry.categoryId !== id) {
-          continue
-        }
-        next[entry.fingerprint as string] = { ...choice, category: String(id) }
-      }
-      return next
-    })
-  }
-
   function change(entry: ImportEntry, next: Choice) {
     setChoices((current) => ({ ...current, [entry.fingerprint as string]: next }))
     // The row stays in sight while it is edited, even when it no longer passes the filters
@@ -1000,9 +1092,14 @@ function Preview({
       profile: preview.profile,
       sources: preview.sources.map((source) => {
         const chosen = sourceAccounts[source.key]
+        // Decision 92: the balance of the file, when it is taken over
+        const balance =
+          balances[source.key] && source.balanceAmount !== null
+            ? { balanceDate: source.balanceDate as string, balanceAmount: source.balanceAmount }
+            : {}
         return chosen === NEW_ACCOUNT
-          ? { key: source.key, newAccountName: source.suggestedName }
-          : { key: source.key, accountId: Number(chosen) }
+          ? { key: source.key, newAccountName: source.suggestedName, ...balance }
+          : { key: source.key, accountId: Number(chosen), ...balance }
       }),
       rows: entries.map((entry) => {
         const choice = choices[entry.fingerprint as string]
@@ -1019,7 +1116,8 @@ function Preview({
           description: entry.description as string,
           counterparty: entry.counterparty,
           bankCategory: entry.bankCategory,
-          categoryId: transfer || saving ? null : Number(category),
+          // R37, R40: a row without a category becomes a booking without category
+          categoryId: transfer || saving || category === '' ? null : Number(category),
           transfer,
           ...(saving ? { saving } : {}),
           ...((transfer || saving) && entry.transferPeerId !== null ? { transferPeerId: entry.transferPeerId } : {}),
@@ -1105,18 +1203,26 @@ function Preview({
                 onChange={(value) => setSourceAccounts((current) => ({ ...current, [source.key]: value }))}
               />
             ))}
+            {preview.sources
+              .filter((source) => source.balanceAmount !== null)
+              .map((source) => (
+                <BalanceChoice
+                  key={`balance-${source.key}`}
+                  source={source}
+                  checked={balances[source.key] ?? false}
+                  onChange={(checked) => setBalances((current) => ({ ...current, [source.key]: checked }))}
+                />
+              ))}
           </div>
+        )}
+        {stage === 2 && rows.length > 0 && (
+          <p className="hint">
+            <strong>In Stufe 2 übernimmt der Import nur regelmäßige Buchungen</strong>, die zu einer Serie gehören oder einen
+            Termin erfüllen. Die übrigen Ausgaben zählen über den Kontostand; sie sind nicht angehakt.
+          </p>
         )}
       </section>
 
-      {(preview.bankCategories ?? []).length > 0 && (
-        <BankCategoryCard
-          profile={preview.profile}
-          items={preview.bankCategories}
-          categories={categories}
-          onApplied={applyBankCategories}
-        />
-      )}
 
       {matches.map((match) => (
         <MatchCard
@@ -1333,16 +1439,17 @@ function Preview({
           <button
             type="button"
             className="primary"
-            disabled={selected.length === 0 || open.length > 0 || commit.isPending}
+            disabled={selected.length === 0 || commit.isPending}
             onClick={() => void handleCommit()}
           >
             {selected.length === 1 ? '1 Buchung übernehmen' : `${selected.length} Buchungen übernehmen`}
           </button>
         )}
       </div>
-      {open.length > 0 && (
+      {open.length > 0 && withCategories && (
         <p className="hint import-open">
-          {open.length === 1 ? 'Einer Zeile fehlt' : `${open.length} Zeilen fehlt`} noch die Kategorie.
+          {open.length === 1 ? '1 Zeile hat' : `${open.length} Zeilen haben`} keine Kategorie. Sie werden als Buchungen
+          ohne Kategorie übernommen und stehen auf der Übersicht unter „Ohne Kategorie“.
         </p>
       )}
       {hiddenSelected > 0 && (
@@ -1415,6 +1522,8 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
  * VR-Bank or the Deutsche Bank, check the preview and take the rows over; earlier imports can be undone.
  */
 export function ImportPage() {
+  // US40: during the setup the import leads back to the wizard
+  const me = useMe()
   const accounts = useBankAccounts()
   const categories = useCategories(currentMonth())
   const imports = useImports()
@@ -1439,7 +1548,12 @@ export function ImportPage() {
     setPreview(null)
     setFile(file)
     try {
-      setPreview(await upload.mutateAsync(file))
+      const read = await upload.mutateAsync(file)
+      // Decision 91: during the setup the file's suggestions are kept for the later steps
+      if ((me.data && !me.data.setupDone) || isSetupOpen()) {
+        addSetupImport(read)
+      }
+      setPreview(read)
     } catch (e) {
       setError(errorText(e, 'Die Datei konnte nicht gelesen werden.'))
     }
@@ -1488,9 +1602,15 @@ export function ImportPage() {
             Abbrechen
           </button>
         )}
-        <a className="button-link" href={ROUTES.transactions}>
-          Zu den Transaktionen
-        </a>
+        {(me.data && !me.data.setupDone) || isSetupOpen() ? (
+          <a className="button-link" href={`${ROUTES.setup}/2`}>
+            Zurück zur Einrichtung
+          </a>
+        ) : (
+          <a className="button-link" href={ROUTES.transactions}>
+            Zu den Transaktionen
+          </a>
+        )}
       </PageHeader>
 
       {!preview && (
@@ -1555,7 +1675,8 @@ export function ImportPage() {
         </section>
       )}
 
-      {preview && ready && (
+      {preview && ready && me.data?.istStage === 1 && <SuggestionsOnly preview={preview} accounts={accounts.data} />}
+      {preview && ready && me.data?.istStage !== 1 && (
         <Preview
           key={preview.entries.map((entry) => entry.fingerprint ?? entry.line).join()}
           preview={preview}

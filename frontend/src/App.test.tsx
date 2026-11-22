@@ -5,7 +5,7 @@ import App from './App'
 import { currentMonth, shiftMonth } from './format'
 
 // Fictional signed-in user; all other calls stay pending
-const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER' }
+const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER', istStage: 4, setupDone: true }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -46,6 +46,37 @@ describe('App', () => {
 
     expect(screen.getByText('Budget-Tracker')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeInTheDocument()
+  })
+
+  // R39: stage 1 hides Transaktionen and Auswertung; their address leads to the overview
+  it('hides the pages a stage does not need', async () => {
+    window.location.hash = '#/auswertung'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => (url === '/api/auth/me' ? json({ ...me, istStage: 1 }) : new Promise(() => {}))),
+    )
+    renderWithClient()
+    await screen.findByRole('navigation', { name: 'Hauptnavigation' })
+
+    expect(screen.queryByRole('link', { name: 'Transaktionen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Auswertung' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Planung' })).toBeInTheDocument()
+    await waitFor(() => expect(window.location.hash).toBe('#/uebersicht'))
+  })
+
+  // US40: until the setup is done the app opens it; tabs, notifications and the profile menu are hidden meanwhile
+  it('opens the setup while it is not done', async () => {
+    window.location.hash = '#/planung'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => (url === '/api/auth/me' ? json({ ...me, setupDone: false }) : new Promise(() => {}))),
+    )
+    renderWithClient()
+
+    await waitFor(() => expect(window.location.hash).toBe('#/einrichtung'))
+    expect(screen.queryByRole('button', { name: /^Benachrichtigungen/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Konto und Einstellungen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Planung' })).not.toBeInTheDocument()
   })
 
   // US29: four tabs as links; the settings live in the account menu

@@ -101,6 +101,39 @@ public class AccountService {
         user.changePasswordHash(passwordEncoder.encode(request.newPassword()));
     }
 
+    /** R35: a new stage only changes what the app shows, never data. */
+    @Transactional
+    public User changeStage(ChangeStageRequest request) {
+        User user = signedInUser();
+        int from = user.getIstStage();
+        int to = request.stage();
+        // Decision 90: leaving stage 1 enters income and fixed costs automatically when asked, from the chosen day on
+        if (from == 1 && to > 1 && Boolean.TRUE.equals(request.autoEntries())) {
+            for (io.github.mirco104.budget.plan.PlannedItem item : itemRepository.findAllOf(user)) {
+                if (item.isSaving()) {
+                    item.changeEntryMode(io.github.mirco104.budget.plan.EntryMode.TICK);
+                } else if (item.schedule() != null) {
+                    item.changeEntryMode(io.github.mirco104.budget.plan.EntryMode.AUTO);
+                }
+            }
+            user.changeAutoEntriesFrom(request.entriesFrom() != null ? request.entriesFrom() : LocalDate.now(clock));
+        }
+        // Decision 89, 90: in stage 1 the app enters nothing, so every item is entered by hand
+        if (to == 1 && from != 1) {
+            itemRepository.findAllOf(user)
+                    .forEach(item -> item.changeEntryMode(io.github.mirco104.budget.plan.EntryMode.MANUAL));
+        }
+        user.changeIstStage(to);
+        return user;
+    }
+
+    @Transactional
+    public User changeSetup(ChangeSetupRequest request) {
+        User user = signedInUser();
+        user.changeSetupDone(request.done());
+        return user;
+    }
+
     @Transactional
     public User changeDisplayName(ChangeDisplayNameRequest request) {
         User user = signedInUser();

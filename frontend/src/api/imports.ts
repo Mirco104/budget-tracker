@@ -1,3 +1,4 @@
+import type { BudgetSuggestion } from './types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 
@@ -12,6 +13,9 @@ export interface ImportSource {
   name: string
   accountId: number | null
   suggestedName: string
+  /** Decision 92: the balance the file delivers for the source, null without one */
+  balanceDate: string | null
+  balanceAmount: number | null
 }
 
 /**
@@ -60,7 +64,6 @@ export interface ImportEntry {
   /** Issue #119: what else the bank says about the row; a field the bank does not deliver is null. */
   details: ImportDetails | null
   /** R33: the category the stored mapping of its bank category sets; null without one (decision 62). */
-  mappedCategoryId: number | null
   /**
    * Decision 67: suggested as the kind Sparen, a transfer to a savings or depot account or a row that fulfils a saving
    * item.
@@ -70,30 +73,7 @@ export interface ImportEntry {
 
 export type BankCategoryStatus = 'EXISTING' | 'GUESSED' | 'NEW'
 
-/**
- * R33, US38: a bank category of the new rows with the match of its parent and child (child fields null without a
- * child) and the category of a stored mapping.
- */
-export interface ImportBankCategory {
-  bankCategory: string
-  parent: string
-  child: string | null
-  rows: number
-  parentStatus: BankCategoryStatus
-  parentCategoryId: number | null
-  childStatus: BankCategoryStatus | null
-  childCategoryId: number | null
-  mappedCategoryId: number | null
-}
 
-/** US38: one mapping to store: an own category, or a new one (parentId or parentName, and name for a child). */
-export interface BankCategoryMappingInput {
-  bankCategory: string
-  categoryId?: number
-  parentId?: number
-  parentName?: string
-  name?: string
-}
 
 /** Issue #119: the details of a row; purpose as the bank sends it, kind the kind of booking. */
 export interface ImportDetails {
@@ -132,13 +112,16 @@ export interface ImportPreview {
   sources: ImportSource[]
   entries: ImportEntry[]
   series: ImportSeries[]
-  /** R33: bank categories of C24 and the Sparkasse; empty for the other banks. */
-  bankCategories: ImportBankCategory[]
+  /** Decision 91: budget suggestions (R38) from the expenses of the file that are no series, for the setup wizard */
+  budgetSuggestions: BudgetSuggestion[]
+  /** Decision 91: average and minimum income per month of the file (R23), null without income */
+  income: { average: number | null; minimum: number | null; months: number }
 }
 
 export interface ImportRequest {
   profile: ImportProfile
-  sources: { key: string; accountId?: number; newAccountName?: string }[]
+  /** Decision 92: balanceDate and balanceAmount take the balance of the file over for the account */
+  sources: { key: string; accountId?: number; newAccountName?: string; balanceDate?: string; balanceAmount?: number }[]
   rows: {
     fingerprint: string
     source: string
@@ -198,21 +181,7 @@ export function commitImport(input: ImportRequest): Promise<ImportResult> {
   return request<ImportResult>('/imports', { method: 'POST', body: JSON.stringify(input) })
 }
 
-/** R33, US38: stores the mappings and creates their new categories; returns the category of each. */
-export function saveBankCategoryMappings(input: {
-  profile: ImportProfile
-  mappings: BankCategoryMappingInput[]
-}): Promise<{ bankCategory: string; categoryId: number }[]> {
-  return request('/bank-category-mappings', { method: 'PUT', body: JSON.stringify(input) })
-}
 
-export function useSaveBankCategoryMappings() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: saveBankCategoryMappings,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
-  })
-}
 
 export function fetchImports(): Promise<ImportBatch[]> {
   return request<ImportBatch[]>('/imports')

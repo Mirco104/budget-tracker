@@ -1,6 +1,6 @@
 import { Bell } from './components/Bell'
 import { ChangelogDialog } from './components/ChangelogDialog'
-import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
 import type { Me } from './api/types'
@@ -17,13 +17,17 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
-import { ROUTES, usePage, type Page } from './router'
+import { IMPORT_ROUTE, ROUTES, useHash, usePage, type Page } from './router'
+import { hiddenPages } from './stages'
 import { Loading, LoadingBar } from './components/ui/Loading'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
 const EvaluationPage = lazy(() =>
   import('./pages/EvaluationPage').then((module) => ({ default: module.EvaluationPage })),
 )
+
+// US40: the setup wizard brings Recharts for its Sankey diagram as well
+const SetupPage = lazy(() => import('./pages/SetupPage').then((module) => ({ default: module.SetupPage })))
 
 // The main tabs (US29); the settings live in the account menu
 const TABS: { page: Page; label: string; icon: IconName }[] = [
@@ -141,6 +145,21 @@ function SignedIn({ me }: { me: Me }) {
   const page = usePage()
   // The month of overview and planning (27f2); it stays when switching pages. Transaktionen has its own period.
   const [month, setMonth] = useState(currentMonth)
+  const hash = useHash()
+  // US40, US41: until the setup is done the app opens it; the import may run in between (start with bank files)
+  const setupOpen = !me.setupDone && page !== 'setup' && hash !== IMPORT_ROUTE
+  // While the setup runs (also its import) tabs, notifications and the profile menu are hidden: they would only lead back
+  const inSetup = page === 'setup' || !me.setupDone
+  // R39: pages the stage does not need are hidden; their address leads to the overview
+  const hidden = hiddenPages(me.istStage)
+  const pageHidden = hidden.includes(page) && !(page === 'transactions' && hash === IMPORT_ROUTE)
+  useEffect(() => {
+    if (setupOpen) {
+      window.location.hash = ROUTES.setup
+    } else if (pageHidden) {
+      window.location.hash = ROUTES.overview
+    }
+  }, [setupOpen, pageHidden])
 
   return (
     <>
@@ -148,8 +167,9 @@ function SignedIn({ me }: { me: Me }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Brand />
+          {!inSetup && (
           <nav className="tabs" aria-label="Hauptnavigation">
-            {TABS.map((tab) => (
+            {TABS.filter((tab) => !hidden.includes(tab.page)).map((tab) => (
               <a
                 key={tab.page}
                 className="tab"
@@ -161,27 +181,37 @@ function SignedIn({ me }: { me: Me }) {
               </a>
             ))}
           </nav>
-          <Bell />
-          <AccountMenu
-            me={me}
-            settingsHref={ROUTES.settings}
-            signingOut={logout.isPending}
-            onSignOut={() => logout.mutate()}
-          />
+          )}
+          {!inSetup && (
+            <>
+              <Bell />
+              <AccountMenu
+                me={me}
+                settingsHref={ROUTES.settings}
+                signingOut={logout.isPending}
+                onSignOut={() => logout.mutate()}
+              />
+            </>
+          )}
         </div>
       </header>
 
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
-        {page === 'transactions' && <TransactionsRoute />}
+        {page === 'transactions' && !pageHidden && <TransactionsRoute />}
         {page === 'planning' && <PlanningPage month={month} onMonthChange={setMonth} />}
-        {page === 'evaluation' && (
+        {page === 'evaluation' && !pageHidden && (
           <Suspense fallback={<Loading text="Lade Auswertung …" />}>
             <EvaluationPage />
           </Suspense>
         )}
         {page === 'settings' && <SettingsPage me={me} />}
         {page === 'accounts' && <AccountsPage />}
+        {page === 'setup' && (
+          <Suspense fallback={<Loading text="Lade Einrichtung …" />}>
+            <SetupPage me={me} />
+          </Suspense>
+        )}
         <LegalLinks />
       </main>
     </>

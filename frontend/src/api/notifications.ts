@@ -4,7 +4,7 @@ import { request } from './client'
 /** 27h (decision 65): a notification of the bell; only the fields of its kind are set. */
 export interface AppNotification {
   key: string
-  kind: 'MONTH_CLOSING' | 'LOWER_LIMIT' | 'PRICE_CHANGE' | 'OVERPLANNED'
+  kind: 'MONTH_CLOSING' | 'LOWER_LIMIT' | 'PRICE_CHANGE' | 'OVERPLANNED' | 'BALANCE_DUE'
   month: string | null
   amount: number | null
   accountId: number | null

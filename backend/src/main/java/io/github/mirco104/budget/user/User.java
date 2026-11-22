@@ -41,6 +41,18 @@ public class User {
     // Last successful sign-in, for the user overview (US25)
     private Instant lastLoginAt;
 
+    // R35: how closely the user follows the actuals, 1 (plan only) to 4 (bookings with categories); a new user starts
+    // with stage 2, the one the setup wizard recommends
+    @Column(nullable = false)
+    private int istStage = 2;
+
+    // US40: the setup wizard was finished or put off; until then the app opens it
+    @Column(nullable = false)
+    private boolean setupDone;
+
+    // Decision 90: automatic entries (P6) start on this day; set when leaving stage 1, null = from "Gilt ab"
+    private java.time.LocalDate autoEntriesFrom;
+
     protected User() {
     }
 
@@ -71,6 +83,31 @@ public class User {
 
     public void recordLogin(Instant at) {
         this.lastLoginAt = at;
+    }
+
+    /** R35: expects 1 to 4, checked by the request. */
+    public void changeIstStage(int istStage) {
+        this.istStage = istStage;
+    }
+
+    public void changeSetupDone(boolean setupDone) {
+        this.setupDone = setupDone;
+    }
+
+    public int getIstStage() {
+        return istStage;
+    }
+
+    public boolean isSetupDone() {
+        return setupDone;
+    }
+
+    public java.time.LocalDate getAutoEntriesFrom() {
+        return autoEntriesFrom;
+    }
+
+    public void changeAutoEntriesFrom(java.time.LocalDate autoEntriesFrom) {
+        this.autoEntriesFrom = autoEntriesFrom;
     }
 
     public Long getId() {

@@ -105,7 +105,7 @@ public class DashboardService {
         List<TransactionData> entries = new ArrayList<>();
         for (io.github.mirco104.budget.transaction.Transaction t : bookings) {
             if (!excluded.contains(t.getId())) {
-                entries.add(new TransactionData(t.getCategory().getCalculationCategory().getId(), t.getAmount(), t.getDate(),
+                entries.add(new TransactionData(calculationId(t), t.getAmount(), t.getDate(),
                         fix.contains(t.getId())));
             }
         }
@@ -240,9 +240,14 @@ public class DashboardService {
         Set<Long> fix = bookings.isEmpty() ? Set.of() : termService.fixIds(from.atDay(1), to.atEndOfMonth());
         return bookings.stream()
                 .map(transaction -> new TransactionData(
-                        transaction.getCategory().getCalculationCategory().getId(), transaction.getAmount(),
+                        calculationId(transaction), transaction.getAmount(),
                         transaction.getDate(),
                         fix.contains(transaction.getId())))
                 .toList();
+    }
+
+    // R32, R37: the calculation category of a booking, null for one without a category
+    private static Long calculationId(io.github.mirco104.budget.transaction.Transaction t) {
+        return t.getCategory() == null ? null : t.getCategory().getCalculationCategory().getId();
     }
 }

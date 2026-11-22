@@ -43,6 +43,23 @@ public final class AccountBalance {
         return sum.setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * R36 (stage 2): what was spent variably in a month, from the differences (P11) of the balances on its last day of
+     * all everyday accounts: the negated sum. A positive sum means more was on the accounts than expected; then amount
+     * is that surplus and moreThanExpected is set (variable spending 0).
+     */
+    public record Variable(BigDecimal amount, boolean moreThanExpected) {
+    }
+
+    /** R36: null without a balance on the last day of the month. */
+    public static Variable variable(List<BigDecimal> differences) {
+        if (differences.isEmpty()) {
+            return null;
+        }
+        BigDecimal sum = differences.stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+        return sum.signum() > 0 ? new Variable(sum, true) : new Variable(sum.negate(), false);
+    }
+
     /** P12: the lower limit of the mode; null when there is none (OFF, or CUSTOM without an amount). */
     public static BigDecimal limit(LowerLimitMode mode, BigDecimal custom) {
         return switch (mode) {
@@ -81,5 +98,41 @@ public final class AccountBalance {
             previous = statement;
         }
         return history.reversed();
+    }
+
+    /**
+     * R36: the differences of the balances of one account dated in the month, each against the balance before it;
+     * from is the day of the balance before the first one, to the day of the last one (both null when the month has no
+     * balance with one before it). start is the day of the very first balance of the account when it lies in the month
+     * (the start, P11), else null.
+     */
+    public record Period(List<BigDecimal> differences, LocalDate from, LocalDate to, LocalDate start) {
+    }
+
+    /**
+     * R36 (23.11.2026): a balance on any day of the month counts, not only on the last day. The very first balance of
+     * an account is its start (P11) and measures no spending.
+     */
+    public static Period inMonth(java.time.YearMonth month, List<Statement> statements, List<Entry> entries) {
+        List<Statement> sorted = statements.stream().sorted(Comparator.comparing(Statement::date)).toList();
+        List<BigDecimal> differences = new ArrayList<>();
+        LocalDate from = null;
+        LocalDate to = null;
+        LocalDate start = null;
+        Statement previous = null;
+        for (Statement statement : sorted) {
+            if (previous == null && java.time.YearMonth.from(statement.date()).equals(month)) {
+                start = statement.date();
+            }
+            if (previous != null && java.time.YearMonth.from(statement.date()).equals(month)) {
+                if (differences.isEmpty()) {
+                    from = previous.date();
+                }
+                differences.add(difference(previous, entries, statement));
+                to = statement.date();
+            }
+            previous = statement;
+        }
+        return new Period(differences, from, to, start);
     }
 }

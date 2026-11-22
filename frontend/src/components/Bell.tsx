@@ -92,6 +92,8 @@ function titleOf(n: AppNotification): string {
       return `Untergrenze: ${n.accountName ?? ''}`
     case 'PRICE_CHANGE':
       return 'Preisänderung'
+    case 'BALANCE_DUE':
+      return `Kontostand Ende ${formatMonth(n.month ?? '')}`
     default:
       return 'Planung überplant'
   }
@@ -154,6 +156,22 @@ function NotificationItem({ notification: n, onNavigate }: { notification: AppNo
           >
             Übernehmen
           </button>
+          {done}
+        </div>
+      </>
+    )
+  } else if (n.kind === 'BALANCE_DUE') {
+    // R36: stage 2 needs the balance on the last day of the previous month
+    body = (
+      <>
+        <p>
+          Trag den Kontostand von {n.accountName} am letzten Tag im {formatMonth(n.month ?? '')} ein. Danach siehst du auf
+          der Übersicht, was du im {formatMonth(n.month ?? '')} variabel ausgegeben hast.
+        </p>
+        <div className="bell-actions">
+          <a className="button-link" href={ROUTES.accounts} onClick={onNavigate}>
+            Zu den Konten
+          </a>
           {done}
         </div>
       </>

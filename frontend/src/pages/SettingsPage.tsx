@@ -2,12 +2,14 @@ import type { Me } from '../api/types'
 import { AccountSettings } from '../components/AccountSettings'
 import { CategorySettings } from '../components/CategorySettings'
 import { InvitationSettings } from '../components/InvitationSettings'
+import { StageSettings } from '../components/StageSettings'
 import { UserSettings } from '../components/UserSettings'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SETTINGS_ROUTES, useSettingsPage, type SettingsPage as Page } from '../router'
 
 const LABELS: Record<Page, string> = {
   categories: 'Kategorien',
+  stage: 'Einrichtung',
   bankAccounts: 'Bankkonten',
   account: 'Konto',
   invitations: 'Einladungen',
@@ -24,8 +26,8 @@ export function SettingsPage({ me }: { me: Me }) {
   // Display only; the backend checks the role on every call
   const admin = me.role !== 'USER'
   const pages: Page[] = admin
-    ? ['categories', 'account', 'invitations', 'users']
-    : ['categories', 'account']
+    ? ['categories', 'stage', 'account', 'invitations', 'users']
+    : ['categories', 'stage', 'account']
   const page = pages.includes(chosen) ? chosen : 'categories'
 
   return (
@@ -39,12 +41,13 @@ export function SettingsPage({ me }: { me: Me }) {
         ))}
       </nav>
       {page === 'categories' && <CategorySettings />}
+      {page === 'stage' && <StageSettings me={me} />}
       {page === 'bankAccounts' && (
         <p className="hint">
           Die Bankkonten stehen jetzt im Reiter <a href="#/konten">Konten</a>.
         </p>
       )}
-      {page !== 'categories' && page !== 'bankAccounts' && (
+      {page !== 'categories' && page !== 'bankAccounts' && page !== 'stage' && (
         <div className="card settings-card">
           {page === 'account' && <AccountSettings me={me} />}
           {page === 'invitations' && <InvitationSettings senderName={me.displayName} />}

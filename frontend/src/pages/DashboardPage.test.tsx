@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Category, DashboardData, Transaction } from '../api/types'
 import { DashboardPage } from './DashboardPage'
 
@@ -307,5 +307,97 @@ describe('DashboardPage', () => {
     fireEvent.click(within(item('Wohnen')).getByRole('button'))
     fireEvent.click(await screen.findByRole('button', { name: /Miete/ }))
     expect(await screen.findByRole('dialog', { name: 'Buchung bearbeiten' })).toBeInTheDocument()
+  })
+})
+
+// US43: the overview per Ist stage (R35, R36)
+const stagePlan = {
+  month: dashboard.month, income: 2500, fixed: 900, budgets: 400, saving: 200, unplanned: 1000, savingRate: 8, planTotal: 1300,
+  averageIncome: null, minimumIncome: null, averageMonths: 0,
+  categories: [{ group: 'BUDGET', categoryId: 1, categoryName: 'Lebensmittel', total: 400 }],
+  items: [],
+}
+
+function renderStage(stage: 1 | 2 | 3, variable: unknown = { amount: null, moreThanExpected: false, date: '2026-11-30', accounts: 0 }) {
+  const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER', istStage: stage, setupDone: true }
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url === '/api/auth/me') return json(me)
+    if (url.startsWith('/api/accounts/variable')) return json(variable)
+    if (url.startsWith('/api/dashboard')) return json(dashboard)
+    if (url.startsWith('/api/plan')) return json(stagePlan)
+    if (url.startsWith('/api/categories')) return json(categories)
+    return new Promise<Response>(() => {})
+  }))
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <DashboardPage month={dashboard.month} />
+    </QueryClientProvider>,
+  )
+}
+
+describe('DashboardPage per Ist stage', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows only the plan in stage 1, without booking', async () => {
+    renderStage(1)
+
+    expect(await screen.findByText(/Du verfolgst nur den Plan/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Plan des Monats')).toHaveTextContent('Nicht verplant1.000,00 €')
+    expect(screen.getByRole('region', { name: 'Budgets im Monat' })).toHaveTextContent('Lebensmittel400,00 €')
+    expect(screen.queryByRole('button', { name: 'Buchung' })).not.toBeInTheDocument()
+  })
+
+  // R36 (23.11.2026): a balance on any day; the overview names the period since the balance before
+  it('shows the variable spending since the balance before in stage 2', async () => {
+    renderStage(2, { amount: 320, moreThanExpected: false, date: '2026-11-15', from: '2026-10-31', accounts: 1 })
+
+    expect(await screen.findByText('Variabel ausgegeben')).toBeInTheDocument()
+    const row = screen.getByText('Variabel ausgegeben').closest('li') as HTMLElement
+    expect(row).toHaveTextContent('320,00 € von 400,00 €')
+    expect(row).toHaveTextContent('Seit dem Kontostand am 31.10.2026 bis zum 15.11.2026, gegen die Summe deiner Budgets.')
+  })
+
+  it('asks for the balance at the end of the month in stage 2 when the month has none', async () => {
+    renderStage(2)
+
+    expect(await screen.findByText(/Trag am Monatsende den Kontostand/)).toBeInTheDocument()
+  })
+
+  // R36 (review 23.11.2026): the very first balance is the start; the overview asks for the one at the end of the month
+  it('calls the first balance the start in stage 2', async () => {
+    renderStage(2, { amount: null, moreThanExpected: false, date: null, from: null, accounts: 0, start: '2026-11-22' })
+
+    expect(await screen.findByText(/Dein Kontostand vom 22\.11\.2026 ist der Start\. Trag am Monatsende den nächsten/)).toBeInTheDocument()
+  })
+
+  // Review 23.11.2026: a period that starts within the month is marked as part of it
+  it('marks a period that starts within the month', async () => {
+    renderStage(2, { amount: 120, moreThanExpected: false, date: '2026-10-31', from: '2026-10-22', accounts: 1, start: '2026-10-22' })
+
+    expect(await screen.findByText('Teilmonat seit 22.10.2026:')).toBeInTheDocument()
+  })
+
+  it('shows all budgets together in stage 3', async () => {
+    renderStage(3)
+
+    expect(await screen.findByText('Alle Budgets zusammen')).toBeInTheDocument()
+    expect(screen.getByText(/Einzelne Budgets siehst du in Stufe 4/)).toBeInTheDocument()
+  })
+})
+
+// R37: the expenses without a category stand in a row of their own, in no budget
+describe('DashboardPage without category', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows the row Ohne Kategorie with a link to assign', async () => {
+    renderPage({
+      ...dashboard,
+      categories: [...dashboard.categories, { id: null, name: 'Ohne Kategorie', target: null, actual: 45, difference: null }],
+    })
+
+    const row = (await screen.findByText('Ohne Kategorie')).closest('li') as HTMLElement
+    expect(row).toHaveTextContent('45,00 €')
+    expect(row).toHaveTextContent('zählt zu den variablen Kosten, aber zu keinem Budget')
+    expect(within(row).getByRole('link', { name: 'Zuordnen ›' })).toBeInTheDocument()
   })
 })

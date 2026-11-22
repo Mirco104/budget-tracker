@@ -19,11 +19,17 @@ interface MonthAmount {
  * Auswertung › Kategorien (R34, US39, decision 77): sum and average per category over the period of the look back,
  * and the months of one chosen category. All numbers come from the backend; this page only picks and formats them.
  */
+// R37: the row "Ohne Kategorie" has no id
+function keyOf(line: { id: number | null }): string {
+  return line.id === null ? 'without' : String(line.id)
+}
+
 export function CategoryAnalysis({ data }: { data: HistoryData }) {
   const [side, setSide] = useState<Side>('expenses')
-  const [chosen, setChosen] = useState<number | null>(null)
+  // The key of the chosen row; null until one is chosen (the first row then)
+  const [chosen, setChosen] = useState<string | null>(null)
   const lines = side === 'expenses' ? data.expensesByCategory : data.incomeByCategory
-  const selected = lines.find((line) => line.id === chosen) ?? lines[0]
+  const selected = lines.find((line) => keyOf(line) === chosen) ?? lines[0]
   // Bar length relative to the largest category, display only (decision 77)
   const largest = lines[0]?.total ?? 0
 
@@ -59,12 +65,12 @@ export function CategoryAnalysis({ data }: { data: HistoryData }) {
             <tbody>
               {lines.map((line) => (
                 <CategoryRow
-                  key={line.id}
+                  key={keyOf(line)}
                   line={line}
                   months={data.months}
                   largest={largest}
-                  selected={line.id === selected?.id}
-                  onSelect={() => setChosen(line.id)}
+                  selected={selected !== undefined && keyOf(line) === keyOf(selected)}
+                  onSelect={() => setChosen(keyOf(line))}
                 />
               ))}
             </tbody>
@@ -100,7 +106,7 @@ function CategoryRow({ line, months, largest, selected, onSelect }: {
       <th scope="row">
         <button type="button" aria-pressed={selected} onClick={(e) => { e.stopPropagation(); onSelect() }}>
           <span className="history-category-name">
-            <CategoryIcon icon={line.icon} size={14} />
+            <CategoryIcon icon={line.icon ?? 'tag'} size={14} />
             {line.name}
           </span>
         </button>
@@ -137,7 +143,7 @@ function CategoryChart({ data, side, line }: { data: HistoryData; side: Side; li
     <section className="category-chart">
       <h3>
         <span className="history-category-name">
-          <CategoryIcon icon={line.icon} size={16} />
+          <CategoryIcon icon={line.icon ?? 'tag'} size={16} />
           Verlauf {line.name}
         </span>
       </h3>

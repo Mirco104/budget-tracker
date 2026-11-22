@@ -82,13 +82,15 @@ public class NotificationService {
     }
 
     public enum Kind {
-        MONTH_CLOSING, LOWER_LIMIT, PRICE_CHANGE, OVERPLANNED
+        MONTH_CLOSING, LOWER_LIMIT, PRICE_CHANGE, OVERPLANNED, BALANCE_DUE
     }
 
     /**
      * One notification; only the fields of its kind are set. MONTH_CLOSING: month, amount (the leftover).
      * LOWER_LIMIT: accountId, accountName, balance (today), expected, limit. PRICE_CHANGE: itemId, itemName,
-     * oldAmount, newAmount (with sign). OVERPLANNED: month, amount (how much is overplanned).
+     * oldAmount, newAmount (with sign). OVERPLANNED: month, amount (how much is overplanned). BALANCE_DUE (R36,
+     * stage 2): month (the previous one), accountId and accountName of the first everyday account without a balance
+     * on its last day.
      */
     public record Notification(
             String key, Kind kind, String month, BigDecimal amount, Long accountId, String accountName,
@@ -141,7 +143,26 @@ public class NotificationService {
         result.addAll(lowerLimits(current));
         result.addAll(priceChanges(current));
         overplanned(current).ifPresent(result::add);
+        balanceDue(current).ifPresent(result::add);
         return result;
+    }
+
+    // R36, US43: in stage 2 the bell asks for the balance on the last day of the previous month, but only for an account
+    // that started before it and has no balance since (review 23.11.2026)
+    private java.util.Optional<Entry> balanceDue(YearMonth current) {
+        if (currentUser.get().getIstStage() != 2) {
+            return java.util.Optional.empty();
+        }
+        YearMonth previous = current.minusMonths(1);
+        java.time.LocalDate last = previous.atEndOfMonth();
+        return bankAccountService.findAllOrdered().stream()
+                .filter(account -> !account.isArchived()
+                        && account.getRole() == io.github.mirco104.budget.bankaccount.AccountRole.EVERYDAY
+                        && accountOverviewService.needsBalance(account, last))
+                .findFirst()
+                .map(account -> new Entry(new Notification("balance:" + previous, Kind.BALANCE_DUE, previous.toString(),
+                        null, account.getId(), account.getName(), null, null, null, null, null, null, null),
+                        previous.toString()));
     }
 
     /** P13 "Übernehmen": the item gets the new amount from the current month on. */

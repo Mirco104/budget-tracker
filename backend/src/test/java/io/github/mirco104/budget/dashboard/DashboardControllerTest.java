@@ -72,6 +72,23 @@ class DashboardControllerTest {
         assertWohnenTarget("2027-06", 850.00);
     }
 
+    // R37: an expense without a category counts in the expenses and in a row of its own; the look back keeps working
+    @Test
+    void anExpenseWithoutCategoryHasARowOfItsOwn() throws Exception {
+        postTransaction("-100", "Einkauf", "2026-10-02", categoryId("Lebensmittel"));
+        mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": -45, \"description\": \"Unbekannt\", \"date\": \"2026-10-05\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/dashboard").param("month", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.expenses.actual").value(145.00))
+                .andExpect(jsonPath("$.categories[?(@.name == 'Ohne Kategorie')].actual", contains(45.00)));
+        mockMvc.perform(get("/api/history").param("from", "2026-10").param("to", "2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.expensesByCategory[?(@.name == 'Ohne Kategorie')].total", contains(45.00)));
+    }
+
     @Test
     void refundLowersActualOfItsCategoryAndExpenseInIncomeCategoryIsListed() throws Exception {
         postTransaction("2000", "Gehalt", "2026-10-01", categoryId("Gehalt/Lohn (netto)"));

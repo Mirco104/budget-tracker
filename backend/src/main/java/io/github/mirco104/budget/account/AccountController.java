@@ -39,6 +39,16 @@ public class AccountController {
         return MeResponse.from(accountService.changeDisplayName(request));
     }
 
+    @PutMapping("/stage")
+    public MeResponse changeStage(@Valid @RequestBody ChangeStageRequest request) {
+        return MeResponse.from(accountService.changeStage(request));
+    }
+
+    @PutMapping("/setup")
+    public MeResponse changeSetup(@Valid @RequestBody ChangeSetupRequest request) {
+        return MeResponse.from(accountService.changeSetup(request));
+    }
+
     @PutMapping("/email")
     public MeResponse changeEmail(@Valid @RequestBody ChangeEmailRequest request) {
         return MeResponse.from(accountService.changeEmail(request));

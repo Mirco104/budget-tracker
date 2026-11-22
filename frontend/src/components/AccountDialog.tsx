@@ -265,7 +265,13 @@ export function AccountDialog({
             {error}
           </p>
         )}
-        {result && (
+        {/* Review 23.11.2026: the first balance of an account is its start (P11); a difference to it says nothing */}
+        {result && result.start && (
+          <p className="plan-done" role="status">
+            ✓ Kontostand gespeichert. Er ist der Startwert dieses Kontos.
+          </p>
+        )}
+        {result && !result.start && (
           <p className={result.difference === 0 ? 'plan-done' : 'hint'} role="status">
             {result.difference === 0
               ? '✓ Stimmt mit der App überein.'

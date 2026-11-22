@@ -610,12 +610,47 @@ class DashboardCalculatorTest {
         return category(id, null);
     }
 
+    // --- R37: an expense without a category counts as variable expense in a row of its own ---
+
+    @Test
+    void anExpenseWithoutCategoryCountsInItsOwnRowAndInNoBudget() {
+        DashboardResponse result = calculate(
+                List.of(category(LEBENSMITTEL, "300"), noTarget(GEHALT)),
+                List.of(booking(GEHALT, "2000"), booking(LEBENSMITTEL, "-100"),
+                        new TransactionData(null, new BigDecimal("-40.00"), IN_OCTOBER, false),
+                        new TransactionData(null, new BigDecimal("-10.00"), IN_OCTOBER, false)));
+
+        CategoryLine without = result.categories().getLast();
+        assertThat(without.id()).isNull();
+        assertThat(without.name()).isEqualTo("Ohne Kategorie");
+        assertThat(without.target()).isNull();
+        assertThat(without.actual()).isEqualByComparingTo("50.00");
+        assertThat(without.difference()).isNull();
+        assertThat(result.expenses().actual()).isEqualByComparingTo("150.00");
+        assertThat(result.expenses().target()).isEqualByComparingTo("300.00");
+        assertThat(result.expenses().oneOff()).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    void incomeWithoutCategoryCountsAsIncome() {
+        DashboardResponse result = calculate(
+                List.of(noTarget(GEHALT)),
+                List.of(booking(GEHALT, "2000"), new TransactionData(null, new BigDecimal("25.00"), IN_OCTOBER, false)));
+
+        assertThat(result.incomeTotal()).isEqualByComparingTo("2025.00");
+        assertThat(result.income()).hasSize(2);
+        assertThat(result.income().getLast().id()).isNull();
+        assertThat(result.income().getLast().name()).isEqualTo("Ohne Kategorie");
+        assertThat(result.income().getLast().actual()).isEqualByComparingTo("25.00");
+        assertThat(result.categories()).isEmpty();
+    }
+
     /** Single transaction; signed amount: positive is income, negative is expense (R11). */
     private static TransactionData booking(long categoryId, String amount) {
         return booking(categoryId, amount, IN_OCTOBER);
     }
 
-    private static TransactionData booking(long categoryId, String amount, LocalDate date) {
+    private static TransactionData booking(Long categoryId, String amount, LocalDate date) {
         return new TransactionData(categoryId, new BigDecimal(amount), date, false);
     }
 

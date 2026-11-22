@@ -120,6 +120,32 @@ class PlanSuggestionControllerTest {
         mockMvc.perform(get("/api/plan/suggestions")).andExpect(jsonPath("$", hasSize(0)));
     }
 
+    @Test
+    void budgetSuggestionsAverageTheLastSixFullMonthsWithoutCategoriesThatHaveABudget() throws Exception {
+        book("-90", "Supermarkt", current.minusMonths(2).atDay(5).toString(), "Lebensmittel");
+        book("-60", "Supermarkt", current.minusMonths(1).atDay(5).toString(), "Lebensmittel");
+        book("-30", "Kino", current.minusMonths(1).atDay(8).toString(), "Freizeit");
+        book("-500", "Heute", current.atDay(1).toString(), "Freizeit");
+
+        mockMvc.perform(get("/api/plan/budget-suggestions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].name").value("Lebensmittel"))
+                .andExpect(jsonPath("$[0].average").value(75.00))
+                .andExpect(jsonPath("$[0].proposal").value(75))
+                .andExpect(jsonPath("$[0].months").value(2))
+                .andExpect(jsonPath("$[1].name").value("Freizeit"))
+                .andExpect(jsonPath("$[1].average").value(15.00));
+
+        mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Lebensmittel", "amount": -300, "categoryId": %d, "validFrom": "%s"}"""
+                        .formatted(category("Lebensmittel"), current)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(get("/api/plan/budget-suggestions"))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].name").value("Freizeit"));
+    }
+
     private void book(String amount, String description, String date, String category) throws Exception {
         mockMvc.perform(post("/api/transactions").contentType(MediaType.APPLICATION_JSON).content("""
                         {"amount": %s, "description": "%s", "date": "%s", "categoryId": %d}"""

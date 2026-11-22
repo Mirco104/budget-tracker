@@ -2,6 +2,26 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
+## 0.3.0-alpha (22.11.2026)
+
+Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
+
+### Neu
+
+- **Einrichtung:** Neue Nutzer werden Schritt für Schritt durch Konten, Einkommen, Fixkosten, variable Kosten, Sparen und Sparziele geführt, wahlweise mit Vorschlägen aus einem Kontoauszug. Jeder Schritt hat ein Icon und eine kurze Frage, unten füllt sich ein Balken mit dem Plan, häufige Posten stehen als Kacheln zum Antippen bereit. Wer schon Buchungen hat, kann sich den Plan auch aus ihnen vorschlagen lassen. Der Import kommt nach der Wahl der Stufe und speichert nur, was die Stufe braucht: in Stufe 1 keine Buchung, in Stufe 2 nur die regelmäßigen Buchungen. Liefert die Bank einen Kontostand (Deutsche Bank, VR-Bank), bietet der Import an, ihn zu übernehmen. Bestehende Nutzer sehen sie einmal mit ihren Daten; „Später einrichten“ schließt sie ohne Änderung, unter *Einstellungen › Einrichtung* lässt sie sich jederzeit neu starten.
+- **Tracking-Stufe in vier Stufen:** Nur Plan, Kontostand, Buchungen oder Buchungen mit Kategorien, jeweils mit Bild, Häkchen, Aufwand und Genauigkeit. Zwei Fragen (was du wissen willst, wie viel Zeit du investierst) empfehlen eine Stufe. In Stufe 1 trägt die App nichts ein; beim Wechsel aus Stufe 1 fragt sie, ob und ab wann sie Einkommen und Fixkosten selbst eintragen soll.
+- **Budget-Vorschläge:** Die Einrichtung schlägt Budgets aus dem Durchschnitt der letzten 6 Monate je Kategorie vor.
+- **Dein Monat im Plan:** Am Ende der Einrichtung zeigt ein Diagramm, wohin das Einkommen im Plan fließt.
+- **Übersicht je Stufe:** Stufe 1 zeigt nur den Plan des Monats, Stufe 2 nach einem Kontostand (an jedem Tag möglich), was seit dem Kontostand davor variabel ausgegeben wurde (oder „mehr als erwartet“), Stufe 3 alle Budgets zusammen, Stufe 4 wie bisher jedes Budget einzeln.
+- **Glocke fragt nach dem Kontostand:** In Stufe 2 erinnert die Glocke an den Kontostand vom letzten Tag des Vormonats, sobald das Konto davor schon einen Kontostand hatte. Der erste Kontostand ist der Start; die Übersicht bittet dann um den nächsten am Monatsende und kennzeichnet einen angefangenen Monat als „Teilmonat“.
+- **Buchungen ohne Kategorie:** Im Buchungsdialog und im Import ist die Kategorie keine Pflicht mehr. Ausgaben ohne Kategorie stehen auf der Übersicht und in der Auswertung je Kategorie in einer eigenen Zeile „Ohne Kategorie“ und zählen zu keinem Budget. In Transaktionen lassen sie sich mit dem Kategorie-Filter „Ohne Kategorie“ finden. Unter Stufe 4 fragen Import und Buchungsdialog statt nach der Kategorie nur, ob eine Buchung zählt, eine Umbuchung oder Sparen ist.
+
+### Änderungen
+
+- Während der Einrichtung sind Glocke und Profilmenü ausgeblendet. Auf der Seite „Fertig“ wächst das Sankey-Diagramm mit der Karte statt zu scrollen, und die Karten unter „Deine Einrichtung“ sind gleich hoch.
+- **Nur die nötigen Seiten:** In Stufe 1 sind *Transaktionen* und *Auswertung* ausgeblendet, die Unterseite *Auswertung › Kategorien* gibt es nur in Stufe 4.
+- **Kategorien der Bank nur als Vorschlag:** Die Karte „Kategorien der Bank“ im Import und die gespeicherten Zuordnungen entfallen; die Kategorie der Bank fließt nur noch in den Vorschlag ein, gleich nach der sicheren Zuordnung aus der Gegenseite.
+
 ## 0.2.0-alpha (21.11.2026)
 
 Nachbesserungen nach dem ersten Test im Bekanntenkreis.

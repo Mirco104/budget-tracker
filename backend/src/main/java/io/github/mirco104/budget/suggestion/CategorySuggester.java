@@ -84,31 +84,32 @@ public final class CategorySuggester {
                 .toList();
         List<Entry> sameSign = usable.stream().filter(entry -> entry.income() == income).toList();
 
-        // (1) and (2): the latest entries with the same key
+        // R40 replaces the order of R29: (1) sure from the counterparty, (2) the history of the bank category,
+        // (3) unsure from the counterparty, (4) the first word, (5) the name of the bank category
         String key = key(text);
-        if (!key.isEmpty()) {
-            List<Entry> matching = latest(sameSign, entry -> key(entry.text()).equals(key));
-            if (!matching.isEmpty()) {
-                boolean agree = matching.stream().map(Entry::categoryId).distinct().count() == 1;
-                return Optional.of(new Suggestion(mostFrequent(matching), agree));
-            }
-            // (3): the same first word with at least 4 letters
-            String first = firstWord(text);
-            if (first.length() >= MIN_FIRST_WORD) {
-                List<Entry> sameFirst = latest(sameSign, entry -> firstWord(entry.text()).equals(first));
-                if (!sameFirst.isEmpty()) {
-                    return Optional.of(new Suggestion(mostFrequent(sameFirst), false));
-                }
-            }
+        List<Entry> matching = key.isEmpty() ? List.of() : latest(sameSign, entry -> key(entry.text()).equals(key));
+        if (!matching.isEmpty() && matching.stream().map(Entry::categoryId).distinct().count() == 1) {
+            return Optional.of(new Suggestion(matching.getFirst().categoryId(), true));
         }
-
-        // (4): the bank category, from the history and then from the names of the categories
-        if (bankCategory != null && !bankCategory.isBlank()) {
+        boolean withBank = bankCategory != null && !bankCategory.isBlank();
+        if (withBank) {
             List<Entry> sameBankCategory = latest(sameSign,
                     entry -> entry.bankCategory() != null && entry.bankCategory().equalsIgnoreCase(bankCategory.trim()));
             if (!sameBankCategory.isEmpty()) {
                 return Optional.of(new Suggestion(mostFrequent(sameBankCategory), false));
             }
+        }
+        if (!matching.isEmpty()) {
+            return Optional.of(new Suggestion(mostFrequent(matching), false));
+        }
+        String first = firstWord(text);
+        if (!key.isEmpty() && first.length() >= MIN_FIRST_WORD) {
+            List<Entry> sameFirst = latest(sameSign, entry -> firstWord(entry.text()).equals(first));
+            if (!sameFirst.isEmpty()) {
+                return Optional.of(new Suggestion(mostFrequent(sameFirst), false));
+            }
+        }
+        if (withBank) {
             return byName(bankCategory, kindHints, categories).map(id -> new Suggestion(id, false));
         }
         return Optional.empty();

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useMe } from '../api/auth'
 import { useBankAccounts } from '../api/bankAccounts'
 import { AccountSelect } from './AccountSelect'
 import { CategoryPicker } from './CategoryPicker'
@@ -60,7 +61,18 @@ interface Props {
   /** The group of a new item (from the "+" of a group). */
   group?: PlanGroup
   /** Prefilled values of a new item, e.g. "Zum Sparen" with the unplanned rest. */
-  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number; accountId?: number; day?: number }
+  preset?: {
+    name?: string
+    amount?: number
+    categoryId?: number
+    savingGoalId?: number
+    accountId?: number
+    day?: number
+    /** "UNIT:COUNT" like the field "Wie oft", e.g. "MONTH:12" for a yearly payment (setup wizard). */
+    rhythm?: string
+    /** Decision 83: the setup wizard enters income and fixed costs automatically. */
+    entryMode?: EntryMode
+  }
   onClose: () => void
   onDone: (message: string) => void
 }
@@ -80,9 +92,11 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
     ? item.rhythmUnit === null
       ? NONE
       : `${item.rhythmUnit}:${item.rhythmCount}`
-    : group === 'BUDGET'
-      ? NONE
-      : 'MONTH:1'
+    : preset?.rhythm
+      ? preset.rhythm
+      : group === 'BUDGET'
+        ? NONE
+        : 'MONTH:1'
   const anchor = item?.anchorDate ? dayOfAnchor(item.anchorDate) : null
   const [kind, setKind] = useState<Kind>(kindOf(item, group))
   const [name, setName] = useState(item?.name ?? preset?.name ?? '')
@@ -100,7 +114,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const [day, setDay] = useState(anchor ? String(anchor.day) : preset?.day ? String(preset.day) : '1')
   const [dueMonth, setDueMonth] = useState(anchor ? anchor.month : Number(month.slice(5, 7)))
   const [firstDate, setFirstDate] = useState(item?.anchorDate ?? `${month}-01`)
-  const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? defaultMode(initialRhythm))
+  const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? preset?.entryMode ?? defaultMode(initialRhythm))
   const [workdaysOnly, setWorkdaysOnly] = useState(item?.workdaysOnly ?? false)
   // A change applies from the month the page shows, never before the version starts
   const [validFrom, setValidFrom] = useState(item && item.validFrom > month ? item.validFrom : month)
@@ -111,6 +125,11 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
 
   const [unit, count] = rhythm === NONE ? [null, null] : (rhythm.split(':') as [RhythmUnit, string])
   const rhythmCount = count === null ? null : Number(count)
+  // Decision 89: stage 1 enters nothing (no field, stored "selbst anlegen"); stage 2 only enters automatically or on
+  // ticking for an item with a term
+  const stage = useMe().data?.istStage ?? 4
+  const mode: EntryMode = stage === 1 ? 'MANUAL' : entryMode
+  const modes = ENTRY_MODES.filter((m) => unit !== null || m.value !== 'AUTO')
   const rare = unit === 'MONTH' && rhythmCount !== null && rhythmCount > 1
 
   // 27f2: an automatic item enters its past terms from "Gilt ab" on; the dialog says how many before saving. Only
@@ -119,14 +138,14 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const datesChanged =
     !item || validFrom !== item.validFrom || anchorDate() !== item.anchorDate || rhythm !== initialRhythm
   const pastQuery =
-    entryMode === 'AUTO' && unit !== null && datesChanged && /^\d{4}-\d{2}$/.test(validFrom) && (unit === 'WEEK' || Number(day) >= 1)
+    mode === 'AUTO' && unit !== null && datesChanged && /^\d{4}-\d{2}$/.test(validFrom) && (unit === 'WEEK' || Number(day) >= 1)
       ? {
           name: 'Posten',
           amount: -1,
           rhythmUnit: unit,
           rhythmCount,
           anchorDate: anchorDate(),
-          entryMode,
+          entryMode: mode,
           workdaysOnly,
           validFrom,
         }
@@ -200,7 +219,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
       rhythmUnit: unit,
       rhythmCount,
       anchorDate: anchorDate(),
-      entryMode,
+      entryMode: mode,
       workdaysOnly: unit !== null && workdaysOnly,
       validFrom,
       savingGoalId: kind === 'saving' && goalId !== '' ? Number(goalId) : null,
@@ -369,16 +388,22 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
         )}
 
         <div className="field-row">
-          <label className="field">
-            Eintragen
-            <select value={entryMode} onChange={(e) => setEntryMode(e.target.value as EntryMode)}>
-              {ENTRY_MODES.filter((m) => unit !== null || m.value !== 'AUTO').map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {stage !== 1 && (
+            <label className="field">
+              Eintragen
+              <select value={mode} onChange={(e) => setEntryMode(e.target.value as EntryMode)}>
+                {modes.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              {/* Decision 89 (review 23.11.2026): stage 2 counts a missing payment as variable spending */}
+              {stage === 2 && unit !== null && mode === 'MANUAL' && (
+                <span className="field-note">Wird keine Zahlung selbst eingetragen, werden die variablen Kosten evtl. verfälscht.</span>
+              )}
+            </label>
+          )}
           <label className="field">
             Gilt ab
             <input

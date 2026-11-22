@@ -112,7 +112,8 @@ public class ReserveCalculator {
     }
 
     /** The income N(k) or the expense actual I(k) of a category in a past month, positive, with its icon. */
-    public record CategoryData(long id, String name, String icon, BigDecimal amount) {
+    /** id null for the bookings without a category (R37). */
+    public record CategoryData(Long id, String name, String icon, BigDecimal amount) {
     }
 
     /**
@@ -163,7 +164,7 @@ public class ReserveCalculator {
                         average(Stream.of(sums.get(line.id())), months), counts.get(line.id())))
                 .sorted(Comparator.comparing(CategoryTotal::total).reversed()
                         .thenComparing(CategoryTotal::name)
-                        .thenComparingLong(CategoryTotal::id))
+                        .thenComparing(CategoryTotal::id, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
 

@@ -87,6 +87,60 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$[1].total").value(5.00));
     }
 
+    // R36 (stage 2): the balance on the last day of a month gives the variable spending of the month
+    @Test
+    void theBalanceOnTheLastDayOfTheMonthGivesTheVariableSpending() throws Exception {
+        java.time.YearMonth previous = java.time.YearMonth.from(today).minusMonths(1);
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(previous.minusMonths(1).atEndOfMonth())))
+                .andExpect(status().isOk());
+        book("{\"amount\": 2000, \"description\": \"Gehalt\", \"date\": \"%s\", \"categoryId\": %d}"
+                .formatted(previous.atDay(28), category("Gehalt/Lohn (netto)")));
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").doesNotExist());
+
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 2600}".formatted(previous.atEndOfMonth())))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(jsonPath("$.amount").value(400.00))
+                .andExpect(jsonPath("$.moreThanExpected").value(false))
+                .andExpect(jsonPath("$.accounts").value(1));
+    }
+
+    // R36 (23.11.2026): a balance on any day counts; the answer names the period since the balance before
+    @Test
+    void aBalanceInTheMiddleOfTheMonthGivesTheVariableSpendingSoFar() throws Exception {
+        java.time.YearMonth previous = java.time.YearMonth.from(today).minusMonths(1);
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(previous.minusMonths(1).atEndOfMonth())))
+                .andExpect(status().isOk());
+        book("{\"amount\": 2000, \"description\": \"Gehalt\", \"date\": \"%s\", \"categoryId\": %d}"
+                .formatted(previous.atDay(1), category("Gehalt/Lohn (netto)")));
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 2700}".formatted(previous.atDay(15))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(jsonPath("$.amount").value(300.00))
+                .andExpect(jsonPath("$.date").value(previous.atDay(15).toString()))
+                .andExpect(jsonPath("$.from").value(previous.minusMonths(1).atEndOfMonth().toString()));
+        // R36: in the month of the very first balance that balance is the start and measures nothing
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.minusMonths(1).toString()))
+                .andExpect(jsonPath("$.amount").doesNotExist())
+                .andExpect(jsonPath("$.start").value(previous.minusMonths(1).atEndOfMonth().toString()));
+
+        // A second balance in the month adds the rest of it
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 2500}".formatted(previous.atEndOfMonth())))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(jsonPath("$.amount").value(500.00))
+                .andExpect(jsonPath("$.date").value(previous.atEndOfMonth().toString()))
+                .andExpect(jsonPath("$.accounts").value(1));
+    }
+
     @Test
     void aBankBalanceShowsTheDifferenceAndBecomesTheStart() throws Exception {
         book("{\"amount\": -40, \"description\": \"Einkauf\", \"date\": \"%s\", \"categoryId\": %d}"
@@ -96,7 +150,12 @@ class AccountOverviewControllerTest {
                         .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(today)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.appBalance").value(-40.00))
-                .andExpect(jsonPath("$.difference").value(1040.00));
+                .andExpect(jsonPath("$.difference").value(1040.00))
+                // the first balance of the account is its start (review 23.11.2026)
+                .andExpect(jsonPath("$.start").value(true));
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(today)))
+                .andExpect(jsonPath("$.start").value(true));
         mockMvc.perform(get("/api/accounts"))
                 .andExpect(jsonPath("$[0].accounts[0].balance").value(1000.00))
                 .andExpect(jsonPath("$[0].accounts[0].statementAmount").value(1000.00));
@@ -112,6 +171,10 @@ class AccountOverviewControllerTest {
         balance(girokonto, today.minusDays(1), "1000");
         balance(girokonto, today, "900");
         balance(tagesgeld, today, "50");
+        // A balance with one before it is no start
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 900}".formatted(today)))
+                .andExpect(jsonPath("$.start").value(false));
 
         String history = mockMvc.perform(get("/api/bank-accounts/{id}/balances", girokonto))
                 .andExpect(status().isOk())

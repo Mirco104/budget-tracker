@@ -212,6 +212,67 @@ class TermControllerTest {
                 .andExpect(jsonPath("$.expected.total").value(-170.00));
     }
 
+    // R35: in stage 1 the app enters no bookings, also not for an automatic item, and the hint counts none
+    @Test
+    void inStageOneNothingIsEntered() throws Exception {
+        stage("{\"stage\": 1}");
+        item("Miete", "-900", "Wohnen", today, "AUTO");
+        mockMvc.perform(post("/api/planned-items/past-terms").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "entryMode": "AUTO", "validFrom": "%s"}"""
+                        .formatted(category("Wohnen"), today, month)))
+                .andExpect(jsonPath("$.count").value(0));
+
+        mockMvc.perform(get("/api/transactions").param("month", month)).andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    // Decision 90: leaving stage 1 with automatic entries makes income and fixed costs AUTO and enters their terms from
+    // the chosen day on, not from "Gilt ab"
+    @Test
+    void leavingStageOneEntersAutomaticallyFromTheChosenDay() throws Exception {
+        stage("{\"stage\": 1}");
+        LocalDate lastMonth = today.minusMonths(1);
+        long id = item("Miete", "-900", "Wohnen", lastMonth, "MANUAL");
+
+        stage("{\"stage\": 2, \"autoEntries\": true, \"entriesFrom\": \"%s\"}".formatted(today));
+
+        terms().andExpect(jsonPath("$[?(@.itemId == " + id + ")].entryMode").value(org.hamcrest.Matchers.everyItem(
+                org.hamcrest.Matchers.is("AUTO"))));
+        // The hint of the item window counts only the terms from that day on (review 23.11.2026)
+        mockMvc.perform(post("/api/planned-items/past-terms").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "entryMode": "AUTO", "validFrom": "%s"}"""
+                        .formatted(category("Wohnen"), lastMonth, YearMonth.from(lastMonth))))
+                .andExpect(jsonPath("$.count").value(1));
+        mockMvc.perform(get("/api/transactions").param("from", lastMonth.minusDays(1).toString())
+                        .param("to", today.toString()))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].date").value(today.toString()));
+    }
+
+    // Decision 90: without automatic entries the items stay as they are; switching to stage 1 makes every item MANUAL
+    @Test
+    void switchingToStageOneMakesEveryItemManual() throws Exception {
+        long id = item("Notgroschen", "-150", "Sonstige Einnahmen", today.plusDays(3), "TICK");
+
+        stage("{\"stage\": 1}");
+        terms().andExpect(jsonPath("$[?(@.itemId == " + id + ")].entryMode").value(org.hamcrest.Matchers.contains("MANUAL")));
+
+        stage("{\"stage\": 3, \"autoEntries\": false}");
+        terms().andExpect(jsonPath("$[?(@.itemId == " + id + ")].entryMode").value(org.hamcrest.Matchers.contains("MANUAL")));
+        // A day in the future is 400
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/account/stage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"stage\": 2, \"autoEntries\": true, \"entriesFrom\": \"%s\"}".formatted(today.plusDays(1))))
+                .andExpect(status().isBadRequest());
+    }
+
+    private void stage(String body) throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/account/stage")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+    }
+
     private ResultActions terms() throws Exception {
         return mockMvc.perform(get("/api/terms")
                         .param("from", today.minusDays(10).toString())

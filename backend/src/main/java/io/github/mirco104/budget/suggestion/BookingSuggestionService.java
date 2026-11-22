@@ -38,7 +38,9 @@ public class BookingSuggestionService {
     @Transactional(readOnly = true)
     public Suggester suggester() {
         User owner = currentUser.get();
+        // R37: a booking without a category tells nothing about a category
         Stream<Entry> singles = transactionRepository.findByOwnerAndTransferFalse(owner).stream()
+                .filter(t -> t.getCategory() != null)
                 .map(t -> new Entry(t.getCounterparty() != null ? t.getCounterparty() : t.getDescription(),
                         t.getCategory().getId(), t.getDate(), t.getAmount().signum() > 0, t.getBankCategory()));
         Stream<Entry> series = itemRepository.findAllOf(owner).stream()

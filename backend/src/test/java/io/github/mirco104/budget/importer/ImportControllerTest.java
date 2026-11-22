@@ -231,12 +231,12 @@ class ImportControllerTest {
     void rowsNeedACategoryOrATransferAndAMappedSource() throws Exception {
         String preview = previewJson(mockMvc, BankCsvTest.N26);
 
-        commit(mockMvc, preview, entry -> null, true)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("rows[0].categoryId"));
         commit(mockMvc, preview, entry -> category(user, "Freizeit"), false)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("rows[0].source"));
+        // R40, R37: a row without a category becomes a booking without category, no transfer
+        commit(mockMvc, preview, entry -> null, true)
+                .andExpect(status().isCreated());
     }
 
     // --- R27 ---
@@ -444,7 +444,6 @@ class ImportControllerTest {
         List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
         assertThat(reasons).containsExactly("vorgemerkt (noch nicht gebucht)");
         // R33: the VR-Bank only delivers the kind of booking, so it has no bank categories to map
-        assertThat(JsonPath.<List<Object>>read(preview, "$.bankCategories")).isEmpty();
 
         long freizeit = category(user, "Freizeit");
         commit(mockMvc, preview, entry -> freizeit, true)
@@ -455,6 +454,32 @@ class ImportControllerTest {
         String again = previewJson(mockMvc, BankCsvTest.VR_BANK);
         assertThat(JsonPath.<Integer>read(again, "$.duplicates")).isEqualTo(6);
         assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
+    }
+
+    // Decision 92: the balance of the file comes with its source and can be taken over alone (stage 1, decision 91)
+    @Test
+    void theBalanceOfTheFileCanBeTakenOverWithoutRows() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.VR_BANK);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].balanceDate")).isEqualTo("2026-11-10");
+        assertThat(JsonPath.<Double>read(preview, "$.sources[0].balanceAmount")).isEqualTo(1395.85);
+        // Decision 91: the setup wizard gets budget suggestions and the income of the file
+        assertThat(JsonPath.<List<Object>>read(preview, "$.budgetSuggestions")).isNotNull();
+        assertThat(JsonPath.<Map<String, Object>>read(preview, "$.income")).containsKey("months");
+
+        String key = JsonPath.read(preview, "$.sources[0].key");
+        String withoutBalance = "{\"profile\":\"VR_BANK\",\"sources\":[{\"key\":\"%s\",\"newAccountName\":\"VR Giro\"}],\"rows\":[]}"
+                .formatted(key);
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(withoutBalance))
+                .andExpect(status().isBadRequest());
+
+        String onlyBalance = ("{\"profile\":\"VR_BANK\",\"sources\":[{\"key\":\"%s\",\"newAccountName\":\"VR Giro\","
+                + "\"balanceDate\":\"2026-11-10\",\"balanceAmount\":1395.85}],\"rows\":[]}").formatted(key);
+        mockMvc.perform(post("/api/imports").contentType(MediaType.APPLICATION_JSON).content(onlyBalance))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(0));
+        mockMvc.perform(get("/api/accounts"))
+                .andExpect(jsonPath("$[0].accounts[?(@.name == 'VR Giro')].statementAmount").value(1395.85))
+                .andExpect(jsonPath("$[0].accounts[?(@.name == 'VR Giro')].statementDate").value("2026-11-10"));
     }
 
     // --- Deutsche Bank (decision 76) ---
@@ -475,7 +500,6 @@ class ImportControllerTest {
         List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
         assertThat(reasons).containsExactly("ohne Betrag");
         // R33: the Deutsche Bank only delivers the kind of booking
-        assertThat(JsonPath.<List<Object>>read(preview, "$.bankCategories")).isEmpty();
 
         long freizeit = category(user, "Freizeit");
         commit(mockMvc, preview, entry -> freizeit, true)

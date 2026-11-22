@@ -68,4 +68,87 @@ class AccountBalanceTest {
     void anEmptyHistoryStaysEmpty() {
         assertThat(AccountBalance.history(List.of(), ENTRIES)).isEmpty();
     }
+
+    // --- R36: variable spending from the balance on the last day of a month (stage 2) ---
+
+    @Test
+    void variableSpendingIsTheAppBalanceMinusTheBankBalanceOverAllEverydayAccounts() {
+        Statement previous = new Statement(LocalDate.of(2026, 9, 30), new BigDecimal("1000.00"));
+        List<Entry> entries = List.of(
+                new Entry(LocalDate.of(2026, 10, 1), new BigDecimal("2800.00")),
+                new Entry(LocalDate.of(2026, 10, 3), new BigDecimal("-900.00")),
+                new Entry(LocalDate.of(2026, 11, 2), new BigDecimal("-50.00")));
+        Statement bank = new Statement(LocalDate.of(2026, 10, 31), new BigDecimal("2400.00"));
+        BigDecimal giro = AccountBalance.difference(previous, entries, bank);
+        BigDecimal second = AccountBalance.difference(null, List.of(), new Statement(LocalDate.of(2026, 10, 31),
+                new BigDecimal("-100.00")));
+
+        AccountBalance.Variable variable = AccountBalance.variable(List.of(giro, second));
+
+        assertThat(variable.amount()).isEqualByComparingTo("600.00");
+        assertThat(variable.moreThanExpected()).isFalse();
+    }
+
+    @Test
+    void moreOnTheAccountThanExpectedGivesNoVariableSpending() {
+        AccountBalance.Variable variable = AccountBalance.variable(List.of(new BigDecimal("25.50")));
+
+        assertThat(variable.amount()).isEqualByComparingTo("25.50");
+        assertThat(variable.moreThanExpected()).isTrue();
+    }
+
+    @Test
+    void withoutABalanceOnTheLastDayThereIsNoVariableSpending() {
+        assertThat(AccountBalance.variable(List.of())).isNull();
+    }
+
+    // R36 (23.11.2026): a balance on any day of the month counts, each against the balance before it
+
+    @Test
+    void aBalanceInTheMiddleOfTheMonthGivesTheVariableSpendingSinceTheBalanceBefore() {
+        List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00")),
+                new Statement(LocalDate.parse("2026-11-15"), new BigDecimal("2400.00")));
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
+
+        // 1000 + 2500 - 900 - 40.10 (entries up to the 15th) = 2559.90 in the app, 2400 at the bank
+        assertThat(period.differences()).singleElement().satisfies(d -> assertThat(d).isEqualByComparingTo("-159.90"));
+        assertThat(period.from()).isEqualTo(LocalDate.parse("2026-10-31"));
+        assertThat(period.to()).isEqualTo(LocalDate.parse("2026-11-15"));
+    }
+
+    @Test
+    void twoBalancesInAMonthAddUpToTheWholeMonth() {
+        Statement start = new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00"));
+        Statement end = new Statement(LocalDate.parse("2026-11-30"), new BigDecimal("2300.00"));
+        List<Statement> both = List.of(start, new Statement(LocalDate.parse("2026-11-15"), new BigDecimal("2400.00")), end);
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), both, ENTRIES);
+        BigDecimal whole = AccountBalance.difference(start, ENTRIES, end);
+
+        assertThat(period.differences()).hasSize(2);
+        assertThat(period.differences().stream().reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo(whole);
+        assertThat(period.from()).isEqualTo(LocalDate.parse("2026-10-31"));
+        assertThat(period.to()).isEqualTo(LocalDate.parse("2026-11-30"));
+    }
+
+    @Test
+    void theFirstBalanceOfAnAccountIsItsStartAndMeasuresNoSpending() {
+        List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-11-15"), new BigDecimal("2400.00")));
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
+
+        assertThat(period.differences()).isEmpty();
+        assertThat(period.start()).isEqualTo(LocalDate.parse("2026-11-15"));
+    }
+
+    @Test
+    void withoutABalanceInTheMonthThePeriodIsEmpty() {
+        List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00")));
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
+
+        assertThat(period.differences()).isEmpty();
+        assertThat(period.to()).isNull();
+    }
 }

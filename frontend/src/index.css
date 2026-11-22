@@ -4162,3 +4162,705 @@ button.account-open:hover {
 .balance-row {
   flex-wrap: wrap;
 }
+
+/* --- Setup wizard and Ist stages (AP 32, US40–US42) --- */
+.setup {
+  display: grid;
+  gap: 20px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+.setup > * {
+  min-width: 0;
+}
+.setup-steps {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.setup-steps a,
+.setup-steps span {
+  flex: 1 0 auto;
+  min-width: 64px;
+  padding-top: 6px;
+  border-top: 3px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+.setup-steps a,
+.setup-steps span.done {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.setup-steps a:hover {
+  text-decoration: underline;
+}
+.setup-steps span.now {
+  border-color: var(--primary);
+  color: var(--ink);
+  font-weight: 600;
+}
+.setup-count {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.setup-lead {
+  display: grid;
+  gap: 6px;
+}
+.setup-lead h1,
+.setup-lead p {
+  margin: 0;
+}
+.setup-info {
+  font-weight: 600;
+}
+.setup-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.setup-choice {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.setup-choice:hover {
+  border-color: var(--primary);
+}
+.setup-choice.on {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary) inset;
+  background: var(--primary-soft);
+}
+.setup-choice .badge {
+  justify-self: start;
+  margin-left: 0;
+}
+.setup-outline dl,
+.setup-routine dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+.setup-routine dl > div {
+  display: contents;
+}
+.setup-outline dt,
+.setup-routine dt {
+  color: var(--primary);
+  font-weight: 600;
+}
+.setup-outline dd,
+.setup-routine dd {
+  margin: 0;
+}
+/* R35, decisions 86 and 87: the two questions and the stages as a staircase of cards */
+.stage-question {
+  display: grid;
+  gap: 10px;
+}
+.stage-question h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.wish-ladder {
+  display: grid;
+  gap: 6px;
+}
+.wish,
+.time-option {
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wish {
+  display: grid;
+  gap: 2px;
+  margin-left: calc(var(--step, 0) * 18px);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+}
+.time-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.time-option {
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+.wish:hover,
+.time-option:hover,
+.stage-card:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+.wish.on,
+.time-option.on,
+.stage-card.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+.stage-reason {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+}
+.stage-reason .badge {
+  margin-left: 0;
+}
+.stage-stairs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 10px;
+}
+@media (max-width: 760px) {
+  .stage-stairs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .stage-stairs {
+    grid-template-columns: 1fr;
+  }
+}
+.stage-card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stage-number {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.stage-recommended {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.stage-mini {
+  display: block;
+  width: 100%;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.stage-mini .mini-fixed,
+.stage-mini .mini-tag-0 {
+  fill: var(--plan-fixed);
+}
+.stage-mini .mini-budget {
+  fill: var(--plan-budget);
+}
+.stage-mini .mini-saving,
+.stage-mini .mini-tag-1 {
+  fill: var(--saving);
+}
+.stage-mini .mini-tag-2 {
+  fill: var(--warn);
+}
+.stage-mini .mini-line {
+  fill: var(--line-strong);
+}
+.stage-mini .mini-amount,
+.stage-mini .mini-note {
+  fill: var(--muted);
+}
+.stage-mini .mini-note {
+  font-size: 9px;
+}
+.stage-mini .mini-sum {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.stage-checks {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+}
+.stage-checks li {
+  display: flex;
+  gap: 6px;
+}
+.stage-checks .mark {
+  flex: none;
+  width: 14px;
+  color: var(--saving);
+  font-weight: 700;
+  text-align: center;
+}
+.stage-checks li.no {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.stage-checks li.no .mark {
+  color: var(--muted);
+}
+.stage-dots {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.stage-dots i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.stage-dots.effort i.on {
+  background: var(--primary);
+}
+.stage-dots.accuracy i.on {
+  background: var(--saving);
+}
+/* Decision 88: step icons, one line with "Mehr dazu", the fill bar, tiles and the timeline */
+.setup-steps .step-icon {
+  display: block;
+  min-width: 0;
+  margin-bottom: 2px;
+  padding: 0;
+  border: 0;
+  line-height: 0;
+}
+.setup-steps span:not(.done):not(.now) .step-icon {
+  opacity: 0.55;
+}
+.setup-outline .step-icon {
+  display: inline-flex;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+.setup-outline dl > div {
+  display: contents;
+}
+.setup-lead.with-icon {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.setup-step-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.setup-step-icon svg {
+  width: 28px;
+  height: 28px;
+}
+.setup-lead.with-icon h1 {
+  font-size: 1.45rem;
+}
+.setup-more {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.setup-more summary {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--primary);
+  cursor: pointer;
+  list-style: none;
+}
+.setup-more summary::-webkit-details-marker {
+  display: none;
+}
+.setup-more[open] summary {
+  margin-bottom: 6px;
+}
+.setup-more p {
+  margin: 0 0 4px;
+}
+.plan-fill {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 6px;
+}
+.plan-fill-bar {
+  display: flex;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.plan-fill-bar span {
+  display: block;
+  height: 100%;
+}
+.plan-fill .fill-fixed {
+  background: var(--plan-fixed);
+}
+.plan-fill .fill-budget {
+  background: var(--plan-budget);
+}
+.plan-fill .fill-saving {
+  background: var(--saving);
+}
+.plan-fill .fill-over {
+  background: var(--warn);
+}
+.plan-fill .fill-rest {
+  background: var(--surface-3);
+  outline: 1px solid var(--line-strong);
+}
+.plan-fill-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.plan-fill-legend strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.plan-fill-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 3px;
+}
+.plan-fill-legend .now strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.plan-fill-legend .later {
+  opacity: 0.75;
+}
+.plan-fill-legend .over strong {
+  color: var(--warn);
+}
+.plan-fill-total {
+  margin-left: auto;
+}
+.setup-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+.setup-tile {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  padding: 10px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.setup-tile:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.setup-tile {
+  min-width: 0;
+}
+.setup-tile strong {
+  max-width: 100%;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.setup-timeline {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  list-style: none;
+}
+.setup-timeline::before {
+  content: "";
+  position: absolute;
+  top: 42px;
+  right: 48px;
+  left: 48px;
+  border-top: 2px dashed var(--line-strong);
+}
+.setup-timeline li {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+}
+.setup-timeline .station-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--primary);
+}
+.setup-timeline strong {
+  color: var(--primary);
+  font-size: 0.85rem;
+}
+@media (max-width: 560px) {
+  .setup-timeline {
+    grid-template-columns: 1fr;
+  }
+  .setup-timeline::before {
+    display: none;
+  }
+  .setup-timeline li {
+    grid-template-columns: 44px 1fr;
+    justify-items: start;
+    text-align: left;
+  }
+  .setup-timeline .station-icon {
+    grid-row: span 2;
+  }
+}
+/* Decision 91: the step Import with what the import keeps per stage */
+.setup-import {
+  display: grid;
+  gap: 12px;
+}
+.setup-import p {
+  margin: 0;
+}
+.setup-takes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.setup-takes th,
+.setup-takes td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.setup-takes th {
+  border-top: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+.setup-takes tr.on td {
+  background: var(--primary-soft);
+}
+.setup-takes .badge {
+  margin-left: 6px;
+}
+.radio-group {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.radio-group legend {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.stage-settings {
+  display: grid;
+  gap: 16px;
+}
+.stage-settings > h2 {
+  margin: 8px 0 -6px;
+}
+.stage-settings > .hint {
+  margin: 0;
+}
+.setup-missing,
+.warn-text {
+  margin: 0;
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+.setup-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.setup-sum {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.setup-sum > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--line);
+}
+.setup-sum > div:first-child {
+  border-top: 0;
+}
+.setup-sum dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.setup-sum .income {
+  color: var(--income);
+}
+.setup-sum .saving {
+  color: var(--saving);
+}
+.setup-sum .total {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+.setup-sum .total.over dd {
+  color: var(--warn);
+}
+.setup-done-title h2 {
+  margin: 8px 0 4px;
+}
+.setup-done-title p {
+  margin: 0 0 4px;
+}
+.setup-done-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+/* The cards of a row get the same height; title and content sit close at the top */
+.setup-done-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+/* The stage spans the row, so the six steps below fill two even rows */
+.setup-done-card.wide {
+  grid-column: 1 / -1;
+}
+.setup-done-card .plan-group-head {
+  margin: 0;
+}
+.setup-done-card h3,
+.setup-done-card p {
+  margin: 0;
+}
+.setup-done-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.setup-done-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* The chart grows with the card; an inline svg would leave a baseline gap and a scrollbar */
+.plan-sankey svg {
+  display: block;
+}
+/* Only on narrow screens the labels need more room than there is */
+@media (max-width: 600px) {
+  .plan-sankey {
+    overflow-x: auto;
+  }
+  .plan-sankey > div {
+    min-width: 560px;
+  }
+}
+.sankey-label {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sankey-value {
+  fill: var(--muted);
+  font-weight: 400;
+}
+@media (max-width: 720px) {
+  .stage-row {
+    grid-template-columns: 1fr;
+  }
+  .setup-outline dl,
+  .setup-routine dl {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .setup-outline dd,
+  .setup-routine dd {
+    margin-bottom: 8px;
+  }
+  .setup-foot {
+    bottom: 0;
+  }
+}
+
+/* R37: the row "Ohne Kategorie" on the overview, in the warning color like an open point */
+.budget-item.budget-without {
+  background: var(--warn-soft);
+}
+.budget-without .budget-name {
+  color: var(--warn);
+}

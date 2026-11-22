@@ -8,6 +8,7 @@ export const ROUTES = {
   evaluation: '#/auswertung',
   accounts: '#/konten',
   settings: '#/einstellungen',
+  setup: '#/einrichtung',
 } as const
 
 export type Page = keyof typeof ROUTES
@@ -34,7 +35,7 @@ function subscribe(onChange: () => void) {
   return () => window.removeEventListener('hashchange', onChange)
 }
 
-function useHash(): string {
+export function useHash(): string {
   return useSyncExternalStore(subscribe, () => window.location.hash)
 }
 
@@ -50,6 +51,7 @@ export const SETTINGS_ROUTES = {
   account: '#/einstellungen/konto',
   invitations: '#/einstellungen/einladungen',
   users: '#/einstellungen/nutzer',
+  stage: '#/einstellungen/einrichtung',
 } as const
 
 export type SettingsPage = keyof typeof SETTINGS_ROUTES

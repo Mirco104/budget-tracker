@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from '../api/types'
 import { SettingsPage } from './SettingsPage'
 
-const user: Me = { id: 2, email: 'person-b@example.test', displayName: 'Person B', role: 'USER' }
-const admin: Me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'ADMIN' }
+const user: Me = { id: 2, email: 'person-b@example.test', displayName: 'Person B', role: 'USER', istStage: 4, setupDone: true }
+const admin: Me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'ADMIN', istStage: 4, setupDone: true }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -50,6 +50,7 @@ describe('SettingsPage', () => {
     renderSettings(user)
     expect(subPages()).toEqual([
       ['Kategorien', '#/einstellungen/kategorien'],
+      ['Einrichtung', '#/einstellungen/einrichtung'],
       ['Konto', '#/einstellungen/konto'],
     ])
     expect(screen.getByRole('link', { name: 'Konto' })).toHaveAttribute('aria-current', 'page')
@@ -60,6 +61,7 @@ describe('SettingsPage', () => {
     renderSettings({ ...admin, role: 'SYSTEM_ADMIN' }, undefined, '#/einstellungen/nutzer')
     expect(subPages()).toEqual([
       ['Kategorien', '#/einstellungen/kategorien'],
+      ['Einrichtung', '#/einstellungen/einrichtung'],
       ['Konto', '#/einstellungen/konto'],
       ['Einladungen', '#/einstellungen/einladungen'],
       ['Nutzer', '#/einstellungen/nutzer'],
@@ -228,5 +230,38 @@ describe('SettingsPage', () => {
     expect(init?.method).toBe('DELETE')
     expect(JSON.parse(init?.body as string)).toEqual({ password: 'test-only-password' })
     expect(confirm).toHaveBeenCalledTimes(2)
+  })
+
+  // US42: the stage under Einstellungen › Einrichtung, and the setup wizard can start again (US40)
+  it('changes the Ist stage and starts the setup again', async () => {
+    const fetchMock = renderSettings(user, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/einrichtung')
+
+    expect(screen.getByRole('radio', { name: 'Stufe 4: Buchungen mit Kategorien' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: 'Stufe 1: Nur Plan' }))
+    // Decision 90: a switch to stage 1 asks first
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Auf Stufe 1: Nur Plan wechseln' })).getByRole('button', { name: 'Stufe wechseln' }))
+    await waitFor(() => expect(writeCalls(fetchMock).map(([url]) => url)).toContain('/api/account/stage'))
+    expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({ stage: 1 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Einrichtung starten' }))
+    await waitFor(() => expect(window.location.hash).toBe('#/einrichtung'))
+    expect(JSON.parse(writeCalls(fetchMock)[1][1]?.body as string)).toEqual({ done: false })
+  })
+
+  // Decision 90: leaving stage 1 asks whether and from when income and fixed costs are entered automatically
+  it('asks when leaving stage 1 and sends the automatic entries from this month', async () => {
+    const fetchMock = renderSettings({ ...user, istStage: 1 }, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/einrichtung')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Stufe 2: Kontostand' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Auf Stufe 2: Kontostand wechseln' })
+    expect(within(dialog).getByLabelText(/Einkommen und Fixkosten automatisch eintragen/)).toBeChecked()
+    expect(within(dialog).getByRole('radio', { name: /Rückwirkend ab/ })).toBeChecked()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stufe wechseln' }))
+
+    const now = new Date()
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    await waitFor(() =>
+      expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({ stage: 2, autoEntries: true, entriesFrom: `${month}-01` }),
+    )
   })
 })

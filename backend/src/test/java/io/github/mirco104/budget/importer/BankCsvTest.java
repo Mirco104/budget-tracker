@@ -105,6 +105,30 @@ class BankCsvTest {
             Kontostand;15.11.2026;;;1.234,56;EUR
             """;
 
+    // Decision 92: the balance of the file where the bank delivers one; the others deliver none
+    @Test
+    void readsTheBalanceFromTheDeutscheBankFooterAndTheNewestVrBankRow() {
+        BankFile deutsche = BankCsv.read(DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8));
+        BankFile vr = BankCsv.read(VR_BANK.getBytes(StandardCharsets.UTF_8));
+        BankFile c24 = BankCsv.read(C24.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(deutsche.balances()).containsExactly(new BankCsv.Balance("DE89370400440532013000",
+                java.time.LocalDate.of(2026, 11, 15), new java.math.BigDecimal("1234.56")));
+        // The newest booked row (10.11.), not the pending one without a day
+        assertThat(vr.balances()).containsExactly(new BankCsv.Balance("DE89370400440532013000",
+                java.time.LocalDate.of(2026, 11, 10), new java.math.BigDecimal("1395.85")));
+        assertThat(c24.balances()).isEmpty();
+
+        // The same file with the oldest row first: the newest row is the last one
+        String[] lines = VR_BANK.strip().split("\n");
+        List<String> reversed = new java.util.ArrayList<>(List.of(lines).subList(1, lines.length - 1));
+        java.util.Collections.reverse(reversed);
+        String oldestFirst = lines[0] + "\n" + String.join("\n", reversed) + "\n";
+        assertThat(BankCsv.read(oldestFirst.getBytes(StandardCharsets.UTF_8)).balances()).containsExactly(
+                new BankCsv.Balance("DE89370400440532013000", java.time.LocalDate.of(2026, 11, 10),
+                        new java.math.BigDecimal("1395.85")));
+    }
+
     @Test
     void readsTheDeutscheBankExport() {
         BankFile file = BankCsv.read(("﻿" + DEUTSCHE_BANK.replace("\n", "\r\n")).getBytes(StandardCharsets.UTF_8));

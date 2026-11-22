@@ -40,6 +40,7 @@ public class PlanSuggestionService {
     private static final String HIDDEN = "hidden";
 
     private final TransactionRepository transactionRepository;
+    private final io.github.mirco104.budget.category.CategoryRepository categoryRepository;
     private final TermService termService;
     private final PlanService planService;
     private final DismissedNotificationRepository dismissedRepository;
@@ -48,7 +49,9 @@ public class PlanSuggestionService {
 
     public PlanSuggestionService(
             TransactionRepository transactionRepository, TermService termService, PlanService planService,
-            DismissedNotificationRepository dismissedRepository, CurrentUser currentUser, Clock clock) {
+            DismissedNotificationRepository dismissedRepository, CurrentUser currentUser, Clock clock,
+            io.github.mirco104.budget.category.CategoryRepository categoryRepository) {
+        this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.termService = termService;
         this.planService = planService;
@@ -95,6 +98,84 @@ public class PlanSuggestionService {
         if (dismissedRepository.findByOwnerAndKey(currentUser.get(), key).isEmpty()) {
             dismissedRepository.save(new DismissedNotification(currentUser.get(), key, HIDDEN));
         }
+    }
+
+    /** Decision 91: a row of a bank file for the suggestions of the setup wizard; categoryId is its suggestion. */
+    public record FileRow(LocalDate date, BigDecimal amount, Long categoryId, String bankCategory) {
+    }
+
+    /**
+     * R38, decision 91: budget suggestions from the expense rows of a bank file (no rows of a series, no transfers, no
+     * saving; the caller leaves them out); a subcategory counts as its parent (R32).
+     */
+    @Transactional(readOnly = true)
+    public List<BudgetSuggester.Suggestion> budgetSuggestions(List<FileRow> rows) {
+        Map<Long, Category> categories = categoryRepository.findAllByOwner(currentUser.get()).stream()
+                .collect(Collectors.toMap(Category::getId, c -> c));
+        List<BudgetSuggester.Booking> bookings = rows.stream()
+                .filter(r -> r.amount().signum() < 0)
+                .map(r -> {
+                    Category own = r.categoryId() == null ? null : categories.get(r.categoryId());
+                    Category plan = own == null ? null : planCategory(own);
+                    return new BudgetSuggester.Booking(r.date(), r.amount(), plan == null ? null : plan.getId(),
+                            plan == null ? null : plan.getName(), r.bankCategory());
+                })
+                .toList();
+        return BudgetSuggester.suggest(bookings, YearMonth.now(clock), budgeted(YearMonth.now(clock)));
+    }
+
+    /** Decision 91, R23: average and minimum income per month of the income rows of a bank file. */
+    public io.github.mirco104.budget.dashboard.IncomeAverage.Result income(List<FileRow> rows) {
+        Map<YearMonth, BigDecimal> income = new HashMap<>();
+        YearMonth first = null;
+        for (FileRow row : rows) {
+            if (row.amount().signum() <= 0) {
+                continue;
+            }
+            YearMonth month = YearMonth.from(row.date());
+            income.merge(month, row.amount(), BigDecimal::add);
+            first = first == null || month.isBefore(first) ? month : first;
+        }
+        YearMonth current = YearMonth.now(clock);
+        return io.github.mirco104.budget.dashboard.IncomeAverage.of(income, first, current, current);
+    }
+
+    /**
+     * R38: budget suggestions for the setup wizard from the bookings of the 6 full months before the current one,
+     * without saving and without bookings that fulfil a term; categories with a budget item valid now drop out.
+     */
+    @Transactional(readOnly = true)
+    public List<BudgetSuggester.Suggestion> budgetSuggestions() {
+        LocalDate today = LocalDate.now(clock);
+        YearMonth current = YearMonth.from(today);
+        LocalDate from = current.minusMonths(BudgetSuggester.MONTHS).atDay(1);
+        LocalDate to = current.minusMonths(1).atEndOfMonth();
+        Set<Long> fulfilling = termService.fixIds(from, to);
+        List<BudgetSuggester.Booking> bookings = transactionRepository.findCountedBetween(currentUser.get(), from, to)
+                .stream()
+                .filter(t -> !t.isSaving() && !fulfilling.contains(t.getId()))
+                .map(t -> {
+                    Category plan = t.getCategory() == null ? null : planCategory(t.getCategory());
+                    return new BudgetSuggester.Booking(t.getDate(), t.getAmount(), plan == null ? null : plan.getId(),
+                            plan == null ? null : plan.getName(), t.getBankCategory());
+                })
+                .toList();
+        return BudgetSuggester.suggest(bookings, current, budgeted(current));
+    }
+
+    // R38: the plan categories with a budget item valid in the month drop out
+    private Set<Long> budgeted(YearMonth current) {
+        return planService.findAll().stream()
+                .filter(item -> PlanCalculator.validIn(item.data(), current)
+                        && PlanCalculator.groupOf(item.data()) == PlanCalculator.Group.BUDGET
+                        && item.getCategory() != null)
+                .map(item -> planCategory(item.getCategory()).getId())
+                .collect(Collectors.toSet());
+    }
+
+    // R32: a subcategory counts as its parent
+    private static Category planCategory(Category category) {
+        return category.getParent() != null ? category.getParent() : category;
     }
 
     // The bookings of the last 12 months that count, with a category and not saving

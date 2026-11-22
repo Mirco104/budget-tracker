@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ImportBatch, ImportEntry, ImportPreview } from '../api/imports'
 import type { BankAccount, Category } from '../api/types'
 import { ImportPage } from './ImportPage'
@@ -22,7 +22,7 @@ function entry(values: Partial<ImportEntry>): ImportEntry {
   return {
     line: 2, status: 'NEW', reason: null, fingerprint: 'f'.repeat(64), source: 'C24:Ausgabenkonto', date: '2026-11-04',
     amount: -2.99, description: 'Spiele Shop', counterparty: 'Spiele Shop', bankCategory: null, suggestionKey: 'spiele shop',
-    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null, details: null, mappedCategoryId: null,
+    categoryId: null, certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null, duplicateOf: null, details: null,
     ...values,
   }
 }
@@ -35,8 +35,8 @@ const preview: ImportPreview = {
   duplicates: 1,
   skipped: 1,
   sources: [
-    { key: 'C24:Ausgabenkonto', name: 'Ausgabenkonto', accountId: null, suggestedName: 'C24 Ausgabenkonto' },
-    { key: 'C24:Pocket Urlaub', name: 'Pocket Urlaub', accountId: null, suggestedName: 'C24 Pocket Urlaub' },
+    { key: 'C24:Ausgabenkonto', name: 'Ausgabenkonto', accountId: null, suggestedName: 'C24 Ausgabenkonto', balanceDate: null, balanceAmount: null },
+    { key: 'C24:Pocket Urlaub', name: 'Pocket Urlaub', accountId: null, suggestedName: 'C24 Pocket Urlaub', balanceDate: null, balanceAmount: null },
   ],
   entries: [
     entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Kino Nord', suggestionKey: 'kino nord', categoryId: 8, certain: true, replaces: { recurringId: 3, date: '2026-11-03', description: 'Kino-Abo', amount: 2.99, categoryId: 8 } }),
@@ -48,7 +48,8 @@ const preview: ImportPreview = {
     { ...entry({ line: 8 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
   ],
   series: [],
-  bankCategories: [],
+  budgetSuggestions: [],
+  income: { average: null, minimum: null, months: 0 },
 }
 
 const batches: ImportBatch[] = [
@@ -59,10 +60,16 @@ function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
+// The signed-in user of a test; most tests do not need one
+let currentMe: unknown = []
+
 function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)) {
   let currentCategories = categories
   let currentAccounts = accounts
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (url === '/api/auth/me') {
+      return json(currentMe)
+    }
     if (init?.method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
@@ -273,8 +280,8 @@ describe('ImportPage', () => {
     expect(within(baker).getByLabelText('Bäcker importieren')).not.toBeChecked()
     expect(baker).toHaveTextContent('Schon von Hand gebucht? „Brötchen“ vom 03.11.2026')
     expect(within(row('Spiele Shop')[0]).queryByRole('option', { name: 'Alt' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeDisabled()
-    expect(screen.getByText('3 Zeilen fehlt noch die Kategorie.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
+    expect(screen.getByText(/3 Zeilen haben keine Kategorie/)).toBeInTheDocument()
   })
 
   it('takes over every shown suggestion with one button', async () => {
@@ -291,7 +298,7 @@ describe('ImportPage', () => {
     // Code review 08.11.2026: an uncertain transfer is only set by its own button
     const pocket = row('Auf Pocket')[0]
     expect(within(pocket).getByLabelText('Kategorie für Auf Pocket')).toHaveValue('')
-    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
     fireEvent.click(within(pocket).getByRole('button', { name: 'Vorschlag: Umbuchung' }))
     expect(screen.getByRole('button', { name: '4 Buchungen übernehmen' })).toBeEnabled()
   })
@@ -1165,121 +1172,6 @@ describe('ImportPage', () => {
   })
 
   // R33, US38: the card "Kategorien der Bank"
-  describe('bank categories', () => {
-    const withBankCategories: ImportPreview = {
-      ...preview,
-      bankCategories: [
-        {
-          bankCategory: 'Freizeit & Unterhaltung',
-          parent: 'Freizeit & Unterhaltung',
-          child: null,
-          rows: 1,
-          parentStatus: 'NEW',
-          parentCategoryId: null,
-          childStatus: null,
-          childCategoryId: null,
-          mappedCategoryId: null,
-        },
-      ],
-    }
-
-    it('presets "Neu anlegen" and creates the category with the name of the bank from the row', async () => {
-      const fetchMock = renderPage(() => json(withBankCategories))
-      await upload()
-
-      const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
-      expect(card).toHaveTextContent('Die Datei enthält 1 Kategorie der Bank: 1 wird neu angelegt, 0 deinen Kategorien zugeordnet.')
-      expect(within(card).queryByLabelText('Wahl für Freizeit & Unterhaltung')).not.toBeInTheDocument()
-      expect(within(card).getByLabelText('Kategorie für Freizeit & Unterhaltung')).toHaveValue('bank')
-      expect(within(card).getByText('Unterkategorie (optional)')).toBeInTheDocument()
-      const item = within(card).getByRole('listitem', { name: 'Freizeit & Unterhaltung' })
-      fireEvent.click(within(item).getByRole('button', { name: 'Übernehmen' }))
-
-      await waitFor(() => expect(within(card).getByText('Alle Kategorien der Bank sind übernommen.')).toBeInTheDocument())
-      const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
-      expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({
-        profile: 'C24',
-        mappings: [{ bankCategory: 'Freizeit & Unterhaltung', parentName: 'Freizeit & Unterhaltung' }],
-      })
-      expect(within(item).getByRole('button', { name: 'Ändern' })).toBeInTheDocument()
-    })
-
-    it('maps a bank category to an own category with "Alle übernehmen" and sets it at its rows only', async () => {
-      const fetchMock = renderPage(() => json(withBankCategories))
-      await upload()
-
-      const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
-      fireEvent.change(within(card).getByLabelText('Kategorie für Freizeit & Unterhaltung'), { target: { value: '8' } })
-      expect(within(card).getByLabelText('Unterkategorie für Freizeit & Unterhaltung')).toHaveValue('')
-      expect(card).toHaveTextContent('0 werden neu angelegt, 1 deinen Kategorien zugeordnet.')
-      fireEvent.click(within(card).getByRole('button', { name: 'Alle übernehmen (1)' }))
-
-      await waitFor(() => expect(within(card).getByText('Alle Kategorien der Bank sind übernommen.')).toBeInTheDocument())
-      const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
-      expect(JSON.parse(String((call?.[1] as RequestInit).body)).mappings).toEqual([
-        { bankCategory: 'Freizeit & Unterhaltung', categoryId: 8 },
-      ])
-      const [withCategory, without] = row('Spiele Shop')
-      expect(within(withCategory).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
-      expect(within(without).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('')
-    })
-
-    it('presets a guessed parent with a hint and creates the child of the bank below it', async () => {
-      const fetchMock = renderPage(() =>
-        json({
-          ...withBankCategories,
-          bankCategories: [
-            {
-              ...withBankCategories.bankCategories[0],
-              bankCategory: 'Freizeiten › Konzerte',
-              parent: 'Freizeiten',
-              child: 'Konzerte',
-              parentStatus: 'GUESSED',
-              parentCategoryId: 8,
-              childStatus: 'NEW',
-            },
-          ],
-        }),
-      )
-      await upload()
-
-      const card = screen.getByRole('region', { name: 'Kategorien der Bank' })
-      expect(card).toHaveTextContent('vermutet: Freizeit')
-      expect(within(card).getByLabelText('Kategorie für Freizeiten › Konzerte')).toHaveValue('8')
-      const sub = within(card).getByLabelText('Unterkategorie für Freizeiten › Konzerte')
-      expect(sub).toHaveValue('bank')
-      expect(within(sub).getAllByRole('option').map((o) => o.textContent)).toEqual([
-        '– keine –',
-        '+ Neu anlegen: Konzerte',
-        'Kino',
-        '+ Neue Unterkategorie …',
-      ])
-      fireEvent.click(within(card).getByRole('button', { name: 'Alle übernehmen (1)' }))
-
-      await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => u === '/api/bank-category-mappings')).toBe(true))
-      const call = fetchMock.mock.calls.find(([u]) => u === '/api/bank-category-mappings')
-      expect(JSON.parse(String((call?.[1] as RequestInit).body)).mappings).toEqual([
-        { bankCategory: 'Freizeiten › Konzerte', parentId: 8, name: 'Konzerte' },
-      ])
-    })
-
-    // Decision 62: a stored mapping presets the row
-    it('presets the category of a row from a stored mapping and shows no card without new bank categories', async () => {
-      renderPage(() =>
-        json({
-          ...preview,
-          entries: preview.entries.map((e) => (e.line === 3 ? { ...e, mappedCategoryId: 8 } : e)),
-          bankCategories: [{ ...withBankCategories.bankCategories[0], mappedCategoryId: 8 }],
-        }),
-      )
-      await upload()
-
-      expect(screen.queryByRole('region', { name: 'Kategorien der Bank' })).not.toBeInTheDocument()
-      expect(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop')).toHaveValue('8')
-    })
-  })
-
-  // US37 (second review, 14.11.2026): the import chooses the category in the same two fields as the booking dialog
   describe('subcategories in the import', () => {
     it('offers the subcategories of the chosen category in a row and takes the subcategory', async () => {
       renderPage()
@@ -1314,6 +1206,60 @@ describe('ImportPage', () => {
       await waitFor(() => expect(within(first).getByLabelText('Unterkategorie für Spiele Shop')).toHaveValue('50'))
       const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
       expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Spiele', parentId: 8 })
+    })
+  })
+})
+
+// Decisions 91 and 92: what the import keeps per stage, and the balance of the file
+describe('ImportPage per Ist stage', () => {
+  const me = (istStage: number) => ({ id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER', istStage, setupDone: false })
+
+  beforeEach(() => window.sessionStorage.clear())
+
+  afterEach(() => {
+    currentMe = []
+    vi.unstubAllGlobals()
+    window.location.hash = ''
+    window.sessionStorage.clear()
+  })
+
+  it('preselects only recurring rows in stage 2', async () => {
+    currentMe = me(2)
+    renderPage(() =>
+      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
+    )
+    // the page knows the user (and so the stage) before the file is read
+    await screen.findByRole('link', { name: 'Zurück zur Einrichtung' })
+    await upload()
+
+    expect(await screen.findByText(/In Stufe 2 übernimmt der Import nur regelmäßige Buchungen/)).toBeInTheDocument()
+    // the row that fulfils a term and the two rows of the series
+    expect(screen.getByRole('button', { name: '3 Buchungen übernehmen' })).toBeInTheDocument()
+    // the setup keeps the suggestions of the file for its later steps
+    expect(JSON.parse(window.sessionStorage.getItem('setup-import') ?? 'null')).toMatchObject({ rows: 4, recurring: 3 })
+  })
+
+  it('stores no booking in stage 1, only the balance of the file', async () => {
+    currentMe = me(1)
+    const fetchMock = renderPage(() =>
+      json({
+        ...preview,
+        sources: [{ ...preview.sources[0], balanceDate: '2026-11-15', balanceAmount: 1234.56 }],
+      }),
+    )
+    await screen.findByRole('link', { name: 'Zurück zur Einrichtung' })
+    const file = new File(['x'], 'export.csv', { type: 'text/csv' })
+    fireEvent.change(screen.getByLabelText('CSV-Datei wählen'), { target: { files: [file] } })
+
+    expect(await screen.findByText('Keine Buchung wird gespeichert.')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Kontostand aus der Datei übernehmen: 1\.234,56/)).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Für Vorschläge nutzen' }))
+
+    await waitFor(() => expect(window.location.hash).toBe('#/einrichtung/2'))
+    expect(JSON.parse(String(sent(fetchMock, '/api/imports')?.body))).toEqual({
+      profile: 'C24',
+      sources: [{ key: 'C24:Ausgabenkonto', newAccountName: 'C24 Ausgabenkonto', balanceDate: '2026-11-15', balanceAmount: 1234.56 }],
+      rows: [],
     })
   })
 })

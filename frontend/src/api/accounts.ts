@@ -78,3 +78,24 @@ export function useDeleteBalance() {
       ),
   })
 }
+
+/** R36 (stage 2): variable spending of a month from the balances on its last day; amount null without one. */
+export interface VariableFromBalance {
+  amount: number | null
+  moreThanExpected: boolean
+  /** R36: the last balance in the month, null without one */
+  date: string | null
+  /** R36: the balance before the first one in the month, null without one */
+  from: string | null
+  accounts: number
+  /** R36: the very first balance of an everyday account when it lies in the month (the start), else null */
+  start: string | null
+}
+
+export function useVariableFromBalance(month: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['accounts', 'variable', month],
+    queryFn: () => request<VariableFromBalance>(`/accounts/variable?month=${month}`),
+    enabled,
+  })
+}

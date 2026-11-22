@@ -52,7 +52,8 @@ public class AccountOverviewService {
     }
 
     /** P11: the balance from the bank, the app balance on its day and the difference (not booked). */
-    public record ReconcileResult(BigDecimal appBalance, BigDecimal bankBalance, BigDecimal difference) {
+    /** P11; start (review 23.11.2026): the account had no earlier balance, so this one is its start and the difference says nothing. */
+    public record ReconcileResult(BigDecimal appBalance, BigDecimal bankBalance, BigDecimal difference, boolean start) {
     }
 
     /** Ticket #135: one balance from the bank of an account with the app balance on its day and the difference. */
@@ -108,6 +109,65 @@ public class AccountOverviewService {
                 entriesByAccount().getOrDefault(account.getId(), List.of()), day);
     }
 
+    /**
+     * R36: the variable spending of the month from the balances of the everyday accounts dated in it; date is the last
+     * of these balances, from the earliest balance before them (null without one).
+     */
+    public record VariableResponse(
+            BigDecimal amount, boolean moreThanExpected, LocalDate date, LocalDate from, int accounts, LocalDate start) {
+    }
+
+    /**
+     * R36 (review 23.11.2026): whether the bell asks for the balance on the last day of a month: the account had a
+     * balance before that day (so it is no start any more) and none on or after it.
+     */
+    @Transactional(readOnly = true)
+    public boolean needsBalance(BankAccount account, LocalDate last) {
+        List<BankStatement> statements = statementRepository.findByOwnerOrderByDateAsc(currentUser.get()).stream()
+                .filter(s -> s.getAccount().getId().equals(account.getId()))
+                .toList();
+        return statements.stream().anyMatch(s -> s.getDate().isBefore(last))
+                && statements.stream().noneMatch(s -> !s.getDate().isBefore(last));
+    }
+
+    /** R36 (stage 2): variable spending of the month from the balances on any of its days; amount null without one. */
+    @Transactional(readOnly = true)
+    public VariableResponse variable(java.time.YearMonth month) {
+        List<BankStatement> statements = statementRepository.findByOwnerOrderByDateAsc(currentUser.get());
+        Map<Long, List<AccountBalance.Entry>> entries = entriesByAccount();
+        List<BigDecimal> differences = new java.util.ArrayList<>();
+        LocalDate from = null;
+        LocalDate to = null;
+        LocalDate start = null;
+        int accounts = 0;
+        Map<Long, List<BankStatement>> byAccount = statements.stream()
+                .filter(s -> s.getAccount().getRole() == AccountRole.EVERYDAY && !s.getAccount().isArchived())
+                .collect(java.util.stream.Collectors.groupingBy(s -> s.getAccount().getId()));
+        for (Map.Entry<Long, List<BankStatement>> account : byAccount.entrySet()) {
+            AccountBalance.Period period = AccountBalance.inMonth(month,
+                    account.getValue().stream().map(BankStatement::statement).toList(),
+                    entries.getOrDefault(account.getKey(), List.of()));
+            if (period.start() != null && (start == null || period.start().isAfter(start))) {
+                start = period.start();
+            }
+            if (period.differences().isEmpty()) {
+                continue;
+            }
+            accounts++;
+            differences.addAll(period.differences());
+            if (period.from() != null && (from == null || period.from().isBefore(from))) {
+                from = period.from();
+            }
+            if (to == null || period.to().isAfter(to)) {
+                to = period.to();
+            }
+        }
+        AccountBalance.Variable variable = AccountBalance.variable(differences);
+        return variable == null
+                ? new VariableResponse(null, false, null, null, 0, start)
+                : new VariableResponse(variable.amount(), variable.moreThanExpected(), to, from, accounts, start);
+    }
+
     /** P11: stores the balance from the bank for its day (replacing one of the same day) and shows the difference. */
     @Transactional
     public ReconcileResult reconcile(long accountId, LocalDate date, BigDecimal amount) {
@@ -128,7 +188,7 @@ public class AccountOverviewService {
         statement.setAmount(bank.amount());
         statementRepository.save(statement);
         return new ReconcileResult(app, bank.amount(),
-                AccountBalance.difference(previous == null ? null : previous.statement(), entries, bank));
+                AccountBalance.difference(previous == null ? null : previous.statement(), entries, bank), previous == null);
     }
 
     /** Ticket #135: the balances from the bank of the account, newest first (P11). */

@@ -257,7 +257,8 @@ function totalOf(groups: { total: number }[]): number {
 }
 
 /** 27f4 (decision 60): name, hint and the app balance (P11); the whole row opens the window of the account. */
-function AccountRow({ account, onOpen }: { account: AccountLine; onOpen: () => void }) {
+/** Also used by the setup wizard (decision 82). */
+export function AccountRow({ account, onOpen }: { account: AccountLine; onOpen: () => void }) {
   return (
     <li>
       <button type="button" className="account-row account-open" onClick={onOpen} aria-label={`Konto ${account.name} bearbeiten`}>
