@@ -913,7 +913,7 @@ function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts:
       <h2>Deine Einrichtung</h2>
       <p className="tx-meta">Mit „ändern“ springst du zu dem Schritt zurück.</p>
       <div className="setup-done-grid">
-        <DoneCard step={1} title="Ist verfolgen">
+        <DoneCard step={1} title="Ist verfolgen" wide>
           <p>
             <strong>
               Stufe {stage}: {info.name}
@@ -953,9 +953,9 @@ function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts:
   )
 }
 
-function DoneCard({ step, title, children }: { step: number; title: string; children: ReactNode }) {
+function DoneCard({ step, title, wide = false, children }: { step: number; title: string; wide?: boolean; children: ReactNode }) {
   return (
-    <section className="card setup-done-card" aria-label={title}>
+    <section className={wide ? 'card setup-done-card wide' : 'card setup-done-card'} aria-label={title}>
       <div className="plan-group-head">
         <h3>{title}</h3>
         <a href={`${ROUTES.setup}/${step}`} aria-label={`${title} ändern`}>

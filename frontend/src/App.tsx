@@ -148,6 +148,8 @@ function SignedIn({ me }: { me: Me }) {
   const hash = useHash()
   // US40, US41: until the setup is done the app opens it; the import may run in between (start with bank files)
   const setupOpen = !me.setupDone && page !== 'setup' && hash !== IMPORT_ROUTE
+  // While the setup runs (also its import) tabs, notifications and the profile menu are hidden: they would only lead back
+  const inSetup = page === 'setup' || !me.setupDone
   // R39: pages the stage does not need are hidden; their address leads to the overview
   const hidden = hiddenPages(me.istStage)
   const pageHidden = hidden.includes(page) && !(page === 'transactions' && hash === IMPORT_ROUTE)
@@ -165,7 +167,7 @@ function SignedIn({ me }: { me: Me }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Brand />
-{page !== 'setup' && (
+          {!inSetup && (
           <nav className="tabs" aria-label="Hauptnavigation">
             {TABS.filter((tab) => !hidden.includes(tab.page)).map((tab) => (
               <a
@@ -180,13 +182,17 @@ function SignedIn({ me }: { me: Me }) {
             ))}
           </nav>
           )}
-          <Bell />
-          <AccountMenu
-            me={me}
-            settingsHref={ROUTES.settings}
-            signingOut={logout.isPending}
-            onSignOut={() => logout.mutate()}
-          />
+          {!inSetup && (
+            <>
+              <Bell />
+              <AccountMenu
+                me={me}
+                settingsHref={ROUTES.settings}
+                signingOut={logout.isPending}
+                onSignOut={() => logout.mutate()}
+              />
+            </>
+          )}
         </div>
       </header>
 

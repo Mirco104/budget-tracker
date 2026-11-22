@@ -4360,8 +4360,22 @@ button.account-open:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
-  align-items: start;
 }
+/* The cards of a row get the same height; title and content sit close at the top */
+.setup-done-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+/* The stage spans the row, so the six steps below fill two even rows */
+.setup-done-card.wide {
+  grid-column: 1 / -1;
+}
+.setup-done-card .plan-group-head {
+  margin: 0;
+}
+.setup-done-card h3,
 .setup-done-card p {
   margin: 0;
 }
@@ -4378,11 +4392,18 @@ button.account-open:hover {
   gap: 12px;
   font-variant-numeric: tabular-nums;
 }
-.plan-sankey {
-  overflow-x: auto;
+/* The chart grows with the card; an inline svg would leave a baseline gap and a scrollbar */
+.plan-sankey svg {
+  display: block;
 }
-.plan-sankey > div {
-  min-width: 560px;
+/* Only on narrow screens the labels need more room than there is */
+@media (max-width: 600px) {
+  .plan-sankey {
+    overflow-x: auto;
+  }
+  .plan-sankey > div {
+    min-width: 560px;
+  }
 }
 .sankey-label {
   fill: var(--ink);

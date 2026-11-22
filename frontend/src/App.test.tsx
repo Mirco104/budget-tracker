@@ -64,7 +64,7 @@ describe('App', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/uebersicht'))
   })
 
-  // US40: until the setup is done the app opens it
+  // US40: until the setup is done the app opens it; tabs, notifications and the profile menu are hidden meanwhile
   it('opens the setup while it is not done', async () => {
     window.location.hash = '#/planung'
     vi.stubGlobal(
@@ -74,6 +74,9 @@ describe('App', () => {
     renderWithClient()
 
     await waitFor(() => expect(window.location.hash).toBe('#/einrichtung'))
+    expect(screen.queryByRole('button', { name: /^Benachrichtigungen/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Konto und Einstellungen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Planung' })).not.toBeInTheDocument()
   })
 
   // US29: four tabs as links; the settings live in the account menu
