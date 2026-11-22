@@ -3,7 +3,7 @@ import { useAccounts, useLinkReserve, useReservesByAccount } from '../api/accoun
 import { useSavingGoals } from '../api/goals'
 import { usePlan } from '../api/plan'
 import type { AccountLine, ReserveGroup, SavingGoal } from '../api/types'
-import { ROLE_NAMES } from '../accountRoles'
+import { ROLE_HINTS, ROLE_NAMES } from '../accountRoles'
 import { AccountDialog } from '../components/AccountDialog'
 import { SavingGoalDialog } from '../components/SavingGoalDialog'
 import { InfoTip } from '../components/ui/InfoTip'
@@ -57,8 +57,11 @@ export function AccountsPage() {
           .map((group) => (
             <div key={group.role} className="account-role" role="group" aria-label={ROLE_NAMES[group.role]}>
               <div className="account-role-head">
-                <h3>{ROLE_NAMES[group.role]}</h3>
-                <span>{formatEuro(group.total)}</span>
+                <div className="account-role-title">
+                  <h3>{ROLE_NAMES[group.role]}</h3>
+                  <InfoTip label={`Was bedeutet ${ROLE_NAMES[group.role]}?`}>{ROLE_HINTS[group.role]}</InfoTip>
+                </div>
+                <span className="account-role-total">{formatEuro(group.total)}</span>
               </div>
               <ul className="item-list">
                 {group.accounts.map((account) => (
