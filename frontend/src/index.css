@@ -4162,3 +4162,251 @@ button.account-open:hover {
 .balance-row {
   flex-wrap: wrap;
 }
+
+/* --- Setup wizard and Ist stages (AP 32, US40–US42) --- */
+.setup {
+  display: grid;
+  gap: 20px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+.setup > * {
+  min-width: 0;
+}
+.setup-steps {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.setup-steps a,
+.setup-steps span {
+  flex: 1 0 auto;
+  min-width: 64px;
+  padding-top: 6px;
+  border-top: 3px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+.setup-steps a,
+.setup-steps span.done {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.setup-steps a:hover {
+  text-decoration: underline;
+}
+.setup-steps span.now {
+  border-color: var(--primary);
+  color: var(--ink);
+  font-weight: 600;
+}
+.setup-count {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.setup-lead {
+  display: grid;
+  gap: 6px;
+}
+.setup-lead h1,
+.setup-lead p {
+  margin: 0;
+}
+.setup-info {
+  font-weight: 600;
+}
+.setup-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.setup-choice,
+.stage-row {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.setup-choice:hover,
+.stage-row:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+.setup-choice.on,
+.stage-row.on {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary) inset;
+  background: var(--primary-soft);
+}
+.setup-choice .badge {
+  justify-self: start;
+  margin-left: 0;
+}
+.setup-outline dl,
+.setup-routine dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+.setup-routine dl > div {
+  display: contents;
+}
+.setup-outline dt,
+.setup-routine dt {
+  color: var(--primary);
+  font-weight: 600;
+}
+.setup-outline dd,
+.setup-routine dd {
+  margin: 0;
+}
+.stage-list {
+  display: grid;
+  gap: 10px;
+}
+.stage-row {
+  grid-template-columns: 110px minmax(0, 1.2fr) minmax(0, 1.3fr) 210px;
+  align-items: start;
+  gap: 6px 18px;
+}
+.stage-number {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.stage-number .badge {
+  margin-left: 0;
+  text-transform: none;
+}
+.stage-main {
+  display: grid;
+  gap: 4px;
+}
+.stage-get {
+  margin: 0;
+  padding-left: 18px;
+}
+.stage-settings {
+  display: grid;
+  gap: 16px;
+}
+.setup-missing,
+.warn-text {
+  margin: 0;
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+.setup-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.setup-sum {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.setup-sum > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--line);
+}
+.setup-sum > div:first-child {
+  border-top: 0;
+}
+.setup-sum dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.setup-sum .income {
+  color: var(--income);
+}
+.setup-sum .saving {
+  color: var(--saving);
+}
+.setup-sum .total {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+.setup-sum .total.over dd {
+  color: var(--warn);
+}
+.setup-done-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.setup-done-card p {
+  margin: 0;
+}
+.setup-done-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.setup-done-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.plan-sankey {
+  overflow-x: auto;
+}
+.plan-sankey > div {
+  min-width: 560px;
+}
+.sankey-label {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sankey-value {
+  fill: var(--muted);
+  font-weight: 400;
+}
+@media (max-width: 720px) {
+  .stage-row {
+    grid-template-columns: 1fr;
+  }
+  .setup-outline dl,
+  .setup-routine dl {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .setup-outline dd,
+  .setup-routine dd {
+    margin-bottom: 8px;
+  }
+  .setup-foot {
+    bottom: 0;
+  }
+}

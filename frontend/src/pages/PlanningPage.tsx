@@ -221,7 +221,8 @@ function CategoryRow({
   )
 }
 
-function GroupSection({
+/** Also used by the setup wizard (decision 82). */
+export function GroupSection({
   title,
   hint,
   group,

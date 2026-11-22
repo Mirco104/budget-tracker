@@ -60,7 +60,18 @@ interface Props {
   /** The group of a new item (from the "+" of a group). */
   group?: PlanGroup
   /** Prefilled values of a new item, e.g. "Zum Sparen" with the unplanned rest. */
-  preset?: { name?: string; amount?: number; categoryId?: number; savingGoalId?: number; accountId?: number; day?: number }
+  preset?: {
+    name?: string
+    amount?: number
+    categoryId?: number
+    savingGoalId?: number
+    accountId?: number
+    day?: number
+    /** "UNIT:COUNT" like the field "Wie oft", e.g. "MONTH:12" for a yearly payment (setup wizard). */
+    rhythm?: string
+    /** Decision 83: the setup wizard enters income and fixed costs automatically. */
+    entryMode?: EntryMode
+  }
   onClose: () => void
   onDone: (message: string) => void
 }
@@ -80,9 +91,11 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
     ? item.rhythmUnit === null
       ? NONE
       : `${item.rhythmUnit}:${item.rhythmCount}`
-    : group === 'BUDGET'
-      ? NONE
-      : 'MONTH:1'
+    : preset?.rhythm
+      ? preset.rhythm
+      : group === 'BUDGET'
+        ? NONE
+        : 'MONTH:1'
   const anchor = item?.anchorDate ? dayOfAnchor(item.anchorDate) : null
   const [kind, setKind] = useState<Kind>(kindOf(item, group))
   const [name, setName] = useState(item?.name ?? preset?.name ?? '')
@@ -100,7 +113,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const [day, setDay] = useState(anchor ? String(anchor.day) : preset?.day ? String(preset.day) : '1')
   const [dueMonth, setDueMonth] = useState(anchor ? anchor.month : Number(month.slice(5, 7)))
   const [firstDate, setFirstDate] = useState(item?.anchorDate ?? `${month}-01`)
-  const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? defaultMode(initialRhythm))
+  const [entryMode, setEntryMode] = useState<EntryMode>(item?.entryMode ?? preset?.entryMode ?? defaultMode(initialRhythm))
   const [workdaysOnly, setWorkdaysOnly] = useState(item?.workdaysOnly ?? false)
   // A change applies from the month the page shows, never before the version starts
   const [validFrom, setValidFrom] = useState(item && item.validFrom > month ? item.validFrom : month)

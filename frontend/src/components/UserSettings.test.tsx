@@ -11,7 +11,7 @@ const users: UserSummary[] = [
   { id: 3, email: 'person-c@example.test', displayName: 'Person C', role: 'USER', createdAt: '2026-11-01T12:00:00Z', lastLoginAt: null },
   { id: 4, email: 'person-d@example.test', displayName: 'Person D', role: 'ADMIN', createdAt: '2026-11-01T13:00:00Z', lastLoginAt: null },
 ]
-const me: Me = { id: 2, email: 'person-b@example.test', displayName: 'Person B', role: 'ADMIN' }
+const me: Me = { id: 2, email: 'person-b@example.test', displayName: 'Person B', role: 'ADMIN', istStage: 4, setupDone: true }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -66,7 +66,7 @@ describe('UserSettings', () => {
   })
 
   it('lets the system admin create a password link for an admin', async () => {
-    renderUsers(undefined, { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'SYSTEM_ADMIN' })
+    renderUsers(undefined, { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'SYSTEM_ADMIN', istStage: 4, setupDone: true })
 
     expect(
       within(await screen.findByLabelText('Person D')).getByRole('button', { name: 'Link für neues Passwort' }),

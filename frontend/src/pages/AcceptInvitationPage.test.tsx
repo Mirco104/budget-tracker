@@ -30,7 +30,7 @@ function fillIn(password: string, repeat: string) {
 describe('AcceptInvitationPage', () => {
   it('creates the account with the token from the link', async () => {
     const { fetchMock, onAccepted } = renderPage(() =>
-      json({ id: 4, email: 'person-d@example.test', displayName: 'Person D', role: 'USER' }, 201),
+      json({ id: 4, email: 'person-d@example.test', displayName: 'Person D', role: 'USER', istStage: 2, setupDone: false }, 201),
     )
 
     fillIn('test-only-password', 'test-only-password')

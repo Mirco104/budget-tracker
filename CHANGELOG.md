@@ -2,6 +2,17 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
+## 0.3.0-alpha (noch nicht veröffentlicht)
+
+Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
+
+### Neu
+
+- **Einrichtung:** Neue Nutzer werden Schritt für Schritt durch Konten, Einkommen, Fixkosten, variable Kosten, Sparen und Sparziele geführt, wahlweise mit Vorschlägen aus einem Kontoauszug. Bestehende Nutzer sehen sie einmal mit ihren Daten; „Später einrichten“ schließt sie ohne Änderung, unter *Einstellungen › Ist verfolgen* lässt sie sich jederzeit neu starten.
+- **Ist verfolgen in vier Stufen:** Nur Plan, Kontostand, Buchungen oder Buchungen mit Kategorien, jeweils mit Aufwand und Genauigkeit. Ein Wechsel ändert nur die Anzeige, nie die Daten.
+- **Budget-Vorschläge:** Die Einrichtung schlägt Budgets aus dem Durchschnitt der letzten 6 Monate je Kategorie vor.
+- **Dein Monat im Plan:** Am Ende der Einrichtung zeigt ein Diagramm, wohin das Einkommen im Plan fließt.
+
 ## 0.2.0-alpha (21.11.2026)
 
 Nachbesserungen nach dem ersten Test im Bekanntenkreis.

@@ -28,7 +28,7 @@ function fillIn(password: string, repeat: string) {
 // US36
 describe('ResetPasswordPage', () => {
   it('sets the new password with the token and signs in', async () => {
-    const me = { id: 3, email: 'person-c@example.test', displayName: 'Person C', role: 'USER' }
+    const me = { id: 3, email: 'person-c@example.test', displayName: 'Person C', role: 'USER', istStage: 4, setupDone: true }
     const { fetchMock, onDone } = renderPage(() => json(me))
 
     fillIn('new-test-only-password', 'new-test-only-password')

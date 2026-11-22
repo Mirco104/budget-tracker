@@ -517,6 +517,22 @@ export interface Me {
   email: string
   displayName: string
   role: Role
+  /** R35: 1 Nur Plan, 2 Kontostand, 3 Buchungen, 4 Buchungen mit Kategorien */
+  istStage: IstStage
+  /** US40: the setup wizard was finished or put off */
+  setupDone: boolean
+}
+
+export type IstStage = 1 | 2 | 3 | 4
+
+/** R38: a budget suggestion of the setup wizard; categoryId for an own category, else bankCategory. */
+export interface BudgetSuggestion {
+  name: string
+  categoryId: number | null
+  bankCategory: string | null
+  average: number
+  proposal: number
+  months: number
 }
 
 /** One account in the user overview (US25); instants as ISO strings, lastLoginAt null without a sign-in. */

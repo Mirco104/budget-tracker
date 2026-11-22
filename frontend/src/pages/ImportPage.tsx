@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ChangeEvent, type MouseEvent } from 'react'
 import { useDeleteTransaction } from '../api/transactions'
+import { useMe } from '../api/auth'
 import { useBankAccounts } from '../api/bankAccounts'
 import { useCategories } from '../api/categories'
 import { errorText } from '../api/client'
@@ -1415,6 +1416,8 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
  * VR-Bank or the Deutsche Bank, check the preview and take the rows over; earlier imports can be undone.
  */
 export function ImportPage() {
+  // US40: during the setup the import leads back to the wizard
+  const me = useMe()
   const accounts = useBankAccounts()
   const categories = useCategories(currentMonth())
   const imports = useImports()
@@ -1488,9 +1491,15 @@ export function ImportPage() {
             Abbrechen
           </button>
         )}
-        <a className="button-link" href={ROUTES.transactions}>
-          Zu den Transaktionen
-        </a>
+        {me.data && !me.data.setupDone ? (
+          <a className="button-link" href={ROUTES.setup}>
+            Zurück zur Einrichtung
+          </a>
+        ) : (
+          <a className="button-link" href={ROUTES.transactions}>
+            Zu den Transaktionen
+          </a>
+        )}
       </PageHeader>
 
       {!preview && (

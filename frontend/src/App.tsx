@@ -1,6 +1,6 @@
 import { Bell } from './components/Bell'
 import { ChangelogDialog } from './components/ChangelogDialog'
-import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { AccountsPage } from './pages/AccountsPage'
 import { useLogout, useMe } from './api/auth'
 import type { Me } from './api/types'
@@ -17,13 +17,16 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
-import { ROUTES, usePage, type Page } from './router'
+import { IMPORT_ROUTE, ROUTES, useHash, usePage, type Page } from './router'
 import { Loading, LoadingBar } from './components/ui/Loading'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
 const EvaluationPage = lazy(() =>
   import('./pages/EvaluationPage').then((module) => ({ default: module.EvaluationPage })),
 )
+
+// US40: the setup wizard brings Recharts for its Sankey diagram as well
+const SetupPage = lazy(() => import('./pages/SetupPage').then((module) => ({ default: module.SetupPage })))
 
 // The main tabs (US29); the settings live in the account menu
 const TABS: { page: Page; label: string; icon: IconName }[] = [
@@ -141,6 +144,14 @@ function SignedIn({ me }: { me: Me }) {
   const page = usePage()
   // The month of overview and planning (27f2); it stays when switching pages. Transaktionen has its own period.
   const [month, setMonth] = useState(currentMonth)
+  const hash = useHash()
+  // US40, US41: until the setup is done the app opens it; the import may run in between (start with bank files)
+  const setupOpen = !me.setupDone && page !== 'setup' && hash !== IMPORT_ROUTE
+  useEffect(() => {
+    if (setupOpen) {
+      window.location.hash = ROUTES.setup
+    }
+  }, [setupOpen])
 
   return (
     <>
@@ -148,7 +159,7 @@ function SignedIn({ me }: { me: Me }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Brand />
-          <nav className="tabs" aria-label="Hauptnavigation">
+          <nav className="tabs" aria-label="Hauptnavigation" hidden={page === 'setup'}>
             {TABS.map((tab) => (
               <a
                 key={tab.page}
@@ -182,6 +193,11 @@ function SignedIn({ me }: { me: Me }) {
         )}
         {page === 'settings' && <SettingsPage me={me} />}
         {page === 'accounts' && <AccountsPage />}
+        {page === 'setup' && (
+          <Suspense fallback={<Loading text="Lade Einrichtung …" />}>
+            <SetupPage me={me} />
+          </Suspense>
+        )}
         <LegalLinks />
       </main>
     </>

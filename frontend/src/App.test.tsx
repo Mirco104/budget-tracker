@@ -5,7 +5,7 @@ import App from './App'
 import { currentMonth, shiftMonth } from './format'
 
 // Fictional signed-in user; all other calls stay pending
-const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER' }
+const me = { id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER', istStage: 4, setupDone: true }
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))

@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
-import type { Plan, PlannedItem, PlannedItemInput } from './types'
+import type { BudgetSuggestion, Plan, PlannedItem, PlannedItemInput } from './types'
 
 /** The plan of the month ("YYYY-MM"): groups, items with their monthly share and the sums (P2–P4). */
 export function fetchPlan(month: string): Promise<Plan> {
@@ -87,4 +87,12 @@ export interface PlanSuggestion {
 /** 27i: suggestions from the bookings of the last 12 months; under 'plan', so a new item refreshes them. */
 export function usePlanSuggestions() {
   return useQuery({ queryKey: ['plan', 'suggestions'], queryFn: () => request<PlanSuggestion[]>('/plan/suggestions') })
+}
+
+/** R38: budget suggestions for the setup wizard; under 'plan', so a new budget item refreshes them. */
+export function useBudgetSuggestions() {
+  return useQuery({
+    queryKey: ['plan', 'budget-suggestions'],
+    queryFn: () => request<BudgetSuggestion[]>('/plan/budget-suggestions'),
+  })
 }
