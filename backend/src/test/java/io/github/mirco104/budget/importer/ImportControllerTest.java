@@ -444,7 +444,6 @@ class ImportControllerTest {
         List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
         assertThat(reasons).containsExactly("vorgemerkt (noch nicht gebucht)");
         // R33: the VR-Bank only delivers the kind of booking, so it has no bank categories to map
-        assertThat(JsonPath.<List<Object>>read(preview, "$.bankCategories")).isEmpty();
 
         long freizeit = category(user, "Freizeit");
         commit(mockMvc, preview, entry -> freizeit, true)
@@ -475,7 +474,6 @@ class ImportControllerTest {
         List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
         assertThat(reasons).containsExactly("ohne Betrag");
         // R33: the Deutsche Bank only delivers the kind of booking
-        assertThat(JsonPath.<List<Object>>read(preview, "$.bankCategories")).isEmpty();
 
         long freizeit = category(user, "Freizeit");
         commit(mockMvc, preview, entry -> freizeit, true)

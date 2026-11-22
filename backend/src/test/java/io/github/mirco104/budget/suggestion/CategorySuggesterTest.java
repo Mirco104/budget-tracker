@@ -204,6 +204,38 @@ class CategorySuggesterTest {
         return CategorySuggester.suggest(text, income, bankCategory, TRADE_REPUBLIC, List.of(), CATEGORIES);
     }
 
+    // R40: the history of the bank category comes before an unsure counterparty and the first word
+    @Test
+    void theBankCategoryHistoryComesBeforeAnUnsureCounterparty() {
+        List<Entry> history = List.of(
+                expense("Supermarkt Nord", LEBENSMITTEL, "2026-10-01"),
+                expense("Supermarkt Nord", FREIZEIT, "2026-10-02"),
+                new Entry("Bäckerei", WOHNEN, LocalDate.parse("2026-09-01"), false, "Haushalt"));
+
+        assertThat(CategorySuggester.suggest("Supermarkt Nord", false, "Haushalt", List.of(), history, CATEGORIES))
+                .contains(new CategorySuggester.Suggestion(WOHNEN, false));
+    }
+
+    @Test
+    void aSureCounterpartyStillComesFirst() {
+        List<Entry> history = List.of(
+                expense("Supermarkt Nord", LEBENSMITTEL, "2026-10-01"),
+                new Entry("Bäckerei", WOHNEN, LocalDate.parse("2026-09-01"), false, "Haushalt"));
+
+        assertThat(CategorySuggester.suggest("Supermarkt Nord", false, "Haushalt", List.of(), history, CATEGORIES))
+                .contains(new CategorySuggester.Suggestion(LEBENSMITTEL, true));
+    }
+
+    @Test
+    void theBankCategoryHistoryComesBeforeTheFirstWord() {
+        List<Entry> history = List.of(
+                expense("Supermarkt Süd", LEBENSMITTEL, "2026-10-01"),
+                new Entry("Kiosk", FREIZEIT, LocalDate.parse("2026-09-01"), false, "Freizeit"));
+
+        assertThat(CategorySuggester.suggest("Supermarkt Nord", false, "Freizeit", List.of(), history, CATEGORIES))
+                .contains(new CategorySuggester.Suggestion(FREIZEIT, false));
+    }
+
     private static Entry expense(String text, long categoryId, String date) {
         return new Entry(text, categoryId, LocalDate.parse(date), false, null);
     }
