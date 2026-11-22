@@ -54,6 +54,13 @@ public class AccountOverviewController {
         return overviewService.groups();
     }
 
+    /** R36 (stage 2): variable spending of the month from the balances on its last day. */
+    @GetMapping("/api/accounts/variable")
+    public AccountOverviewService.VariableResponse variable(
+            @org.springframework.web.bind.annotation.RequestParam java.time.YearMonth month) {
+        return overviewService.variable(month);
+    }
+
     @PostMapping("/api/bank-accounts/{id}/balances")
     public ReconcileResult reconcile(@PathVariable long id, @Valid @RequestBody BalanceRequest request) {
         return overviewService.reconcile(id, request.date(), request.amount());

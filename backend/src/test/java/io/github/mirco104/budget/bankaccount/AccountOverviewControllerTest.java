@@ -87,6 +87,28 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$[1].total").value(5.00));
     }
 
+    // R36 (stage 2): the balance on the last day of a month gives the variable spending of the month
+    @Test
+    void theBalanceOnTheLastDayOfTheMonthGivesTheVariableSpending() throws Exception {
+        java.time.YearMonth previous = java.time.YearMonth.from(today).minusMonths(1);
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(previous.minusMonths(1).atEndOfMonth())))
+                .andExpect(status().isOk());
+        book("{\"amount\": 2000, \"description\": \"Gehalt\", \"date\": \"%s\", \"categoryId\": %d}"
+                .formatted(previous.atDay(28), category("Gehalt/Lohn (netto)")));
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").doesNotExist());
+
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 2600}".formatted(previous.atEndOfMonth())))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(jsonPath("$.amount").value(400.00))
+                .andExpect(jsonPath("$.moreThanExpected").value(false))
+                .andExpect(jsonPath("$.accounts").value(1));
+    }
+
     @Test
     void aBankBalanceShowsTheDifferenceAndBecomesTheStart() throws Exception {
         book("{\"amount\": -40, \"description\": \"Einkauf\", \"date\": \"%s\", \"categoryId\": %d}"

@@ -68,4 +68,37 @@ class AccountBalanceTest {
     void anEmptyHistoryStaysEmpty() {
         assertThat(AccountBalance.history(List.of(), ENTRIES)).isEmpty();
     }
+
+    // --- R36: variable spending from the balance on the last day of a month (stage 2) ---
+
+    @Test
+    void variableSpendingIsTheAppBalanceMinusTheBankBalanceOverAllEverydayAccounts() {
+        Statement previous = new Statement(LocalDate.of(2026, 9, 30), new BigDecimal("1000.00"));
+        List<Entry> entries = List.of(
+                new Entry(LocalDate.of(2026, 10, 1), new BigDecimal("2800.00")),
+                new Entry(LocalDate.of(2026, 10, 3), new BigDecimal("-900.00")),
+                new Entry(LocalDate.of(2026, 11, 2), new BigDecimal("-50.00")));
+        Statement bank = new Statement(LocalDate.of(2026, 10, 31), new BigDecimal("2400.00"));
+        BigDecimal giro = AccountBalance.difference(previous, entries, bank);
+        BigDecimal second = AccountBalance.difference(null, List.of(), new Statement(LocalDate.of(2026, 10, 31),
+                new BigDecimal("-100.00")));
+
+        AccountBalance.Variable variable = AccountBalance.variable(List.of(giro, second));
+
+        assertThat(variable.amount()).isEqualByComparingTo("600.00");
+        assertThat(variable.moreThanExpected()).isFalse();
+    }
+
+    @Test
+    void moreOnTheAccountThanExpectedGivesNoVariableSpending() {
+        AccountBalance.Variable variable = AccountBalance.variable(List.of(new BigDecimal("25.50")));
+
+        assertThat(variable.amount()).isEqualByComparingTo("25.50");
+        assertThat(variable.moreThanExpected()).isTrue();
+    }
+
+    @Test
+    void withoutABalanceOnTheLastDayThereIsNoVariableSpending() {
+        assertThat(AccountBalance.variable(List.of())).isNull();
+    }
 }

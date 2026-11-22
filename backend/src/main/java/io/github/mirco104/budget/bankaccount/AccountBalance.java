@@ -43,6 +43,23 @@ public final class AccountBalance {
         return sum.setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * R36 (stage 2): what was spent variably in a month, from the differences (P11) of the balances on its last day of
+     * all everyday accounts: the negated sum. A positive sum means more was on the accounts than expected; then amount
+     * is that surplus and moreThanExpected is set (variable spending 0).
+     */
+    public record Variable(BigDecimal amount, boolean moreThanExpected) {
+    }
+
+    /** R36: null without a balance on the last day of the month. */
+    public static Variable variable(List<BigDecimal> differences) {
+        if (differences.isEmpty()) {
+            return null;
+        }
+        BigDecimal sum = differences.stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+        return sum.signum() > 0 ? new Variable(sum, true) : new Variable(sum.negate(), false);
+    }
+
     /** P12: the lower limit of the mode; null when there is none (OFF, or CUSTOM without an amount). */
     public static BigDecimal limit(LowerLimitMode mode, BigDecimal custom) {
         return switch (mode) {

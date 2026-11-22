@@ -108,6 +108,35 @@ public class AccountOverviewService {
                 entriesByAccount().getOrDefault(account.getId(), List.of()), day);
     }
 
+    /** R36: the balance of every everyday account on the last day of the month gives the variable spending. */
+    public record VariableResponse(BigDecimal amount, boolean moreThanExpected, LocalDate date, int accounts) {
+    }
+
+    /** R36 (stage 2): variable spending of the month from the balances on its last day; amount null without one. */
+    @Transactional(readOnly = true)
+    public VariableResponse variable(java.time.YearMonth month) {
+        LocalDate last = month.atEndOfMonth();
+        List<BankStatement> statements = statementRepository.findByOwnerOrderByDateAsc(currentUser.get());
+        Map<Long, List<AccountBalance.Entry>> entries = entriesByAccount();
+        List<BigDecimal> differences = new java.util.ArrayList<>();
+        for (BankStatement statement : statements) {
+            BankAccount account = statement.getAccount();
+            if (!statement.getDate().equals(last) || account.getRole() != AccountRole.EVERYDAY || account.isArchived()) {
+                continue;
+            }
+            BankStatement previous = statements.stream()
+                    .filter(s -> s.getAccount().getId().equals(account.getId()) && s.getDate().isBefore(last))
+                    .reduce((a, b) -> b)
+                    .orElse(null);
+            differences.add(AccountBalance.difference(previous == null ? null : previous.statement(),
+                    entries.getOrDefault(account.getId(), List.of()), statement.statement()));
+        }
+        AccountBalance.Variable variable = AccountBalance.variable(differences);
+        return variable == null
+                ? new VariableResponse(null, false, last, 0)
+                : new VariableResponse(variable.amount(), variable.moreThanExpected(), last, differences.size());
+    }
+
     /** P11: stores the balance from the bank for its day (replacing one of the same day) and shows the difference. */
     @Transactional
     public ReconcileResult reconcile(long accountId, LocalDate date, BigDecimal amount) {
