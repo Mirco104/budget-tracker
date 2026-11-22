@@ -8,7 +8,7 @@ import { StageChoice } from './StageChoice'
 import { needsSwitchDialog } from '../stages'
 import { StageSwitchDialog } from './StageSwitchDialog'
 
-/** US42: Einstellungen › Ist verfolgen with the stage and a way to run the setup wizard again (US40). */
+/** US42: Einstellungen › Einrichtung: run the setup wizard again (US40) and choose the tracking stage. */
 export function StageSettings({ me }: { me: Me }) {
   const changeStage = useChangeStage()
   const changeSetup = useChangeSetup()
@@ -28,6 +28,19 @@ export function StageSettings({ me }: { me: Me }) {
 
   return (
     <div className="stage-settings">
+      <div className="card settings-card">
+        <h2>Einrichtung neu starten</h2>
+        <p className="tx-meta">
+          Geht Schritt für Schritt durch Tracking-Stufe, Import, Konten, Einkommen, Fixkosten, variable Kosten und Sparen.
+          Deine Daten sind schon eingetragen, du prüfst und ergänzt sie.
+        </p>
+        <div>
+          <button type="button" onClick={() => void restart()} disabled={changeSetup.isPending}>
+            Einrichtung starten
+          </button>
+        </div>
+      </div>
+      <h2>Wie genau verfolgst du dein Geld?</h2>
       <p className="hint">
         Deine Daten bleiben bei jedem Wechsel erhalten. Beim Wechsel aus Stufe 1 fragt die App, was sie ab dann eintragen
         soll. In Stufe 1 sind die Seiten Transaktionen und Auswertung ausgeblendet.
@@ -45,18 +58,6 @@ export function StageSettings({ me }: { me: Me }) {
         }}
       />
       {asking !== null && <StageSwitchDialog from={me.istStage} to={asking} onClose={() => setAsking(null)} />}
-      <div className="card settings-card">
-        <h2>Einrichtung</h2>
-        <p className="tx-meta">
-          Geht Schritt für Schritt durch Konten, Einkommen, Fixkosten, variable Kosten und Sparen. Deine Daten sind schon
-          eingetragen, du prüfst und ergänzt sie.
-        </p>
-        <div>
-          <button type="button" onClick={() => void restart()} disabled={changeSetup.isPending}>
-            Einrichtung starten
-          </button>
-        </div>
-      </div>
       {error && (
         <p className="error" role="alert">
           {error}

@@ -51,7 +51,7 @@ export const SETTINGS_ROUTES = {
   account: '#/einstellungen/konto',
   invitations: '#/einstellungen/einladungen',
   users: '#/einstellungen/nutzer',
-  stage: '#/einstellungen/ist-verfolgen',
+  stage: '#/einstellungen/einrichtung',
 } as const
 
 export type SettingsPage = keyof typeof SETTINGS_ROUTES

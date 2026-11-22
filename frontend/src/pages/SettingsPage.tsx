@@ -9,7 +9,7 @@ import { SETTINGS_ROUTES, useSettingsPage, type SettingsPage as Page } from '../
 
 const LABELS: Record<Page, string> = {
   categories: 'Kategorien',
-  stage: 'Ist verfolgen',
+  stage: 'Einrichtung',
   bankAccounts: 'Bankkonten',
   account: 'Konto',
   invitations: 'Einladungen',

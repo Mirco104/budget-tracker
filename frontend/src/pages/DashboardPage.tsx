@@ -552,7 +552,7 @@ function PlanOnly({ plan, iconOf }: { plan: Plan; iconOf: (id: number) => string
   return (
     <>
       <p className="hint">
-        Du verfolgst nur den Plan. Willst du sehen, was du wirklich ausgibst? <a href="#/einstellungen/ist-verfolgen">Stufe ändern</a>
+        Du verfolgst nur den Plan. Willst du sehen, was du wirklich ausgibst? <a href="#/einstellungen/einrichtung">Stufe ändern</a>
       </p>
       <dl className="card setup-sum" aria-label="Plan des Monats">
         <div>

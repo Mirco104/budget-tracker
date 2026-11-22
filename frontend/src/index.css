@@ -4718,6 +4718,12 @@ button.account-open:hover {
   display: grid;
   gap: 16px;
 }
+.stage-settings > h2 {
+  margin: 8px 0 -6px;
+}
+.stage-settings > .hint {
+  margin: 0;
+}
 .setup-missing,
 .warn-text {
   margin: 0;

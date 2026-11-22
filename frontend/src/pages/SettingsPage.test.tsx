@@ -50,7 +50,7 @@ describe('SettingsPage', () => {
     renderSettings(user)
     expect(subPages()).toEqual([
       ['Kategorien', '#/einstellungen/kategorien'],
-      ['Ist verfolgen', '#/einstellungen/ist-verfolgen'],
+      ['Einrichtung', '#/einstellungen/einrichtung'],
       ['Konto', '#/einstellungen/konto'],
     ])
     expect(screen.getByRole('link', { name: 'Konto' })).toHaveAttribute('aria-current', 'page')
@@ -61,7 +61,7 @@ describe('SettingsPage', () => {
     renderSettings({ ...admin, role: 'SYSTEM_ADMIN' }, undefined, '#/einstellungen/nutzer')
     expect(subPages()).toEqual([
       ['Kategorien', '#/einstellungen/kategorien'],
-      ['Ist verfolgen', '#/einstellungen/ist-verfolgen'],
+      ['Einrichtung', '#/einstellungen/einrichtung'],
       ['Konto', '#/einstellungen/konto'],
       ['Einladungen', '#/einstellungen/einladungen'],
       ['Nutzer', '#/einstellungen/nutzer'],
@@ -232,9 +232,9 @@ describe('SettingsPage', () => {
     expect(confirm).toHaveBeenCalledTimes(2)
   })
 
-  // US42: the stage under Einstellungen › Ist verfolgen, and the setup wizard can start again (US40)
+  // US42: the stage under Einstellungen › Einrichtung, and the setup wizard can start again (US40)
   it('changes the Ist stage and starts the setup again', async () => {
-    const fetchMock = renderSettings(user, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/ist-verfolgen')
+    const fetchMock = renderSettings(user, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/einrichtung')
 
     expect(screen.getByRole('radio', { name: 'Stufe 4: Buchungen mit Kategorien' })).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(screen.getByRole('radio', { name: 'Stufe 1: Nur Plan' }))
@@ -250,7 +250,7 @@ describe('SettingsPage', () => {
 
   // Decision 90: leaving stage 1 asks whether and from when income and fixed costs are entered automatically
   it('asks when leaving stage 1 and sends the automatic entries from this month', async () => {
-    const fetchMock = renderSettings({ ...user, istStage: 1 }, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/ist-verfolgen')
+    const fetchMock = renderSettings({ ...user, istStage: 1 }, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/einrichtung')
 
     fireEvent.click(screen.getByRole('radio', { name: 'Stufe 2: Kontostand' }))
     const dialog = await screen.findByRole('dialog', { name: 'Auf Stufe 2: Kontostand wechseln' })

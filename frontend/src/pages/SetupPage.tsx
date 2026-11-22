@@ -27,7 +27,7 @@ import { GroupSection } from './PlanningPage'
 
 const STEPS = [
   'Start',
-  'Ist verfolgen',
+  'Tracking-Stufe',
   'Import',
   'Konten',
   'Einkommen',
@@ -218,7 +218,7 @@ export function SetupPage({ me }: { me: Me }) {
   const imports = useImports()
   const changeSetup = useChangeSetup()
   const [path, setPath] = useState<'plan' | 'import' | null>(null)
-  // Decision 86: the answers to the two questions of "Ist verfolgen", only in the browser session
+  // Decision 86: the answers to the two questions of the step "Tracking-Stufe", only in the browser session
   const [answers, setAnswersState] = useState<Answers>(readAnswers)
   function setAnswers(next: Answers) {
     setAnswersState(next)
@@ -580,7 +580,7 @@ function ImportStep({
 
 function SetupOutline() {
   const rows: [number, string, string][] = [
-    [1, 'Ist verfolgen', 'Wie genau du später nachsehen willst, was du wirklich ausgibst'],
+    [1, 'Tracking-Stufe', 'Wie genau du später nachsehen willst, was du wirklich ausgibst'],
     [2, 'Import', 'Ein Kontoauszug als CSV-Datei schlägt deinen Plan vor, oder du trägst ihn selbst ein'],
     [3, 'Konten', 'Girokonto, Sparkonto, Depot …'],
     [4, 'Einkommen', 'Was jeden Monat reinkommt, z. B. das Gehalt'],
@@ -1214,7 +1214,7 @@ function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts:
         <p className="tx-meta">Mit „ändern“ springst du zu dem Schritt zurück.</p>
       </div>
       <div className="setup-done-grid">
-        <DoneCard step={1} title="Ist verfolgen" wide>
+        <DoneCard step={1} title="Tracking-Stufe" wide>
           <p>
             <strong>
               Stufe {stage}: {stageName(stage)}
