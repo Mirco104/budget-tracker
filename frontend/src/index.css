@@ -4356,6 +4356,12 @@ button.account-open:hover {
 .setup-sum .total.over dd {
   color: var(--warn);
 }
+.setup-done-title h2 {
+  margin: 8px 0 4px;
+}
+.setup-done-title p {
+  margin: 0 0 4px;
+}
 .setup-done-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

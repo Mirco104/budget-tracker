@@ -1,4 +1,4 @@
-import { ResponsiveContainer, Sankey, Tooltip, type SankeyNodeProps } from 'recharts'
+import { ResponsiveContainer, Sankey, Tooltip, type SankeyLinkProps, type SankeyNodeProps } from 'recharts'
 import type { Plan, PlanGroup } from '../api/types'
 import { formatEuro } from '../format'
 
@@ -32,6 +32,20 @@ function Node({ x, y, width, height, payload: raw }: SankeyNodeProps) {
   )
 }
 
+// A link as a band in the color of its target, so each flow can be followed to its group
+function Link({ sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, payload }: SankeyLinkProps) {
+  const target = payload.target as unknown as { kind: Kind }
+  return (
+    <path
+      d={`M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
+      fill="none"
+      stroke={COLOR[target.kind]}
+      strokeOpacity={0.3}
+      strokeWidth={Math.max(linkWidth, 1)}
+    />
+  )
+}
+
 /**
  * US40: the plan of a month as a Sankey diagram, income → fixed costs, budgets, saving and not planned → categories
  * (saving items by name). Only the sums of the plan (P4) are shown; nothing is calculated here.
@@ -39,6 +53,7 @@ function Node({ x, y, width, height, payload: raw }: SankeyNodeProps) {
 export function PlanSankey({ plan }: { plan: Plan }) {
   const nodes: { name: string; kind: Kind }[] = [{ name: 'Einkommen', kind: 'income' }]
   const links: { source: number; target: number; value: number }[] = []
+  // The order of the nodes is the order on screen (sort off): groups top down, their categories in the same order
   const groups: { group: PlanGroup; name: string; kind: Kind; value: number }[] = [
     { group: 'FIXED', name: 'Fixkosten', kind: 'fixed', value: plan.fixed },
     { group: 'BUDGET', name: 'Variable Kosten', kind: 'budget', value: plan.budgets },
@@ -74,10 +89,14 @@ export function PlanSankey({ plan }: { plan: Plan }) {
         <Sankey
           data={{ nodes, links }}
           node={(props: SankeyNodeProps) => <Node {...props} />}
-          nodePadding={10}
+          link={(props: SankeyLinkProps) => <Link {...props} />}
+          nodePadding={12}
           nodeWidth={12}
+          // Fixed order without crossings; "Nicht verplant" stays next to the groups instead of moving to the right edge
+          sort={false}
+          iterations={0}
+          align="left"
           margin={{ top: 8, right: 190, bottom: 8, left: 140 }}
-          link={{ stroke: 'var(--line-strong)', strokeOpacity: 0.35 }}
         >
           <Tooltip formatter={(value) => formatEuro(Number(value))} />
         </Sankey>

@@ -910,8 +910,10 @@ function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts:
         {plan.unplanned < 0 && <p className="warn-text">Überplant um {formatEuro(-plan.unplanned)}. Senke Fixkosten, Budgets oder Sparraten.</p>}
         <p className="tx-meta">Seltene Fixkosten zählen mit ihrem Monatsanteil (Rücklage).</p>
       </section>
-      <h2>Deine Einrichtung</h2>
-      <p className="tx-meta">Mit „ändern“ springst du zu dem Schritt zurück.</p>
+      <div className="setup-done-title">
+        <h2>Deine Einrichtung</h2>
+        <p className="tx-meta">Mit „ändern“ springst du zu dem Schritt zurück.</p>
+      </div>
       <div className="setup-done-grid">
         <DoneCard step={1} title="Ist verfolgen" wide>
           <p>
