@@ -68,7 +68,9 @@ function renderSetup(hash: string, { me = newUser, plan = emptyPlan, suggestions
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     let body: unknown = []
-    if (url === '/api/account/stage' || url === '/api/account/setup') {
+    if (url === '/api/auth/me') {
+      body = me
+    } else if (url === '/api/account/stage' || url === '/api/account/setup') {
       body = { ...me, ...JSON.parse(init?.body as string) }
     } else if (url === '/api/plan/budget-suggestions') {
       body = suggestions
@@ -126,36 +128,90 @@ describe('SetupPage', () => {
     expect(screen.getByRole('button', { name: 'Weiter' })).toBeEnabled()
   })
 
-  it('stores the chosen stage at once', async () => {
+  // R35, decision 86: the stages show only after both questions; the smaller stage of wish and time is recommended
+  it('recommends a stage from the two questions and stores the chosen one', async () => {
     const fetchMock = renderSetup('#/einrichtung/1')
 
-    fireEvent.click(await screen.findByRole('radio', { name: 'Stufe 3: Buchungen' }))
+    expect(await screen.findByRole('heading', { name: 'Wie genau willst du sehen, was du ausgibst?' })).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Stufe 3: Buchungen' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Weiter' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('radio', { name: /… und wofür genau/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Ein paar Minuten pro Woche' }))
+
+    expect(screen.getByText(/bräuchtest du mindestens „Was nötig ist“/)).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Stufe 3: Buchungen' })).toHaveTextContent('Für dich empfohlen')
     await waitFor(() => expect(calls(fetchMock, '/api/account/stage')).toEqual([{ stage: 3 }]))
-    expect(screen.getByRole('radio', { name: 'Stufe 2: Kontostand' })).toHaveTextContent('empfohlen')
+    expect(screen.getByRole('button', { name: 'Weiter' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Stufe 4: Buchungen mit Kategorien' }))
+    await waitFor(() => expect(calls(fetchMock, '/api/account/stage')).toEqual([{ stage: 3 }, { stage: 4 }]))
   })
 
-  it('needs an income above 0 € and offers typical items that open the item window, entered automatically', async () => {
+  // Decision 90: with items a switch to stage 1 asks first and is not chosen by the recommendation alone
+  it('asks before an existing user switches to stage 1', async () => {
+    const fetchMock = renderSetup('#/einrichtung/1', { me: { ...newUser, istStage: 4 }, plan: fullPlan })
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Wie ich mein Einkommen aufteile/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Gar keine' }))
+    expect(screen.getByRole('radio', { name: 'Stufe 1: Nur Plan' })).toHaveTextContent('Für dich empfohlen')
+    expect(calls(fetchMock, '/api/account/stage')).toEqual([])
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Stufe 1: Nur Plan' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Auf Stufe 1: Nur Plan wechseln' })
+    expect(dialog).toHaveTextContent('In Stufe 1 trägt die App nichts mehr ein.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stufe wechseln' }))
+    await waitFor(() => expect(calls(fetchMock, '/api/account/stage')).toEqual([{ stage: 1 }]))
+  })
+
+  it('needs an income above 0 € and offers typical items as tiles that open the item window, entered automatically', async () => {
     renderSetup('#/einrichtung/3')
 
-    expect(await screen.findByRole('heading', { name: 'Was kommt rein?' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Was kommt jeden Monat rein?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Weiter' })).toBeDisabled()
     expect(screen.getByText('Trag mindestens ein Einkommen über 0 € ein, um weiterzumachen.')).toBeInTheDocument()
 
     const typical = screen.getByRole('region', { name: 'Häufig dazu' })
-    const gehalt = within(typical).getByText('Gehalt').closest('li') as HTMLElement
-    fireEvent.click(within(gehalt).getByRole('button', { name: 'Hinzufügen' }))
+    fireEvent.click(within(typical).getByRole('button', { name: 'Gehalt hinzufügen' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Gehalt')
     expect(within(dialog).getByLabelText('Eintragen')).toHaveValue('AUTO')
+    // Decision 89: stage 2 enters an item with a term automatically or on ticking only
+    await waitFor(() =>
+      expect(within(within(dialog).getByLabelText('Eintragen')).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'beim Abhaken',
+        'automatisch am Termin',
+      ]),
+    )
   })
 
-  it('shows the plan so far with later steps pending and the budget suggestions from the bookings', async () => {
+  // Decision 89: in stage 1 the item window has no field "Eintragen" and saves "selbst anlegen"
+  it('creates items without automatic entries in stage 1', async () => {
+    const fetchMock = renderSetup('#/einrichtung/3', { me: { ...newUser, istStage: 1 } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gehalt hinzufügen' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
+    await waitFor(() => expect(within(dialog).queryByLabelText('Eintragen')).not.toBeInTheDocument())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(([u, init]) => u === '/api/planned-items' && init?.method === 'POST')
+      expect(JSON.parse(post?.[1]?.body as string)).toMatchObject({ name: 'Gehalt', entryMode: 'MANUAL' })
+    })
+  })
+
+  // Decision 88: the income as a bar that fills step by step; later steps "kommt noch", the rest "Noch frei"
+  it('shows the plan so far as a bar with later steps to come and the budget suggestions from the bookings', async () => {
     renderSetup('#/einrichtung/5', { plan: fullPlan, suggestions: budgetSuggestions })
 
-    const sum = await screen.findByLabelText('Dein Plan bisher')
-    expect(sum).toHaveTextContent('Bleibt fürs Sparen1.200,00 €')
-    expect(sum).toHaveTextContent('Sparenausstehend')
+    const bar = await screen.findByLabelText('Dein Einkommen im Plan')
+    expect(bar).toHaveTextContent('Fixkosten 900,00 €')
+    expect(bar).toHaveTextContent('Variable Kosten 400,00 €')
+    expect(bar).toHaveTextContent('Sparen kommt noch')
+    expect(bar).toHaveTextContent('Noch frei 1.200,00 €')
+    expect(bar).toHaveTextContent('Ganzer Balken = Einkommen 2.500,00 €')
+    expect(screen.getByRole('link', { name: /Fixkosten/ })).toHaveAttribute('href', '#/einrichtung/4')
     const suggestions = await screen.findByRole('region', { name: 'Vorschläge aus deinen Buchungen' })
     expect(suggestions).toHaveTextContent('Shopping')
     expect(suggestions).toHaveTextContent('Kategorie der Bank · Ø 138,42 € im Monat · 6 Monate')
@@ -166,6 +222,7 @@ describe('SetupPage', () => {
     const fetchMock = renderSetup('#/einrichtung/8', { plan: fullPlan })
 
     expect(await screen.findByRole('heading', { name: 'Fertig! So läuft dein Monat.' })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'So läuft dein Monat' })).toHaveTextContent('Kontostand eintragen, die Glocke erinnert dich.')
     expect(screen.getByRole('region', { name: 'Fixkosten' })).toHaveTextContent('Miete')
     expect(screen.getByRole('link', { name: 'Fixkosten ändern' })).toHaveAttribute('href', '#/einrichtung/4')
     fireEvent.click(screen.getByRole('button', { name: 'Einrichtung abschließen' }))

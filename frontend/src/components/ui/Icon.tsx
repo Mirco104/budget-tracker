@@ -60,6 +60,9 @@ const PATHS = {
   ),
   bell: <path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4" />,
   layers: <path d="M12 3 2 8l10 5 10-5zM2 13l10 5 10-5" />,
+  // Decision 88: start and end of the setup wizard
+  flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+  check: <path d="M5 12.5 10 17 19 7" />,
 }
 
 export type IconName = keyof typeof PATHS

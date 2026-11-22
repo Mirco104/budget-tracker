@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useMe } from '../api/auth'
 import { useBankAccounts } from '../api/bankAccounts'
 import { AccountSelect } from './AccountSelect'
 import { CategoryPicker } from './CategoryPicker'
@@ -124,6 +125,13 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
 
   const [unit, count] = rhythm === NONE ? [null, null] : (rhythm.split(':') as [RhythmUnit, string])
   const rhythmCount = count === null ? null : Number(count)
+  // Decision 89: stage 1 enters nothing (no field, stored "selbst anlegen"); stage 2 only enters automatically or on
+  // ticking for an item with a term
+  const stage = useMe().data?.istStage ?? 4
+  const mode: EntryMode = stage === 1 ? 'MANUAL' : stage === 2 && unit !== null && entryMode === 'MANUAL' ? 'TICK' : entryMode
+  const modes = ENTRY_MODES.filter(
+    (m) => (unit !== null || m.value !== 'AUTO') && !(stage === 2 && unit !== null && m.value === 'MANUAL'),
+  )
   const rare = unit === 'MONTH' && rhythmCount !== null && rhythmCount > 1
 
   // 27f2: an automatic item enters its past terms from "Gilt ab" on; the dialog says how many before saving. Only
@@ -132,14 +140,14 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   const datesChanged =
     !item || validFrom !== item.validFrom || anchorDate() !== item.anchorDate || rhythm !== initialRhythm
   const pastQuery =
-    entryMode === 'AUTO' && unit !== null && datesChanged && /^\d{4}-\d{2}$/.test(validFrom) && (unit === 'WEEK' || Number(day) >= 1)
+    mode === 'AUTO' && unit !== null && datesChanged && /^\d{4}-\d{2}$/.test(validFrom) && (unit === 'WEEK' || Number(day) >= 1)
       ? {
           name: 'Posten',
           amount: -1,
           rhythmUnit: unit,
           rhythmCount,
           anchorDate: anchorDate(),
-          entryMode,
+          entryMode: mode,
           workdaysOnly,
           validFrom,
         }
@@ -213,7 +221,7 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
       rhythmUnit: unit,
       rhythmCount,
       anchorDate: anchorDate(),
-      entryMode,
+      entryMode: mode,
       workdaysOnly: unit !== null && workdaysOnly,
       validFrom,
       savingGoalId: kind === 'saving' && goalId !== '' ? Number(goalId) : null,
@@ -382,16 +390,18 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
         )}
 
         <div className="field-row">
-          <label className="field">
-            Eintragen
-            <select value={entryMode} onChange={(e) => setEntryMode(e.target.value as EntryMode)}>
-              {ENTRY_MODES.filter((m) => unit !== null || m.value !== 'AUTO').map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {stage !== 1 && (
+            <label className="field">
+              Eintragen
+              <select value={mode} onChange={(e) => setEntryMode(e.target.value as EntryMode)}>
+                {modes.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="field">
             Gilt ab
             <input

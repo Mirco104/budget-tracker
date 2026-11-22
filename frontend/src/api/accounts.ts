@@ -83,7 +83,10 @@ export function useDeleteBalance() {
 export interface VariableFromBalance {
   amount: number | null
   moreThanExpected: boolean
-  date: string
+  /** R36: the last balance in the month, null without one */
+  date: string | null
+  /** R36: the balance before the first one in the month, null without one */
+  from: string | null
   accounts: number
 }
 

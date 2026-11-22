@@ -516,15 +516,15 @@ function VariableFromBalance({ month, data, budgets }: { month: string; data: Va
   if (!data || data.amount === null) {
     return (
       <p className="hint">
-        Trag den Kontostand vom letzten Tag im {formatMonthName(month)} auf der Seite <a href={ROUTES.accounts}>Konten</a> ein,
-        dann siehst du, was du variabel ausgegeben hast. Fixkosten und Einkommen trägt die App selbst ein.
+        Trag einen Kontostand im {formatMonthName(month)} auf der Seite <a href={ROUTES.accounts}>Konten</a> ein, dann siehst du,
+        was du variabel ausgegeben hast. Fixkosten und Einkommen trägt die App selbst ein.
       </p>
     )
   }
   if (data.moreThanExpected) {
     return (
       <p className="hint">
-        Auf dem Konto waren am {formatDate(data.date)} <strong>{formatEuro(data.amount)} mehr als erwartet</strong>, z. B. durch
+        Auf dem Konto waren am {formatDate(data.date as string)} <strong>{formatEuro(data.amount)} mehr als erwartet</strong>, z. B. durch
         eine Erstattung. Variabel ausgegeben: {formatEuro(0)}.
       </p>
     )
@@ -537,7 +537,10 @@ function VariableFromBalance({ month, data, budgets }: { month: string; data: Va
           <BudgetNumbers line={allBudgets(data.amount, budgets)} />
         </div>
         <ProgressBar value={budgets ? data.amount / budgets : 0} over={budgets !== null && data.amount > budgets} />
-        <p className="tx-meta">Aus dem Kontostand am {formatDate(data.date)}, gegen die Summe deiner Budgets.</p>
+        <p className="tx-meta">
+          {data.from ? `Seit dem Kontostand am ${formatDate(data.from)} bis zum ${formatDate(data.date as string)}` : `Bis zum Kontostand am ${formatDate(data.date as string)}`}
+          , gegen die Summe deiner Budgets.
+        </p>
       </li>
     </ul>
   )

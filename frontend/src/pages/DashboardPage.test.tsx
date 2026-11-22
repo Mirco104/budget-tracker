@@ -347,17 +347,20 @@ describe('DashboardPage per Ist stage', () => {
     expect(screen.queryByRole('button', { name: 'Buchung' })).not.toBeInTheDocument()
   })
 
-  it('shows the variable spending from the balance on the last day in stage 2', async () => {
-    renderStage(2, { amount: 320, moreThanExpected: false, date: '2026-11-30', accounts: 1 })
+  // R36 (23.11.2026): a balance on any day; the overview names the period since the balance before
+  it('shows the variable spending since the balance before in stage 2', async () => {
+    renderStage(2, { amount: 320, moreThanExpected: false, date: '2026-11-15', from: '2026-10-31', accounts: 1 })
 
     expect(await screen.findByText('Variabel ausgegeben')).toBeInTheDocument()
-    expect(screen.getByText('Variabel ausgegeben').closest('li')).toHaveTextContent('320,00 € von 400,00 €')
+    const row = screen.getByText('Variabel ausgegeben').closest('li') as HTMLElement
+    expect(row).toHaveTextContent('320,00 € von 400,00 €')
+    expect(row).toHaveTextContent('Seit dem Kontostand am 31.10.2026 bis zum 15.11.2026, gegen die Summe deiner Budgets.')
   })
 
-  it('asks for the balance in stage 2 when there is none on the last day', async () => {
+  it('asks for a balance in stage 2 when the month has none', async () => {
     renderStage(2)
 
-    expect(await screen.findByText(/Trag den Kontostand vom letzten Tag/)).toBeInTheDocument()
+    expect(await screen.findByText(/Trag einen Kontostand im/)).toBeInTheDocument()
   })
 
   it('shows all budgets together in stage 3', async () => {

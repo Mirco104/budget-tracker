@@ -8,11 +8,11 @@ Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
 
 ### Neu
 
-- **Einrichtung:** Neue Nutzer werden Schritt für Schritt durch Konten, Einkommen, Fixkosten, variable Kosten, Sparen und Sparziele geführt, wahlweise mit Vorschlägen aus einem Kontoauszug. Bestehende Nutzer sehen sie einmal mit ihren Daten; „Später einrichten“ schließt sie ohne Änderung, unter *Einstellungen › Ist verfolgen* lässt sie sich jederzeit neu starten.
-- **Ist verfolgen in vier Stufen:** Nur Plan, Kontostand, Buchungen oder Buchungen mit Kategorien, jeweils mit Aufwand und Genauigkeit. Ein Wechsel ändert nur die Anzeige, nie die Daten.
+- **Einrichtung:** Neue Nutzer werden Schritt für Schritt durch Konten, Einkommen, Fixkosten, variable Kosten, Sparen und Sparziele geführt, wahlweise mit Vorschlägen aus einem Kontoauszug. Jeder Schritt hat ein Icon und eine kurze Frage, unten füllt sich ein Balken mit dem Plan, häufige Posten stehen als Kacheln zum Antippen bereit. Bestehende Nutzer sehen sie einmal mit ihren Daten; „Später einrichten“ schließt sie ohne Änderung, unter *Einstellungen › Ist verfolgen* lässt sie sich jederzeit neu starten.
+- **Ist verfolgen in vier Stufen:** Nur Plan, Kontostand, Buchungen oder Buchungen mit Kategorien, jeweils mit Bild, Häkchen, Aufwand und Genauigkeit. Zwei Fragen (was du wissen willst, wie viel Zeit du investierst) empfehlen eine Stufe. In Stufe 1 trägt die App nichts ein; beim Wechsel aus Stufe 1 fragt sie, ob und ab wann sie Einkommen und Fixkosten selbst eintragen soll.
 - **Budget-Vorschläge:** Die Einrichtung schlägt Budgets aus dem Durchschnitt der letzten 6 Monate je Kategorie vor.
 - **Dein Monat im Plan:** Am Ende der Einrichtung zeigt ein Diagramm, wohin das Einkommen im Plan fließt.
-- **Übersicht je Stufe:** Stufe 1 zeigt nur den Plan des Monats, Stufe 2 nach dem Kontostand vom letzten Tag des Monats, was variabel ausgegeben wurde (oder „mehr als erwartet“), Stufe 3 alle Budgets zusammen, Stufe 4 wie bisher jedes Budget einzeln.
+- **Übersicht je Stufe:** Stufe 1 zeigt nur den Plan des Monats, Stufe 2 nach einem Kontostand (an jedem Tag möglich), was seit dem Kontostand davor variabel ausgegeben wurde (oder „mehr als erwartet“), Stufe 3 alle Budgets zusammen, Stufe 4 wie bisher jedes Budget einzeln.
 - **Glocke fragt nach dem Kontostand:** In Stufe 2 erinnert die Glocke an den Kontostand vom letzten Tag des Vormonats.
 - **Buchungen ohne Kategorie:** Im Buchungsdialog und im Import ist die Kategorie keine Pflicht mehr. Ausgaben ohne Kategorie stehen auf der Übersicht und in der Auswertung je Kategorie in einer eigenen Zeile „Ohne Kategorie“ und zählen zu keinem Budget. In Transaktionen lassen sie sich mit dem Kategorie-Filter „Ohne Kategorie“ finden. Unter Stufe 4 fragen Import und Buchungsdialog statt nach der Kategorie nur, ob eine Buchung zählt, eine Umbuchung oder Sparen ist.
 

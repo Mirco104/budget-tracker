@@ -238,11 +238,30 @@ describe('SettingsPage', () => {
 
     expect(screen.getByRole('radio', { name: 'Stufe 4: Buchungen mit Kategorien' })).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(screen.getByRole('radio', { name: 'Stufe 1: Nur Plan' }))
+    // Decision 90: a switch to stage 1 asks first
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Auf Stufe 1: Nur Plan wechseln' })).getByRole('button', { name: 'Stufe wechseln' }))
     await waitFor(() => expect(writeCalls(fetchMock).map(([url]) => url)).toContain('/api/account/stage'))
     expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({ stage: 1 })
 
     fireEvent.click(screen.getByRole('button', { name: 'Einrichtung starten' }))
     await waitFor(() => expect(window.location.hash).toBe('#/einrichtung'))
     expect(JSON.parse(writeCalls(fetchMock)[1][1]?.body as string)).toEqual({ done: false })
+  })
+
+  // Decision 90: leaving stage 1 asks whether and from when income and fixed costs are entered automatically
+  it('asks when leaving stage 1 and sends the automatic entries from this month', async () => {
+    const fetchMock = renderSettings({ ...user, istStage: 1 }, (_url, init) => json({ ...user, ...JSON.parse(init.body as string) }), '#/einstellungen/ist-verfolgen')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Stufe 2: Kontostand' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Auf Stufe 2: Kontostand wechseln' })
+    expect(within(dialog).getByLabelText(/Einkommen und Fixkosten automatisch eintragen/)).toBeChecked()
+    expect(within(dialog).getByRole('radio', { name: /Rückwirkend ab/ })).toBeChecked()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stufe wechseln' }))
+
+    const now = new Date()
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    await waitFor(() =>
+      expect(JSON.parse(writeCalls(fetchMock)[0][1]?.body as string)).toEqual({ stage: 2, autoEntries: true, entriesFrom: `${month}-01` }),
+    )
   })
 })

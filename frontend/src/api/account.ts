@@ -15,9 +15,18 @@ export function changeEmail(input: ChangeEmailInput): Promise<Me> {
   return request<Me>('/account/email', { method: 'PUT', body: JSON.stringify(input) })
 }
 
-/** R35: the Ist stage; it only changes what the app shows. */
-export function changeStage(stage: IstStage): Promise<Me> {
-  return request<Me>('/account/stage', { method: 'PUT', body: JSON.stringify({ stage }) })
+/**
+ * R35: the Ist stage; it only changes what the app shows. Decision 90: when leaving stage 1, autoEntries asks to enter
+ * income and fixed costs automatically from entriesFrom (ISO day) on; switching to stage 1 makes every item manual.
+ */
+export interface ChangeStageInput {
+  stage: IstStage
+  autoEntries?: boolean
+  entriesFrom?: string
+}
+
+export function changeStage(input: ChangeStageInput): Promise<Me> {
+  return request<Me>('/account/stage', { method: 'PUT', body: JSON.stringify(input) })
 }
 
 /** US40: the setup wizard is done (finished or put off) or starts again. */
@@ -65,8 +74,15 @@ function useSetMe() {
 }
 
 export function useChangeStage() {
-  const setMe = useSetMe()
-  return useMutation({ mutationFn: changeStage, onSuccess: setMe })
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: changeStage,
+    onSuccess: (me) => {
+      queryClient.setQueryData(['me'], me)
+      // Decision 90: the switch may change how items are entered and enter bookings
+      void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== 'me' })
+    },
+  })
 }
 
 export function useChangeSetup() {

@@ -12,10 +12,15 @@ import { AccountDialog } from '../components/AccountDialog'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
 import { SavingGoalDialog } from '../components/SavingGoalDialog'
 import { StageChoice } from '../components/StageChoice'
+import { StageQuestions } from '../components/StageQuestions'
+import { StageSwitchDialog } from '../components/StageSwitchDialog'
+import { CategoryIcon } from '../components/ui/CategoryIcon'
+import { ICONS } from '../components/ui/categoryIcons'
+import { Icon } from '../components/ui/Icon'
 import { PlanSankey } from '../components/PlanSankey'
 import { currentMonth, formatEuro } from '../format'
 import { IMPORT_ROUTE, ROUTES, useHash } from '../router'
-import { STAGES, stageName } from '../stages'
+import { CHECKS, needsSwitchDialog, recommendStage, stageName } from '../stages'
 import { AccountRow } from './AccountsPage'
 import { GroupSection } from './PlanningPage'
 
@@ -31,6 +36,63 @@ const STEPS = [
   'Fertig',
 ] as const
 const LAST = STEPS.length - 1
+const ICON_SVG = {
+  width: 18,
+  height: 18,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+  'aria-hidden': true,
+  focusable: false,
+}
+
+// Decision 88: an icon per step (also in the stepper on top) and one line instead of a lead text
+const STEP_ICONS: ReactNode[] = [
+  <Icon key="0" name="flag" size={18} />,
+  <Icon key="1" name="search" size={18} />,
+  <svg key="2" {...ICON_SVG}>{ICONS.landmark.path}</svg>,
+  <svg key="3" {...ICON_SVG}>{ICONS.briefcase.path}</svg>,
+  <svg key="4" {...ICON_SVG}>{ICONS.receipt.path}</svg>,
+  <svg key="5" {...ICON_SVG}>{ICONS.cart.path}</svg>,
+  <svg key="6" {...ICON_SVG}>{ICONS.coins.path}</svg>,
+  <svg key="7" {...ICON_SVG}>{ICONS.trend.path}</svg>,
+  <Icon key="8" name="check" size={18} />,
+]
+const STEP_LINES: Record<number, string> = {
+  1: 'Wie genau willst du sehen, was du ausgibst?',
+  2: 'Wo liegt dein Geld?',
+  3: 'Was kommt jeden Monat rein?',
+  4: 'Was geht jeden Monat fest ab?',
+  5: 'Wie viel willst du für variable Kosten ausgeben?',
+  6: 'Wie viel legst du regelmäßig zur Seite?',
+  7: 'Wofür sparst du? Freiwillig.',
+}
+const ANSWERS_KEY = 'setup-stage-answers'
+
+interface Answers {
+  wish: IstStage | null
+  time: IstStage | null
+}
+
+function readAnswers(): Answers {
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(ANSWERS_KEY) ?? 'null') as Answers | null
+    return stored ?? { wish: null, time: null }
+  } catch {
+    return { wish: null, time: null }
+  }
+}
+
+function writeAnswers(answers: Answers) {
+  try {
+    window.sessionStorage.setItem(ANSWERS_KEY, JSON.stringify(answers))
+  } catch {
+    // only a convenience; without storage the questions start empty again
+  }
+}
 const REACHED_KEY = 'setup-reached'
 const SONSTIGES = 'Sonstiges'
 
@@ -39,40 +101,42 @@ interface Typical {
   name: string
   amount: number
   category: string
+  /** Decision 88: the icon of the tile */
+  icon: string
   day?: number
   rhythm?: string
 }
 
 const TYPICAL: Record<PlanGroup, Typical[]> = {
   INCOME: [
-    { name: 'Gehalt', amount: 2800, category: 'Gehalt/Lohn (netto)', day: 28 },
-    { name: 'Kindergeld', amount: 255, category: 'Staatliche Leistungen', day: 15 },
-    { name: 'Nebenjob', amount: 450, category: 'Nebenjob', day: 1 },
+    { name: 'Gehalt', amount: 2800, category: 'Gehalt/Lohn (netto)', day: 28, icon: 'briefcase' },
+    { name: 'Kindergeld', amount: 255, category: 'Staatliche Leistungen', day: 15, icon: 'heart' },
+    { name: 'Nebenjob', amount: 450, category: 'Nebenjob', day: 1, icon: 'laptop' },
   ],
   FIXED: [
-    { name: 'Miete', amount: 850, category: 'Wohnen', day: 1 },
-    { name: 'Strom', amount: 65, category: 'Nebenkosten', day: 5 },
-    { name: 'Internet', amount: 35, category: 'Nebenkosten', day: 10 },
-    { name: 'Handy', amount: 15, category: 'Nebenkosten', day: 15 },
-    { name: 'Rundfunkbeitrag', amount: 55.08, category: 'Nebenkosten', day: 15, rhythm: 'MONTH:3' },
-    { name: 'Haftpflichtversicherung', amount: 60, category: 'Versicherungen', day: 1, rhythm: 'MONTH:12' },
-    { name: 'Hausratversicherung', amount: 90, category: 'Versicherungen', day: 1, rhythm: 'MONTH:12' },
-    { name: 'Kfz-Versicherung', amount: 420, category: 'Versicherungen', day: 1, rhythm: 'MONTH:12' },
-    { name: 'Deutschlandticket', amount: 58, category: 'Mobilität', day: 1 },
-    { name: 'Streaming', amount: 13, category: 'Freizeit', day: 18 },
-    { name: 'Fitnessstudio', amount: 30, category: 'Freizeit', day: 1 },
+    { name: 'Miete', amount: 850, category: 'Wohnen', day: 1, icon: 'home' },
+    { name: 'Strom', amount: 65, category: 'Nebenkosten', day: 5, icon: 'bolt' },
+    { name: 'Internet', amount: 35, category: 'Nebenkosten', day: 10, icon: 'laptop' },
+    { name: 'Handy', amount: 15, category: 'Nebenkosten', day: 15, icon: 'pulse' },
+    { name: 'Rundfunkbeitrag', amount: 55.08, category: 'Nebenkosten', day: 15, rhythm: 'MONTH:3', icon: 'music' },
+    { name: 'Haftpflichtversicherung', amount: 60, category: 'Versicherungen', day: 1, rhythm: 'MONTH:12', icon: 'shield' },
+    { name: 'Hausratversicherung', amount: 90, category: 'Versicherungen', day: 1, rhythm: 'MONTH:12', icon: 'shield' },
+    { name: 'Kfz-Versicherung', amount: 420, category: 'Versicherungen', day: 1, rhythm: 'MONTH:12', icon: 'car' },
+    { name: 'Deutschlandticket', amount: 58, category: 'Mobilität', day: 1, icon: 'suitcase' },
+    { name: 'Streaming', amount: 13, category: 'Freizeit', day: 18, icon: 'music' },
+    { name: 'Fitnessstudio', amount: 30, category: 'Freizeit', day: 1, icon: 'heart' },
   ],
   BUDGET: [
-    { name: 'Lebensmittel', amount: 350, category: 'Lebensmittel' },
-    { name: 'Freizeit', amount: 120, category: 'Freizeit' },
-    { name: 'Persönlicher Bedarf', amount: 60, category: 'Persönlicher Bedarf' },
-    { name: 'Mobilität', amount: 60, category: 'Mobilität' },
-    { name: 'Geschenke', amount: 25, category: 'Geschenke' },
-    { name: SONSTIGES, amount: 80, category: SONSTIGES },
+    { name: 'Lebensmittel', amount: 350, category: 'Lebensmittel', icon: 'cart' },
+    { name: 'Freizeit', amount: 120, category: 'Freizeit', icon: 'music' },
+    { name: 'Persönlicher Bedarf', amount: 60, category: 'Persönlicher Bedarf', icon: 'bag' },
+    { name: 'Mobilität', amount: 60, category: 'Mobilität', icon: 'car' },
+    { name: 'Geschenke', amount: 25, category: 'Geschenke', icon: 'gift' },
+    { name: SONSTIGES, amount: 80, category: SONSTIGES, icon: 'tag' },
   ],
   SAVING: [
-    { name: 'Notgroschen', amount: 100, category: '', day: 1 },
-    { name: 'ETF-Sparplan', amount: 150, category: '', day: 1 },
+    { name: 'Notgroschen', amount: 100, category: '', day: 1, icon: 'shield' },
+    { name: 'ETF-Sparplan', amount: 150, category: '', day: 1, icon: 'trend' },
   ],
 }
 
@@ -125,8 +189,11 @@ function openOverview() {
   window.location.hash = ROUTES.overview
 }
 
-/** Decision 83: income and fixed costs created in the wizard are entered automatically. */
-function wizardEntry(group: PlanGroup): EntryMode | undefined {
+/** Decision 83: income and fixed costs created in the wizard are entered automatically; decision 89: never in stage 1. */
+function wizardEntry(group: PlanGroup, stage: IstStage): EntryMode | undefined {
+  if (stage === 1) {
+    return 'MANUAL'
+  }
   return group === 'INCOME' || group === 'FIXED' ? 'AUTO' : undefined
 }
 
@@ -145,6 +212,12 @@ export function SetupPage({ me }: { me: Me }) {
   const imports = useImports()
   const changeSetup = useChangeSetup()
   const [path, setPath] = useState<'plan' | 'import' | null>(null)
+  // Decision 86: the answers to the two questions of "Ist verfolgen", only in the browser session
+  const [answers, setAnswersState] = useState<Answers>(readAnswers)
+  function setAnswers(next: Answers) {
+    setAnswersState(next)
+    writeAnswers(next)
+  }
   const [error, setError] = useState<string | null>(null)
 
   const stepFromHash = Number(hash.slice(ROUTES.setup.length + 1))
@@ -164,6 +237,9 @@ export function SetupPage({ me }: { me: Me }) {
   function complete(at: number): boolean {
     if (at === 0) {
       return existing || imported || path === 'plan'
+    }
+    if (at === 1) {
+      return answers.wish !== null && answers.time !== null
     }
     if (at === 2) {
       return (
@@ -225,14 +301,14 @@ export function SetupPage({ me }: { me: Me }) {
       case 0:
         return <StartStep existing={existing} imported={imported} importCount={imports.data?.length ?? 0} path={path} onPath={setPath} />
       case 1:
-        return <StageStep me={me} existing={existing} />
+        return <StageStep me={me} existing={existing} answers={answers} onAnswers={setAnswers} />
       case 2:
         return <AccountsStep me={me} accounts={accountLines} />
       case 3:
       case 4:
       case 5:
       case 6:
-        return <PlanStep step={step} plan={data} categories={categories.data} month={month} accounts={accountLines} />
+        return <PlanStep step={step} plan={data} categories={categories.data} month={month} accounts={accountLines} stage={me.istStage} />
       case 7:
         return <GoalsStep />
       default:
@@ -253,10 +329,12 @@ export function SetupPage({ me }: { me: Me }) {
         {STEPS.map((label, i) =>
           i !== step && i <= maxJump ? (
             <a key={label} className="done" href={`${ROUTES.setup}/${i}`} onClick={(e) => { e.preventDefault(); go(i) }}>
+              <span className="step-icon">{STEP_ICONS[i]}</span>
               {label}
             </a>
           ) : (
             <span key={label} className={i === step ? 'now' : i < step ? 'done' : undefined} aria-current={i === step ? 'step' : undefined}>
+              <span className="step-icon">{STEP_ICONS[i]}</span>
               {label}
             </span>
           ),
@@ -271,6 +349,7 @@ export function SetupPage({ me }: { me: Me }) {
         </p>
       )}
       <div className="setup-foot">
+        {step >= 3 && step <= 7 && <PlanFillBar plan={data} step={step} />}
         {step > 0 ? (
           <button type="button" onClick={() => go(step - 1)}>
             Zurück
@@ -309,7 +388,29 @@ function missingText(step: number, stage: IstStage): string {
   return 'Trag mindestens ein Budget ein, um weiterzumachen.'
 }
 
-function Lead({ title, info, children }: { title: string; info?: string; children?: ReactNode }) {
+/** Decision 88: with a step the lead is its icon and one line; the explanation folds behind "Mehr dazu". */
+function Lead({ title, step, info, children }: { title: string; step?: number; info?: string; children?: ReactNode }) {
+  if (step !== undefined) {
+    return (
+      <div className="setup-lead with-icon">
+        <span className="setup-step-icon" aria-hidden="true">
+          {STEP_ICONS[step]}
+        </span>
+        <div>
+          <h1>{STEP_LINES[step]}</h1>
+          {(info || children) && (
+            <details className="setup-more">
+              <summary>
+                <Icon name="info" size={16} /> Mehr dazu
+              </summary>
+              {info && <p>{info}</p>}
+              {children && <p className="tx-meta">{children}</p>}
+            </details>
+          )}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="setup-lead">
       <h1>{title}</h1>
@@ -390,45 +491,96 @@ function StartStep({
 }
 
 function SetupOutline() {
+  const rows: [number, string, string][] = [
+    [1, 'Ist verfolgen', 'Wie genau du später nachsehen willst, was du wirklich ausgibst'],
+    [2, 'Konten', 'Girokonto, Sparkonto, Depot …'],
+    [3, 'Einkommen', 'Was jeden Monat reinkommt, z. B. das Gehalt'],
+    [4, 'Fixkosten', 'Was regelmäßig abgeht, z. B. Miete, Strom, Versicherungen'],
+    [5, 'Variable Kosten (Budgets)', 'Wie viel du für variable Kosten einplanst, z. B. Lebensmittel'],
+    [6, 'Sparen', 'Regelmäßige Sparraten und, wenn du willst, Sparziele'],
+  ]
   return (
     <div className="card setup-outline">
       <h3>Das richten wir zusammen ein</h3>
       <dl>
-        <dt>Ist verfolgen</dt>
-        <dd>Wie genau du später nachsehen willst, was du wirklich ausgibst</dd>
-        <dt>Konten</dt>
-        <dd>Girokonto, Sparkonto, Depot …</dd>
-        <dt>Einkommen</dt>
-        <dd>Was jeden Monat reinkommt, z. B. das Gehalt</dd>
-        <dt>Fixkosten</dt>
-        <dd>Was regelmäßig abgeht, z. B. Miete, Strom, Versicherungen</dd>
-        <dt>Variable Kosten (Budgets)</dt>
-        <dd>Wie viel du für den Alltag einplanst, z. B. Lebensmittel</dd>
-        <dt>Sparen</dt>
-        <dd>Regelmäßige Sparraten und, wenn du willst, Sparziele</dd>
+        {rows.map(([step, title, text]) => (
+          <div key={title}>
+            <dt>
+              <span className="step-icon" aria-hidden="true">
+                {STEP_ICONS[step]}
+              </span>
+              {title}
+            </dt>
+            <dd>{text}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   )
 }
 
-function StageStep({ me, existing }: { me: Me; existing: boolean }) {
+function StageStep({
+  me,
+  existing,
+  answers,
+  onAnswers,
+}: {
+  me: Me
+  existing: boolean
+  answers: Answers
+  onAnswers: (answers: Answers) => void
+}) {
   const changeStage = useChangeStage()
   const [error, setError] = useState<string | null>(null)
+  const [asking, setAsking] = useState<IstStage | null>(null)
+  const recommended = answers.wish !== null && answers.time !== null ? recommendStage(answers.wish, answers.time) : null
+
+  // Decision 90: with items a switch from or to stage 1 asks first; without items the stage changes directly
+  function choose(stage: IstStage) {
+    setError(null)
+    if (stage === me.istStage) {
+      return
+    }
+    if (existing && needsSwitchDialog(me.istStage, stage)) {
+      setAsking(stage)
+      return
+    }
+    changeStage.mutate({ stage }, { onError: (e) => setError(errorText(e, 'Die Stufe konnte nicht gespeichert werden.')) })
+  }
+
+  // Decision 86: once both questions are answered the recommended stage is chosen (a switch that asks first waits)
+  function answer(next: Answers) {
+    onAnswers(next)
+    if (next.wish !== null && next.time !== null) {
+      const stage = recommendStage(next.wish, next.time)
+      if (!(existing && needsSwitchDialog(me.istStage, stage))) {
+        choose(stage)
+      }
+    }
+  }
+
   return (
     <>
-      <Lead title="Wie genau willst du verfolgen, was du ausgibst?" info="Davon hängt ab, was die App in den nächsten Schritten von dir braucht.">
-        Du kannst die Stufe jederzeit unter Einstellungen › Ist verfolgen ändern. Ein Wechsel ändert nur die Anzeige, nie deine
-        Daten.{existing ? ' Stufe 4 entspricht dem, wie du die App bisher genutzt hast.' : ''}
+      <Lead step={1} title="Wie genau willst du verfolgen, was du ausgibst?" info="Davon hängt ab, was die App in den nächsten Schritten von dir braucht.">
+        Der Plan sagt, wie viel du ausgeben willst; das Ist zeigt, wie viel du wirklich ausgegeben hast. Beantworte zwei
+        Fragen, dann empfehlen wir dir eine Stufe. Du kannst jede Stufe wählen und sie jederzeit unter Einstellungen › Ist
+        verfolgen ändern; deine Daten bleiben erhalten.{existing ? ' Stufe 4 entspricht dem, wie du die App bisher genutzt hast.' : ''}
       </Lead>
-      <StageChoice
-        value={me.istStage}
-        recommended={2}
-        disabled={changeStage.isPending}
-        onChange={(stage) => {
-          setError(null)
-          changeStage.mutate(stage, { onError: (e) => setError(errorText(e, 'Die Stufe konnte nicht gespeichert werden.')) })
-        }}
+      <StageQuestions
+        wish={answers.wish}
+        time={answers.time}
+        onWish={(wish) => answer({ ...answers, wish })}
+        onTime={(time) => answer({ ...answers, time })}
       />
+      {recommended === null ? (
+        <p className="tx-meta">Beantworte beide Fragen, dann zeigen wir dir die Stufen und unsere Empfehlung.</p>
+      ) : (
+        <>
+          <h2>Deine Stufe</h2>
+          <StageChoice value={me.istStage} recommended={recommended} disabled={changeStage.isPending} onChange={choose} />
+        </>
+      )}
+      {asking !== null && <StageSwitchDialog from={me.istStage} to={asking} onClose={() => setAsking(null)} />}
       {error && <p className="error">{error}</p>}
     </>
   )
@@ -444,8 +596,8 @@ function AccountsStep({ me, accounts }: { me: Me; accounts: AccountLine[] }) {
         : 'Der Kontostand ist freiwillig. Mit ihm zeigt die Seite Konten, ob die App und deine Bank denselben Stand haben.'
   return (
     <>
-      <Lead title="Welche Konten hast du?" info="Konten sind die Orte, an denen dein Geld liegt.">
-        Leg das Konto an, von dem du deinen Alltag bezahlst. Hast du ein Sparkonto, Tagesgeld oder Depot, leg es gleich mit an,
+      <Lead step={2} title="Welche Konten hast du?" info="Konten sind die Orte, an denen dein Geld liegt.">
+        Leg das Konto an, von dem du deine laufenden Ausgaben bezahlst. Hast du ein Sparkonto, Tagesgeld oder Depot, leg es gleich mit an,
         dann kannst du Sparraten darauf planen.
       </Lead>
       <p className="hint">{note}</p>
@@ -486,7 +638,7 @@ const PLAN_STEPS: Record<number, { group: PlanGroup; title: string; info: string
   },
   5: {
     group: 'BUDGET',
-    title: 'Wie viel für den Alltag?',
+    title: 'Wie viel für variable Kosten?',
     info: 'Geld für Ausgaben, die jeden Monat anders sind.',
     text: 'Variable Kosten sind Ausgaben, die jeden Monat anders sind, z. B. Lebensmittel. Je Kategorie planst du einen oder mehrere Posten, z. B. unter Lebensmittel „Wocheneinkauf“ und „Wochenmarkt“.',
   },
@@ -504,12 +656,14 @@ function PlanStep({
   categories,
   month,
   accounts,
+  stage,
 }: {
   step: number
   plan: Plan
   categories: Category[]
   month: string
   accounts: AccountLine[]
+  stage: IstStage
 }) {
   const { group, title, info, text } = PLAN_STEPS[step]
   const suggestions = usePlanSuggestions()
@@ -550,7 +704,7 @@ function PlanStep({
           day: typical.day,
           rhythm: typical.rhythm,
           accountId: target?.id,
-          entryMode: wizardEntry(group),
+          entryMode: wizardEntry(group, stage),
         },
       })
     } catch (e) {
@@ -614,7 +768,7 @@ function PlanStep({
 
   return (
     <>
-      <Lead title={title} info={info}>
+      <Lead step={step} title={title} info={info}>
         {text}
       </Lead>
       {group === 'SAVING' && plan.unplanned > 0 && (
@@ -648,7 +802,7 @@ function PlanStep({
         group={group}
         plan={plan}
         onEdit={(item) => setDialog({ item, group })}
-        onAdd={() => setDialog({ item: null, group, preset: { entryMode: wizardEntry(group) } })}
+        onAdd={() => setDialog({ item: null, group, preset: { entryMode: wizardEntry(group, stage) } })}
         suggestions={groupSuggestions}
         onTakeSuggestion={(s) =>
           setDialog({
@@ -661,7 +815,7 @@ function PlanStep({
               categoryId: s.categoryId ?? undefined,
               accountId: s.accountId ?? undefined,
               day: Number(s.anchorDate.slice(8, 10)),
-              entryMode: wizardEntry(group),
+              entryMode: wizardEntry(group, stage),
             },
           })
         }
@@ -707,28 +861,25 @@ function PlanStep({
             )}
           </div>
           {showTypical && (
-            <ul className="item-list">
+            <div className="setup-tiles">
               {typical.map((t) => (
-                <li key={t.name} className="suggestion-row">
-                  <span className="item-main">
-                    <span className="item-name">{t.name}</span>
-                    <span className="tx-meta">
-                      {t.rhythm ? RHYTHM_LABEL[t.rhythm] : group === 'BUDGET' ? 'ohne festen Termin' : `monatlich${t.day ? ` · am ${t.day}.` : ''}`}
-                      {t.category ? ` · ${t.category}` : ''}
-                    </span>
+                <button
+                  key={t.name}
+                  type="button"
+                  className="setup-tile"
+                  aria-label={`${t.name} hinzufügen`}
+                  onClick={() => void openTypical(t)}
+                  disabled={createCategory.isPending}
+                >
+                  <CategoryIcon icon={t.icon} />
+                  <strong>{t.name}</strong>
+                  <span className="tx-meta">
+                    z. B. {formatEuro(t.amount)}
+                    {t.rhythm ? ` ${RHYTHM_LABEL[t.rhythm]}` : ''}
                   </span>
-                  <span className="item-amount">
-                    <span className="tx-meta">z. B. </span>
-                    {formatEuro(t.amount)}
-                  </span>
-                  <span className="suggestion-actions">
-                    <button type="button" className="link-button" onClick={() => void openTypical(t)} disabled={createCategory.isPending}>
-                      Hinzufügen
-                    </button>
-                  </span>
-                </li>
+                </button>
               ))}
-            </ul>
+            </div>
           )}
         </section>
       )}
@@ -737,7 +888,6 @@ function PlanStep({
           {error}
         </p>
       )}
-      {step >= 4 && <SetupSum plan={plan} upto={step} />}
       {dialog && (
         <PlannedItemDialog
           categories={categories}
@@ -758,37 +908,58 @@ function PlanStep({
   )
 }
 
-/** The plan so far: Einkommen − Fixkosten − Budgets − Sparen, later steps "ausstehend" (US40). */
-function SetupSum({ plan, upto }: { plan: Plan; upto: number }) {
-  const pending = <span className="tx-meta">ausstehend</span>
-  const rest = upto === 4 ? plan.income - plan.fixed : upto === 5 ? plan.income - plan.fixed - plan.budgets : plan.unplanned
-  const label = rest < 0 ? 'Überplant' : upto === 4 ? 'Bleibt für variable Kosten und Sparen' : upto === 5 ? 'Bleibt fürs Sparen' : 'Nicht verplant'
+/**
+ * Decision 88: the income as a bar that fills step by step with fixed costs, variable costs and saving (the P4 sums of
+ * the plan); what is left is "Noch frei", steps still to come are "kommt noch".
+ */
+function PlanFillBar({ plan, step }: { plan: Plan; step: number }) {
+  const parts: { key: string; label: string; value: number; from: number }[] = [
+    { key: 'fixed', label: 'Fixkosten', value: plan.fixed, from: 4 },
+    { key: 'budget', label: 'Variable Kosten', value: plan.budgets, from: 5 },
+    { key: 'saving', label: 'Sparen', value: plan.saving, from: 6 },
+  ]
+  const shown = parts.filter((part) => step >= part.from)
+  const used = shown.reduce((sum, part) => sum + part.value, 0)
+  const rest = plan.income - used
+  const scale = Math.max(plan.income, used, 0.01)
   return (
-    <dl className="card setup-sum" aria-label="Dein Plan bisher">
-      <div>
-        <dt>Einkommen</dt>
-        <dd className="income">{formatEuro(plan.income)}</dd>
+    <div className="plan-fill" aria-label="Dein Einkommen im Plan">
+      <div className="plan-fill-bar" aria-hidden="true">
+        {shown
+          .filter((part) => part.value > 0)
+          .map((part) => (
+            <span key={part.key} className={`fill-${part.key}`} style={{ width: `${(part.value / scale) * 100}%` }} />
+          ))}
       </div>
-      <div>
-        <dt>− Fixkosten (Monatsanteile)</dt>
-        <dd>{formatEuro(plan.fixed)}</dd>
+      <div className="plan-fill-legend">
+        {parts.map((part) =>
+          step >= part.from ? (
+            <span key={part.key} className={step === part.from ? 'now' : undefined}>
+              <i className={`fill-${part.key}`} aria-hidden="true" />
+              {part.label} <strong>{formatEuro(part.value)}</strong>
+            </span>
+          ) : (
+            <span key={part.key} className="later">
+              {part.label} <span className="tx-meta">kommt noch</span>
+            </span>
+          ),
+        )}
+        {rest < 0 ? (
+          <span className="over">
+            <i className="fill-over" aria-hidden="true" />
+            <strong>Überplant {formatEuro(-rest)}</strong>
+          </span>
+        ) : (
+          <span>
+            <i className="fill-rest" aria-hidden="true" />
+            Noch frei <strong>{formatEuro(rest)}</strong>
+          </span>
+        )}
+        <span className="plan-fill-total">
+          Ganzer Balken = Einkommen <strong>{formatEuro(plan.income)}</strong>
+        </span>
       </div>
-      <div>
-        <dt>− Variable Kosten (Budgets)</dt>
-        <dd>{upto >= 5 ? formatEuro(plan.budgets) : pending}</dd>
-      </div>
-      <div>
-        <dt>
-          − Sparen
-          {upto >= 6 && plan.savingRate !== null && <span className="tx-meta"> (Sparquote {plan.savingRate.toLocaleString('de-DE')} %)</span>}
-        </dt>
-        <dd className="saving">{upto >= 6 ? formatEuro(plan.saving) : pending}</dd>
-      </div>
-      <div className={rest < 0 ? 'total over' : 'total'}>
-        <dt>{label}</dt>
-        <dd>{formatEuro(Math.abs(rest))}</dd>
-      </div>
-    </dl>
+    </div>
   )
 }
 
@@ -800,7 +971,7 @@ function GoalsStep() {
   const suggestions = GOAL_SUGGESTIONS.filter((s) => !list.some((g) => g.name.toLowerCase() === s.name.toLowerCase()))
   return (
     <>
-      <Lead title="Hast du Sparziele?" info="Wofür du sparst. Freiwillig.">
+      <Lead step={7} title="Hast du Sparziele?" info="Wofür du sparst. Freiwillig.">
         Ein Sparziel ist das, wofür du sparst, z. B. ein Notgroschen oder ein Urlaub. Sparziele sind freiwillig und unabhängig von
         deinen Sparraten. Bleibt am Ende eines Monats Geld übrig, kannst du es einem Sparziel zuordnen und siehst, wie weit du bist.
       </Lead>
@@ -861,46 +1032,43 @@ function GoalsStep() {
 
 function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts: AccountLine[]; goals: string[] }) {
   const stage = me.istStage
-  const bell = 'in deinen Benachrichtigungen (Glocke oben rechts)'
-  const rest = goals.length > 0 ? ' Bleibt etwas übrig, kannst du es dort einem Sparziel zuordnen.' : ''
-  const routine: [string, string][] = [
+  // Decision 88: the month as a timeline with three stations, half a sentence each
+  const routine: [ReactNode, string, string][] = [
     [
+      <svg key="start" {...ICON_SVG}>{ICONS.receipt.path}</svg>,
       'Am Monatsanfang',
-      stage === 1
-        ? 'Nichts. Die Übersicht zeigt den Plan des neuen Monats.'
-        : stage === 2
-          ? `Du trägst den Kontostand vom letzten Tag des Vormonats ein; eine Benachrichtigung dazu findest du ${bell}. Danach siehst du, was du variabel ausgegeben hast.${rest}`
-          : `Was im Vormonat übrig geblieben ist, findest du ${bell}.${rest}`,
+      stage === 1 ? 'Nichts zu tun.' : stage === 2 ? 'Kontostand eintragen, die Glocke erinnert dich.' : 'Rest des Vormonats ansehen.',
     ],
     [
+      <Icon key="month" name="repeat" size={18} />,
       'Im Monat',
       stage === 1
-        ? 'Nichts.'
+        ? 'Nichts zu tun.'
         : stage === 2
-          ? 'Nichts. Einkommen und Fixkosten trägt die App selbst ein. Deine Sparraten hakst du ab.'
+          ? 'Sparraten abhaken, sonst nichts.'
           : stage === 3
-            ? 'Ausgaben erfassen (Betrag und Text) oder ab und zu importieren. Fixkosten trägt die App selbst ein.'
-            : 'Ausgaben erfassen oder importieren und einer Kategorie zuordnen. „Alle Vorschläge übernehmen“ erledigt das meist mit einem Klick.',
+            ? 'Ausgaben erfassen oder importieren.'
+            : 'Ausgaben erfassen und zuordnen.',
     ],
-    ['Wenn sich etwas ändert', 'Planung öffnen und den Posten anpassen, z. B. eine neue Miete ab Januar.'],
+    [<Icon key="change" name="planning" size={18} />, 'Wenn sich etwas ändert', 'Posten in der Planung anpassen.'],
   ]
   const byGroup = (group: PlanGroup) => plan.items.filter((item) => item.group === group)
-  const info = STAGES[stage - 1]
   return (
     <>
       <Lead title="Fertig! So läuft dein Monat.">
         Du hast Stufe {stage} gewählt: {stageName(stage)}.
       </Lead>
-      <div className="card setup-routine">
-        <dl>
-          {routine.map(([when, what]) => (
-            <div key={when}>
-              <dt>{when}</dt>
-              <dd>{what}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      <ol className="card setup-timeline" aria-label="So läuft dein Monat">
+        {routine.map(([icon, when, what]) => (
+          <li key={when}>
+            <span className="station-icon" aria-hidden="true">
+              {icon}
+            </span>
+            <strong>{when}</strong>
+            <span>{what}</span>
+          </li>
+        ))}
+      </ol>
       <section className="card" aria-label="Dein Monat im Plan">
         <div className="plan-group-head">
           <h2>Dein Monat im Plan</h2>
@@ -918,12 +1086,10 @@ function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts:
         <DoneCard step={1} title="Ist verfolgen" wide>
           <p>
             <strong>
-              Stufe {stage}: {info.name}
+              Stufe {stage}: {stageName(stage)}
             </strong>
           </p>
-          <p className="tx-meta">
-            Aufwand: <strong>{info.effort}</strong> · Genauigkeit: <strong>{info.accuracy}</strong>
-          </p>
+          <p className="tx-meta">{CHECKS.slice(0, stage).map((check) => `✓ ${check}`).join(' · ')}</p>
         </DoneCard>
         <DoneCard step={2} title="Konten">
           <DoneList rows={accounts.map((a) => [a.name, a.statementDate ? formatEuro(a.balance) : 'kein Stand'])} empty="Kein Konto." />

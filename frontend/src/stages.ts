@@ -1,58 +1,42 @@
 import type { IstStage } from './api/types'
 import type { Page } from './router'
 
-/** R35: the four Ist stages as the setup wizard and the settings show them (display texts only). */
-export const STAGES: {
-  stage: IstStage
-  name: string
-  what: string
-  get: string[]
-  effort: string
-  effortNote: string
-  accuracy: string
-  accuracyNote: string
-}[] = [
-  {
-    stage: 1,
-    name: 'Nur Plan',
-    what: 'Du erfasst kein Ist.',
-    get: ['Plan je Monat', 'Was nicht verplant ist', 'Sparquote und Rücklagen'],
-    effort: 'Sehr gering',
-    effortNote: 'nach der Einrichtung nichts mehr',
-    accuracy: 'Keine',
-    accuracyNote: 'kein Ist, nur der Plan',
-  },
-  {
-    stage: 2,
-    name: 'Kontostand',
-    what: 'Einmal im Monat trägst du den Kontostand ein.',
-    get: ['Fixkosten trägt die App selbst ein', 'Variable Ausgaben gesamt aus der Differenz', 'Ergebnis je Monat'],
-    effort: 'Gering',
-    effortNote: 'etwa 2 Minuten im Monat',
-    accuracy: 'Gering',
-    accuracyNote: 'variable Ausgaben nur als Summe je Monat',
-  },
-  {
-    stage: 3,
-    name: 'Buchungen',
-    what: 'Du erfasst Ausgaben oder importierst sie, ohne Kategorie.',
-    get: ['Alles aus Stufe 2, jederzeit aktuell', 'Liste aller Ausgaben', 'Variabel gesamt gegen die Summe der Budgets'],
-    effort: 'Mittel',
-    effortNote: 'laufend erfassen oder importieren',
-    accuracy: 'Mittel',
-    accuracyNote: 'jede Ausgabe nachvollziehbar, aber nicht je Kategorie',
-  },
-  {
-    stage: 4,
-    name: 'Buchungen mit Kategorien',
-    what: 'Du ordnest jede Ausgabe einer Kategorie zu, die App schlägt vor.',
-    get: ['Jedes Budget einzeln: Soll und Ist', 'Auswertung je Kategorie', 'Ohne Kategorie bleibt sichtbar'],
-    effort: 'Hoch',
-    effortNote: 'laufend erfassen oder importieren und zuordnen',
-    accuracy: 'Hoch',
-    accuracyNote: 'jede Ausgabe je Kategorie, Soll und Ist je Budget',
-  },
+/** R35: the four Ist stages with their name (display texts only). */
+export const STAGES: { stage: IstStage; name: string }[] = [
+  { stage: 1, name: 'Nur Plan' },
+  { stage: 2, name: 'Kontostand' },
+  { stage: 3, name: 'Buchungen' },
+  { stage: 4, name: 'Buchungen mit Kategorien' },
 ]
+
+/** Decision 87: what the stages deliver; stage n has the first n checks. */
+export const CHECKS = [
+  'Aufteilung deines Einkommens',
+  'Summe der variablen Kosten, wenn du den Kontostand einträgst',
+  'Jede einzelne Ausgabe, jederzeit aktuell',
+  'Wofür genau: je Kategorie',
+] as const
+
+/** Decision 86: the answers to "Was willst du über dein Geld wissen?"; answer n wishes stage n. */
+export const WISHES: { text: string; note: string }[] = [
+  { text: 'Wie ich mein Einkommen aufteile', note: '' },
+  { text: '… und wie viel ich für variable Kosten ausgegeben habe', note: 'z. B. Lebensmittel, als Summe, immer wenn ich meinen Kontostand eintrage' },
+  { text: '… und jede einzelne Ausgabe', note: 'als Liste, jederzeit aktuell' },
+  { text: '… und wofür genau', note: 'jede Ausgabe in einer Kategorie' },
+]
+
+/** Decision 86: the answers to "Wie viel Zeit willst du investieren?"; answer n allows up to stage n. */
+export const TIMES = ['Gar keine', '5 Minuten im Monat', 'Ein paar Minuten pro Woche', 'Was nötig ist'] as const
+
+/** Decision 90: a switch from or to stage 1 changes how items are entered, so it asks first. */
+export function needsSwitchDialog(from: IstStage, to: IstStage): boolean {
+  return from !== to && (from === 1 || to === 1)
+}
+
+/** R35: the recommended stage is the smaller one of the wished stage and the stage the time allows (both 1 to 4). */
+export function recommendStage(wish: IstStage, time: IstStage): IstStage {
+  return Math.min(wish, time) as IstStage
+}
 
 export function stageName(stage: IstStage): string {
   return STAGES[stage - 1].name
