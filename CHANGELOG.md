@@ -13,7 +13,7 @@ Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
 - **Budget-Vorschläge:** Die Einrichtung schlägt Budgets aus dem Durchschnitt der letzten 6 Monate je Kategorie vor.
 - **Dein Monat im Plan:** Am Ende der Einrichtung zeigt ein Diagramm, wohin das Einkommen im Plan fließt.
 - **Übersicht je Stufe:** Stufe 1 zeigt nur den Plan des Monats, Stufe 2 nach einem Kontostand (an jedem Tag möglich), was seit dem Kontostand davor variabel ausgegeben wurde (oder „mehr als erwartet“), Stufe 3 alle Budgets zusammen, Stufe 4 wie bisher jedes Budget einzeln.
-- **Glocke fragt nach dem Kontostand:** In Stufe 2 erinnert die Glocke an den Kontostand vom letzten Tag des Vormonats.
+- **Glocke fragt nach dem Kontostand:** In Stufe 2 erinnert die Glocke an den Kontostand vom letzten Tag des Vormonats, sobald das Konto davor schon einen Kontostand hatte. Der erste Kontostand ist der Start; die Übersicht bittet dann um den nächsten am Monatsende und kennzeichnet einen angefangenen Monat als „Teilmonat“.
 - **Buchungen ohne Kategorie:** Im Buchungsdialog und im Import ist die Kategorie keine Pflicht mehr. Ausgaben ohne Kategorie stehen auf der Übersicht und in der Auswertung je Kategorie in einer eigenen Zeile „Ohne Kategorie“ und zählen zu keinem Budget. In Transaktionen lassen sie sich mit dem Kategorie-Filter „Ohne Kategorie“ finden. Unter Stufe 4 fragen Import und Buchungsdialog statt nach der Kategorie nur, ob eine Buchung zählt, eine Umbuchung oder Sparen ist.
 
 ### Änderungen

@@ -18,7 +18,7 @@ import {
   type MissingAuto,
 } from '../api/imports'
 import type { BankAccount, Category, IstStage } from '../api/types'
-import { addSetupImport } from '../setupImport'
+import { addSetupImport, isSetupOpen } from '../setupImport'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
@@ -185,7 +185,8 @@ function SuggestionsOnly({ preview, accounts }: { preview: ImportPreview; accoun
   const commit = useCommitImport()
   const [balances, setBalances] = useState(() => initialBalances(preview))
   const [error, setError] = useState<string | null>(null)
-  const mapped = initialAccounts(preview, accounts)
+  // Review 23.11.2026: the balance goes to an account the user picks, not always to a new one
+  const [mapped, setMapped] = useState(() => initialAccounts(preview, accounts))
   const taken = preview.sources.filter((source) => balances[source.key])
 
   async function done() {
@@ -221,12 +222,21 @@ function SuggestionsOnly({ preview, accounts }: { preview: ImportPreview; accoun
       {preview.sources
         .filter((source) => source.balanceAmount !== null)
         .map((source) => (
-          <BalanceChoice
-            key={source.key}
-            source={source}
-            checked={balances[source.key] ?? false}
-            onChange={(checked) => setBalances((current) => ({ ...current, [source.key]: checked }))}
-          />
+          <div key={source.key} className="import-sources">
+            <BalanceChoice
+              source={source}
+              checked={balances[source.key] ?? false}
+              onChange={(checked) => setBalances((current) => ({ ...current, [source.key]: checked }))}
+            />
+            {balances[source.key] && (
+              <SourceAccount
+                source={source}
+                accounts={accounts.filter((account) => !account.archived)}
+                value={mapped[source.key]}
+                onChange={(value) => setMapped((current) => ({ ...current, [source.key]: value }))}
+              />
+            )}
+          </div>
         ))}
       {error && (
         <p className="error" role="alert">
@@ -1540,7 +1550,7 @@ export function ImportPage() {
     try {
       const read = await upload.mutateAsync(file)
       // Decision 91: during the setup the file's suggestions are kept for the later steps
-      if (me.data && !me.data.setupDone) {
+      if ((me.data && !me.data.setupDone) || isSetupOpen()) {
         addSetupImport(read)
       }
       setPreview(read)
@@ -1592,8 +1602,8 @@ export function ImportPage() {
             Abbrechen
           </button>
         )}
-        {me.data && !me.data.setupDone ? (
-          <a className="button-link" href={ROUTES.setup}>
+        {(me.data && !me.data.setupDone) || isSetupOpen() ? (
+          <a className="button-link" href={`${ROUTES.setup}/2`}>
             Zurück zur Einrichtung
           </a>
         ) : (

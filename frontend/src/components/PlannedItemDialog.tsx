@@ -128,10 +128,8 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
   // Decision 89: stage 1 enters nothing (no field, stored "selbst anlegen"); stage 2 only enters automatically or on
   // ticking for an item with a term
   const stage = useMe().data?.istStage ?? 4
-  const mode: EntryMode = stage === 1 ? 'MANUAL' : stage === 2 && unit !== null && entryMode === 'MANUAL' ? 'TICK' : entryMode
-  const modes = ENTRY_MODES.filter(
-    (m) => (unit !== null || m.value !== 'AUTO') && !(stage === 2 && unit !== null && m.value === 'MANUAL'),
-  )
+  const mode: EntryMode = stage === 1 ? 'MANUAL' : entryMode
+  const modes = ENTRY_MODES.filter((m) => unit !== null || m.value !== 'AUTO')
   const rare = unit === 'MONTH' && rhythmCount !== null && rhythmCount > 1
 
   // 27f2: an automatic item enters its past terms from "Gilt ab" on; the dialog says how many before saving. Only
@@ -400,6 +398,10 @@ export function PlannedItemDialog({ categories, item, month, group, preset, onCl
                   </option>
                 ))}
               </select>
+              {/* Decision 89 (review 23.11.2026): stage 2 counts a missing payment as variable spending */}
+              {stage === 2 && unit !== null && mode === 'MANUAL' && (
+                <span className="field-note">Wird keine Zahlung selbst eingetragen, werden die variablen Kosten evtl. verfälscht.</span>
+              )}
             </label>
           )}
           <label className="field">

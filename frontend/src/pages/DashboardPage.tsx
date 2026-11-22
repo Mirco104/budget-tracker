@@ -514,10 +514,19 @@ function allBudgets(actual: number, target: number | null): Line {
 /** R36, US43: stage 2 shows the variable spending from the balance on the last day of the month. */
 function VariableFromBalance({ month, data, budgets }: { month: string; data: VariableData | undefined; budgets: number | null }) {
   if (!data || data.amount === null) {
+    // R36: the very first balance is the start; the balance at the end of the month shows the variable spending
+    if (data?.start) {
+      return (
+        <p className="hint">
+          Dein Kontostand vom {formatDate(data.start)} ist der Start. Trag am Monatsende den nächsten auf der Seite{' '}
+          <a href={ROUTES.accounts}>Konten</a> ein, dann siehst du, was du im {formatMonthName(month)} variabel ausgegeben hast.
+        </p>
+      )
+    }
     return (
       <p className="hint">
-        Trag einen Kontostand im {formatMonthName(month)} auf der Seite <a href={ROUTES.accounts}>Konten</a> ein, dann siehst du,
-        was du variabel ausgegeben hast. Fixkosten und Einkommen trägt die App selbst ein.
+        Trag am Monatsende den Kontostand auf der Seite <a href={ROUTES.accounts}>Konten</a> ein, dann siehst du, was du im{' '}
+        {formatMonthName(month)} variabel ausgegeben hast. Fixkosten und Einkommen trägt die App selbst ein.
       </p>
     )
   }
@@ -538,6 +547,8 @@ function VariableFromBalance({ month, data, budgets }: { month: string; data: Va
         </div>
         <ProgressBar value={budgets ? data.amount / budgets : 0} over={budgets !== null && data.amount > budgets} />
         <p className="tx-meta">
+          {/* Review 23.11.2026: a period that starts within the month is only part of it */}
+          {data.from && data.from.startsWith(month) && <strong>Teilmonat seit {formatDate(data.from)}: </strong>}
           {data.from ? `Seit dem Kontostand am ${formatDate(data.from)} bis zum ${formatDate(data.date as string)}` : `Bis zum Kontostand am ${formatDate(data.date as string)}`}
           , gegen die Summe deiner Budgets.
         </p>

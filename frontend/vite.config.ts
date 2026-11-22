@@ -41,5 +41,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Review 23.11.2026: App tests walk through several lazily loaded pages; with all test files in parallel the first
+    // load of a page took longer than the default 5 s of a test
+    testTimeout: 15000,
   },
 })

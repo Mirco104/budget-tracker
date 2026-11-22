@@ -88,6 +88,8 @@ export interface VariableFromBalance {
   /** R36: the balance before the first one in the month, null without one */
   from: string | null
   accounts: number
+  /** R36: the very first balance of an everyday account when it lies in the month (the start), else null */
+  start: string | null
 }
 
 export function useVariableFromBalance(month: string, enabled: boolean) {

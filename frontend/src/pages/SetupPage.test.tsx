@@ -176,6 +176,11 @@ describe('SetupPage', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'Stufe 4: Buchungen mit Kategorien' }))
     await waitFor(() => expect(calls(fetchMock, '/api/account/stage')).toEqual([{ stage: 3 }, { stage: 4 }]))
+
+    // Review 23.11.2026: a stage chosen by hand stays when an answer changes
+    fireEvent.click(screen.getByRole('radio', { name: 'Gar keine' }))
+    expect(screen.getByRole('radio', { name: 'Stufe 1: Nur Plan' })).toHaveTextContent('Für dich empfohlen')
+    expect(calls(fetchMock, '/api/account/stage')).toEqual([{ stage: 3 }, { stage: 4 }])
   })
 
   // Decision 90: with items a switch to stage 1 asks first and is not chosen by the recommendation alone
@@ -207,13 +212,15 @@ describe('SetupPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Gehalt')
     expect(within(dialog).getByLabelText('Eintragen')).toHaveValue('AUTO')
-    // Decision 89: stage 2 enters an item with a term automatically or on ticking only
-    await waitFor(() =>
-      expect(within(within(dialog).getByLabelText('Eintragen')).getAllByRole('option').map((o) => o.textContent)).toEqual([
-        'beim Abhaken',
-        'automatisch am Termin',
-      ]),
-    )
+    // Decision 89 (review 23.11.2026): stage 2 keeps all three ways, "selbst anlegen" with a hint
+    const entry = within(dialog).getByLabelText('Eintragen')
+    expect(within(entry).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'beim Abhaken',
+      'automatisch am Termin',
+      'selbst anlegen',
+    ])
+    fireEvent.change(entry, { target: { value: 'MANUAL' } })
+    expect(await within(dialog).findByText('Wird keine Zahlung selbst eingetragen, werden die variablen Kosten evtl. verfälscht.')).toBeInTheDocument()
   })
 
   // Decision 89: in stage 1 the item window has no field "Eintragen" and saves "selbst anlegen"
@@ -255,8 +262,13 @@ describe('SetupPage', () => {
     expect(screen.getByRole('list', { name: 'So läuft dein Monat' })).toHaveTextContent('Kontostand eintragen, die Glocke erinnert dich.')
     expect(screen.getByRole('region', { name: 'Fixkosten' })).toHaveTextContent('Miete')
     expect(screen.getByRole('link', { name: 'Fixkosten ändern' })).toHaveAttribute('href', '#/einrichtung/5')
+    window.sessionStorage.setItem('setup-import', '{}')
+    window.sessionStorage.setItem('setup-stage-answers', '{"wish":2,"time":2}')
     fireEvent.click(screen.getByRole('button', { name: 'Einrichtung abschließen' }))
     await waitFor(() => expect(calls(fetchMock, '/api/account/setup')).toEqual([{ done: true }]))
+    // Review 23.11.2026: a later setup starts without the file and the answers of this one
+    await waitFor(() => expect(window.sessionStorage.getItem('setup-import')).toBeNull())
+    expect(window.sessionStorage.getItem('setup-stage-answers')).toBeNull()
     await waitFor(() => expect(window.location.hash).toBe('#/uebersicht'))
   })
 

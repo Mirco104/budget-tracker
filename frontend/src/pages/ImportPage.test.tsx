@@ -1236,7 +1236,7 @@ describe('ImportPage per Ist stage', () => {
     // the row that fulfils a term and the two rows of the series
     expect(screen.getByRole('button', { name: '3 Buchungen übernehmen' })).toBeInTheDocument()
     // the setup keeps the suggestions of the file for its later steps
-    expect(JSON.parse(window.sessionStorage.getItem('setup-import') ?? 'null')).toMatchObject({ rows: 5, recurring: 2 })
+    expect(JSON.parse(window.sessionStorage.getItem('setup-import') ?? 'null')).toMatchObject({ rows: 4, recurring: 3 })
   })
 
   it('stores no booking in stage 1, only the balance of the file', async () => {

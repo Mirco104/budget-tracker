@@ -357,10 +357,24 @@ describe('DashboardPage per Ist stage', () => {
     expect(row).toHaveTextContent('Seit dem Kontostand am 31.10.2026 bis zum 15.11.2026, gegen die Summe deiner Budgets.')
   })
 
-  it('asks for a balance in stage 2 when the month has none', async () => {
+  it('asks for the balance at the end of the month in stage 2 when the month has none', async () => {
     renderStage(2)
 
-    expect(await screen.findByText(/Trag einen Kontostand im/)).toBeInTheDocument()
+    expect(await screen.findByText(/Trag am Monatsende den Kontostand/)).toBeInTheDocument()
+  })
+
+  // R36 (review 23.11.2026): the very first balance is the start; the overview asks for the one at the end of the month
+  it('calls the first balance the start in stage 2', async () => {
+    renderStage(2, { amount: null, moreThanExpected: false, date: null, from: null, accounts: 0, start: '2026-11-22' })
+
+    expect(await screen.findByText(/Dein Kontostand vom 22\.11\.2026 ist der Start\. Trag am Monatsende den nächsten/)).toBeInTheDocument()
+  })
+
+  // Review 23.11.2026: a period that starts within the month is marked as part of it
+  it('marks a period that starts within the month', async () => {
+    renderStage(2, { amount: 120, moreThanExpected: false, date: '2026-10-31', from: '2026-10-22', accounts: 1, start: '2026-10-22' })
+
+    expect(await screen.findByText('Teilmonat seit 22.10.2026:')).toBeInTheDocument()
   })
 
   it('shows all budgets together in stage 3', async () => {

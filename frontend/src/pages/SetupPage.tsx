@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useChangeSetup, useChangeStage } from '../api/account'
 import { useAccounts } from '../api/accounts'
 import { useCategories, useCreateCategory } from '../api/categories'
@@ -21,7 +21,7 @@ import { PlanSankey } from '../components/PlanSankey'
 import { currentMonth, formatEuro } from '../format'
 import { IMPORT_ROUTE, ROUTES, useHash } from '../router'
 import { CHECKS, needsSwitchDialog, recommendStage, stageName } from '../stages'
-import { readSetupImport, type SetupImport } from '../setupImport'
+import { clearSetupSession, markSetupOpen, readSetupImport, type SetupImport } from '../setupImport'
 import { AccountRow } from './AccountsPage'
 import { GroupSection } from './PlanningPage'
 
@@ -81,6 +81,8 @@ const FILE_KEY = 'file:'
 interface Answers {
   wish: IstStage | null
   time: IstStage | null
+  /** Review 23.11.2026: the user chose a stage by hand; a changed answer then does not choose for them */
+  manual?: boolean
 }
 
 function readAnswers(): Answers {
@@ -226,6 +228,9 @@ export function SetupPage({ me }: { me: Me }) {
   }
   const [error, setError] = useState<string | null>(null)
 
+  // Review 23.11.2026: the import page knows the wizard is open, also when the setup was done before
+  useEffect(() => markSetupOpen(), [])
+
   const stepFromHash = Number(hash.slice(ROUTES.setup.length + 1))
   const step = Number.isInteger(stepFromHash) && stepFromHash >= 0 && stepFromHash <= LAST ? stepFromHash : 0
   const [stored, setReached] = useState(readReached)
@@ -292,6 +297,7 @@ export function SetupPage({ me }: { me: Me }) {
     try {
       await changeSetup.mutateAsync(true)
       writeReached(0)
+      clearSetupSession([ANSWERS_KEY])
       openOverview()
     } catch (e) {
       setError(errorText(e, 'Die Einrichtung konnte nicht abgeschlossen werden.'))
@@ -630,6 +636,16 @@ function StageStep({
     if (stage === me.istStage) {
       return
     }
+    switchTo(stage)
+  }
+
+  // A stage chosen by hand stays, even when an answer changes later
+  function chooseByHand(stage: IstStage) {
+    onAnswers({ ...answers, manual: true })
+    choose(stage)
+  }
+
+  function switchTo(stage: IstStage) {
     if (existing && needsSwitchDialog(me.istStage, stage)) {
       setAsking(stage)
       return
@@ -640,7 +656,7 @@ function StageStep({
   // Decision 86: once both questions are answered the recommended stage is chosen (a switch that asks first waits)
   function answer(next: Answers) {
     onAnswers(next)
-    if (next.wish !== null && next.time !== null) {
+    if (next.wish !== null && next.time !== null && !next.manual) {
       const stage = recommendStage(next.wish, next.time)
       if (!(existing && needsSwitchDialog(me.istStage, stage))) {
         choose(stage)
@@ -666,7 +682,7 @@ function StageStep({
       ) : (
         <>
           <h2>Deine Stufe</h2>
-          <StageChoice value={me.istStage} recommended={recommended} disabled={changeStage.isPending} onChange={choose} />
+          <StageChoice value={me.istStage} recommended={recommended} disabled={changeStage.isPending} onChange={chooseByHand} />
         </>
       )}
       {asking !== null && <StageSwitchDialog from={me.istStage} to={asking} onClose={() => setAsking(null)} />}
