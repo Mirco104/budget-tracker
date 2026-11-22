@@ -1,3 +1,4 @@
+import type { BudgetSuggestion } from './types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 
@@ -12,6 +13,9 @@ export interface ImportSource {
   name: string
   accountId: number | null
   suggestedName: string
+  /** Decision 92: the balance the file delivers for the source, null without one */
+  balanceDate: string | null
+  balanceAmount: number | null
 }
 
 /**
@@ -108,12 +112,16 @@ export interface ImportPreview {
   sources: ImportSource[]
   entries: ImportEntry[]
   series: ImportSeries[]
-  /** R33: bank categories of C24 and the Sparkasse; empty for the other banks. */
+  /** Decision 91: budget suggestions (R38) from the expenses of the file that are no series, for the setup wizard */
+  budgetSuggestions: BudgetSuggestion[]
+  /** Decision 91: average and minimum income per month of the file (R23), null without income */
+  income: { average: number | null; minimum: number | null; months: number }
 }
 
 export interface ImportRequest {
   profile: ImportProfile
-  sources: { key: string; accountId?: number; newAccountName?: string }[]
+  /** Decision 92: balanceDate and balanceAmount take the balance of the file over for the account */
+  sources: { key: string; accountId?: number; newAccountName?: string; balanceDate?: string; balanceAmount?: number }[]
   rows: {
     fingerprint: string
     source: string

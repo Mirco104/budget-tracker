@@ -17,7 +17,8 @@ import {
   type ImportSource,
   type MissingAuto,
 } from '../api/imports'
-import type { BankAccount, Category } from '../api/types'
+import type { BankAccount, Category, IstStage } from '../api/types'
+import { addSetupImport } from '../setupImport'
 import { TransactionFilters } from '../components/TransactionFilters'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
@@ -29,7 +30,7 @@ import { SelectionBar } from '../components/SelectionBar'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
 import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, type Filters } from '../filters'
-import { currentMonth, formatDate, formatDateTime, formatIban, formatSigned } from '../format'
+import { currentMonth, formatDate, formatDateTime, formatEuro, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
 
@@ -145,16 +146,100 @@ function importable(entry: ImportEntry): boolean {
  * R30, US33, decision 46: no category is preset, not even a certain suggestion or a transfer; the suggestion is offered
  * next to the field. A possible duplicate is not imported unless the user ticks it.
  */
-function initialChoices(preview: ImportPreview): Record<string, Choice> {
+function initialChoices(preview: ImportPreview, stage: IstStage): Record<string, Choice> {
   const choices: Record<string, Choice> = {}
+  // Decision 91: stage 2 takes only rows of a recurring series (R31) or rows that fulfil a term (P5)
+  const recurring = new Set(preview.series.flatMap((s) => s.lines))
   for (const entry of preview.entries) {
     if (!importable(entry) || entry.fingerprint === null) {
       continue
     }
+    const wanted = stage !== 2 || recurring.has(entry.line) || entry.replaces !== null
     // R40: the bank category is only a suggestion; no row is preset
-    choices[entry.fingerprint] = { selected: entry.status === 'NEW', category: '' }
+    choices[entry.fingerprint] = { selected: entry.status === 'NEW' && wanted, category: '' }
   }
   return choices
+}
+
+/** Decision 92: per source with a balance in the file whether it is taken over (ticked at the start). */
+function initialBalances(preview: ImportPreview): Record<string, boolean> {
+  return Object.fromEntries(preview.sources.filter((s) => s.balanceAmount !== null).map((s) => [s.key, true]))
+}
+
+/** Decision 92: the checkbox that takes the balance of the file over for the account of a source. */
+function BalanceChoice({ source, checked, onChange }: { source: ImportSource; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="check-field">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      Kontostand aus der Datei übernehmen: {formatEuro(source.balanceAmount as number)} am{' '}
+      {formatDate(source.balanceDate as string)}
+    </label>
+  )
+}
+
+/**
+ * Decision 91: stage 1 stores no booking; the file only gives the suggestions of the setup wizard, and its balance
+ * (decision 92) can be taken over.
+ */
+function SuggestionsOnly({ preview, accounts }: { preview: ImportPreview; accounts: BankAccount[] }) {
+  const commit = useCommitImport()
+  const [balances, setBalances] = useState(() => initialBalances(preview))
+  const [error, setError] = useState<string | null>(null)
+  const mapped = initialAccounts(preview, accounts)
+  const taken = preview.sources.filter((source) => balances[source.key])
+
+  async function done() {
+    setError(null)
+    try {
+      if (taken.length > 0) {
+        await commit.mutateAsync({
+          profile: preview.profile,
+          sources: taken.map((source) => ({
+            ...(mapped[source.key] === NEW_ACCOUNT
+              ? { key: source.key, newAccountName: source.suggestedName }
+              : { key: source.key, accountId: Number(mapped[source.key]) }),
+            balanceDate: source.balanceDate as string,
+            balanceAmount: source.balanceAmount as number,
+          })),
+          rows: [],
+        })
+      }
+      window.location.hash = `${ROUTES.setup}/2`
+    } catch (e) {
+      setError(errorText(e, 'Der Kontostand konnte nicht gespeichert werden.'))
+    }
+  }
+
+  return (
+    <section className="card import-summary" aria-label="Datei">
+      <h2>{preview.profileLabel}</h2>
+      <p>
+        <strong>Keine Buchung wird gespeichert.</strong> In Stufe 1 liefert die Datei nur die Vorschläge für deinen Plan:{' '}
+        {preview.series.length === 1 ? '1 regelmäßige Zahlung' : `${preview.series.length} regelmäßige Zahlungen`} und{' '}
+        {preview.budgetSuggestions.length === 1 ? '1 Budget-Vorschlag' : `${preview.budgetSuggestions.length} Budget-Vorschläge`}.
+      </p>
+      {preview.sources
+        .filter((source) => source.balanceAmount !== null)
+        .map((source) => (
+          <BalanceChoice
+            key={source.key}
+            source={source}
+            checked={balances[source.key] ?? false}
+            onChange={(checked) => setBalances((current) => ({ ...current, [source.key]: checked }))}
+          />
+        ))}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div>
+        <button type="button" className="primary" onClick={() => void done()} disabled={commit.isPending}>
+          Für Vorschläge nutzen
+        </button>
+      </div>
+    </section>
+  )
 }
 
 function initialAccounts(preview: ImportPreview, accounts: BankAccount[]): Record<string, string> {
@@ -662,8 +747,10 @@ function Preview({
   onCancel: () => void
 }) {
   const withCategories = useShowsCategories()
+  const stage = useMe().data?.istStage ?? 4
   const commit = useCommitImport()
-  const [choices, setChoices] = useState(() => initialChoices(preview))
+  const [choices, setChoices] = useState(() => initialChoices(preview, stage))
+  const [balances, setBalances] = useState(() => initialBalances(preview))
   const [sourceAccounts, setSourceAccounts] = useState(() => initialAccounts(preview, accounts))
   const [view, setView] = useState<View>('all')
   // Ticket #84: the same filters as Transaktionen, by what the user chose for each row
@@ -995,9 +1082,14 @@ function Preview({
       profile: preview.profile,
       sources: preview.sources.map((source) => {
         const chosen = sourceAccounts[source.key]
+        // Decision 92: the balance of the file, when it is taken over
+        const balance =
+          balances[source.key] && source.balanceAmount !== null
+            ? { balanceDate: source.balanceDate as string, balanceAmount: source.balanceAmount }
+            : {}
         return chosen === NEW_ACCOUNT
-          ? { key: source.key, newAccountName: source.suggestedName }
-          : { key: source.key, accountId: Number(chosen) }
+          ? { key: source.key, newAccountName: source.suggestedName, ...balance }
+          : { key: source.key, accountId: Number(chosen), ...balance }
       }),
       rows: entries.map((entry) => {
         const choice = choices[entry.fingerprint as string]
@@ -1101,7 +1193,23 @@ function Preview({
                 onChange={(value) => setSourceAccounts((current) => ({ ...current, [source.key]: value }))}
               />
             ))}
+            {preview.sources
+              .filter((source) => source.balanceAmount !== null)
+              .map((source) => (
+                <BalanceChoice
+                  key={`balance-${source.key}`}
+                  source={source}
+                  checked={balances[source.key] ?? false}
+                  onChange={(checked) => setBalances((current) => ({ ...current, [source.key]: checked }))}
+                />
+              ))}
           </div>
+        )}
+        {stage === 2 && rows.length > 0 && (
+          <p className="hint">
+            <strong>In Stufe 2 übernimmt der Import nur regelmäßige Buchungen</strong>, die zu einer Serie gehören oder einen
+            Termin erfüllen. Die übrigen Ausgaben zählen über den Kontostand; sie sind nicht angehakt.
+          </p>
         )}
       </section>
 
@@ -1430,7 +1538,12 @@ export function ImportPage() {
     setPreview(null)
     setFile(file)
     try {
-      setPreview(await upload.mutateAsync(file))
+      const read = await upload.mutateAsync(file)
+      // Decision 91: during the setup the file's suggestions are kept for the later steps
+      if (me.data && !me.data.setupDone) {
+        addSetupImport(read)
+      }
+      setPreview(read)
     } catch (e) {
       setError(errorText(e, 'Die Datei konnte nicht gelesen werden.'))
     }
@@ -1552,7 +1665,8 @@ export function ImportPage() {
         </section>
       )}
 
-      {preview && ready && (
+      {preview && ready && me.data?.istStage === 1 && <SuggestionsOnly preview={preview} accounts={accounts.data} />}
+      {preview && ready && me.data?.istStage !== 1 && (
         <Preview
           key={preview.entries.map((entry) => entry.fingerprint ?? entry.line).join()}
           preview={preview}

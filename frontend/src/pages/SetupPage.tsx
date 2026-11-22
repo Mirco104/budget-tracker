@@ -6,7 +6,7 @@ import { errorText } from '../api/client'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { useImports } from '../api/imports'
 import { useDismissNotification } from '../api/notifications'
-import { useBudgetSuggestions, useCreatePlannedItem, usePlan, usePlanSuggestions, useUpdatePlannedItem } from '../api/plan'
+import { useBudgetSuggestions, useCreatePlannedItem, usePlan, usePlanSuggestions, useUpdatePlannedItem, type PlanSuggestion } from '../api/plan'
 import type { AccountLine, Category, EntryMode, IstStage, Me, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { AccountDialog } from '../components/AccountDialog'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
@@ -21,12 +21,14 @@ import { PlanSankey } from '../components/PlanSankey'
 import { currentMonth, formatEuro } from '../format'
 import { IMPORT_ROUTE, ROUTES, useHash } from '../router'
 import { CHECKS, needsSwitchDialog, recommendStage, stageName } from '../stages'
+import { readSetupImport, type SetupImport } from '../setupImport'
 import { AccountRow } from './AccountsPage'
 import { GroupSection } from './PlanningPage'
 
 const STEPS = [
   'Start',
   'Ist verfolgen',
+  'Import',
   'Konten',
   'Einkommen',
   'Fixkosten',
@@ -53,6 +55,7 @@ const ICON_SVG = {
 const STEP_ICONS: ReactNode[] = [
   <Icon key="0" name="flag" size={18} />,
   <Icon key="1" name="search" size={18} />,
+  <Icon key="import" name="upload" size={18} />,
   <svg key="2" {...ICON_SVG}>{ICONS.landmark.path}</svg>,
   <svg key="3" {...ICON_SVG}>{ICONS.briefcase.path}</svg>,
   <svg key="4" {...ICON_SVG}>{ICONS.receipt.path}</svg>,
@@ -63,14 +66,17 @@ const STEP_ICONS: ReactNode[] = [
 ]
 const STEP_LINES: Record<number, string> = {
   1: 'Wie genau willst du sehen, was du ausgibst?',
-  2: 'Wo liegt dein Geld?',
-  3: 'Was kommt jeden Monat rein?',
-  4: 'Was geht jeden Monat fest ab?',
-  5: 'Wie viel willst du für variable Kosten ausgeben?',
-  6: 'Wie viel legst du regelmäßig zur Seite?',
-  7: 'Wofür sparst du? Freiwillig.',
+  2: 'Kontoauszug (CSV) importieren?',
+  3: 'Wo liegt dein Geld?',
+  4: 'Was kommt jeden Monat rein?',
+  5: 'Was geht jeden Monat fest ab?',
+  6: 'Wie viel willst du für variable Kosten ausgeben?',
+  7: 'Wie viel legst du regelmäßig zur Seite?',
+  8: 'Wofür sparst du? Freiwillig.',
 }
 const ANSWERS_KEY = 'setup-stage-answers'
+// Decision 91: the key prefix of a suggestion from a file read in the setup
+const FILE_KEY = 'file:'
 
 interface Answers {
   wish: IstStage | null
@@ -233,27 +239,30 @@ export function SetupPage({ me }: { me: Me }) {
   const data = plan.data
   const existing = (data?.items.length ?? 0) > 0
   const imported = (imports.data?.length ?? 0) > 0
+  // Decision 91: the suggestions of a file read in this setup (also in stage 1, where nothing is stored)
+  const fromFile = readSetupImport()
 
   function complete(at: number): boolean {
-    if (at === 0) {
-      return existing || imported || path === 'plan'
-    }
     if (at === 1) {
       return answers.wish !== null && answers.time !== null
     }
+    // Decision 91: the way comes after the stage
     if (at === 2) {
+      return existing || imported || fromFile !== null || path === 'plan'
+    }
+    if (at === 3) {
       return (
         accountLines.length > 0 &&
         (me.istStage !== 2 || accountLines.filter((a) => a.role === 'EVERYDAY').every((a) => a.statementDate !== null))
       )
     }
-    if (at === 3) {
+    if (at === 4) {
       return (data?.income ?? 0) > 0
     }
-    if (at === 4) {
+    if (at === 5) {
       return (data?.items ?? []).some((item) => item.group === 'FIXED')
     }
-    if (at === 5) {
+    if (at === 6) {
       return (data?.items ?? []).some((item) => item.group === 'BUDGET')
     }
     return true
@@ -299,17 +308,30 @@ export function SetupPage({ me }: { me: Me }) {
   const body = (() => {
     switch (step) {
       case 0:
-        return <StartStep existing={existing} imported={imported} importCount={imports.data?.length ?? 0} path={path} onPath={setPath} />
+        return <StartStep existing={existing} />
       case 1:
         return <StageStep me={me} existing={existing} answers={answers} onAnswers={setAnswers} />
       case 2:
-        return <AccountsStep me={me} accounts={accountLines} />
+        return (
+          <ImportStep
+            stage={me.istStage}
+            existing={existing}
+            imported={imported || fromFile !== null}
+            summary={fromFile}
+            path={path}
+            onPath={setPath}
+          />
+        )
       case 3:
+        return <AccountsStep me={me} accounts={accountLines} />
       case 4:
       case 5:
       case 6:
-        return <PlanStep step={step} plan={data} categories={categories.data} month={month} accounts={accountLines} stage={me.istStage} />
       case 7:
+        return (
+          <PlanStep step={step} plan={data} categories={categories.data} month={month} accounts={accountLines} stage={me.istStage} fromFile={fromFile} />
+        )
+      case 8:
         return <GoalsStep />
       default:
         return (
@@ -349,7 +371,7 @@ export function SetupPage({ me }: { me: Me }) {
         </p>
       )}
       <div className="setup-foot">
-        {step >= 3 && step <= 7 && <PlanFillBar plan={data} step={step} />}
+        {step >= 4 && step <= 8 && <PlanFillBar plan={data} step={step} />}
         {step > 0 ? (
           <button type="button" onClick={() => go(step - 1)}>
             Zurück
@@ -375,14 +397,17 @@ export function SetupPage({ me }: { me: Me }) {
 
 function missingText(step: number, stage: IstStage): string {
   if (step === 2) {
+    return 'Wähle, ob ein Kontoauszug deinen Plan vorschlagen soll, um weiterzumachen.'
+  }
+  if (step === 3) {
     return stage === 2
       ? 'Trag für jedes Alltagskonto den Kontostand ein, um weiterzumachen.'
       : 'Leg mindestens ein Konto an, um weiterzumachen.'
   }
-  if (step === 3) {
+  if (step === 4) {
     return 'Trag mindestens ein Einkommen über 0 € ein, um weiterzumachen.'
   }
-  if (step === 4) {
+  if (step === 5) {
     return 'Trag mindestens eine Fixkosten-Zahlung ein, um weiterzumachen.'
   }
   return 'Trag mindestens ein Budget ein, um weiterzumachen.'
@@ -420,19 +445,7 @@ function Lead({ title, step, info, children }: { title: string; step?: number; i
   )
 }
 
-function StartStep({
-  existing,
-  imported,
-  importCount,
-  path,
-  onPath,
-}: {
-  existing: boolean
-  imported: boolean
-  importCount: number
-  path: 'plan' | 'import' | null
-  onPath: (path: 'plan' | 'import') => void
-}) {
+function StartStep({ existing }: { existing: boolean }) {
   if (existing) {
     return (
       <>
@@ -450,9 +463,57 @@ function StartStep({
         Du planst einmal einen normalen Monat. Das dauert etwa 10 Minuten, und du kannst später alles ändern.
       </Lead>
       <SetupOutline />
-      <h2>Womit fängst du an?</h2>
+    </>
+  )
+}
+
+// Decision 91: what the import keeps per stage (display texts)
+const IMPORT_TAKES: [string, string, string, string][] = [
+  ['Nur Plan', 'keine, die Datei liefert nur Vorschläge für den Plan', '–', 'aus der Datei, wenn die Bank ihn liefert'],
+  ['Kontostand', 'nur die regelmäßigen (Einkommen, Fixkosten, Sparraten)', 'vom Posten', 'aus der Datei oder im Schritt Konten'],
+  ['Buchungen', 'alle', 'keine, nur „Zählt als“', 'aus der Datei oder im Schritt Konten'],
+  ['Buchungen mit Kategorien', 'alle', 'Vorschlag je Zeile', 'aus der Datei oder im Schritt Konten'],
+]
+
+/**
+ * Decision 91: the way after the stage: a bank file suggests the plan, or the user enters it. After an import the
+ * step says what the stage keeps of it.
+ */
+function ImportStep({
+  stage,
+  existing,
+  imported,
+  summary,
+  path,
+  onPath,
+}: {
+  stage: IstStage
+  existing: boolean
+  imported: boolean
+  summary: SetupImport | null
+  path: 'plan' | 'import' | null
+  onPath: (path: 'plan' | 'import') => void
+}) {
+  const fileWay = path === 'import' || imported
+  const sentence =
+    summary === null
+      ? null
+      : stage === 1
+        ? 'Keine Buchung wurde gespeichert. Aus der Datei kommen nur die Vorschläge in den nächsten Schritten.'
+        : stage === 2
+          ? `Nur die regelmäßigen Buchungen werden übernommen (${summary.recurring} von ${summary.rows}). Die übrigen Ausgaben zählen in Stufe 2 über den Kontostand.`
+          : stage === 3
+            ? `Alle ${summary.rows} Buchungen werden übernommen, ohne Kategorie.`
+            : `Alle ${summary.rows} Buchungen werden übernommen, jede mit einem Kategorie-Vorschlag.`
+  return (
+    <>
+      <Lead step={2} title="Kontoauszug (CSV) importieren?" info="Mit Kontoauszug schlägt die App deinen Plan vor, ohne trägst du ihn selbst ein.">
+        Mit einem Kontoauszug schlägt die App Einkommen, Fixkosten und variable Kosten vor. Was sie dabei als Buchung
+        speichert, hängt von deiner Stufe ab (Stufe {stage}: {stageName(stage)}).
+        {existing ? ' Deine bisherige Planung bleibt; ein Import ergänzt nur Vorschläge.' : ''}
+      </Lead>
       <div className="setup-choices">
-        <button type="button" className={path === 'import' || imported ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('import')}>
+        <button type="button" className={fileWay ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('import')}>
           <span className="badge planned">Empfohlen</span>
           <strong>Plan aus Kontoauszügen vorschlagen</strong>
           <span className="tx-meta">
@@ -460,31 +521,58 @@ function StartStep({
             Fixkosten und Budgets vor, du prüfst jeden Vorschlag.
           </span>
         </button>
-        <button type="button" className={path === 'plan' ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('plan')}>
+        <button type="button" className={path === 'plan' && !imported ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('plan')}>
           <span className="badge">Ohne Kontoauszug</span>
           <strong>Plan selbst eintragen</strong>
           <span className="tx-meta">Du trägst deine Beträge selbst ein. Wir geben typische Posten vor.</span>
         </button>
       </div>
-      {(path === 'import' || imported) && (
-        <div className="card">
-          {imported ? (
-            <p>
-              <strong>Kontoauszug gelesen</strong> ({importCount === 1 ? '1 Import' : `${importCount} Importe`}). Die Buchungen
-              bleiben gespeichert, die Vorschläge siehst du in den nächsten Schritten.
-            </p>
-          ) : (
+      {fileWay && (
+        <section className="card setup-import" aria-label="Kontoauszug">
+          {summary === null ? (
             <p className="tx-meta">
               Mindestens 3 Monate, besser 6 bis 12. C24, Sparkasse, Deutsche Bank, VR-Bank, N26, Trade Republic; mehrere
               Dateien und Konten sind möglich. Nach dem Import kommst du hierher zurück.
             </p>
+          ) : (
+            <p>
+              <strong>Kontoauszug gelesen.</strong> {sentence}
+            </p>
           )}
+          <div className="table-wrap">
+            <table className="setup-takes">
+              <thead>
+                <tr>
+                  <th>Stufe</th>
+                  <th>Buchungen</th>
+                  <th>Kategorie</th>
+                  <th>Kontostand</th>
+                </tr>
+              </thead>
+              <tbody>
+                {IMPORT_TAKES.map(([name, bookings, category, balance], i) => (
+                  <tr key={name} className={i + 1 === stage ? 'on' : undefined}>
+                    <td>
+                      <strong>{i + 1}</strong> {name}
+                      {i + 1 === stage && <span className="badge planned">deine Stufe</span>}
+                    </td>
+                    <td>{bookings}</td>
+                    <td>{category}</td>
+                    <td>{balance}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="tx-meta">
+            Wechselst du später auf eine höhere Stufe, importierst du die Datei noch einmal. Doppelte Buchungen erkennt die App.
+          </p>
           <div>
             <a className="button-link" href={IMPORT_ROUTE}>
-              {imported ? 'Weitere Datei importieren' : 'Kontoauszug importieren'}
+              {summary === null ? 'Kontoauszug importieren' : 'Weitere Datei importieren'}
             </a>
           </div>
-        </div>
+        </section>
       )}
     </>
   )
@@ -493,11 +581,12 @@ function StartStep({
 function SetupOutline() {
   const rows: [number, string, string][] = [
     [1, 'Ist verfolgen', 'Wie genau du später nachsehen willst, was du wirklich ausgibst'],
-    [2, 'Konten', 'Girokonto, Sparkonto, Depot …'],
-    [3, 'Einkommen', 'Was jeden Monat reinkommt, z. B. das Gehalt'],
-    [4, 'Fixkosten', 'Was regelmäßig abgeht, z. B. Miete, Strom, Versicherungen'],
-    [5, 'Variable Kosten (Budgets)', 'Wie viel du für variable Kosten einplanst, z. B. Lebensmittel'],
-    [6, 'Sparen', 'Regelmäßige Sparraten und, wenn du willst, Sparziele'],
+    [2, 'Import', 'Ein Kontoauszug als CSV-Datei schlägt deinen Plan vor, oder du trägst ihn selbst ein'],
+    [3, 'Konten', 'Girokonto, Sparkonto, Depot …'],
+    [4, 'Einkommen', 'Was jeden Monat reinkommt, z. B. das Gehalt'],
+    [5, 'Fixkosten', 'Was regelmäßig abgeht, z. B. Miete, Strom, Versicherungen'],
+    [6, 'Variable Kosten (Budgets)', 'Wie viel du für variable Kosten einplanst, z. B. Lebensmittel'],
+    [7, 'Sparen', 'Regelmäßige Sparraten und, wenn du willst, Sparziele'],
   ]
   return (
     <div className="card setup-outline">
@@ -596,7 +685,7 @@ function AccountsStep({ me, accounts }: { me: Me; accounts: AccountLine[] }) {
         : 'Der Kontostand ist freiwillig. Mit ihm zeigt die Seite Konten, ob die App und deine Bank denselben Stand haben.'
   return (
     <>
-      <Lead step={2} title="Welche Konten hast du?" info="Konten sind die Orte, an denen dein Geld liegt.">
+      <Lead step={3} title="Welche Konten hast du?" info="Konten sind die Orte, an denen dein Geld liegt.">
         Leg das Konto an, von dem du deine laufenden Ausgaben bezahlst. Hast du ein Sparkonto, Tagesgeld oder Depot, leg es gleich mit an,
         dann kannst du Sparraten darauf planen.
       </Lead>
@@ -624,25 +713,25 @@ function AccountsStep({ me, accounts }: { me: Me; accounts: AccountLine[] }) {
 }
 
 const PLAN_STEPS: Record<number, { group: PlanGroup; title: string; info: string; text: string }> = {
-  3: {
+  4: {
     group: 'INCOME',
     title: 'Was kommt rein?',
     info: 'Das Geld, das jeden Monat reinkommt.',
     text: 'Dein Einkommen in einem normalen Monat. Klick auf einen Posten, um ihn zu ändern.',
   },
-  4: {
+  5: {
     group: 'FIXED',
     title: 'Was geht fest ab?',
     info: 'Zahlungen, die regelmäßig in gleicher Höhe abgehen.',
     text: 'Seltene Zahlungen trägst du mit ihrem echten Betrag ein (z. B. 60 € jährlich); die App rechnet aus, wie viel das im Monat ist, und legt eine Rücklage an. Die App trägt Fixkosten an ihrem Tag selbst ein; kommt später ein Import, ersetzt die echte Buchung den Eintrag.',
   },
-  5: {
+  6: {
     group: 'BUDGET',
     title: 'Wie viel für variable Kosten?',
     info: 'Geld für Ausgaben, die jeden Monat anders sind.',
     text: 'Variable Kosten sind Ausgaben, die jeden Monat anders sind, z. B. Lebensmittel. Je Kategorie planst du einen oder mehrere Posten, z. B. unter Lebensmittel „Wocheneinkauf“ und „Wochenmarkt“.',
   },
-  6: {
+  7: {
     group: 'SAVING',
     title: 'Sparst du regelmäßig?',
     info: 'Geld, das du regelmäßig auf ein Spar- oder Depotkonto überweist.',
@@ -657,6 +746,7 @@ function PlanStep({
   month,
   accounts,
   stage,
+  fromFile,
 }: {
   step: number
   plan: Plan
@@ -664,6 +754,8 @@ function PlanStep({
   month: string
   accounts: AccountLine[]
   stage: IstStage
+  /** Decision 91: the suggestions of a file read in this setup; they replace those of the stored bookings */
+  fromFile: SetupImport | null
 }) {
   const { group, title, info, text } = PLAN_STEPS[step]
   const suggestions = usePlanSuggestions()
@@ -675,6 +767,8 @@ function PlanStep({
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [typicalOpen, setTypicalOpen] = useState<boolean | null>(null)
+  // Decision 91: suggestions of the file hidden in this session (they are not stored, so hiding stays local)
+  const [hiddenFile, setHiddenFile] = useState<string[]>([])
   const active = categories.filter((c) => !c.archived)
 
   // A category by name; created when missing (e.g. "Sonstiges" or a bank category taken over)
@@ -760,8 +854,31 @@ function PlanStep({
 
   const names = new Set(plan.items.map((item) => item.name.trim().toLowerCase()))
   const typical = TYPICAL[group].filter((t) => !names.has(t.name.toLowerCase()))
-  const groupSuggestions = (suggestions.data ?? []).filter((s) => s.group === group)
-  const hasSuggestions = groupSuggestions.length > 0 || (group === 'BUDGET' && (budgetSuggestions.data?.length ?? 0) > 0)
+  // Decision 91: in the setup a file's series (R31) are the suggestions; a series of saving belongs to no group here
+  const fileSuggestions: PlanSuggestion[] =
+    fromFile === null
+      ? []
+      : fromFile.series
+          .filter((s) => !s.saving)
+          .map((s) => ({
+            key: `${FILE_KEY}${s.source}|${s.description}|${s.amount}`,
+            name: s.description,
+            amount: s.amount,
+            categoryId: s.categoryId,
+            categoryName: categories.find((c) => c.id === s.categoryId)?.path ?? null,
+            accountId: null,
+            anchorDate: s.startDate,
+            months: s.lines.length,
+            group: s.amount > 0 ? ('INCOME' as const) : ('FIXED' as const),
+          }))
+          .filter((s) => !hiddenFile.includes(s.key) && !names.has(s.name.trim().toLowerCase()))
+  const groupSuggestions = (fromFile === null ? (suggestions.data ?? []) : fileSuggestions).filter((s) => s.group === group)
+  const budgetedCategories = new Set(plan.items.filter((item) => item.group === 'BUDGET').map((item) => item.planCategoryId))
+  const budgetList =
+    fromFile === null
+      ? (budgetSuggestions.data ?? [])
+      : fromFile.budgetSuggestions.filter((b) => b.categoryId === null || !budgetedCategories.has(b.categoryId))
+  const hasSuggestions = groupSuggestions.length > 0 || (group === 'BUDGET' && budgetList.length > 0)
   // With suggestions from the bookings the typical items stay folded until asked for
   const showTypical = typicalOpen ?? !hasSuggestions
   const iconOf = (id: number) => categories.find((c) => c.id === id)?.icon ?? 'tag'
@@ -819,18 +936,32 @@ function PlanStep({
             },
           })
         }
-        onHideSuggestion={(s) => dismiss.mutate(s.key)}
+        onHideSuggestion={(s) => (s.key.startsWith(FILE_KEY) ? setHiddenFile((keys) => [...keys, s.key]) : dismiss.mutate(s.key))}
         iconOf={iconOf}
       />
-      {group === 'INCOME' && plan.averageIncome !== null && (
+      {group === 'INCOME' && (plan.averageIncome !== null || (fromFile?.income.average ?? null) !== null) && (
         <p className="hint">Schwankt ein Einkommen, plane im Zweifel mit dem kleineren Betrag. Dann bleibt am Monatsende eher etwas übrig, als dass etwas fehlt.</p>
       )}
-      {group === 'BUDGET' && (budgetSuggestions.data?.length ?? 0) > 0 && (
+      {group === 'INCOME' && fromFile !== null && fromFile.income.average !== null && (
+        <div className="income-stats" aria-label="Einkommen im Kontoauszug">
+          <div className="income-stat">
+            <span className="income-stat-label">Durchschnitt</span>
+            <span className="income-stat-value">{formatEuro(fromFile.income.average)}</span>
+            <span className="tx-meta">pro Monat, {fromFile.income.months === 1 ? '1 Monat' : `${fromFile.income.months} Monate`}</span>
+          </div>
+          <div className="income-stat">
+            <span className="income-stat-label">Mindestens</span>
+            <span className="income-stat-value">{formatEuro(fromFile.income.minimum ?? 0)}</span>
+            <span className="tx-meta">im schwächsten Monat</span>
+          </div>
+        </div>
+      )}
+      {group === 'BUDGET' && budgetList.length > 0 && (
         <section className="card plan-suggestions setup-suggestions" aria-label="Vorschläge aus deinen Buchungen">
           <h3>Vorschläge aus deinen Buchungen</h3>
           <p className="tx-meta">Dein Durchschnitt je Kategorie in den letzten Monaten. Was du übernimmst, wird ein Budget dieser Kategorie.</p>
           <ul className="item-list">
-            {(budgetSuggestions.data ?? []).map((s) => (
+            {budgetList.map((s) => (
               <li key={`${s.categoryId ?? ''}|${s.bankCategory ?? ''}`} className="suggestion-row">
                 <span className="item-main">
                   <span className="item-name">{s.name}</span>
@@ -897,7 +1028,7 @@ function PlanStep({
           preset={dialog.preset}
           onClose={() => setDialog(null)}
           onDone={() => {
-            if (dialog.suggestionKey) {
+            if (dialog.suggestionKey && !dialog.suggestionKey.startsWith(FILE_KEY)) {
               dismiss.mutate(dialog.suggestionKey)
             }
             setDialog(null)
@@ -914,9 +1045,9 @@ function PlanStep({
  */
 function PlanFillBar({ plan, step }: { plan: Plan; step: number }) {
   const parts: { key: string; label: string; value: number; from: number }[] = [
-    { key: 'fixed', label: 'Fixkosten', value: plan.fixed, from: 4 },
-    { key: 'budget', label: 'Variable Kosten', value: plan.budgets, from: 5 },
-    { key: 'saving', label: 'Sparen', value: plan.saving, from: 6 },
+    { key: 'fixed', label: 'Fixkosten', value: plan.fixed, from: 5 },
+    { key: 'budget', label: 'Variable Kosten', value: plan.budgets, from: 6 },
+    { key: 'saving', label: 'Sparen', value: plan.saving, from: 7 },
   ]
   const shown = parts.filter((part) => step >= part.from)
   const used = shown.reduce((sum, part) => sum + part.value, 0)
@@ -971,7 +1102,7 @@ function GoalsStep() {
   const suggestions = GOAL_SUGGESTIONS.filter((s) => !list.some((g) => g.name.toLowerCase() === s.name.toLowerCase()))
   return (
     <>
-      <Lead step={7} title="Hast du Sparziele?" info="Wofür du sparst. Freiwillig.">
+      <Lead step={8} title="Hast du Sparziele?" info="Wofür du sparst. Freiwillig.">
         Ein Sparziel ist das, wofür du sparst, z. B. ein Notgroschen oder ein Urlaub. Sparziele sind freiwillig und unabhängig von
         deinen Sparraten. Bleibt am Ende eines Monats Geld übrig, kannst du es einem Sparziel zuordnen und siehst, wie weit du bist.
       </Lead>
@@ -1091,29 +1222,29 @@ function DoneStep({ me, plan, accounts, goals }: { me: Me; plan: Plan; accounts:
           </p>
           <p className="tx-meta">{CHECKS.slice(0, stage).map((check) => `✓ ${check}`).join(' · ')}</p>
         </DoneCard>
-        <DoneCard step={2} title="Konten">
+        <DoneCard step={3} title="Konten">
           <DoneList rows={accounts.map((a) => [a.name, a.statementDate ? formatEuro(a.balance) : 'kein Stand'])} empty="Kein Konto." />
         </DoneCard>
-        <DoneCard step={3} title="Einkommen">
+        <DoneCard step={4} title="Einkommen">
           <DoneList rows={byGroup('INCOME').map((i) => [i.name, formatEuro(i.monthlyShare)])} empty="Kein Einkommen." />
         </DoneCard>
-        <DoneCard step={4} title="Fixkosten">
+        <DoneCard step={5} title="Fixkosten">
           <p className="tx-meta">
             {byGroup('FIXED').length} Posten, {formatEuro(plan.fixed)} im Monat
           </p>
           <DoneList rows={byGroup('FIXED').map((i) => [i.name, formatEuro(i.monthlyShare)])} empty="Keine Fixkosten." />
         </DoneCard>
-        <DoneCard step={5} title="Variable Kosten (Budgets)">
+        <DoneCard step={6} title="Variable Kosten (Budgets)">
           <p className="tx-meta">{formatEuro(plan.budgets)} im Monat</p>
           <DoneList
             rows={plan.categories.filter((c) => c.group === 'BUDGET').map((c) => [c.categoryName, formatEuro(c.total)])}
             empty="Keine Budgets."
           />
         </DoneCard>
-        <DoneCard step={6} title="Sparen">
+        <DoneCard step={7} title="Sparen">
           <DoneList rows={byGroup('SAVING').map((i) => [i.name, formatEuro(i.monthlyShare)])} empty="Keine Sparrate geplant." />
         </DoneCard>
-        <DoneCard step={7} title="Sparziele">
+        <DoneCard step={8} title="Sparziele">
           <DoneList rows={goals.map((g) => [g, ''])} empty="Keine Sparziele. Du kannst jederzeit welche anlegen." />
         </DoneCard>
       </div>

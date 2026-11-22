@@ -63,6 +63,8 @@ const PATHS = {
   // Decision 88: start and end of the setup wizard
   flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
   check: <path d="M5 12.5 10 17 19 7" />,
+  // Decision 91: the step Import of the setup wizard
+  upload: <path d="M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />,
 }
 
 export type IconName = keyof typeof PATHS

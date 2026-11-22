@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ImportBatch, ImportEntry, ImportPreview } from '../api/imports'
 import type { BankAccount, Category } from '../api/types'
 import { ImportPage } from './ImportPage'
@@ -35,8 +35,8 @@ const preview: ImportPreview = {
   duplicates: 1,
   skipped: 1,
   sources: [
-    { key: 'C24:Ausgabenkonto', name: 'Ausgabenkonto', accountId: null, suggestedName: 'C24 Ausgabenkonto' },
-    { key: 'C24:Pocket Urlaub', name: 'Pocket Urlaub', accountId: null, suggestedName: 'C24 Pocket Urlaub' },
+    { key: 'C24:Ausgabenkonto', name: 'Ausgabenkonto', accountId: null, suggestedName: 'C24 Ausgabenkonto', balanceDate: null, balanceAmount: null },
+    { key: 'C24:Pocket Urlaub', name: 'Pocket Urlaub', accountId: null, suggestedName: 'C24 Pocket Urlaub', balanceDate: null, balanceAmount: null },
   ],
   entries: [
     entry({ line: 2, fingerprint: 'a'.repeat(64), description: 'Kino Nord', suggestionKey: 'kino nord', categoryId: 8, certain: true, replaces: { recurringId: 3, date: '2026-11-03', description: 'Kino-Abo', amount: 2.99, categoryId: 8 } }),
@@ -48,6 +48,8 @@ const preview: ImportPreview = {
     { ...entry({ line: 8 }), status: 'SKIPPED', reason: 'vorgemerkt (noch nicht gebucht)', fingerprint: null, description: null, amount: null, date: null },
   ],
   series: [],
+  budgetSuggestions: [],
+  income: { average: null, minimum: null, months: 0 },
 }
 
 const batches: ImportBatch[] = [
@@ -58,10 +60,16 @@ function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }))
 }
 
+// The signed-in user of a test; most tests do not need one
+let currentMe: unknown = []
+
 function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)) {
   let currentCategories = categories
   let currentAccounts = accounts
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (url === '/api/auth/me') {
+      return json(currentMe)
+    }
     if (init?.method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
@@ -1198,6 +1206,60 @@ describe('ImportPage', () => {
       await waitFor(() => expect(within(first).getByLabelText('Unterkategorie für Spiele Shop')).toHaveValue('50'))
       const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/categories' && init?.method === 'POST')
       expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Spiele', parentId: 8 })
+    })
+  })
+})
+
+// Decisions 91 and 92: what the import keeps per stage, and the balance of the file
+describe('ImportPage per Ist stage', () => {
+  const me = (istStage: number) => ({ id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER', istStage, setupDone: false })
+
+  beforeEach(() => window.sessionStorage.clear())
+
+  afterEach(() => {
+    currentMe = []
+    vi.unstubAllGlobals()
+    window.location.hash = ''
+    window.sessionStorage.clear()
+  })
+
+  it('preselects only recurring rows in stage 2', async () => {
+    currentMe = me(2)
+    renderPage(() =>
+      json({ ...preview, series: [{ lines: [3, 4], startDate: '2026-08-01', amount: -4.99, lowest: -4.99, highest: -4.99, description: 'Spiele Shop', source: 'C24:Ausgabenkonto', categoryId: 8 }] }),
+    )
+    // the page knows the user (and so the stage) before the file is read
+    await screen.findByRole('link', { name: 'Zurück zur Einrichtung' })
+    await upload()
+
+    expect(await screen.findByText(/In Stufe 2 übernimmt der Import nur regelmäßige Buchungen/)).toBeInTheDocument()
+    // the row that fulfils a term and the two rows of the series
+    expect(screen.getByRole('button', { name: '3 Buchungen übernehmen' })).toBeInTheDocument()
+    // the setup keeps the suggestions of the file for its later steps
+    expect(JSON.parse(window.sessionStorage.getItem('setup-import') ?? 'null')).toMatchObject({ rows: 5, recurring: 2 })
+  })
+
+  it('stores no booking in stage 1, only the balance of the file', async () => {
+    currentMe = me(1)
+    const fetchMock = renderPage(() =>
+      json({
+        ...preview,
+        sources: [{ ...preview.sources[0], balanceDate: '2026-11-15', balanceAmount: 1234.56 }],
+      }),
+    )
+    await screen.findByRole('link', { name: 'Zurück zur Einrichtung' })
+    const file = new File(['x'], 'export.csv', { type: 'text/csv' })
+    fireEvent.change(screen.getByLabelText('CSV-Datei wählen'), { target: { files: [file] } })
+
+    expect(await screen.findByText('Keine Buchung wird gespeichert.')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Kontostand aus der Datei übernehmen: 1\.234,56/)).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Für Vorschläge nutzen' }))
+
+    await waitFor(() => expect(window.location.hash).toBe('#/einrichtung/2'))
+    expect(JSON.parse(String(sent(fetchMock, '/api/imports')?.body))).toEqual({
+      profile: 'C24',
+      sources: [{ key: 'C24:Ausgabenkonto', newAccountName: 'C24 Ausgabenkonto', balanceDate: '2026-11-15', balanceAmount: 1234.56 }],
+      rows: [],
     })
   })
 })

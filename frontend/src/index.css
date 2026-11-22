@@ -4672,6 +4672,37 @@ button.account-open:hover {
     grid-row: span 2;
   }
 }
+/* Decision 91: the step Import with what the import keeps per stage */
+.setup-import {
+  display: grid;
+  gap: 12px;
+}
+.setup-import p {
+  margin: 0;
+}
+.setup-takes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.setup-takes th,
+.setup-takes td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.setup-takes th {
+  border-top: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+.setup-takes tr.on td {
+  background: var(--primary-soft);
+}
+.setup-takes .badge {
+  margin-left: 6px;
+}
 .radio-group {
   display: grid;
   gap: 8px;

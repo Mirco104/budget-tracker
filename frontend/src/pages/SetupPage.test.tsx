@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BudgetSuggestion, Category, Me, Plan, PlannedItem } from '../api/types'
 import { SetupPage } from './SetupPage'
@@ -106,19 +106,49 @@ afterEach(() => {
 })
 
 describe('SetupPage', () => {
-  it('lets a new user go on only after choosing how to start', async () => {
+  it('starts with a welcome only and goes on at once', async () => {
     renderSetup('#/einrichtung')
 
     expect(await screen.findByRole('heading', { name: 'Willkommen! Lass uns deinen Monat planen.' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Plan selbst eintragen/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+    expect(window.location.hash).toBe('#/einrichtung/1')
+  })
+
+  // Decision 91: the way comes after the stage, and the step says what the import keeps for the stage
+  it('asks for the bank file after the stage and shows what the stage keeps', async () => {
+    renderSetup('#/einrichtung/2')
+
+    expect(await screen.findByRole('heading', { name: 'Kontoauszug (CSV) importieren?' })).toBeInTheDocument()
     const next = screen.getByRole('button', { name: 'Weiter' })
     expect(next).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /Plan aus Kontoauszügen vorschlagen/ }))
     expect(screen.getByRole('link', { name: 'Kontoauszug importieren' })).toHaveAttribute('href', '#/transaktionen/import')
+    const own = within(screen.getByRole('region', { name: 'Kontoauszug' })).getByText('deine Stufe').closest('tr') as HTMLElement
+    expect(own).toHaveTextContent('nur die regelmäßigen (Einkommen, Fixkosten, Sparraten)')
     expect(next).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /Plan selbst eintragen/ }))
     expect(next).toBeEnabled()
-    fireEvent.click(next)
-    expect(window.location.hash).toBe('#/einrichtung/1')
+  })
+
+  // Decision 91: after a file was read the suggestions come from it, also in stage 1 where nothing was stored
+  it('takes the suggestions of a file read in the setup', async () => {
+    window.sessionStorage.setItem('setup-import', JSON.stringify({
+      series: [{ lines: [2, 5], startDate: '2026-08-28', amount: 2600, lowest: 2600, highest: 2600, description: 'Firma Beispiel', source: 'VR_BANK:X', categoryId: 4 }],
+      budgetSuggestions: [],
+      income: { average: 2650, minimum: 2600, months: 3 },
+      rows: 40,
+      recurring: 6,
+    }))
+    renderSetup('#/einrichtung/2', { me: { ...newUser, istStage: 1 } })
+
+    expect(await screen.findByText(/Keine Buchung wurde gespeichert/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Weiter' })).toBeEnabled()
+    cleanup()
+
+    renderSetup('#/einrichtung/4', { me: { ...newUser, istStage: 1 } })
+    expect(await screen.findByText('Firma Beispiel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Einkommen im Kontoauszug')).toHaveTextContent('2.650,00 €')
   })
 
   it('greets an existing user with the data already there', async () => {
@@ -165,7 +195,7 @@ describe('SetupPage', () => {
   })
 
   it('needs an income above 0 € and offers typical items as tiles that open the item window, entered automatically', async () => {
-    renderSetup('#/einrichtung/3')
+    renderSetup('#/einrichtung/4')
 
     expect(await screen.findByRole('heading', { name: 'Was kommt jeden Monat rein?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Weiter' })).toBeDisabled()
@@ -188,7 +218,7 @@ describe('SetupPage', () => {
 
   // Decision 89: in stage 1 the item window has no field "Eintragen" and saves "selbst anlegen"
   it('creates items without automatic entries in stage 1', async () => {
-    const fetchMock = renderSetup('#/einrichtung/3', { me: { ...newUser, istStage: 1 } })
+    const fetchMock = renderSetup('#/einrichtung/4', { me: { ...newUser, istStage: 1 } })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Gehalt hinzufügen' }))
     const dialog = await screen.findByRole('dialog', { name: 'Neuer Posten' })
@@ -203,7 +233,7 @@ describe('SetupPage', () => {
 
   // Decision 88: the income as a bar that fills step by step; later steps "kommt noch", the rest "Noch frei"
   it('shows the plan so far as a bar with later steps to come and the budget suggestions from the bookings', async () => {
-    renderSetup('#/einrichtung/5', { plan: fullPlan, suggestions: budgetSuggestions })
+    renderSetup('#/einrichtung/6', { plan: fullPlan, suggestions: budgetSuggestions })
 
     const bar = await screen.findByLabelText('Dein Einkommen im Plan')
     expect(bar).toHaveTextContent('Fixkosten 900,00 €')
@@ -211,7 +241,7 @@ describe('SetupPage', () => {
     expect(bar).toHaveTextContent('Sparen kommt noch')
     expect(bar).toHaveTextContent('Noch frei 1.200,00 €')
     expect(bar).toHaveTextContent('Ganzer Balken = Einkommen 2.500,00 €')
-    expect(screen.getByRole('link', { name: /Fixkosten/ })).toHaveAttribute('href', '#/einrichtung/4')
+    expect(screen.getByRole('link', { name: /Fixkosten/ })).toHaveAttribute('href', '#/einrichtung/5')
     const suggestions = await screen.findByRole('region', { name: 'Vorschläge aus deinen Buchungen' })
     expect(suggestions).toHaveTextContent('Shopping')
     expect(suggestions).toHaveTextContent('Kategorie der Bank · Ø 138,42 € im Monat · 6 Monate')
@@ -219,12 +249,12 @@ describe('SetupPage', () => {
   })
 
   it('finishes on the last page and can be put off on the first', async () => {
-    const fetchMock = renderSetup('#/einrichtung/8', { plan: fullPlan })
+    const fetchMock = renderSetup('#/einrichtung/9', { plan: fullPlan })
 
     expect(await screen.findByRole('heading', { name: 'Fertig! So läuft dein Monat.' })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'So läuft dein Monat' })).toHaveTextContent('Kontostand eintragen, die Glocke erinnert dich.')
     expect(screen.getByRole('region', { name: 'Fixkosten' })).toHaveTextContent('Miete')
-    expect(screen.getByRole('link', { name: 'Fixkosten ändern' })).toHaveAttribute('href', '#/einrichtung/4')
+    expect(screen.getByRole('link', { name: 'Fixkosten ändern' })).toHaveAttribute('href', '#/einrichtung/5')
     fireEvent.click(screen.getByRole('button', { name: 'Einrichtung abschließen' }))
     await waitFor(() => expect(calls(fetchMock, '/api/account/setup')).toEqual([{ done: true }]))
     await waitFor(() => expect(window.location.hash).toBe('#/uebersicht'))
