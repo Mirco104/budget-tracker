@@ -82,9 +82,9 @@ public record DashboardResponse(
             BigDecimal target, BigDecimal actual, BigDecimal difference, BigDecimal recurring, BigDecimal oneOff) {
     }
 
-    public record CategoryLine(long id, String name, BigDecimal target, BigDecimal actual, BigDecimal difference) {
+    public record CategoryLine(Long id, String name, BigDecimal target, BigDecimal actual, BigDecimal difference) {
     }
 
-    public record IncomeLine(long id, String name, BigDecimal actual) {
+    public record IncomeLine(Long id, String name, BigDecimal actual) {
     }
 }

@@ -310,7 +310,7 @@ public class SampleDataSeeder implements ApplicationRunner {
         private void enterPastTerms(PlannedItem item) {
             for (LocalDate date : item.schedule().termsBetween(item.getValidFrom().atDay(1), LAST_MONTH.atEndOfMonth())) {
                 Transaction booking = new Transaction(currentOwner(), item.getAmount(), item.getName(), date,
-                        item.getCategory(), bankAccountService.findBookable(null));
+                        item.getCategory(), bankAccountService.findBookable(null), item.isSaving());
                 booking.markAuto();
                 termService.link(item.getItemKey(), date, transactionRepository.save(booking));
             }

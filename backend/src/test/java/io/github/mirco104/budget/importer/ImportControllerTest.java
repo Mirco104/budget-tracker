@@ -231,12 +231,12 @@ class ImportControllerTest {
     void rowsNeedACategoryOrATransferAndAMappedSource() throws Exception {
         String preview = previewJson(mockMvc, BankCsvTest.N26);
 
-        commit(mockMvc, preview, entry -> null, true)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("rows[0].categoryId"));
         commit(mockMvc, preview, entry -> category(user, "Freizeit"), false)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("rows[0].source"));
+        // R40, R37: a row without a category becomes a booking without category, no transfer
+        commit(mockMvc, preview, entry -> null, true)
+                .andExpect(status().isCreated());
     }
 
     // --- R27 ---

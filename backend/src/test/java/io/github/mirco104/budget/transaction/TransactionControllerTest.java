@@ -136,10 +136,12 @@ class TransactionControllerTest {
     }
 
     @Test
-    void rejectsMissingCategory() throws Exception {
+    void acceptsABookingWithoutCategory() throws Exception {
+        // R37: a booking that is no transfer may be without a category
         postTransaction("{\"amount\": 10, \"description\": \"Test\", \"date\": \"2026-10-05\"}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.categoryId").doesNotExist())
+                .andExpect(jsonPath("$.transfer").value(false));
     }
 
     @Test

@@ -607,7 +607,8 @@ public class ImportService {
         for (Checked c : checked) {
             ImportRequest.Row row = c.row();
             Transaction transaction = new Transaction(owner, row.amount().setScale(2, RoundingMode.HALF_UP),
-                    row.description().trim(), row.date(), c.category(), accounts.get(row.source()));
+                    row.description().trim(), row.date(), c.category(), accounts.get(row.source()),
+                    Boolean.TRUE.equals(row.transfer()) || row.isSaving());
             transaction.markImported(batch, row.fingerprint(), blankToNull(row.counterparty()),
                     blankToNull(row.bankCategory()));
             // P1, decision 67: the kind Sparen
@@ -671,7 +672,7 @@ public class ImportService {
         return result;
     }
 
-    // R27: a transfer has no category; every other row needs one
+    // R27: a transfer has no category; R40, R37: every other row may be without one (an expense without category)
     private Category categoryOf(ImportRequest.Row row, String field) {
         if (Boolean.TRUE.equals(row.transfer()) || row.isSaving()) {
             if (row.categoryId() != null) {
@@ -683,7 +684,7 @@ public class ImportService {
             throw new InvalidFieldException(field + ".transferPeerId", "Nur eine Umbuchung hat eine Gegenbuchung.");
         }
         if (row.categoryId() == null) {
-            throw new InvalidFieldException(field + ".categoryId", "Die Kategorie ist Pflicht.");
+            return null;
         }
         try {
             return categoryService.findBookable(row.categoryId());

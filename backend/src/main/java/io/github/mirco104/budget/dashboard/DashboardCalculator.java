@@ -28,7 +28,7 @@ public class DashboardCalculator {
      * amount is signed: positive is income, negative is expense (R11).
      * recurring is true for an occurrence of a recurring transaction (R12), false for a single transaction.
      */
-    public record TransactionData(long categoryId, BigDecimal amount, LocalDate date, boolean recurring) {
+    public record TransactionData(Long categoryId, BigDecimal amount, LocalDate date, boolean recurring) {
     }
 
     /**
@@ -66,6 +66,14 @@ public class DashboardCalculator {
             }
             expensesActual = expensesActual.add(actual);
         }
+        // R37: an expense without a category in a row of its own, in no budget
+        BigDecimal withoutCategory = expenseOf(nets.getOrDefault(null, zero()));
+        if (withoutCategory.signum() > 0) {
+            expensesRecurring = expensesRecurring.add(
+                    withoutCategory.min(recurringExpenses.getOrDefault(null, zero())));
+            categoryLines.add(new CategoryLine(null, WITHOUT_CATEGORY, null, withoutCategory, null));
+            expensesActual = expensesActual.add(withoutCategory);
+        }
         BigDecimal expensesDifference = expensesTarget.subtract(expensesActual);
         BigDecimal expensesOneOff = expensesActual.subtract(expensesRecurring);
 
@@ -83,10 +91,14 @@ public class DashboardCalculator {
                 : surplus.signum() >= 0 ? "Noch frei" : "Überschritten";
 
         // R9: every category with a positive net
-        List<IncomeLine> incomeLines = categories.stream()
+        List<IncomeLine> incomeLines = new ArrayList<>(categories.stream()
                 .filter(category -> netOf(nets, category).signum() > 0)
                 .map(category -> new IncomeLine(category.id(), category.name(), netOf(nets, category)))
-                .toList();
+                .toList());
+        BigDecimal incomeWithout = nets.getOrDefault(null, zero());
+        if (incomeWithout.signum() > 0) {
+            incomeLines.add(new IncomeLine(null, WITHOUT_CATEGORY, incomeWithout));
+        }
 
         return new DashboardResponse(
                 month.toString(),
@@ -114,7 +126,10 @@ public class DashboardCalculator {
                 null);
     }
 
-    // R1: sum of the signed amounts of the month, per category
+    /** R37: the row of the bookings without a category. */
+    public static final String WITHOUT_CATEGORY = "Ohne Kategorie";
+
+    // R1: sum of the signed amounts of the month, per category (null for the bookings without one, R37)
     private static Map<Long, BigDecimal> netsByCategory(List<TransactionData> transactions, YearMonth month) {
         Map<Long, BigDecimal> sums = new HashMap<>();
         for (TransactionData transaction : transactions) {

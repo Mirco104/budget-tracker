@@ -106,17 +106,21 @@ public class Transaction {
     }
 
     public Transaction(
-            User owner, BigDecimal amount, String description, LocalDate date, Category category, BankAccount account) {
+            User owner, BigDecimal amount, String description, LocalDate date, Category category, BankAccount account,
+            boolean transfer) {
         this.owner = owner;
-        update(amount, description, date, category, account);
+        update(amount, description, date, category, account, transfer);
     }
 
-    public void update(BigDecimal amount, String description, LocalDate date, Category category, BankAccount account) {
+    /** R37: a transfer has no category; a booking that is no transfer may have none (an expense without category). */
+    public void update(
+            BigDecimal amount, String description, LocalDate date, Category category, BankAccount account,
+            boolean transfer) {
         this.amount = amount;
         this.description = description;
         this.date = date;
-        this.category = category;
-        this.transfer = category == null;
+        this.category = transfer ? null : category;
+        this.transfer = transfer;
         this.account = account;
     }
 

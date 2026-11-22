@@ -88,11 +88,11 @@ class TransferControllerTest {
                  "transfer": true}""".formatted(wohnen))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("categoryId"));
+        // R37: a booking without a category is an expense without category, no transfer
         post("""
                 {"amount": -500, "description": "Einkauf", "date": "2026-10-02"}""")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].field").value("categoryId"))
-                .andExpect(jsonPath("$.errors[0].message").value("Die Kategorie ist Pflicht."));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.transfer").value(false));
         // A normal booking needs no field transfer
         book(-20, wohnen, "2026-10-03").andExpect(status().isCreated())
                 .andExpect(jsonPath("$.transfer").value(false));
