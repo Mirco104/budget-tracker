@@ -103,9 +103,10 @@ public final class AccountBalance {
     /**
      * R36: the differences of the balances of one account dated in the month, each against the balance before it;
      * from is the day of the balance before the first one, to the day of the last one (both null when the month has no
-     * balance with one before it).
+     * balance with one before it). start is the day of the very first balance of the account when it lies in the month
+     * (the start, P11), else null.
      */
-    public record Period(List<BigDecimal> differences, LocalDate from, LocalDate to) {
+    public record Period(List<BigDecimal> differences, LocalDate from, LocalDate to, LocalDate start) {
     }
 
     /**
@@ -117,8 +118,12 @@ public final class AccountBalance {
         List<BigDecimal> differences = new ArrayList<>();
         LocalDate from = null;
         LocalDate to = null;
+        LocalDate start = null;
         Statement previous = null;
         for (Statement statement : sorted) {
+            if (previous == null && java.time.YearMonth.from(statement.date()).equals(month)) {
+                start = statement.date();
+            }
             if (previous != null && java.time.YearMonth.from(statement.date()).equals(month)) {
                 if (differences.isEmpty()) {
                     from = previous.date();
@@ -128,6 +133,6 @@ public final class AccountBalance {
             }
             previous = statement;
         }
-        return new Period(differences, from, to);
+        return new Period(differences, from, to, start);
     }
 }

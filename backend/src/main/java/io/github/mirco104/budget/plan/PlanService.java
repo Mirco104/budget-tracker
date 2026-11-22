@@ -112,8 +112,14 @@ public class PlanService {
         if (request.entryMode() != null && request.entryMode() != EntryMode.AUTO) {
             return 0;
         }
+        // R35: stage 1 enters nothing; decision 90: not before the day chosen when leaving stage 1
+        var user = currentUser.get();
+        if (user.getIstStage() == 1) {
+            return 0;
+        }
         return TermService.pastTerms(request.rhythmUnit(), request.rhythmCount(), request.anchorDate(),
-                request.validFrom(), Boolean.TRUE.equals(request.workdaysOnly()), LocalDate.now(clock));
+                request.validFrom(), Boolean.TRUE.equals(request.workdaysOnly()), LocalDate.now(clock),
+                user.getAutoEntriesFrom());
     }
 
     @Transactional

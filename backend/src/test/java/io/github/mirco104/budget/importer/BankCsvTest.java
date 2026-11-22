@@ -118,6 +118,15 @@ class BankCsvTest {
         assertThat(vr.balances()).containsExactly(new BankCsv.Balance("DE89370400440532013000",
                 java.time.LocalDate.of(2026, 11, 10), new java.math.BigDecimal("1395.85")));
         assertThat(c24.balances()).isEmpty();
+
+        // The same file with the oldest row first: the newest row is the last one
+        String[] lines = VR_BANK.strip().split("\n");
+        List<String> reversed = new java.util.ArrayList<>(List.of(lines).subList(1, lines.length - 1));
+        java.util.Collections.reverse(reversed);
+        String oldestFirst = lines[0] + "\n" + String.join("\n", reversed) + "\n";
+        assertThat(BankCsv.read(oldestFirst.getBytes(StandardCharsets.UTF_8)).balances()).containsExactly(
+                new BankCsv.Balance("DE89370400440532013000", java.time.LocalDate.of(2026, 11, 10),
+                        new java.math.BigDecimal("1395.85")));
     }
 
     @Test

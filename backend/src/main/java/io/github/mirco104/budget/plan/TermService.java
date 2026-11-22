@@ -168,12 +168,13 @@ public class TermService {
      * today (before fulfilment by existing bookings), for the hint in the item dialog.
      */
     public static int pastTerms(RhythmUnit unit, Integer count, LocalDate anchor, java.time.YearMonth validFrom,
-            boolean workdaysOnly, LocalDate today) {
+            boolean workdaysOnly, LocalDate today, LocalDate since) {
         if (unit == null || count == null || anchor == null) {
             return 0;
         }
+        LocalDate from = since != null && since.isAfter(validFrom.atDay(1)) ? since : validFrom.atDay(1);
         return (int) new TermSchedule(unit, count, anchor, validFrom, null)
-                .termsBetween(validFrom.atDay(1), today).stream()
+                .termsBetween(from, today).stream()
                 .filter(date -> !(workdaysOnly ? TermSchedule.nextWorkingDay(date) : date).isAfter(today))
                 .count();
     }

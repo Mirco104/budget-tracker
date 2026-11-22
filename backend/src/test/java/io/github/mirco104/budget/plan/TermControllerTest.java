@@ -212,11 +212,16 @@ class TermControllerTest {
                 .andExpect(jsonPath("$.expected.total").value(-170.00));
     }
 
-    // R35: in stage 1 the app enters no bookings, also not for an automatic item
+    // R35: in stage 1 the app enters no bookings, also not for an automatic item, and the hint counts none
     @Test
     void inStageOneNothingIsEntered() throws Exception {
         stage("{\"stage\": 1}");
         item("Miete", "-900", "Wohnen", today, "AUTO");
+        mockMvc.perform(post("/api/planned-items/past-terms").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "entryMode": "AUTO", "validFrom": "%s"}"""
+                        .formatted(category("Wohnen"), today, month)))
+                .andExpect(jsonPath("$.count").value(0));
 
         mockMvc.perform(get("/api/transactions").param("month", month)).andExpect(jsonPath("$", hasSize(0)));
     }
@@ -233,6 +238,12 @@ class TermControllerTest {
 
         terms().andExpect(jsonPath("$[?(@.itemId == " + id + ")].entryMode").value(org.hamcrest.Matchers.everyItem(
                 org.hamcrest.Matchers.is("AUTO"))));
+        // The hint of the item window counts only the terms from that day on (review 23.11.2026)
+        mockMvc.perform(post("/api/planned-items/past-terms").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Miete", "amount": -900, "categoryId": %d, "rhythmUnit": "MONTH", "rhythmCount": 1,
+                         "anchorDate": "%s", "entryMode": "AUTO", "validFrom": "%s"}"""
+                        .formatted(category("Wohnen"), lastMonth, YearMonth.from(lastMonth))))
+                .andExpect(jsonPath("$.count").value(1));
         mockMvc.perform(get("/api/transactions").param("from", lastMonth.minusDays(1).toString())
                         .param("to", today.toString()))
                 .andExpect(jsonPath("$", hasSize(1)))

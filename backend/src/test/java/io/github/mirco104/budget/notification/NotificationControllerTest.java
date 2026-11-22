@@ -59,11 +59,19 @@ class NotificationControllerTest {
         previous = current.minusMonths(1);
     }
 
-    // R36, US43: in stage 2 the bell asks for the balance on the last day of the previous month
+    // R36, US43: in stage 2 the bell asks for the balance on the last day of the previous month, once the account has a
+    // start before it (review 23.11.2026)
     @Test
     void stageTwoAsksForTheBalanceOnTheLastDayOfThePreviousMonth() throws Exception {
         String accounts = mockMvc.perform(get("/api/bank-accounts")).andReturn().getResponse().getContentAsString();
         long girokonto = ((Number) com.jayway.jsonpath.JsonPath.read(accounts, "$[0].id")).longValue();
+
+        // Without any balance there is no start yet, so nothing to ask for
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')]").isEmpty());
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 800}".formatted(previous.atDay(10))))
+                .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/notifications"))
                 .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')].month").value(previous.toString()))
@@ -72,6 +80,19 @@ class NotificationControllerTest {
         mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(previous.atEndOfMonth())))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')]").isEmpty());
+    }
+
+    // A start in the current month asks for nothing yet; a balance after the last day also counts as given
+    @Test
+    void aStartThisMonthAndANewerBalanceAskForNothing() throws Exception {
+        String accounts = mockMvc.perform(get("/api/bank-accounts")).andReturn().getResponse().getContentAsString();
+        long girokonto = ((Number) com.jayway.jsonpath.JsonPath.read(accounts, "$[0].id")).longValue();
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 800}".formatted(current.atDay(1))))
+                .andExpect(status().isOk());
+
         mockMvc.perform(get("/api/notifications"))
                 .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')]").isEmpty());
     }

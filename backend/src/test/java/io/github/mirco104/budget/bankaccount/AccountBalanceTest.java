@@ -139,6 +139,7 @@ class AccountBalanceTest {
         AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
 
         assertThat(period.differences()).isEmpty();
+        assertThat(period.start()).isEqualTo(LocalDate.parse("2026-11-15"));
     }
 
     @Test

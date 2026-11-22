@@ -147,7 +147,8 @@ public class NotificationService {
         return result;
     }
 
-    // R36, US43: in stage 2 the bell asks for the balance on the last day of the previous month
+    // R36, US43: in stage 2 the bell asks for the balance on the last day of the previous month, but only for an account
+    // that started before it and has no balance since (review 23.11.2026)
     private java.util.Optional<Entry> balanceDue(YearMonth current) {
         if (currentUser.get().getIstStage() != 2) {
             return java.util.Optional.empty();
@@ -157,7 +158,7 @@ public class NotificationService {
         return bankAccountService.findAllOrdered().stream()
                 .filter(account -> !account.isArchived()
                         && account.getRole() == io.github.mirco104.budget.bankaccount.AccountRole.EVERYDAY
-                        && !accountOverviewService.hasStatement(account, last))
+                        && accountOverviewService.needsBalance(account, last))
                 .findFirst()
                 .map(account -> new Entry(new Notification("balance:" + previous, Kind.BALANCE_DUE, previous.toString(),
                         null, account.getId(), account.getName(), null, null, null, null, null, null, null),

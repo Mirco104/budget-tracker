@@ -197,9 +197,10 @@ public final class BankCsv {
             List<Record> records, List<Balance> balances) {
         String preambleIban = profile == BankProfile.DEUTSCHE_BANK ? preambleIban(preamble) : null;
         List<Line> lines = new ArrayList<>();
-        // VR-Bank: per account the "Saldo nach Buchung" of its newest booked row; on the same day the first one, as
-        // the export lists the newest first
+        // VR-Bank: per account the "Saldo nach Buchung" of its newest booked row; on the same day the row the export
+        // lists as the newest (review 23.11.2026: the order of the file decides, newest first or last)
         Map<String, Balance> newest = new java.util.LinkedHashMap<>();
+        Map<String, Balance> latestOfDay = new java.util.LinkedHashMap<>();
         for (Record record : records) {
             if (profile == BankProfile.DEUTSCHE_BANK && clean(record.fields().getFirst()).equalsIgnoreCase("Kontostand")) {
                 // the footer with the balance is no booking (decision 76), but the balance of the account (decision 92)
@@ -223,13 +224,28 @@ public final class BankCsv {
                     if (saldo != null && (known == null || row.bookingDate().isAfter(known.date()))) {
                         newest.put(row.accountName(), new Balance(row.accountName(), row.bookingDate(), saldo));
                     }
+                    Balance last = latestOfDay.get(row.accountName());
+                    if (saldo != null && (last == null || !row.bookingDate().isBefore(last.date()))) {
+                        latestOfDay.put(row.accountName(), new Balance(row.accountName(), row.bookingDate(), saldo));
+                    }
                 }
             } catch (SkipException skip) {
                 lines.add(new Line(record.line(), null, skip.getMessage()));
             }
         }
-        balances.addAll(newest.values());
+        // A file with the oldest row first ends with the newest: then the last row of the newest day counts
+        boolean oldestFirst = isOldestFirst(lines);
+        balances.addAll((oldestFirst ? latestOfDay : newest).values());
         return lines;
+    }
+
+    // Whether the booked rows of the file run from the oldest to the newest day
+    private static boolean isOldestFirst(List<Line> lines) {
+        List<LocalDate> days = lines.stream()
+                .filter(line -> line.row() != null && line.row().bookingDate() != null)
+                .map(line -> line.row().bookingDate())
+                .toList();
+        return days.size() > 1 && days.getFirst().isBefore(days.getLast());
     }
 
     // Deutsche Bank footer "Kontostand;<Tag>;;;<Betrag>;EUR" (decision 92); empty when it cannot be read

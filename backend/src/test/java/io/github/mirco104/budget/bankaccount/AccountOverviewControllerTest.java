@@ -126,6 +126,10 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$.amount").value(300.00))
                 .andExpect(jsonPath("$.date").value(previous.atDay(15).toString()))
                 .andExpect(jsonPath("$.from").value(previous.minusMonths(1).atEndOfMonth().toString()));
+        // R36: in the month of the very first balance that balance is the start and measures nothing
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.minusMonths(1).toString()))
+                .andExpect(jsonPath("$.amount").doesNotExist())
+                .andExpect(jsonPath("$.start").value(previous.minusMonths(1).atEndOfMonth().toString()));
 
         // A second balance in the month adds the rest of it
         mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
