@@ -120,14 +120,13 @@ public class ReserveService {
                 month,
                 dashboard.incomeTotal(),
                 dashboard.expenses().actual(),
-                // R37: the bookings without a category count in the totals, not as a row of the analysis per category
+                // R37: the bookings without a category are a row of their own ("Ohne Kategorie")
                 dashboard.income().stream()
-                        .filter(line -> line.id() != null)
-                        .map(line -> new CategoryData(line.id(), line.name(), icon.apply(line.id()), line.actual()))
+                        .map(line -> new CategoryData(line.id(), line.name(), line.id() == null ? null : icon.apply(line.id()), line.actual()))
                         .toList(),
                 dashboard.categories().stream()
-                        .filter(line -> line.id() != null && line.actual().signum() > 0)
-                        .map(line -> new CategoryData(line.id(), line.name(), icon.apply(line.id()), line.actual()))
+                        .filter(line -> line.actual().signum() > 0)
+                        .map(line -> new CategoryData(line.id(), line.name(), line.id() == null ? null : icon.apply(line.id()), line.actual()))
                         .toList());
     }
 }

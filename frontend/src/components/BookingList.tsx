@@ -1,3 +1,4 @@
+import { useShowsCategories } from '../useShowsCategories'
 import type { Category, Transaction } from '../api/types'
 import { formatEuro, formatMonth, formatSigned } from '../format'
 import { sumOf, totals } from '../sums'
@@ -49,6 +50,8 @@ function groupBy(entries: Transaction[], keyOf: (entry: Transaction) => string):
  * editing, so a row needs no buttons of its own.
  */
 export function BookingList({ entries, categories, today, showAccount = false, onSelect, selection }: Props) {
+  // R35: the category of a booking only shows in stage 4
+  const withCategories = useShowsCategories()
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const months = groupBy(sorted, (entry) => entry.date.slice(0, 7))
   const iconOf = (id: number | null) => categories.find((category) => category.id === id)?.icon ?? 'tag'
@@ -61,12 +64,12 @@ export function BookingList({ entries, categories, today, showAccount = false, o
             <Icon name="transfer" size={18} />
           </span>
         ) : (
-          <CategoryIcon icon={iconOf(entry.categoryId)} />
+          <CategoryIcon icon={withCategories ? iconOf(entry.categoryId) : 'tag'} />
         )}
         <span className="tx-main">
           <span className="tx-description">{entry.description}</span>
           <span className="tx-meta">
-            {entry.saving ? 'Sparen' : entry.transfer ? 'Umbuchung' : entry.categoryName}
+            {entry.saving ? 'Sparen' : entry.transfer ? 'Umbuchung' : withCategories ? (entry.categoryName ?? 'Ohne Kategorie') : null}
             {showAccount && <span className="tx-account"> · {entry.accountName}</span>}
             {entry.fix && (
               <span className="badge" title="Fix sind regelmäßige Zahlungen, die du in der Planung eingetragen hast, z. B. Miete, Versicherungen, Abos. Alles andere ist variabel.">

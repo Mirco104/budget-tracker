@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BankAccount, Category, Transaction } from '../api/types'
 import type { BookingSuggestion } from '../api/suggestions'
 import { BookingDialog } from './BookingDialog'
@@ -508,3 +508,35 @@ describe('BookingDialog', () => {
     })
   })
 })
+
+// R35, R37: below stage 4 the dialog asks for the kind instead of a category
+describe('BookingDialog in stage 3', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows the field Zählt als instead of the category', async () => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method) {
+        return json({ ...recent[0], id: 99, categoryId: null })
+      }
+      if (url === '/api/auth/me') {
+        return json({ id: 1, email: 'person-a@example.test', displayName: 'Person A', role: 'USER', istStage: 3, setupDone: true })
+      }
+      return json([])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <BookingDialog categories={categories} entry={null} defaultDate="2026-10-18" onClose={vi.fn()} onDone={vi.fn()} />
+      </QueryClientProvider>,
+    )
+
+    const kind = await screen.findByLabelText('Zählt als')
+    expect(within(kind).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Einnahme oder Ausgabe',
+      'Umbuchung (zählt nicht)',
+      'Sparen (zählt als Sparen)',
+    ])
+    expect(screen.queryByText('Kategorie')).not.toBeInTheDocument()
+  })
+})
+

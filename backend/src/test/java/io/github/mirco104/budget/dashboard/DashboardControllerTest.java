@@ -85,7 +85,8 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.expenses.actual").value(145.00))
                 .andExpect(jsonPath("$.categories[?(@.name == 'Ohne Kategorie')].actual", contains(45.00)));
         mockMvc.perform(get("/api/history").param("from", "2026-10").param("to", "2026-10"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.expensesByCategory[?(@.name == 'Ohne Kategorie')].total", contains(45.00)));
     }
 
     @Test

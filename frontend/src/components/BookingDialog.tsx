@@ -1,3 +1,5 @@
+import { KindSelect } from './KindSelect'
+import { useShowsCategories } from '../useShowsCategories'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useBankAccounts } from '../api/bankAccounts'
 import { ApiError } from '../api/client'
@@ -88,6 +90,8 @@ function lastUsed(recent: Transaction[], categories: Category[], kind: Kind): Ca
  * in the dialog and asks once more.
  */
 export function BookingDialog({ categories: loaded, entry, defaultDate, onClose, onDone, term = null }: Props) {
+  // R35: below stage 4 a booking gets no category, only its kind
+  const withCategories = useShowsCategories()
   // Already loaded on the transactions page; the overview loads it when the dialog opens
   const recent = useTransactions(defaultDate.slice(0, 7)).data ?? []
   const createTransaction = useCreateTransaction()
@@ -300,6 +304,19 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           {errors.description && <span className="error">{errors.description}</span>}
         </label>
 
+        {!withCategories ? (
+          <div className="field">
+            <span id="booking-category-label">Zählt als</span>
+            <KindSelect
+              labelledBy="booking-category-label"
+              value={categoryId}
+              onChange={chooseCategory}
+              transferValue={TRANSFER}
+              savingValue={SAVING}
+              withKinds={!term}
+            />
+          </div>
+        ) : (
         <div className="field">
           <span id="booking-category-label">Kategorie</span>
           {quick.length > 0 && (
@@ -343,6 +360,7 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
           )}
           {errors.categoryId && <span className="error">{errors.categoryId}</span>}
         </div>
+        )}
 
         <label className="field">
           Datum

@@ -23,6 +23,8 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { Icon } from '../components/ui/Icon'
 import { AccountDialog } from '../components/AccountDialog'
 import { CategoryPicker } from '../components/CategoryPicker'
+import { KindSelect } from '../components/KindSelect'
+import { useShowsCategories } from '../useShowsCategories'
 import { SelectionBar } from '../components/SelectionBar'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
@@ -195,7 +197,9 @@ function PreviewRow({
   sameOffer?: { count: number; onApply: () => void; onDismiss: () => void }
 }) {
   const description = entry.description ?? ''
-  const open = choice.selected && choice.category === ''
+  // R35: below stage 4 a row has no category, only its kind
+  const withCategories = useShowsCategories()
+  const open = withCategories && choice.selected && choice.category === ''
   const selectable = chosen !== undefined && choice.selected
 
   // Ticket #160: in the selection mode a click anywhere in the row chooses it, except on its own fields and links
@@ -277,6 +281,16 @@ function PreviewRow({
         {entry.amount !== null && formatSigned(entry.amount)}
       </span>
       <span className="import-category">
+        {!withCategories ? (
+          <KindSelect
+            ariaLabel={`Zählt als: ${description}`}
+            value={choice.category}
+            disabled={!choice.selected}
+            onChange={(value) => onChange({ ...choice, category: value })}
+            transferValue={TRANSFER}
+            savingValue={SAVING}
+          />
+        ) : (
         <CategoryPicker
           ariaLabel={`Kategorie für ${description}`}
           subAriaLabel={`Unterkategorie für ${description}`}
@@ -289,6 +303,7 @@ function PreviewRow({
           leading={KIND_OPTIONS}
           createLabel={`Neue Kategorie für ${description}`}
         />
+        )}
         {suggested && open && (
           <button type="button" className="chip" onClick={() => onChange({ ...choice, category: suggested.value })}>
             {suggested.icon && <CategoryIcon icon={suggested.icon} size={14} />}
@@ -646,6 +661,7 @@ function Preview({
   onReload: () => void
   onCancel: () => void
 }) {
+  const withCategories = useShowsCategories()
   const commit = useCommitImport()
   const [choices, setChoices] = useState(() => initialChoices(preview))
   const [sourceAccounts, setSourceAccounts] = useState(() => initialAccounts(preview, accounts))
@@ -1312,7 +1328,7 @@ function Preview({
           </button>
         )}
       </div>
-      {open.length > 0 && (
+      {open.length > 0 && withCategories && (
         <p className="hint import-open">
           {open.length === 1 ? '1 Zeile hat' : `${open.length} Zeilen haben`} keine Kategorie. Sie werden als Buchungen
           ohne Kategorie übernommen und stehen auf der Übersicht unter „Ohne Kategorie“.

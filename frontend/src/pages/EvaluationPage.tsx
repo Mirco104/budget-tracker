@@ -314,7 +314,7 @@ function HistoryRows({ month, active, onActive }: {
           <tr key={`income-${line.id}`} className={`history-category${highlight}`} {...hover}>
             <td>
               <span className="history-category-name">
-                <CategoryIcon icon={line.icon} size={14} />
+                <CategoryIcon icon={line.icon ?? 'tag'} size={14} />
                 {line.name}
               </span>
             </td>
@@ -328,7 +328,7 @@ function HistoryRows({ month, active, onActive }: {
           <tr key={`expense-${line.id}`} className={`history-category${highlight}`} {...hover}>
             <td>
               <span className="history-category-name">
-                <CategoryIcon icon={line.icon} size={14} />
+                <CategoryIcon icon={line.icon ?? 'tag'} size={14} />
                 {line.name}
               </span>
             </td>

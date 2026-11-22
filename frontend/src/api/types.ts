@@ -457,9 +457,10 @@ export interface ForecastMonth {
 
 /** Income or expenses of a category in a past month, positive, with its icon (US28). */
 export interface CategoryAmount {
-  id: number
+  /** R37: null for the bookings without a category ("Ohne Kategorie") */
+  id: number | null
   name: string
-  icon: string
+  icon: string | null
   amount: number
 }
 
@@ -492,9 +493,10 @@ export interface HistoryData {
 
 /** A category over the counted months of the look back (R34): sum, average over all months, months with an amount. */
 export interface CategoryTotal {
-  id: number
+  /** R37: null for the bookings without a category ("Ohne Kategorie") */
+  id: number | null
   name: string
-  icon: string
+  icon: string | null
   total: number
   average: number
   monthsWithAmount: number

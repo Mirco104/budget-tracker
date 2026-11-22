@@ -180,9 +180,9 @@ class ReserveCalculatorTest {
     @Test
     void listsIncomeExpensesAndSurplusOfEveryMonthWithTheCategories() {
         PastMonth september = new PastMonth(month("2026-09"), money("3000.00"), money("3200.00"),
-                List.of(new CategoryData(20, "Gehalt", "wallet", money("3000.00"))),
-                List.of(new CategoryData(1, "Wohnen", "home", money("900.00")),
-                        new CategoryData(9, "Urlaub", "suitcase", money("2300.00"))));
+                List.of(new CategoryData(20L, "Gehalt", "wallet", money("3000.00"))),
+                List.of(new CategoryData(1L, "Wohnen", "home", money("900.00")),
+                        new CategoryData(9L, "Urlaub", "suitcase", money("2300.00"))));
 
         HistoryResponse response = history("2026-08", "2026-09", month("2025-01"),
                 past("2026-08", "3000.00", "1000.00"), september);
@@ -192,7 +192,7 @@ class ReserveCalculatorTest {
         assertThat(last.expenses()).isEqualByComparingTo("3200.00");
         assertThat(last.surplus()).isEqualByComparingTo("-200.00");
         assertThat(last.incomeCategories())
-                .containsExactly(new CategoryAmount(20, "Gehalt", "wallet", money("3000.00")));
+                .containsExactly(new CategoryAmount(20L, "Gehalt", "wallet", money("3000.00")));
         assertThat(last.expenseCategories()).extracting(CategoryAmount::name).containsExactly("Wohnen", "Urlaub");
         assertThat(last.expenseCategories()).extracting(CategoryAmount::icon).containsExactly("home", "suitcase");
         assertThat(response.history().get(0).surplus()).isEqualByComparingTo("2000.00");
@@ -240,9 +240,9 @@ class ReserveCalculatorTest {
                         List.of(category(1, "Wohnen", "900.00"), category(2, "Essen", "100.00"))));
 
         assertThat(response.expensesByCategory()).containsExactly(
-                new CategoryTotal(1, "Wohnen", "icon-1", money("2700.00"), money("900.00"), 3),
+                new CategoryTotal(1L, "Wohnen", "icon-1", money("2700.00"), money("900.00"), 3),
                 // August without Essen counts as 0: 400 / 3
-                new CategoryTotal(2, "Essen", "icon-2", money("400.00"), money("133.33"), 2));
+                new CategoryTotal(2L, "Essen", "icon-2", money("400.00"), money("133.33"), 2));
         assertThat(response.incomeByCategory()).extracting(CategoryTotal::name, CategoryTotal::total,
                 CategoryTotal::average, CategoryTotal::monthsWithAmount).containsExactly(
                         tuple("Gehalt", money("9000.00"), money("3000.00"), 3),
@@ -265,11 +265,11 @@ class ReserveCalculatorTest {
     @Test
     void takesNameAndIconFromTheLastMonthOfTheCategory() {
         HistoryResponse response = history("2026-08", "2026-09", month("2026-01"),
-                withCategories("2026-08", List.of(), List.of(new CategoryData(1, "Lebensmittel", "cart", money("10.00")))),
-                withCategories("2026-09", List.of(), List.of(new CategoryData(1, "Essen", "food", money("20.00")))));
+                withCategories("2026-08", List.of(), List.of(new CategoryData(1L, "Lebensmittel", "cart", money("10.00")))),
+                withCategories("2026-09", List.of(), List.of(new CategoryData(1L, "Essen", "food", money("20.00")))));
 
         assertThat(response.expensesByCategory()).containsExactly(
-                new CategoryTotal(1, "Essen", "food", money("30.00"), money("15.00"), 2));
+                new CategoryTotal(1L, "Essen", "food", money("30.00"), money("15.00"), 2));
     }
 
     @Test
@@ -281,7 +281,7 @@ class ReserveCalculatorTest {
 
         // Counted are August and September only
         assertThat(response.expensesByCategory()).containsExactly(
-                new CategoryTotal(1, "Wohnen", "icon-1", money("600.00"), money("300.00"), 1));
+                new CategoryTotal(1L, "Wohnen", "icon-1", money("600.00"), money("300.00"), 1));
     }
 
     @Test
@@ -469,13 +469,13 @@ class ReserveCalculatorTest {
         List<PastMonth> past = IntStream.rangeClosed(1, 9)
                 .mapToObj(m -> new PastMonth(YearMonth.of(2026, m), money("3000.00"),
                         money(m == 9 ? "1914.00" : "915.00"),
-                        List.of(new CategoryData(15, "Gehalt/Lohn (netto)", "wallet", money("3000.00"))),
+                        List.of(new CategoryData(15L, "Gehalt/Lohn (netto)", "wallet", money("3000.00"))),
                         m == 9
-                                ? List.of(new CategoryData(1, "Wohnen", "home", money("900.00")),
-                                        new CategoryData(7, "Lebensmittel", "cart", money("999.00")),
-                                        new CategoryData(8, "Freizeit", "music", money("15.00")))
-                                : List.of(new CategoryData(1, "Wohnen", "home", money("900.00")),
-                                        new CategoryData(8, "Freizeit", "music", money("15.00")))))
+                                ? List.of(new CategoryData(1L, "Wohnen", "home", money("900.00")),
+                                        new CategoryData(7L, "Lebensmittel", "cart", money("999.00")),
+                                        new CategoryData(8L, "Freizeit", "music", money("15.00")))
+                                : List.of(new CategoryData(1L, "Wohnen", "home", money("900.00")),
+                                        new CategoryData(8L, "Freizeit", "music", money("15.00")))))
                 .toList();
 
         HistoryResponse response = calculator.history(past, month("2026-01"), month("2025-10"), month("2026-09"));

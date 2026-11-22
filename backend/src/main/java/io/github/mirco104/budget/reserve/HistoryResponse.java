@@ -32,7 +32,7 @@ public record HistoryResponse(
     }
 
     /** Income N(k) or expenses I(k) of a category in the month, positive, with its icon (US28). */
-    public record CategoryAmount(long id, String name, String icon, BigDecimal amount) {
+    public record CategoryAmount(Long id, String name, String icon, BigDecimal amount) {
     }
 
     /**
@@ -40,6 +40,6 @@ public record HistoryResponse(
      * the number of months with an amount.
      */
     public record CategoryTotal(
-            long id, String name, String icon, BigDecimal total, BigDecimal average, int monthsWithAmount) {
+            Long id, String name, String icon, BigDecimal total, BigDecimal average, int monthsWithAmount) {
     }
 }
