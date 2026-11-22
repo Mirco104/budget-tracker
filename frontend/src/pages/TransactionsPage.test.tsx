@@ -94,6 +94,24 @@ describe('TransactionsPage', () => {
     expect(screen.queryByRole('button', { name: /Aufs Tagesgeld/ })).not.toBeInTheDocument()
   })
 
+  // R37: bookings without category have their own option in the category filter, transfers are not among them
+  it('filters the bookings without category', async () => {
+    const without: Transaction = {
+      id: 98, amount: -42, description: 'Flohmarkt',
+      date: '2026-10-06', categoryId: null, categoryName: null, accountId: 1, accountName: 'Girokonto', transfer: false,
+      auto: false, fix: false,
+    }
+    const transfer: Transaction = { ...without, id: 99, description: 'Aufs Tagesgeld', transfer: true }
+    renderPage([...transactions, without, transfer])
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Filter( \(\d+\))?$/ }))
+    expect(screen.getByRole('option', { name: 'Ohne Kategorie (1)' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Kategorie filtern'), { target: { value: 'without' } })
+    expect(screen.getByRole('button', { name: /Flohmarkt/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Aufs Tagesgeld/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Kino')).not.toBeInTheDocument()
+  })
+
   // US33: the import has its own address below Transaktionen, and a period in the address bar starts the list
   it('links to the import and starts with the period from the address bar', async () => {
     window.location.hash = '#/transaktionen?von=2026-10-05&bis=2026-10-20'

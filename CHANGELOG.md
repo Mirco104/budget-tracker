@@ -14,7 +14,7 @@ Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
 - **Dein Monat im Plan:** Am Ende der Einrichtung zeigt ein Diagramm, wohin das Einkommen im Plan fließt.
 - **Übersicht je Stufe:** Stufe 1 zeigt nur den Plan des Monats, Stufe 2 nach dem Kontostand vom letzten Tag des Monats, was variabel ausgegeben wurde (oder „mehr als erwartet“), Stufe 3 alle Budgets zusammen, Stufe 4 wie bisher jedes Budget einzeln.
 - **Glocke fragt nach dem Kontostand:** In Stufe 2 erinnert die Glocke an den Kontostand vom letzten Tag des Vormonats.
-- **Buchungen ohne Kategorie:** Im Buchungsdialog und im Import ist die Kategorie keine Pflicht mehr. Ausgaben ohne Kategorie stehen auf der Übersicht und in der Auswertung je Kategorie in einer eigenen Zeile „Ohne Kategorie“ und zählen zu keinem Budget. Unter Stufe 4 fragen Import und Buchungsdialog statt nach der Kategorie nur, ob eine Buchung zählt, eine Umbuchung oder Sparen ist.
+- **Buchungen ohne Kategorie:** Im Buchungsdialog und im Import ist die Kategorie keine Pflicht mehr. Ausgaben ohne Kategorie stehen auf der Übersicht und in der Auswertung je Kategorie in einer eigenen Zeile „Ohne Kategorie“ und zählen zu keinem Budget. In Transaktionen lassen sie sich mit dem Kategorie-Filter „Ohne Kategorie“ finden. Unter Stufe 4 fragen Import und Buchungsdialog statt nach der Kategorie nur, ob eine Buchung zählt, eine Umbuchung oder Sparen ist.
 
 ### Änderungen
 
