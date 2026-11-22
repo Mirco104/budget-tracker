@@ -159,7 +159,8 @@ function SignedIn({ me }: { me: Me }) {
       <header className="app-header">
         <div className="app-header-inner">
           <Brand />
-          <nav className="tabs" aria-label="Hauptnavigation" hidden={page === 'setup'}>
+{page !== 'setup' && (
+          <nav className="tabs" aria-label="Hauptnavigation">
             {TABS.map((tab) => (
               <a
                 key={tab.page}
@@ -172,6 +173,7 @@ function SignedIn({ me }: { me: Me }) {
               </a>
             ))}
           </nav>
+          )}
           <Bell />
           <AccountMenu
             me={me}
