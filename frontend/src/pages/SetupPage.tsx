@@ -409,7 +409,9 @@ export function SetupPage({ me }: { me: Me }) {
       </nav>
       {step > 0 && step < LAST && <p className="setup-count">Schritt {step} von {LAST - 1}</p>}
       {body}
-      {!complete(step) && step > 0 && step < LAST && <p className="setup-missing">{missingText(step, me.istStage, hasBookings)}</p>}
+      {!complete(step) && missingText(step, me.istStage, hasBookings) !== null && (
+        <p className="setup-missing">{missingText(step, me.istStage, hasBookings)}</p>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -440,7 +442,11 @@ export function SetupPage({ me }: { me: Me }) {
   )
 }
 
-function missingText(step: number, stage: IstStage, hasBookings: boolean): string {
+// Review 23.11.2026: every step has its own text; the Tracking-Stufe says on the page what is missing
+function missingText(step: number, stage: IstStage, hasBookings: boolean): string | null {
+  if (step === 1) {
+    return null
+  }
   if (step === 2) {
     return hasBookings
       ? 'Importiere einen Kontoauszug oder wähle „Vorschläge aus meinen Buchungen“, um weiterzumachen.'
@@ -457,7 +463,10 @@ function missingText(step: number, stage: IstStage, hasBookings: boolean): strin
   if (step === 5) {
     return 'Trag mindestens eine Fixkosten-Zahlung ein, um weiterzumachen.'
   }
-  return 'Trag mindestens ein Budget ein, um weiterzumachen.'
+  if (step === 6) {
+    return 'Trag mindestens ein Budget ein, um weiterzumachen.'
+  }
+  return null
 }
 
 /** Decision 88: with a step the lead is its icon and one line; the explanation folds behind "Mehr dazu". */

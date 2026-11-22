@@ -186,6 +186,9 @@ describe('SetupPage', () => {
     expect(await screen.findByRole('heading', { name: 'Wie genau willst du sehen, was du ausgibst?' })).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Stufe 3: Buchungen' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Weiter' })).toBeDisabled()
+    // Review 23.11.2026: no text of another step below the questions
+    expect(screen.queryByText(/Trag mindestens ein Budget ein/)).not.toBeInTheDocument()
+    expect(screen.getByText('Beantworte beide Fragen, dann zeigen wir dir die Stufen und unsere Empfehlung.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: /… und wofür genau/ }))
     fireEvent.click(screen.getByRole('radio', { name: 'Ein paar Minuten pro Woche' }))
