@@ -109,6 +109,34 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$.accounts").value(1));
     }
 
+    // R36 (23.11.2026): a balance on any day counts; the answer names the period since the balance before
+    @Test
+    void aBalanceInTheMiddleOfTheMonthGivesTheVariableSpendingSoFar() throws Exception {
+        java.time.YearMonth previous = java.time.YearMonth.from(today).minusMonths(1);
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(previous.minusMonths(1).atEndOfMonth())))
+                .andExpect(status().isOk());
+        book("{\"amount\": 2000, \"description\": \"Gehalt\", \"date\": \"%s\", \"categoryId\": %d}"
+                .formatted(previous.atDay(1), category("Gehalt/Lohn (netto)")));
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 2700}".formatted(previous.atDay(15))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(jsonPath("$.amount").value(300.00))
+                .andExpect(jsonPath("$.date").value(previous.atDay(15).toString()))
+                .andExpect(jsonPath("$.from").value(previous.minusMonths(1).atEndOfMonth().toString()));
+
+        // A second balance in the month adds the rest of it
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 2500}".formatted(previous.atEndOfMonth())))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/accounts/variable").param("month", previous.toString()))
+                .andExpect(jsonPath("$.amount").value(500.00))
+                .andExpect(jsonPath("$.date").value(previous.atEndOfMonth().toString()))
+                .andExpect(jsonPath("$.accounts").value(1));
+    }
+
     @Test
     void aBankBalanceShowsTheDifferenceAndBecomesTheStart() throws Exception {
         book("{\"amount\": -40, \"description\": \"Einkauf\", \"date\": \"%s\", \"categoryId\": %d}"

@@ -108,8 +108,11 @@ public class AccountOverviewService {
                 entriesByAccount().getOrDefault(account.getId(), List.of()), day);
     }
 
-    /** R36: the balance of every everyday account on the last day of the month gives the variable spending. */
-    public record VariableResponse(BigDecimal amount, boolean moreThanExpected, LocalDate date, int accounts) {
+    /**
+     * R36: the variable spending of the month from the balances of the everyday accounts dated in it; date is the last
+     * of these balances, from the earliest balance before them (null without one).
+     */
+    public record VariableResponse(BigDecimal amount, boolean moreThanExpected, LocalDate date, LocalDate from, int accounts) {
     }
 
     /** R36: whether the account has a balance from the bank on the day. */
@@ -118,29 +121,38 @@ public class AccountOverviewService {
         return statementRepository.findByAccountAndDate(account, day).isPresent();
     }
 
-    /** R36 (stage 2): variable spending of the month from the balances on its last day; amount null without one. */
+    /** R36 (stage 2): variable spending of the month from the balances on any of its days; amount null without one. */
     @Transactional(readOnly = true)
     public VariableResponse variable(java.time.YearMonth month) {
-        LocalDate last = month.atEndOfMonth();
         List<BankStatement> statements = statementRepository.findByOwnerOrderByDateAsc(currentUser.get());
         Map<Long, List<AccountBalance.Entry>> entries = entriesByAccount();
         List<BigDecimal> differences = new java.util.ArrayList<>();
-        for (BankStatement statement : statements) {
-            BankAccount account = statement.getAccount();
-            if (!statement.getDate().equals(last) || account.getRole() != AccountRole.EVERYDAY || account.isArchived()) {
+        LocalDate from = null;
+        LocalDate to = null;
+        int accounts = 0;
+        Map<Long, List<BankStatement>> byAccount = statements.stream()
+                .filter(s -> s.getAccount().getRole() == AccountRole.EVERYDAY && !s.getAccount().isArchived())
+                .collect(java.util.stream.Collectors.groupingBy(s -> s.getAccount().getId()));
+        for (Map.Entry<Long, List<BankStatement>> account : byAccount.entrySet()) {
+            AccountBalance.Period period = AccountBalance.inMonth(month,
+                    account.getValue().stream().map(BankStatement::statement).toList(),
+                    entries.getOrDefault(account.getKey(), List.of()));
+            if (period.differences().isEmpty()) {
                 continue;
             }
-            BankStatement previous = statements.stream()
-                    .filter(s -> s.getAccount().getId().equals(account.getId()) && s.getDate().isBefore(last))
-                    .reduce((a, b) -> b)
-                    .orElse(null);
-            differences.add(AccountBalance.difference(previous == null ? null : previous.statement(),
-                    entries.getOrDefault(account.getId(), List.of()), statement.statement()));
+            accounts++;
+            differences.addAll(period.differences());
+            if (period.from() != null && (from == null || period.from().isBefore(from))) {
+                from = period.from();
+            }
+            if (to == null || period.to().isAfter(to)) {
+                to = period.to();
+            }
         }
         AccountBalance.Variable variable = AccountBalance.variable(differences);
         return variable == null
-                ? new VariableResponse(null, false, last, 0)
-                : new VariableResponse(variable.amount(), variable.moreThanExpected(), last, differences.size());
+                ? new VariableResponse(null, false, null, null, 0)
+                : new VariableResponse(variable.amount(), variable.moreThanExpected(), to, from, accounts);
     }
 
     /** P11: stores the balance from the bank for its day (replacing one of the same day) and shows the difference. */

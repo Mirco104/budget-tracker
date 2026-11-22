@@ -130,12 +130,22 @@ public class TermService {
     @Transactional
     public int enterDue() {
         LocalDate today = LocalDate.now(clock);
-        List<PlannedItem> automatic = itemRepository.findAllOf(currentUser.get()).stream()
+        var user = currentUser.get();
+        // R35: in stage 1 the app enters no bookings
+        if (user.getIstStage() == 1) {
+            return 0;
+        }
+        List<PlannedItem> automatic = itemRepository.findAllOf(user).stream()
                 .filter(item -> item.getEntryMode() == EntryMode.AUTO && item.schedule() != null)
                 .toList();
         // 27f2: from the month "Gilt ab" of the item on; terms fulfilled by a booking are not entered again
         LocalDate first = automatic.stream().map(item -> item.getValidFrom().atDay(1))
                 .min(Comparator.naturalOrder()).orElse(null);
+        // Decision 90: not before the day chosen when leaving stage 1
+        LocalDate since = user.getAutoEntriesFrom();
+        if (first != null && since != null && since.isAfter(first)) {
+            first = since;
+        }
         if (first == null || first.isAfter(today)) {
             return 0;
         }

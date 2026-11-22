@@ -50,6 +50,9 @@ public class User {
     @Column(nullable = false)
     private boolean setupDone;
 
+    // Decision 90: automatic entries (P6) start on this day; set when leaving stage 1, null = from "Gilt ab"
+    private java.time.LocalDate autoEntriesFrom;
+
     protected User() {
     }
 
@@ -97,6 +100,14 @@ public class User {
 
     public boolean isSetupDone() {
         return setupDone;
+    }
+
+    public java.time.LocalDate getAutoEntriesFrom() {
+        return autoEntriesFrom;
+    }
+
+    public void changeAutoEntriesFrom(java.time.LocalDate autoEntriesFrom) {
+        this.autoEntriesFrom = autoEntriesFrom;
     }
 
     public Long getId() {

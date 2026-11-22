@@ -101,4 +101,44 @@ class AccountBalanceTest {
     void withoutABalanceOnTheLastDayThereIsNoVariableSpending() {
         assertThat(AccountBalance.variable(List.of())).isNull();
     }
+
+    // R36 (23.11.2026): a balance on any day of the month counts, each against the balance before it
+
+    @Test
+    void aBalanceInTheMiddleOfTheMonthGivesTheVariableSpendingSinceTheBalanceBefore() {
+        List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00")),
+                new Statement(LocalDate.parse("2026-11-15"), new BigDecimal("2400.00")));
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
+
+        // 1000 + 2500 - 900 - 40.10 (entries up to the 15th) = 2559.90 in the app, 2400 at the bank
+        assertThat(period.differences()).singleElement().satisfies(d -> assertThat(d).isEqualByComparingTo("-159.90"));
+        assertThat(period.from()).isEqualTo(LocalDate.parse("2026-10-31"));
+        assertThat(period.to()).isEqualTo(LocalDate.parse("2026-11-15"));
+    }
+
+    @Test
+    void twoBalancesInAMonthAddUpToTheWholeMonth() {
+        Statement start = new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00"));
+        Statement end = new Statement(LocalDate.parse("2026-11-30"), new BigDecimal("2300.00"));
+        List<Statement> both = List.of(start, new Statement(LocalDate.parse("2026-11-15"), new BigDecimal("2400.00")), end);
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), both, ENTRIES);
+        BigDecimal whole = AccountBalance.difference(start, ENTRIES, end);
+
+        assertThat(period.differences()).hasSize(2);
+        assertThat(period.differences().stream().reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo(whole);
+        assertThat(period.from()).isEqualTo(LocalDate.parse("2026-10-31"));
+        assertThat(period.to()).isEqualTo(LocalDate.parse("2026-11-30"));
+    }
+
+    @Test
+    void withoutABalanceInTheMonthThePeriodIsEmpty() {
+        List<Statement> statements = List.of(new Statement(LocalDate.parse("2026-10-31"), new BigDecimal("1000.00")));
+
+        AccountBalance.Period period = AccountBalance.inMonth(java.time.YearMonth.of(2026, 11), statements, ENTRIES);
+
+        assertThat(period.differences()).isEmpty();
+        assertThat(period.to()).isNull();
+    }
 }

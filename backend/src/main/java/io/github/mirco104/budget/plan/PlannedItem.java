@@ -209,6 +209,11 @@ public class PlannedItem {
         return entryMode;
     }
 
+    /** Decision 90: the stage switch from or to stage 1 changes how every version of an item is entered. */
+    public void changeEntryMode(EntryMode entryMode) {
+        this.entryMode = entryMode;
+    }
+
     public boolean isWorkdaysOnly() {
         return workdaysOnly;
     }
