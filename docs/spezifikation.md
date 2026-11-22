@@ -43,6 +43,8 @@ Stand: 04.11.2026 · Basis: Google Sheet "Budget + Investment Planer V1.1.0" · 
 >
 > **Ab AP 28 (Abschnitt 20):** Eine Kategorie kann eine Oberkategorie haben (R32; ändert „ohne Gruppen“ in R10 und US1, gerechnet wird je Oberkategorie). Kategorien der Bank im Import ergänzt R33 (zu R29 Schritt 4).
 >
+> **Ab AP 32 (Abschnitt 22):** Einrichtung und Ist-Stufen. R35 bis R40 kommen dazu; R40 ersetzt R33 und ändert die Reihenfolge in R29; R36 ergänzt P11 (Differenz am Monatsletzten als „variabel ausgegeben“), R37 erlaubt Ausgaben ohne Kategorie (ändert die Prüfregel aus 27f und US33).
+>
 > **Ab AP 31 (Abschnitt 21):** Die Auswertung hat eine dritte Unterseite *Kategorien* mit Summe und Ø je Kategorie über den Zeitraum des Rückblicks (R34, ergänzt R14).
 
 Sei `M` der gewählte Monat und `N(k)` das Netto der Kategorie `k` in M (R1).
@@ -711,6 +713,16 @@ Geklärt am 21.11.2026 (Ticket #142, Termin-Erkennung im Import, mit dem Nutzer 
 
 78. **Termin-Erkennung im Import überarbeitet:** Beim Test erkannte der Import von Hand geplante Fixkosten und das Gehalt nicht und buchte das Gehalt doppelt. Ursachen: Der Import verglich für das gemeinsame Wort nur die Gegenseite (z. B. „Firma Beispiel“), nicht den Verwendungszweck („Lohn/Gehalt 11/2026“); die Planungsseite nutzte schon beides. Ein neuer Nutzer hat noch keinen Verlauf, also keinen Kategorie-Vorschlag für „gleicher Betrag und gleiche Kategorie“. Und das Gehalt kommt oft einige Tage vor dem 1. Seitdem (P5): (1) Der Text für den Treffer ist Gegenseite und Beschreibung zusammen, im Import wie auf der Planungsseite. (2) Der gleiche Betrag allein ist ein Treffer, wenn der Posten eine Kategorie hat und die Zeile keinen Kategorie-Vorschlag und nicht als Sparen vorgeschlagen ist; diese schwächeren Treffer werden erst nach allen anderen vergeben, damit eine frühere Zeile mit zufällig gleichem Betrag der passenden nicht den Termin nimmt. Eine Zeile mit dem Vorschlag einer anderen Kategorie trifft weiter nicht. Auf der Planungsseite hat jede Buchung eine Kategorie, dort ändert (2) nichts. (3) Eine Einnahme eines Postens mit Rhythmus in Monaten darf bis 10 Tage vor dem (Werktags-)Termin liegen, danach weiter höchstens 5 Tage; Ausgaben und wöchentliche Posten bleiben bei ihrer Toleranz. Der Import und die Planungsseite suchen dazu Buchungen und Termine 10 statt 7 Tage um den Zeitraum.
 
+Geklärt vom 21. bis 22.11.2026 (Einrichtung und Ist-Stufen, Abschnitt 22, über ein klickbares Mockup):
+
+79. **Einrichtung statt drei Schritte auf der Übersicht (21.11.2026, mit dem Nutzer abgestimmt):** Neue Nutzer bekommen eine eigene Einrichtung mit Seiten (US40) statt der Hinweise auf der Übersicht. Die Planung ist der Kern; der Import ist der empfohlene Start (mindestens 3 Monate, besser 6 bis 12), aber nur eine Starthilfe: importierte Buchungen bleiben als Ist, die App schlägt Einkommen, Fixkosten (R31) und Budgets (R38) vor, der Nutzer prüft jeden Vorschlag.
+80. **Vier Ist-Stufen, ausdrücklich gewählt (21.11.2026, mit dem Nutzer abgestimmt):** Wie genau der Nutzer sein Ist verfolgt, wählt er selbst (R35), in der Einrichtung vor den Konten, weil davon abhängt, ob ein Kontostand nötig ist. Ein Wechsel ändert nur die Anzeige. Stufe 2 rechnet die variablen Ausgaben aus der Differenz der Kontostände am Monatsletzten (R36); Stufe 3 verzichtet auf Kategorien, Stufe 4 zeigt „Ohne Kategorie“ als eigene Zeile (R37).
+81. **Kategorien der Bank nur als Vorschlag (21.11.2026, mit dem Nutzer abgestimmt, ersetzt R33 und die Karte aus US38):** Die Bankkategorien sind zu unzuverlässig für feste Zuordnungen. Sie bleiben an der Buchung gespeichert und fließen als zweiter Schritt in den Vorschlag nach R29 ein (R40); die gespeicherten Zuordnungen und ihre Tabelle entfallen. Kategorien entstehen aus der Planung, nicht aus dem Import.
+82. **Einrichtung aus den Bausteinen der Planung (22.11.2026, mit dem Nutzer abgestimmt):** Die Seiten Konten bis Sparen verwenden Liste, Posten-Fenster und Vorschläge der Planung statt eigener Tabellen; damit sehen Einrichtung und Planung gleich aus und funktionieren am Handy.
+83. **„Automatisch am Termin“ als Vorgabe in der Einrichtung (22.11.2026, mit dem Nutzer abgestimmt, Ausnahme zu Entscheidung 70):** Einkommen und Fixkosten, die in der Einrichtung entstehen, sind auf „automatisch am Termin“ vorbelegt, weil Stufe 2 verspricht, dass die App sie selbst einträgt. In der Planung bleibt „beim Abhaken“ die Vorgabe.
+84. **Einrichtung auch für bestehende Nutzer (22.11.2026, mit dem Nutzer abgestimmt):** Bestehende Nutzer sehen die Einrichtung einmal, mit ihren Daten vorausgefüllt und Stufe 4 (US41); „Später einrichten“ schließt sie ohne Änderung.
+85. **Seiten je Stufe ausblenden, Aussehen wie bisher (22.11.2026, mit dem Nutzer abgestimmt):** Seiten, die eine Stufe nicht braucht, verschwinden aus der Navigation (R39); Reiter, Icons und Aufbau der App bleiben, wie sie sind. Stufe 2 behält *Transaktionen*, weil dort die automatischen Einträge, die abgehakten Sparraten und freiwillig erfasste Ausgaben stehen.
+
 ## 12. Testfixtures F1, F2 und Sonderfall Einnahmen = 0
 
 Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test für `DashboardCalculator` und `ReserveCalculator` (ergänzend zu den Fällen aus Abschnitt 7).
@@ -1170,3 +1182,56 @@ Mit dem Nutzer abgestimmt am 16.11.2026 (Entscheidung 77). Ziel: Der Nutzer sieh
 | AP | Inhalt | Ergebnis |
 |---|---|---|
 | 31 | Auswertung je Kategorie (R34, US39, Entscheidung 77): Summen je Kategorie im `ReserveCalculator` (Tests zuerst), `/api/history` erweitert, Unterseite *Auswertung › Kategorien* mit gemeinsamem Zeitraum | Unit-, Integrations- und Frontend-Tests grün |
+
+## 22. Einrichtung und Ist-Stufen ab 22.11.2026
+
+Mit dem Nutzer abgestimmt vom 21. bis 22.11.2026 über ein klickbares Mockup (zehn Fassungen, Entscheidungen 79 bis 85). Ziel: Neue Nutzer kommen ohne Vorwissen zu einem Plan, und die App bleibt so einfach, wie der Nutzer es will. Die Planung ist der Kern; der Import von Kontoauszügen ist unzuverlässig und deshalb nur eine Starthilfe. Wie genau der Nutzer sein Ist verfolgt, wählt er ausdrücklich in einer von vier Stufen.
+
+### 22.1 Regeln
+
+| # | Regel |
+|---|---|
+| R35 | **Ist-Stufe:** Jeder Nutzer hat eine Stufe von 1 bis 4: **1 Nur Plan** (kein Ist), **2 Kontostand** (einmal im Monat der Kontostand, variable Ausgaben nur als Summe, R36), **3 Buchungen** (Ausgaben erfassen oder importieren, ohne Kategorie), **4 Buchungen mit Kategorien** (jede Ausgabe einer Kategorie, wie bis AP 31). Ein neuer Nutzer beginnt mit Stufe 2 (in der Einrichtung vorausgewählt); bestehende Nutzer bekommen mit der Migration Stufe 4. Ein Wechsel der Stufe ändert nur die Anzeige, nie Daten: Buchungen, Kontostände, Kategorien und Bankkategorien bleiben gespeichert; Vorschläge werden beim Wechsel auf Stufe 4 aus den gespeicherten Daten neu berechnet (R40), es wird nichts zusätzlich gespeichert. Die Stufe liegt am Nutzer (`users.ist_stage`). |
+| R36 | **Variabel ausgegeben (Stufe 2):** Für ein Alltagskonto mit einem Kontostand am letzten Tag eines Monats M ist **variabel ausgegeben** in M = App-Saldo am letzten Tag von M ohne diesen Kontostand (P11: letzter Kontostand davor plus alle Buchungen danach bis zum Monatsende, Umbuchungen eingeschlossen) − Kontostand. Ist der Wert negativ, war **mehr als erwartet** auf dem Konto (z. B. eine Erstattung); variabel ausgegeben ist dann 0. Von Hand erfasste Buchungen zählen im App-Saldo mit und verkleinern so die Differenz. Mehrere Alltagskonten werden addiert; ein Alltagskonto ohne Kontostand am Monatsletzten zählt nicht. Ergänzt P11: die Differenz eines Kontostands am Monatsletzten heißt in Stufe 2 „variabel ausgegeben“; sie wird weiter nicht gebucht. Die Rechnung liegt in der reinen Rechenklasse `AccountBalance`. |
+| R37 | **Ausgabe ohne Kategorie:** Eine Buchung, die weder Umbuchung noch Sparen ist, darf ohne Kategorie sein (ändert die Prüfregel aus 27f: jetzt „Umbuchung oder Sparen hat keine Kategorie“, nicht mehr „genau dann“). Sie zählt in P1 als Ausgabe bzw. Einnahme nach ihrem Vorzeichen und ist immer variabel. In Stufe 4 steht sie auf der Übersicht als eigene Zeile **„Ohne Kategorie“** (nicht unter Sonstiges), zählt zu den variablen Kosten, aber zu keinem Budget. |
+| R38 | **Budget-Vorschläge der Einrichtung:** Aus den Buchungen der 6 vollen Monate vor dem aktuellen Monat (ab dem Monat der ersten Buchung, mindestens 1 Monat), ohne Umbuchungen, Sparen und Buchungen, die einen Termin erfüllen (P5): je Gruppe der **Netto-Betrag** (Summe mit Vorzeichen). Gruppe ist die Rechenkategorie (R32) einer Buchung mit Kategorie, sonst ihre Bankkategorie (Oberteil, R30); Buchungen ohne beides zählen nicht. Ist der Netto-Betrag negativ, ist **Ø im Monat** = −Netto / Anzahl der Monate (Skala 2, HALF_UP) und der **Vorschlag** dieser Wert auf ganze Euro gerundet (HALF_UP). Gruppen mit einem Budget-Posten, der im aktuellen Monat gilt (P4), entfallen. Sortiert nach Ø absteigend. Die Rechnung liegt in der reinen Rechenklasse `BudgetSuggester`. |
+| R39 | **Seiten je Stufe:** Stufe 1 blendet *Transaktionen* und *Auswertung* aus; Stufe 2 und 3 blenden *Auswertung › Kategorien* aus; Stufe 4 zeigt alles. Eine ausgeblendete Adresse führt zur *Übersicht*. *Einstellungen* und *Konten* sind in jeder Stufe da. |
+| R40 | **Kategorien der Bank nur als Vorschlag (ersetzt R33):** Die Bankkategorie einer Importzeile (R30) wird gespeichert, aber nie selbst einer Kategorie zugeordnet; es gibt keine gespeicherten Zuordnungen mehr (Tabelle `bank_category_mappings` entfällt). R29 bekommt eine neue Reihenfolge: (1) *sicher* aus der Gegenseite (wie bisher Schritt 1); (2) *unsicher* aus der Bankkategorie: die häufigste Kategorie der bis zu 10 neuesten Transaktionen mit derselben Bankkategorie (bisher Teil von Schritt 4); (3) *unsicher* aus der Gegenseite mit verschiedenen Kategorien (bisher 2); (4) *unsicher* aus dem ersten Wort (bisher 3); (5) *unsicher* aus dem Namen der Bankkategorie: eine Kategorie, deren erstes Wort das erste Wort der Bankkategorie ist, und die Art-Hinweise von Trade Republic (bisher Rest von Schritt 4); (6) sonst kein Vorschlag. In Stufe 4 ist die Kategorie einer Importzeile nicht Pflicht (ändert US33); eine Zeile ohne Kategorie wird eine Ausgabe ohne Kategorie (R37). In Stufe 3 hat der Import keine Spalte Kategorie. |
+
+### 22.2 User Stories
+
+- **US40 Einrichtung:** Als neuer Nutzer werde ich nach dem ersten Anmelden durch eine Einrichtung mit eigener Adresse (`#/einrichtung`) und neun Seiten geführt: *Start* (Weg wählen: „Plan aus Kontoauszügen vorschlagen“, empfohlen, mindestens 3 Monate, besser 6 bis 12, oder „Plan selbst eintragen“), *Ist verfolgen* (Stufe, R35), *Konten*, *Einkommen*, *Fixkosten*, *Variable Kosten (Budgets)*, *Sparen*, *Sparziele* und *Fertig*. Die Seiten Konten bis Sparen nutzen die Bausteine der *Planung*: je Gruppe eine Karte mit Summe, die Posten nach Kategorie gruppiert, „+ Posten“ mit dem Fenster eines Postens, „Gefunden in deinen Buchungen“ (27i) und „Häufig dazu“ (typische Posten, die das Fenster vorausgefüllt öffnen); auf *Variable Kosten* zusätzlich die Budget-Vorschläge (R38), auf *Einkommen* die Kacheln Durchschnitt und Mindestens mit dem Hinweis, im Zweifel mit dem kleineren Betrag zu planen; auf *Sparen* die Frage „… sind noch nicht verplant“ mit „Monatlich sparen“ und „Als Puffer in Sonstiges“. Ab *Fixkosten* steht unter der Karte die Rechnung Einkommen − Fixkosten − Budgets − Sparraten, mit „ausstehend“ für noch kommende Schritte. *Fertig* zeigt, wie der Monat abläuft (je Stufe), ein Sankey-Diagramm des Plans (Einkommen → Fixkosten, variable Kosten, Sparen, nicht verplant → Kategorien) und je Bereich eine Karte mit „ändern“. *AK:* „Weiter“ geht erst, wenn der Schritt vollständig ist: ein Weg gewählt, in Stufe 2 ein Kontostand für jedes Alltagskonto, ein Einkommen über 0 €, mindestens ein Fixkosten-Posten und ein Budget; die Leiste oben springt zu jedem schon erreichten Schritt, nie über einen unvollständigen; neue Einkommen und Fixkosten sind in der Einrichtung auf „automatisch am Termin“ vorbelegt (Entscheidung 83); alles, was die Einrichtung anlegt, sind echte Posten, Konten und Sparziele über dieselbe API wie die Planung; „Einrichtung abschließen“ speichert `setupDone`; „Später einrichten“ schließt die Einrichtung ohne Änderung; unter *Einstellungen › Ist verfolgen* lässt sie sich jederzeit neu starten.
+- **US41 Einrichtung für bestehende Nutzer:** Als Nutzer mit Daten aus der Zeit vor AP 32 sehe ich die Einrichtung beim nächsten Öffnen der App einmal, mit meinen Konten, Posten und Sparzielen schon eingetragen und Stufe 4 vorausgewählt. *AK:* Der Start fragt nicht nach dem Weg; jede Änderung ändert die echten Daten; „Später einrichten“ lässt Stufe 4 und alles andere, wie es war.
+- **US42 Ist-Stufe wählen:** Als Nutzer wähle ich unter *Einstellungen › Ist verfolgen* meine Stufe; jede Stufe zeigt, was ich tue, was ich bekomme, den Aufwand (Sehr gering, Gering, Mittel, Hoch) und die Genauigkeit (Keine, Gering, Mittel, Hoch). *AK:* R35, R39; der Wechsel wirkt sofort auf Navigation und Übersicht.
+- **US43 Übersicht je Stufe:** Als Nutzer sehe ich auf der *Übersicht* nur, was meine Stufe liefert: Stufe 1 den Plan des Monats (Einkommen, Fixkosten, Budgets, Sparen, erwartete Termine, Rücklagen) und den Hinweis „Du verfolgst nur den Plan“; Stufe 2 dazu die Fixkosten und Einnahmen als Ist und nach dem Kontostand am Monatsletzten „variabel ausgegeben“ bzw. „mehr als erwartet“ (R36), die Glocke fragt nach dem Kontostand des Vormonats; Stufe 3 die variablen Ausgaben gesamt gegen die Summe der Budgets; Stufe 4 wie bisher je Budget, mit der Zeile „Ohne Kategorie“ (R37).
+
+### 22.3 Datenmodell (Migrationen ab V25)
+
+- V25: `users` bekommt `ist_stage` (smallint, 1 bis 4, bestehende Zeilen 4) und `setup_done` (boolean, bestehende Zeilen `false`, damit auch bestehende Nutzer die Einrichtung einmal sehen, US41).
+- V26: die Prüfregel der Transaktionen erlaubt eine Ausgabe ohne Kategorie (R37).
+- V27: `bank_category_mappings` wird gelöscht (R40).
+
+### 22.4 API (Skizze)
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/api/auth/me` | dazu `istStage` und `setupDone` |
+| PUT | `/api/account/stage` | Body `{stage}` (1 bis 4, sonst 400), Antwort `MeResponse` (R35) |
+| PUT | `/api/account/setup` | Body `{done}`, Antwort `MeResponse` (US40) |
+| GET | `/api/plan/budget-suggestions` | Budget-Vorschläge (R38): je Gruppe `name`, `categoryId` (oder leer), `bankCategory` (oder leer), `average`, `proposal`, `months` |
+| GET | `/api/dashboard?month=` | dazu `variableFromBalance` (R36: Betrag, `moreThanExpected`, oder leer ohne Kontostand) und `uncategorized` (R37: Summe und Anzahl) |
+
+### 22.5 Arbeitspakete
+
+| AP | Inhalt | Ergebnis |
+|---|---|---|
+| 32a | Spezifikation (dieser Abschnitt) | Abschnitt 22, Entscheidungen 79 bis 85 |
+| 32b | Ist-Stufe und Einrichtungsstand am Nutzer (R35, V25), `PUT /api/account/stage` und `/setup`, *Einstellungen › Ist verfolgen* | Integrations- und Frontend-Tests grün |
+| 32c | Budget-Vorschläge (R38) im `BudgetSuggester` (Tests zuerst) und Endpunkt | Unit- und Integrationstests grün |
+| 32d | Einrichtung (US40, US41) aus den Bausteinen der Planung, Sankey mit Recharts | Frontend-Tests grün |
+| 32e | Übersicht je Stufe (US43, R36, R37 in der Übersicht), Seiten je Stufe (R39), Glocke für den Kontostand in Stufe 2 | Unit-, Integrations- und Frontend-Tests grün |
+| 32f | Import ohne Pflicht-Kategorie, neue Reihenfolge in R29, Wegfall der Karte „Kategorien der Bank“ (R40, V27) | Unit-, Integrations- und Frontend-Tests grün |
+
+### 22.6 Entscheidungen beim Umsetzen (Nachtlauf 22./23.11.2026, ohne Rückfrage getroffen, zur Prüfung im PR)
+
+*Wird beim Umsetzen ergänzt.*
