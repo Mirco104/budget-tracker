@@ -112,6 +112,12 @@ public class AccountOverviewService {
     public record VariableResponse(BigDecimal amount, boolean moreThanExpected, LocalDate date, int accounts) {
     }
 
+    /** R36: whether the account has a balance from the bank on the day. */
+    @Transactional(readOnly = true)
+    public boolean hasStatement(BankAccount account, LocalDate day) {
+        return statementRepository.findByAccountAndDate(account, day).isPresent();
+    }
+
     /** R36 (stage 2): variable spending of the month from the balances on its last day; amount null without one. */
     @Transactional(readOnly = true)
     public VariableResponse variable(java.time.YearMonth month) {

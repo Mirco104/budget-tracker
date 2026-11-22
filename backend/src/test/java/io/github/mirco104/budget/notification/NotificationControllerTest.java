@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -56,6 +57,32 @@ class NotificationControllerTest {
         mockMvc = TestUsers.mockMvcFor(context, user);
         current = YearMonth.now(clock);
         previous = current.minusMonths(1);
+    }
+
+    // R36, US43: in stage 2 the bell asks for the balance on the last day of the previous month
+    @Test
+    void stageTwoAsksForTheBalanceOnTheLastDayOfThePreviousMonth() throws Exception {
+        String accounts = mockMvc.perform(get("/api/bank-accounts")).andReturn().getResponse().getContentAsString();
+        long girokonto = ((Number) com.jayway.jsonpath.JsonPath.read(accounts, "$[0].id")).longValue();
+
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')].month").value(previous.toString()))
+                .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')].accountId").value((int) girokonto));
+
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(previous.atEndOfMonth())))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')]").isEmpty());
+    }
+
+    @Test
+    void otherStagesAreNotAskedForTheBalance() throws Exception {
+        mockMvc.perform(put("/api/account/stage").contentType(MediaType.APPLICATION_JSON).content("{\"stage\": 4}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(jsonPath("$[?(@.kind == 'BALANCE_DUE')]").isEmpty());
     }
 
     @Test

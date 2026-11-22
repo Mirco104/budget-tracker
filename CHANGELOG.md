@@ -12,6 +12,12 @@ Einrichtung für neue Nutzer und vier Stufen, wie genau man sein Ist verfolgt.
 - **Ist verfolgen in vier Stufen:** Nur Plan, Kontostand, Buchungen oder Buchungen mit Kategorien, jeweils mit Aufwand und Genauigkeit. Ein Wechsel ändert nur die Anzeige, nie die Daten.
 - **Budget-Vorschläge:** Die Einrichtung schlägt Budgets aus dem Durchschnitt der letzten 6 Monate je Kategorie vor.
 - **Dein Monat im Plan:** Am Ende der Einrichtung zeigt ein Diagramm, wohin das Einkommen im Plan fließt.
+- **Übersicht je Stufe:** Stufe 1 zeigt nur den Plan des Monats, Stufe 2 nach dem Kontostand vom letzten Tag des Monats, was variabel ausgegeben wurde (oder „mehr als erwartet“), Stufe 3 alle Budgets zusammen, Stufe 4 wie bisher jedes Budget einzeln.
+- **Glocke fragt nach dem Kontostand:** In Stufe 2 erinnert die Glocke an den Kontostand vom letzten Tag des Vormonats.
+
+### Änderungen
+
+- **Nur die nötigen Seiten:** In Stufe 1 sind *Transaktionen* und *Auswertung* ausgeblendet, die Unterseite *Auswertung › Kategorien* gibt es nur in Stufe 4.
 
 ## 0.2.0-alpha (21.11.2026)
 

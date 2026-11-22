@@ -18,6 +18,8 @@ import {
   shiftMonth,
 } from '../format'
 import { rhythmLabel } from '../labels'
+import { useMe } from '../api/auth'
+import { showsCategoryAnalysis } from '../stages'
 import { EVALUATION_ROUTES, useEvaluationPage, type EvaluationPage as EvaluationSubPage } from '../router'
 import { Loading } from '../components/ui/Loading'
 import { CategoryAnalysis } from './CategoryAnalysis'
@@ -27,7 +29,10 @@ import { CategoryAnalysis } from './CategoryAnalysis'
  * outlook from the current month on. The period stays while switching between look back and categories (decision 77).
  */
 export function EvaluationPage() {
-  const page = useEvaluationPage()
+  // R39: the sub page Kategorien only in stage 4, where every expense has a category
+  const withCategories = showsCategoryAnalysis(useMe().data?.istStage ?? 4)
+  const chosen = useEvaluationPage()
+  const page = chosen === 'categories' && !withCategories ? 'history' : chosen
   const period = usePeriodChoice()
   const link = (target: EvaluationSubPage, label: string) => (
     <a href={EVALUATION_ROUTES[target]} aria-current={page === target ? 'page' : undefined}>
@@ -39,7 +44,7 @@ export function EvaluationPage() {
       <PageHeader title="Auswertung" />
       <nav className="subtabs" aria-label="Auswertung">
         {link('history', 'Rückblick')}
-        {link('categories', 'Kategorien')}
+        {withCategories && link('categories', 'Kategorien')}
         {link('outlook', 'Vorausschau')}
       </nav>
       {page === 'outlook' ? <Outlook /> : <LookBack choice={period} categories={page === 'categories'} />}

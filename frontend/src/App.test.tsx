@@ -48,6 +48,34 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeInTheDocument()
   })
 
+  // R39: stage 1 hides Transaktionen and Auswertung; their address leads to the overview
+  it('hides the pages a stage does not need', async () => {
+    window.location.hash = '#/auswertung'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => (url === '/api/auth/me' ? json({ ...me, istStage: 1 }) : new Promise(() => {}))),
+    )
+    renderWithClient()
+    await screen.findByRole('navigation', { name: 'Hauptnavigation' })
+
+    expect(screen.queryByRole('link', { name: 'Transaktionen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Auswertung' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Planung' })).toBeInTheDocument()
+    await waitFor(() => expect(window.location.hash).toBe('#/uebersicht'))
+  })
+
+  // US40: until the setup is done the app opens it
+  it('opens the setup while it is not done', async () => {
+    window.location.hash = '#/planung'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => (url === '/api/auth/me' ? json({ ...me, setupDone: false }) : new Promise(() => {}))),
+    )
+    renderWithClient()
+
+    await waitFor(() => expect(window.location.hash).toBe('#/einrichtung'))
+  })
+
   // US29: four tabs as links; the settings live in the account menu
   it('has the tabs Übersicht, Transaktionen, Planung and Auswertung as links', async () => {
     await renderApp()

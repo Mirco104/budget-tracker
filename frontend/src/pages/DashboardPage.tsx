@@ -6,9 +6,11 @@ import { EXPECTED_ROUTE, transactionsPeriodHref } from '../router'
 import { useCategories } from '../api/categories'
 import { useDashboard } from '../api/dashboard'
 import { usePlan } from '../api/plan'
+import { useMe } from '../api/auth'
+import { useVariableFromBalance, type VariableFromBalance as VariableData } from '../api/accounts'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
 import { useTransactions } from '../api/transactions'
-import type { CategoryLine, DashboardData, PlannedItem, ReservePot, Transaction } from '../api/types'
+import type { CategoryLine, DashboardData, IstStage, Plan, PlannedItem, ReservePot, Transaction } from '../api/types'
 import { AddBookingButton, AddBookingFab } from '../components/Booking'
 import { useBookingDialog } from '../components/useBookingDialog'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
@@ -41,6 +43,8 @@ interface Props {
 }
 
 export function DashboardPage({ month, onMonthChange }: Props) {
+  // US43: the overview shows what the Ist stage delivers (R35)
+  const stage = useMe().data?.istStage ?? 4
   const categories = useCategories(month)
   // US27: "+ Buchung" also on the overview, where one checks what is left
   const booking = useBookingDialog({
@@ -52,17 +56,26 @@ export function DashboardPage({ month, onMonthChange }: Props) {
     <section>
       <PageHeader title="Übersicht">
         {onMonthChange && <MonthNav month={month} onChange={onMonthChange} />}
-        <AddBookingButton onClick={booking.openNew} />
+        {stage > 1 && <AddBookingButton onClick={booking.openNew} />}
       </PageHeader>
-      <DashboardContent month={month} onEditBooking={booking.openEdit} />
-      <AddBookingFab onClick={booking.openNew} />
+      <DashboardContent month={month} stage={stage} onEditBooking={booking.openEdit} />
+      {stage > 1 && <AddBookingFab onClick={booking.openNew} />}
       {booking.element}
     </section>
   )
 }
 
-function DashboardContent({ month, onEditBooking }: { month: string; onEditBooking: (entry: Transaction) => void }) {
+function DashboardContent({
+  month,
+  stage,
+  onEditBooking,
+}: {
+  month: string
+  stage: IstStage
+  onEditBooking: (entry: Transaction) => void
+}) {
   const { data, isPending, error } = useDashboard(month)
+  const variable = useVariableFromBalance(month, stage === 2)
   const [incomeOpen, setIncomeOpen] = useState(false)
   // 27f4: the expenses open on the budget table by default
   const [expensesOpen, setExpensesOpen] = useState(true)
@@ -85,6 +98,11 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
   }
 
   const iconOf = (id: number) => categories.data?.find((category) => category.id === id)?.icon ?? 'tag'
+
+  // Stage 1: only the plan of the month, no actuals (US43)
+  if (stage === 1) {
+    return plan.data ? <PlanOnly plan={plan.data} iconOf={iconOf} /> : <Loading text="Lade Plan …" />
+  }
 
   // US5: nothing booked and planned yet. Only the current month counts, an empty past month is just empty.
   const hasTarget = data.categories.some((c) => c.target !== null)
@@ -168,7 +186,32 @@ function DashboardContent({ month, onEditBooking }: { month: string; onEditBooki
               </InfoTip>
             </p>
           )}
-          {expensesOpen && (
+          {expensesOpen && stage === 2 && (
+            <div className="summary-body">
+              <VariableFromBalance month={month} data={variable.data} budgets={plan.data?.budgets ?? null} />
+            </div>
+          )}
+          {expensesOpen && stage === 3 && (
+            <div className="summary-body">
+              <ul className="budget-list">
+                <li className="budget-item budget-total">
+                  <div className="budget-head">
+                    <span className="budget-name">Alle Budgets zusammen</span>
+                    <BudgetNumbers line={allBudgets(data.expenses.oneOff, plan.data?.budgets ?? null)} />
+                  </div>
+                  <ProgressBar
+                    value={plan.data?.budgets ? data.expenses.oneOff / plan.data.budgets : 0}
+                    over={plan.data !== undefined && data.expenses.oneOff > plan.data.budgets}
+                  />
+                </li>
+              </ul>
+              <p className="hint">Einzelne Budgets siehst du in Stufe 4, wenn du deinen Ausgaben Kategorien gibst.</p>
+              <a className="summary-link" href={transactionsPeriodHref(`${month}-01`, lastDayOf(month))}>
+                Alle Buchungen im {formatMonthName(month)} ›
+              </a>
+            </div>
+          )}
+          {expensesOpen && stage === 4 && (
             <div className="summary-body">
               {data.categories.length === 0 ? (
                 <p className="hint">In diesem Monat gibt es weder Soll-Werte noch Ausgaben.</p>
@@ -455,5 +498,96 @@ function Onboarding() {
         <li>Hier die Übersicht ansehen: du siehst sofort, was noch frei ist.</li>
       </ol>
     </section>
+  )
+}
+
+
+/** Stage 3: the variable expenses (P5) against the sum of the budgets (P4); only display arithmetic. */
+function allBudgets(actual: number, target: number | null): Line {
+  return { actual, target, difference: target === null ? null : target - actual }
+}
+
+/** R36, US43: stage 2 shows the variable spending from the balance on the last day of the month. */
+function VariableFromBalance({ month, data, budgets }: { month: string; data: VariableData | undefined; budgets: number | null }) {
+  if (!data || data.amount === null) {
+    return (
+      <p className="hint">
+        Trag den Kontostand vom letzten Tag im {formatMonthName(month)} auf der Seite <a href={ROUTES.accounts}>Konten</a> ein,
+        dann siehst du, was du variabel ausgegeben hast. Fixkosten und Einkommen trägt die App selbst ein.
+      </p>
+    )
+  }
+  if (data.moreThanExpected) {
+    return (
+      <p className="hint">
+        Auf dem Konto waren am {formatDate(data.date)} <strong>{formatEuro(data.amount)} mehr als erwartet</strong>, z. B. durch
+        eine Erstattung. Variabel ausgegeben: {formatEuro(0)}.
+      </p>
+    )
+  }
+  return (
+    <ul className="budget-list">
+      <li className="budget-item budget-total">
+        <div className="budget-head">
+          <span className="budget-name">Variabel ausgegeben</span>
+          <BudgetNumbers line={allBudgets(data.amount, budgets)} />
+        </div>
+        <ProgressBar value={budgets ? data.amount / budgets : 0} over={budgets !== null && data.amount > budgets} />
+        <p className="tx-meta">Aus dem Kontostand am {formatDate(data.date)}, gegen die Summe deiner Budgets.</p>
+      </li>
+    </ul>
+  )
+}
+
+/** Stage 1, US43: the plan of the month without actuals. */
+function PlanOnly({ plan, iconOf }: { plan: Plan; iconOf: (id: number) => string }) {
+  const budgets = plan.categories.filter((line) => line.group === 'BUDGET')
+  return (
+    <>
+      <p className="hint">
+        Du verfolgst nur den Plan. Willst du sehen, was du wirklich ausgibst? <a href="#/einstellungen/ist-verfolgen">Stufe ändern</a>
+      </p>
+      <dl className="card setup-sum" aria-label="Plan des Monats">
+        <div>
+          <dt>Einkommen</dt>
+          <dd className="income">{formatEuro(plan.income)}</dd>
+        </div>
+        <div>
+          <dt>Fixkosten (Monatsanteile)</dt>
+          <dd>{formatEuro(plan.fixed)}</dd>
+        </div>
+        <div>
+          <dt>Budgets</dt>
+          <dd>{formatEuro(plan.budgets)}</dd>
+        </div>
+        <div>
+          <dt>
+            Sparen
+            {plan.savingRate !== null && <span className="tx-meta"> (Sparquote {plan.savingRate.toLocaleString('de-DE')} %)</span>}
+          </dt>
+          <dd className="saving">{formatEuro(plan.saving)}</dd>
+        </div>
+        <div className={plan.unplanned < 0 ? 'total over' : 'total'}>
+          <dt>{plan.unplanned < 0 ? 'Überplant' : 'Nicht verplant'}</dt>
+          <dd>{formatEuro(Math.abs(plan.unplanned))}</dd>
+        </div>
+      </dl>
+      {budgets.length > 0 && (
+        <section className="card" aria-label="Budgets im Monat">
+          <h2>Budgets im Monat</h2>
+          <ul className="budget-list">
+            {budgets.map((line) => (
+              <li key={line.categoryId} className="budget-item">
+                <div className="budget-head">
+                  <CategoryIcon icon={iconOf(line.categoryId)} />
+                  <span className="budget-name">{line.categoryName}</span>
+                  <span className="budget-amount">{formatEuro(line.total)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   )
 }

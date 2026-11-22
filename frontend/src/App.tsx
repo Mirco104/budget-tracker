@@ -18,6 +18,7 @@ import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
 import { IMPORT_ROUTE, ROUTES, useHash, usePage, type Page } from './router'
+import { hiddenPages } from './stages'
 import { Loading, LoadingBar } from './components/ui/Loading'
 
 // Loaded when the tab is first opened: the page brings Recharts, which would otherwise double the initial bundle
@@ -147,11 +148,16 @@ function SignedIn({ me }: { me: Me }) {
   const hash = useHash()
   // US40, US41: until the setup is done the app opens it; the import may run in between (start with bank files)
   const setupOpen = !me.setupDone && page !== 'setup' && hash !== IMPORT_ROUTE
+  // R39: pages the stage does not need are hidden; their address leads to the overview
+  const hidden = hiddenPages(me.istStage)
+  const pageHidden = hidden.includes(page) && !(page === 'transactions' && hash === IMPORT_ROUTE)
   useEffect(() => {
     if (setupOpen) {
       window.location.hash = ROUTES.setup
+    } else if (pageHidden) {
+      window.location.hash = ROUTES.overview
     }
-  }, [setupOpen])
+  }, [setupOpen, pageHidden])
 
   return (
     <>
@@ -161,7 +167,7 @@ function SignedIn({ me }: { me: Me }) {
           <Brand />
 {page !== 'setup' && (
           <nav className="tabs" aria-label="Hauptnavigation">
-            {TABS.map((tab) => (
+            {TABS.filter((tab) => !hidden.includes(tab.page)).map((tab) => (
               <a
                 key={tab.page}
                 className="tab"
@@ -186,9 +192,9 @@ function SignedIn({ me }: { me: Me }) {
 
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
-        {page === 'transactions' && <TransactionsRoute />}
+        {page === 'transactions' && !pageHidden && <TransactionsRoute />}
         {page === 'planning' && <PlanningPage month={month} onMonthChange={setMonth} />}
-        {page === 'evaluation' && (
+        {page === 'evaluation' && !pageHidden && (
           <Suspense fallback={<Loading text="Lade Auswertung …" />}>
             <EvaluationPage />
           </Suspense>

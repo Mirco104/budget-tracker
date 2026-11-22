@@ -78,3 +78,19 @@ export function useDeleteBalance() {
       ),
   })
 }
+
+/** R36 (stage 2): variable spending of a month from the balances on its last day; amount null without one. */
+export interface VariableFromBalance {
+  amount: number | null
+  moreThanExpected: boolean
+  date: string
+  accounts: number
+}
+
+export function useVariableFromBalance(month: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['accounts', 'variable', month],
+    queryFn: () => request<VariableFromBalance>(`/accounts/variable?month=${month}`),
+    enabled,
+  })
+}
