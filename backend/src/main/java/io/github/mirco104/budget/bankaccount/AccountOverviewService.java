@@ -52,7 +52,8 @@ public class AccountOverviewService {
     }
 
     /** P11: the balance from the bank, the app balance on its day and the difference (not booked). */
-    public record ReconcileResult(BigDecimal appBalance, BigDecimal bankBalance, BigDecimal difference) {
+    /** P11; start (review 23.11.2026): the account had no earlier balance, so this one is its start and the difference says nothing. */
+    public record ReconcileResult(BigDecimal appBalance, BigDecimal bankBalance, BigDecimal difference, boolean start) {
     }
 
     /** Ticket #135: one balance from the bank of an account with the app balance on its day and the difference. */
@@ -187,7 +188,7 @@ public class AccountOverviewService {
         statement.setAmount(bank.amount());
         statementRepository.save(statement);
         return new ReconcileResult(app, bank.amount(),
-                AccountBalance.difference(previous == null ? null : previous.statement(), entries, bank));
+                AccountBalance.difference(previous == null ? null : previous.statement(), entries, bank), previous == null);
     }
 
     /** Ticket #135: the balances from the bank of the account, newest first (P11). */

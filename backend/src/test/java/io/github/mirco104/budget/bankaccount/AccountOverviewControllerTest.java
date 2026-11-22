@@ -150,7 +150,12 @@ class AccountOverviewControllerTest {
                         .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(today)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.appBalance").value(-40.00))
-                .andExpect(jsonPath("$.difference").value(1040.00));
+                .andExpect(jsonPath("$.difference").value(1040.00))
+                // the first balance of the account is its start (review 23.11.2026)
+                .andExpect(jsonPath("$.start").value(true));
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 1000}".formatted(today)))
+                .andExpect(jsonPath("$.start").value(true));
         mockMvc.perform(get("/api/accounts"))
                 .andExpect(jsonPath("$[0].accounts[0].balance").value(1000.00))
                 .andExpect(jsonPath("$[0].accounts[0].statementAmount").value(1000.00));
@@ -166,6 +171,10 @@ class AccountOverviewControllerTest {
         balance(girokonto, today.minusDays(1), "1000");
         balance(girokonto, today, "900");
         balance(tagesgeld, today, "50");
+        // A balance with one before it is no start
+        mockMvc.perform(post("/api/bank-accounts/{id}/balances", girokonto).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\": \"%s\", \"amount\": 900}".formatted(today)))
+                .andExpect(jsonPath("$.start").value(false));
 
         String history = mockMvc.perform(get("/api/bank-accounts/{id}/balances", girokonto))
                 .andExpect(status().isOk())

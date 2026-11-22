@@ -388,6 +388,8 @@ export interface ReconcileResult {
   appBalance: number
   bankBalance: number
   difference: number
+  /** Review 23.11.2026: the account had no earlier balance, so this one is its start */
+  start: boolean
 }
 
 export interface BankAccountInput {

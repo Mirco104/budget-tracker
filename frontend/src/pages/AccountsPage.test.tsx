@@ -23,7 +23,7 @@ const groups: AccountGroup[] = [
   { role: 'DEPOT', total: 0, accounts: [] },
 ]
 
-function renderPage() {
+function renderPage(start = false) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     void init
     const method = init?.method ?? 'GET'
@@ -38,7 +38,7 @@ function renderPage() {
             { id: 7, date: '2026-11-01', amount: 1000, appBalance: 1000, difference: 0 },
           ]
       : url.startsWith('/api/bank-accounts/1/balances')
-        ? { appBalance: 1250, bankBalance: 1200, difference: -50 }
+        ? { appBalance: 1250, bankBalance: 1200, difference: -50, start }
         : url === '/api/reserves/by-account'
           ? [
               {
@@ -103,6 +103,19 @@ describe('AccountsPage', () => {
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Differenz −50,00 €: fehlt eine Buchung?')
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/1/balances')).toBe(true))
     expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/bank-accounts/1' && init?.method === 'PUT')).toBe(false)
+  })
+
+  // Review 23.11.2026: the first balance of an account is its start, without a difference
+  it('calls the first balance of an account its start', async () => {
+    renderPage(true)
+    fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Girokonto' })
+    fireEvent.change(within(dialog).getByLabelText('Kontostand laut Bank (optional)'), { target: { value: '1.200,00' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    const status = await within(dialog).findByRole('status')
+    expect(status).toHaveTextContent('Kontostand gespeichert. Er ist der Startwert dieses Kontos.')
+    expect(status).not.toHaveTextContent('fehlt eine Buchung')
   })
 
   // Ticket #135: the history opens in its own window above the account; a wrong balance can be deleted
