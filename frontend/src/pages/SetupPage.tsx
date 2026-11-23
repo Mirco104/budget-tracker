@@ -6,9 +6,11 @@ import { useCategories, useCreateCategory } from '../api/categories'
 import { errorText } from '../api/client'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { useDismissNotification } from '../api/notifications'
-import { useBudgetSuggestions, useCreatePlannedItem, usePlan, usePlanSuggestions, useUpdatePlannedItem, type PlanSuggestion } from '../api/plan'
+import { useBudgetSuggestions, usePlan, usePlanSuggestions, type PlanSuggestion } from '../api/plan'
 import type { AccountLine, Category, EntryMode, IstStage, Me, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { AccountDialog } from '../components/AccountDialog'
+import { BufferDone } from '../components/BufferDone'
+import { useBufferToOther } from '../components/useBufferToOther'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
 import { SavingGoalDialog } from '../components/SavingGoalDialog'
 import { StageChoice } from '../components/StageChoice'
@@ -600,7 +602,10 @@ function ImportStep({
           <button type="button" className={path === 'plan' ? 'setup-choice on' : 'setup-choice'} onClick={() => onPath('plan')}>
             <span className="badge">Ohne Kontoauszug</span>
             <strong>Plan selbst eintragen</strong>
-            <span className="tx-meta">Du trägst deine Beträge selbst ein. Wir geben typische Posten vor.</span>
+            <span className="tx-meta">
+              Du trägst deine Beträge selbst ein. Wir geben typische Posten vor. Kontoauszüge kannst du später jederzeit
+              importieren.
+            </span>
           </button>
         </div>
       )}
@@ -849,8 +854,6 @@ function PlanStep({
   const budgetSuggestions = useBudgetSuggestions()
   const dismiss = useDismissNotification()
   const createCategory = useCreateCategory()
-  const createItem = useCreatePlannedItem()
-  const updateItem = useUpdatePlannedItem()
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [typicalOpen, setTypicalOpen] = useState<boolean | null>(null)
@@ -902,40 +905,24 @@ function PlanStep({
     }
   }
 
-  // P4 "Als Puffer in Sonstiges": the rest goes to the budget of the catch-all category
+  // P4 "Als Puffer in Sonstiges": the rest goes to the budget of the catch-all category; field test 24.11.2026:
+  // "Rückgängig" takes it back while the step is open
+  const buffer = useBufferToOther()
   async function toOther() {
     setError(null)
     try {
-      const categoryId = (await categoryNamed(SONSTIGES)) as number
-      const existing = plan.items.find((item) => item.group === 'BUDGET' && item.categoryId === categoryId)
-      if (existing) {
-        await updateItem.mutateAsync({
-          id: existing.id,
-          input: {
-            name: existing.name,
-            amount: -(existing.monthlyShare + plan.unplanned),
-            categoryId,
-            accountId: existing.accountId,
-            rhythmUnit: null,
-            rhythmCount: null,
-            anchorDate: null,
-            entryMode: existing.entryMode,
-            validFrom: month,
-          },
-        })
-      } else {
-        await createItem.mutateAsync({
-          name: SONSTIGES,
-          amount: -plan.unplanned,
-          categoryId,
-          rhythmUnit: null,
-          rhythmCount: null,
-          anchorDate: null,
-          validFrom: month,
-        })
-      }
+      await buffer.put(plan, (await categoryNamed(SONSTIGES)) as number, month)
     } catch (e) {
       setError(errorText(e, 'Speichern fehlgeschlagen.'))
+    }
+  }
+
+  async function undoOther() {
+    setError(null)
+    try {
+      await buffer.undo()
+    } catch (e) {
+      setError(errorText(e, 'Rückgängig machen fehlgeschlagen.'))
     }
   }
 
@@ -994,11 +981,14 @@ function PlanStep({
             >
               Monatlich sparen
             </button>
-            <button type="button" onClick={() => void toOther()} disabled={createItem.isPending || updateItem.isPending}>
+            <button type="button" onClick={() => void toOther()} disabled={buffer.busy}>
               Als Puffer in „Sonstiges“
             </button>
           </div>
         </div>
+      )}
+      {group === 'SAVING' && buffer.moved !== null && plan.unplanned === 0 && (
+        <BufferDone amount={buffer.moved} busy={buffer.busy} onUndo={() => void undoOther()} />
       )}
       <GroupSection
         title={title === 'Was kommt rein?' ? 'Einkommen' : STEPS[step]}
@@ -1142,6 +1132,11 @@ function PlanFillBar({ plan, step }: { plan: Plan; step: number }) {
   const scale = Math.max(plan.income, used, 0.01)
   return (
     <div className="plan-fill" aria-label="Dein Einkommen im Plan">
+      {/* Field test after 0.3.0: the income heads the bar; the legend is an even grid instead of a wrapping line */}
+      <div className="plan-fill-head">
+        <span>Einkommen im Plan</span>
+        <strong>{formatEuro(plan.income)}</strong>
+      </div>
       <div className="plan-fill-bar" aria-hidden="true">
         {shown
           .filter((part) => part.value > 0)
@@ -1153,29 +1148,39 @@ function PlanFillBar({ plan, step }: { plan: Plan; step: number }) {
         {parts.map((part) =>
           step >= part.from ? (
             <span key={part.key} className={step === part.from ? 'now' : undefined}>
-              <i className={`fill-${part.key}`} aria-hidden="true" />
-              {part.label} <strong>{formatEuro(part.value)}</strong>
+              <span>
+                <i className={`fill-${part.key}`} aria-hidden="true" />
+                {part.label}
+              </span>{' '}
+              <strong>{formatEuro(part.value)}</strong>
             </span>
           ) : (
             <span key={part.key} className="later">
-              {part.label} <span className="tx-meta">kommt noch</span>
+              <span>
+                <i aria-hidden="true" />
+                {part.label}
+              </span>{' '}
+              <span className="tx-meta">kommt noch</span>
             </span>
           ),
         )}
         {rest < 0 ? (
           <span className="over">
-            <i className="fill-over" aria-hidden="true" />
-            <strong>Überplant {formatEuro(-rest)}</strong>
+            <span>
+              <i className="fill-over" aria-hidden="true" />
+              Überplant
+            </span>{' '}
+            <strong>{formatEuro(-rest)}</strong>
           </span>
         ) : (
           <span>
-            <i className="fill-rest" aria-hidden="true" />
-            Noch frei <strong>{formatEuro(rest)}</strong>
+            <span>
+              <i className="fill-rest" aria-hidden="true" />
+              Noch frei
+            </span>{' '}
+            <strong>{formatEuro(rest)}</strong>
           </span>
         )}
-        <span className="plan-fill-total">
-          Ganzer Balken = Einkommen <strong>{formatEuro(plan.income)}</strong>
-        </span>
       </div>
     </div>
   )

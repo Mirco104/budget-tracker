@@ -9,8 +9,8 @@ import {
 } from '../api/bankAccounts'
 import { errorText } from '../api/client'
 import type { AccountLine, AccountRole, LowerLimitMode } from '../api/types'
-import { formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
-import { ROLE_NAMES } from '../accountRoles'
+import { formatDate, formatEuro, formatSigned, parseAmountInput, todayIso } from '../format'
+import { ROLE_HINTS, ROLE_NAMES } from '../accountRoles'
 import { BalanceHistoryDialog } from './BalanceHistoryDialog'
 import { Dialog } from './ui/Dialog'
 import { InfoTip } from './ui/InfoTip'
@@ -42,7 +42,12 @@ export function AccountDialog({
   const remove = useDeleteBankAccount()
   const reconcile = useReconcile()
   // Ticket #135: the history only when there is a balance; it reloads after a new or deleted one
-  const hasBalances = (useBalanceHistory(account?.id ?? null).data ?? []).length > 0
+  const balances = useBalanceHistory(account?.id ?? null).data ?? []
+  // Field test after 0.3.0: the last balance stands next to the field, so a new one is entered with its date in mind
+  const lastBalance = balances.reduce<(typeof balances)[number] | null>(
+    (latest, line) => (latest === null || line.date > latest.date ? line : latest),
+    null,
+  )
   const setLowerLimit = useSetLowerLimit()
   const merge = useMergeBankAccount()
   const bankAccounts = useBankAccounts().data ?? []
@@ -116,8 +121,13 @@ export function AccountDialog({
         await setLowerLimit.mutateAsync({ accountId: id, mode, amount: limitValue })
       }
       if (id !== undefined && parsed !== null) {
-        // The window stays open and shows the difference to the app balance
         await reconcile.mutateAsync({ accountId: id, date, amount: negative ? -parsed : parsed })
+        if (account === null) {
+          // Field test after 0.3.0: the first balance of a new account is its start (P11); nothing to compare
+          onClose()
+          return
+        }
+        // The window stays open and shows the difference to the app balance
         setBalance('')
       } else {
         onClose()
@@ -190,6 +200,7 @@ export function AccountDialog({
             </select>
           </label>
         </div>
+        <span className="hint">{ROLE_HINTS[role]}</span>
         <label className="field">
           IBAN (optional)
           <input
@@ -242,24 +253,37 @@ export function AccountDialog({
             )}
           </div>
         </div>
-        {account !== null && (
-          <div className="field-row">
-            <label className="field">
-              Stichtag
-              <input type="date" value={date} max={todayIso()} onChange={(e) => setDate(e.target.value)} />
-            </label>
-            <label className="field">
-              Kontostand laut Bank (optional)
-              <input inputMode="decimal" placeholder="0,00" value={balance} onChange={(e) => setBalance(e.target.value)} />
-            </label>
+        {/* Field test after 0.3.0: amount and day of a balance are one entry, in one box, also for a new account */}
+        <fieldset className="balance-entry">
+          <legend>Kontostand laut Bank (optional)</legend>
+          <div className="balance-entry-row">
+            <input
+              inputMode="decimal"
+              placeholder="0,00"
+              aria-label="Kontostand laut Bank (optional)"
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
+            />
+            <span aria-hidden="true">€ am</span>
+            <input
+              type="date"
+              aria-label="Stichtag des Kontostands"
+              value={date}
+              max={todayIso()}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
-        )}
-        {/* Ticket #135: the history in its own window, it can get long; only with at least one balance */}
-        {account !== null && hasBalances && (
-          <button type="button" className="link-button balance-history-open" onClick={() => setHistoryOpen(true)}>
-            Verlauf der Kontostände ansehen
-          </button>
-        )}
+          {lastBalance && (
+            <span className="hint">
+              Zuletzt: {formatEuro(lastBalance.amount)} am {formatDate(lastBalance.date)}.{' '}
+              {/* Ticket #135: the history in its own window, it can get long; only with at least one balance */}
+              <button type="button" className="link-button balance-history-open" onClick={() => setHistoryOpen(true)}>
+                Verlauf ansehen
+              </button>
+            </span>
+          )}
+          {account === null && <span className="hint">Der erste Kontostand ist der Startwert des Kontos.</span>}
+        </fieldset>
         {error && (
           <p className="error" role="alert">
             {error}
