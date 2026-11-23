@@ -3819,9 +3819,15 @@ a.summary-link:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.account-role-head span {
+.account-role-total {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+}
+/* Field test after 0.3.0: the heading of a role explains it in an info tip */
+.account-role-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .account-total {
   display: flex;
@@ -4556,12 +4562,31 @@ button.account-open:hover {
   background: var(--surface-3);
   outline: 1px solid var(--line-strong);
 }
-.plan-fill-legend {
+.plan-fill-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.plan-fill-head strong {
+  color: var(--income);
+  font-variant-numeric: tabular-nums;
+}
+/* Field test after 0.3.0: an even grid, four columns on wide screens and two on the phone, where each value sits right */
+.plan-fill-legend {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px 20px;
   color: var(--muted);
   font-size: 0.8rem;
+}
+.plan-fill-legend > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
 }
 .plan-fill-legend strong {
   color: var(--ink);
@@ -4585,8 +4610,14 @@ button.account-open:hover {
 .plan-fill-legend .over strong {
   color: var(--warn);
 }
-.plan-fill-total {
-  margin-left: auto;
+@media (max-width: 600px) {
+  .plan-fill-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 16px;
+  }
+  .plan-fill-legend > span {
+    justify-content: space-between;
+  }
 }
 .setup-tiles {
   display: grid;
@@ -4821,14 +4852,60 @@ button.account-open:hover {
 .plan-sankey svg {
   display: block;
 }
-/* Only on narrow screens the labels need more room than there is */
-@media (max-width: 600px) {
-  .plan-sankey {
-    overflow-x: auto;
-  }
-  .plan-sankey > div {
-    min-width: 560px;
-  }
+/* Field test after 0.3.0: below 600px the flows of the plan show as a list instead of the Sankey */
+.plan-flow {
+  display: grid;
+  gap: 14px;
+}
+.plan-flow-income,
+.plan-flow-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+.plan-flow-income strong {
+  color: var(--income);
+  font-variant-numeric: tabular-nums;
+}
+.plan-flow-head strong {
+  font-variant-numeric: tabular-nums;
+}
+.plan-flow-group {
+  display: grid;
+  gap: 6px;
+}
+.plan-flow-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.plan-flow-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+.plan-flow-children {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 12px;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.plan-flow-children li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.plan-flow-children li span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sankey-label {
   fill: var(--ink);
@@ -4854,6 +4931,10 @@ button.account-open:hover {
   }
   .setup-foot {
     bottom: 0;
+    /* Field test after 0.3.0: on the phone the sticky foot takes less of the screen */
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
 }
 
@@ -4863,4 +4944,45 @@ button.account-open:hover {
 }
 .budget-without .budget-name {
   color: var(--warn);
+}
+
+/* Field test after 0.3.0: the day of a planned item reads as a sentence, "am [15]. des Monats" */
+.day-sentence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.field .day-sentence input.day-input {
+  flex: none;
+  width: 4em;
+  text-align: center;
+}
+
+/* Field test after 0.3.0: a balance from the bank is amount and day in one box */
+.balance-entry {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px 12px;
+}
+.balance-entry legend {
+  padding: 0 4px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.balance-entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.balance-entry-row input {
+  flex: 1 1 8em;
+  min-width: 0;
+}
+.balance-entry .hint {
+  margin: 0;
 }

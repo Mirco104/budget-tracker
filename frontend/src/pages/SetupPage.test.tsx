@@ -271,7 +271,7 @@ describe('SetupPage', () => {
     expect(bar).toHaveTextContent('Variable Kosten 400,00 €')
     expect(bar).toHaveTextContent('Sparen kommt noch')
     expect(bar).toHaveTextContent('Noch frei 1.200,00 €')
-    expect(bar).toHaveTextContent('Ganzer Balken = Einkommen 2.500,00 €')
+    expect(bar).toHaveTextContent('Einkommen im Plan2.500,00 €')
     expect(screen.getByRole('link', { name: /Fixkosten/ })).toHaveAttribute('href', '#/einrichtung/5')
     const suggestions = await screen.findByRole('region', { name: 'Vorschläge aus deinen Buchungen' })
     expect(suggestions).toHaveTextContent('Shopping')

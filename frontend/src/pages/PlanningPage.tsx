@@ -1,9 +1,11 @@
 import { useDismissNotification } from '../api/notifications'
 import { useState } from 'react'
 import { useCategories, useCreateCategory } from '../api/categories'
-import { useCreatePlannedItem, usePlan, usePlanSuggestions, useUpdatePlannedItem, type PlanSuggestion } from '../api/plan'
+import { usePlan, usePlanSuggestions, type PlanSuggestion } from '../api/plan'
 import type { Category, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { PlannedItemDialog } from '../components/PlannedItemDialog'
+import { BufferDone } from '../components/BufferDone'
+import { useBufferToOther } from '../components/useBufferToOther'
 import { SplitSavingDialog } from '../components/SplitSavingDialog'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { InfoTip } from '../components/ui/InfoTip'
@@ -108,6 +110,8 @@ function PlanHead({
   onToSaving,
   onToOther,
   busy,
+  moved,
+  onUndo,
 }: {
   plan: Plan
   /** 27f3: the budget of the category "Sonstiges", undefined without one. */
@@ -115,6 +119,9 @@ function PlanHead({
   onToSaving: () => void
   onToOther: () => void
   busy: boolean
+  /** Field test after 0.3.0: the amount "Als Puffer in Sonstiges" moved while the page is open, else null. */
+  moved: number | null
+  onUndo: () => void
 }) {
   const over = plan.unplanned < 0
   return (
@@ -173,6 +180,8 @@ function PlanHead({
             </button>
           </div>
         </div>
+      ) : moved !== null && plan.unplanned === 0 ? (
+        <BufferDone amount={moved} busy={busy} onUndo={onUndo} />
       ) : (
         plan.unplanned === 0 &&
         plan.income > 0 && (
@@ -345,8 +354,8 @@ function PlanningContent({ month }: { month: string }) {
   const plan = usePlan(month)
   const categories = useCategories(month)
   const createCategory = useCreateCategory()
-  const createItem = useCreatePlannedItem()
-  const updateItem = useUpdatePlannedItem()
+  // Field test after 0.3.0: "Als Puffer in Sonstiges" can be taken back while the page is open
+  const buffer = useBufferToOther()
   const [dialog, setDialog] = useState<DialogState | null>(null)
   // 27i: suggestions from the bookings; "Ausblenden" and a taken suggestion are stored like a dismissed notification
   const suggestions = usePlanSuggestions()
@@ -372,36 +381,19 @@ function PlanningContent({ month }: { month: string }) {
       if (!category) {
         category = await createCategory.mutateAsync({ name: SONSTIGES })
       }
-      const existing = data.items.find((item) => item.group === 'BUDGET' && item.categoryId === category.id)
-      if (existing) {
-        await updateItem.mutateAsync({
-          id: existing.id,
-          input: {
-            name: existing.name,
-            amount: -(existing.monthlyShare + data.unplanned),
-            categoryId: existing.categoryId,
-            accountId: existing.accountId,
-            rhythmUnit: null,
-            rhythmCount: null,
-            anchorDate: null,
-            entryMode: existing.entryMode,
-            validFrom: month,
-          },
-        })
-      } else {
-        await createItem.mutateAsync({
-          name: SONSTIGES,
-          amount: -data.unplanned,
-          categoryId: category.id,
-          rhythmUnit: null,
-          rhythmCount: null,
-          anchorDate: null,
-          validFrom: month,
-        })
-      }
-      setToast(`${formatEuro(data.unplanned)} zu Sonstiges ab ${formatMonth(month)}.`)
+      await buffer.put(data, category.id, month)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.')
+    }
+  }
+
+  async function undoOther() {
+    setError(null)
+    try {
+      await buffer.undo()
+      setToast('Puffer in Sonstiges rückgängig gemacht.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Rückgängig machen fehlgeschlagen.')
     }
   }
 
@@ -415,9 +407,11 @@ function PlanningContent({ month }: { month: string }) {
       <PlanHead
         plan={data}
         other={data.categories.find((line) => line.group === 'BUDGET' && line.categoryName === SONSTIGES)?.total}
-        busy={createItem.isPending || updateItem.isPending || createCategory.isPending}
+        busy={buffer.busy || createCategory.isPending}
         onToSaving={() => setSplitting(true)}
         onToOther={() => void toOther()}
+        moved={buffer.moved}
+        onUndo={() => void undoOther()}
       />
       {error && (
         <p className="error" role="alert">

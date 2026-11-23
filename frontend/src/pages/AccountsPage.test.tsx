@@ -30,6 +30,10 @@ function renderPage(start = false) {
     if (url.startsWith('/api/bank-accounts/1/balances/') && method === 'DELETE') {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
+    if (url === '/api/bank-accounts' && method === 'POST') {
+      const created = { id: 4, name: 'Neu', iban: null, defaultAccount: false, archived: false, used: false, role: 'EVERYDAY' }
+      return Promise.resolve(new Response(JSON.stringify(created), { status: 200 }))
+    }
     const body = url === '/api/accounts'
       ? groups
       : url === '/api/bank-accounts/1/balances' && method === 'GET'
@@ -123,7 +127,7 @@ describe('AccountsPage', () => {
     const fetchMock = renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Konto Girokonto bearbeiten' }))
     const account = screen.getByRole('dialog', { name: 'Konto Girokonto' })
-    fireEvent.click(await within(account).findByRole('button', { name: 'Verlauf der Kontostände ansehen' }))
+    fireEvent.click(await within(account).findByRole('button', { name: 'Verlauf ansehen' }))
 
     const history = await screen.findByRole('dialog', { name: /Kontostände von Girokonto/ })
     const rows = within(await within(history).findByRole('list', { name: 'Kontostände' })).getAllByRole('listitem')
@@ -152,7 +156,7 @@ describe('AccountsPage', () => {
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([url]) => url === '/api/bank-accounts/2/balances')).toBe(true),
     )
-    expect(within(account).queryByRole('button', { name: 'Verlauf der Kontostände ansehen' })).not.toBeInTheDocument()
+    expect(within(account).queryByRole('button', { name: 'Verlauf ansehen' })).not.toBeInTheDocument()
   })
 
   // Ticket #139: an account goes into another one; an archived account is no target
@@ -256,6 +260,32 @@ describe('AccountsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/bank-accounts' && init?.method === 'POST')
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: 'Depot B', iban: null, role: 'DEPOT' })
+  })
+
+  // Field test after 0.3.0: a new account takes its first balance right away, with the day next to the amount
+  it('saves the first balance of a new account and explains the Kontoart', async () => {
+    const fetchMock = renderPage()
+    const card = await screen.findByRole('region', { name: 'Bankkonten' })
+    fireEvent.click(within(card).getByRole('button', { name: '+ Neues Konto' }))
+    const dialog = screen.getByRole('dialog', { name: 'Neues Konto' })
+    expect(dialog).toHaveTextContent('Girokonto für laufende Zahlungen')
+    fireEvent.change(within(dialog).getByLabelText('Kontoart'), { target: { value: 'SAVINGS' } })
+    expect(dialog).toHaveTextContent('zählt als gespart')
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Tagesgeld B' } })
+    fireEvent.change(within(dialog).getByLabelText('Kontostand laut Bank (optional)'), { target: { value: '500,00' } })
+    fireEvent.change(within(dialog).getByLabelText('Stichtag des Kontostands'), { target: { value: '2026-11-01' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/bank-accounts/4/balances')
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ date: '2026-11-01', amount: 500 })
+  })
+
+  it('shows the last balance next to the field', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /Girokonto/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Konto Girokonto' })
+    await waitFor(() => expect(dialog).toHaveTextContent('Zuletzt: 1.200,00 € am 10.11.2026.'))
   })
 
   it('lists the saving goals and creates a new one', async () => {
