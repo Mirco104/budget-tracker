@@ -169,6 +169,44 @@ describe('PlanningPage', () => {
     expect(JSON.parse(created![1]!.body as string)).toMatchObject({ name: 'Sonstiges', amount: -800, rhythmUnit: null })
   })
 
+  // Field test after 0.3.0: the buffer can be taken back; a budget the button created is deleted again
+  it('takes the buffer in Sonstiges back', async () => {
+    let created = false
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/planned-items' && init?.method === 'POST') {
+        created = true
+      }
+      const body = url.startsWith('/api/planned-items')
+        ? item({ id: 99 })
+        : url === '/api/plan/suggestions'
+          ? []
+          : url.startsWith('/api/plan')
+            ? { ...plan, unplanned: created ? 0 : 800 }
+            : url.startsWith('/api/categories')
+              ? categories
+              : []
+      return Promise.resolve(new Response(init?.method === 'DELETE' ? null : JSON.stringify(body), {
+        status: init?.method === 'DELETE' ? 204 : 200,
+      }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <PlanningPage />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Als Puffer in „Sonstiges“' }))
+    const done = await screen.findByText(/800,00 € als Puffer in „Sonstiges“/)
+    const undo = within(done).getByRole('button', { name: 'Rückgängig' })
+    await waitFor(() => expect(undo).toBeEnabled())
+    fireEvent.click(undo)
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/planned-items/99' && init?.method === 'DELETE')).toBe(true),
+    )
+  })
+
   // 27f4: the item dialog uses the shared selection with "+ Neue Kategorie …"
   it('offers a new category right in the item dialog', async () => {
     renderPage()
@@ -209,7 +247,7 @@ describe('PlanningPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Wie oft'), { target: { value: 'MONTH:12' } })
     fireEvent.change(within(dialog).getByLabelText('Betrag pro Zahlung'), { target: { value: '220,32' } })
     fireEvent.change(within(dialog).getByLabelText('Fällig im'), { target: { value: '3' } })
-    fireEvent.change(within(dialog).getByLabelText('Am Tag'), { target: { value: '15' } })
+    fireEvent.change(within(dialog).getByLabelText('Tag im Monat'), { target: { value: '15' } })
     fireEvent.change(within(dialog).getByLabelText('Kategorie'), { target: { value: '1' } })
     // Decision 70 (ticket #163): a new item is ticked off unless the user chooses otherwise
     expect(within(dialog).getByLabelText('Eintragen')).toHaveValue('TICK')

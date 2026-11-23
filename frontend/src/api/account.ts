@@ -67,18 +67,28 @@ export function useChangeEmail() {
   return useMutation({ mutationFn: changeEmail, onSuccess })
 }
 
-// The new user goes straight into the cache, so navigation and overview change at once
+// The new user goes straight into the cache, so navigation and overview change at once. Field test after 0.3.0: a
+// reload of the user still running (e.g. on returning to the tab, frequent on the phone) is cancelled first; its older
+// answer would otherwise overwrite the new one, and "Einrichtung abschließen" led back to the start of the setup.
 function useSetMe() {
   const queryClient = useQueryClient()
-  return (me: Me) => queryClient.setQueryData(['me'], me)
+  return {
+    cancel: () => queryClient.cancelQueries({ queryKey: ['me'] }),
+    set: async (me: Me) => {
+      await queryClient.cancelQueries({ queryKey: ['me'] })
+      queryClient.setQueryData(['me'], me)
+    },
+  }
 }
 
 export function useChangeStage() {
   const queryClient = useQueryClient()
+  const setMe = useSetMe()
   return useMutation({
     mutationFn: changeStage,
-    onSuccess: (me) => {
-      queryClient.setQueryData(['me'], me)
+    onMutate: setMe.cancel,
+    onSuccess: async (me) => {
+      await setMe.set(me)
       // Decision 90: the switch may change how items are entered and enter bookings
       void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== 'me' })
     },
@@ -87,7 +97,7 @@ export function useChangeStage() {
 
 export function useChangeSetup() {
   const setMe = useSetMe()
-  return useMutation({ mutationFn: changeSetup, onSuccess: setMe })
+  return useMutation({ mutationFn: changeSetup, onMutate: setMe.cancel, onSuccess: setMe.set })
 }
 
 export function useExportAccount() {
