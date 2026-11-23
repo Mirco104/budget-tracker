@@ -39,7 +39,7 @@ services:
       - "${APP_BIND:-127.0.0.1}:8080:8080"
 
   caddy:
-    image: caddy:2.11.8-alpine
+    image: caddy:2.11.9-alpine
     profiles: ["https"]
     restart: unless-stopped
     depends_on:
