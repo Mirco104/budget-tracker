@@ -104,10 +104,10 @@ public final class ImportRules {
 
     /**
      * The name of a new account for a source: "C24 Ausgabenkonto", "Trade Republic" for its default account,
-     * "Sparkasse …3000" or "VR-Bank …3000" with the end of the IBAN.
+     * "Sparkasse …3000" or "VR-Bank …3000" with the end of the IBAN, "PayPal" for the one source of PayPal.
      */
     public static String accountName(BankProfile profile, String source) {
-        boolean plain = source == null || source.isBlank()
+        boolean plain = source == null || source.isBlank() || source.equalsIgnoreCase(profile.label())
                 || (profile == BankProfile.TRADE_REPUBLIC && source.equalsIgnoreCase("DEFAULT"));
         if (!plain && (profile == BankProfile.SPARKASSE || profile == BankProfile.VR_BANK
                 || profile == BankProfile.DEUTSCHE_BANK)) {

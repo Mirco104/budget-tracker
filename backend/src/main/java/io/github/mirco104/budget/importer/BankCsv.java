@@ -26,7 +26,7 @@ import io.github.mirco104.budget.importer.BankTransaction.Status;
  * decoded (UTF-8, else Windows-1252), split into records (";" or ","), the header found among the first 20 records
  * and every following record read with the profile of that header into a normalized BankTransaction (decision 46).
  * Only the Deutsche Bank reads the preamble before the header (the IBAN of the account) and has a footer that is
- * skipped (decision 76).
+ * skipped (decision 76). PayPal has no own account in the file; its rows have one fixed source (decision 95).
  */
 public final class BankCsv {
 
@@ -56,6 +56,10 @@ public final class BankCsv {
             "\\s+\\d{2}\\.\\d{2}\\.\\d{4}(?: um \\d{2}:\\d{2}:\\d{2} Uhr|/\\d{2}:\\d{2})(?:\\s.*)?$");
     // VR-Bank: the mark of a standing order ("Miete /*DA-1*")
     private static final Pattern STANDING_ORDER = Pattern.compile("\\s*/\\*DA-\\d+\\*");
+    // PayPal (decision 95): the file names no own account, its rows have this one source
+    static final String PAYPAL_SOURCE = "PayPal";
+    // PayPal: kinds that only keep money back and release it again are pending
+    private static final List<String> PAYPAL_PENDING_KINDS = List.of("einbehaltung", "freigabe", "autorisierung");
 
     /**
      * A record after the header: its line in the file and either the normalized booking (decision 46) or why it could
@@ -66,7 +70,8 @@ public final class BankCsv {
 
     /**
      * Decision 92: the balance of an account the file names (accountName as in its rows) at the end of a day; only the
-     * Deutsche Bank (footer) and the VR-Bank (column "Saldo nach Buchung") deliver one.
+     * Deutsche Bank (footer), the VR-Bank (column "Saldo nach Buchung") and PayPal (column "Guthaben", decision 95)
+     * deliver one.
      */
     public record Balance(String accountName, LocalDate date, BigDecimal amount) {
     }
@@ -78,7 +83,7 @@ public final class BankCsv {
     public static class UnknownFormatException extends RuntimeException {
         UnknownFormatException() {
             super("Das Format der Datei ist unbekannt. Unterstützt werden CSV-Exporte von C24, Trade Republic, N26, der "
-                    + "Sparkasse, der VR-Bank und der Deutschen Bank.");
+                    + "Sparkasse, der VR-Bank, der Deutschen Bank und PayPal.");
         }
     }
 
@@ -197,8 +202,11 @@ public final class BankCsv {
             List<Record> records, List<Balance> balances) {
         String preambleIban = profile == BankProfile.DEUTSCHE_BANK ? preambleIban(preamble) : null;
         List<Line> lines = new ArrayList<>();
-        // VR-Bank: per account the "Saldo nach Buchung" of its newest booked row; on the same day the row the export
-        // lists as the newest (review 23.11.2026: the order of the file decides, newest first or last)
+        // VR-Bank and PayPal: per account the "Saldo nach Buchung" or "Guthaben" of its newest booked EUR row; on the same
+        // day the row the export lists as the newest (review 23.11.2026: the order of the file decides, newest first or
+        // last)
+        String balanceColumn = profile == BankProfile.VR_BANK ? "Saldo nach Buchung"
+                : profile == BankProfile.PAYPAL ? "Guthaben" : null;
         Map<String, Balance> newest = new java.util.LinkedHashMap<>();
         Map<String, Balance> latestOfDay = new java.util.LinkedHashMap<>();
         for (Record record : records) {
@@ -217,8 +225,9 @@ public final class BankCsv {
             try {
                 BankTransaction row = read(profile, values);
                 lines.add(new Line(record.line(), row, null));
-                if (profile == BankProfile.VR_BANK && row.bookingDate() != null) {
-                    String text = get(values, "Saldo nach Buchung");
+                if (balanceColumn != null && row.bookingDate() != null && row.status() == Status.BOOKED
+                        && "EUR".equals(row.currency())) {
+                    String text = get(values, balanceColumn);
                     BigDecimal saldo = text == null ? null : germanAmount(text);
                     Balance known = newest.get(row.accountName());
                     if (saldo != null && (known == null || row.bookingDate().isAfter(known.date()))) {
@@ -292,7 +301,32 @@ public final class BankCsv {
             case SPARKASSE -> sparkasse(values);
             case VR_BANK -> vrBank(values);
             case DEUTSCHE_BANK -> deutscheBank(values);
+            case PAYPAL -> payPal(values);
         };
+    }
+
+    // PayPal (decision 95): dd.MM.yyyy, Netto as the amount (the fee is in it), the Transaktionscode as the bank's id,
+    // the kind in Beschreibung; Name (else the e-mail address) is the counterparty, Betreff (else Hinweis) the purpose
+    private static BankTransaction payPal(Map<String, String> v) {
+        LocalDate date = date(get(v, "Datum"), GERMAN_DATE);
+        BigDecimal amount = amount(get(v, "Netto"), true);
+        String kind = get(v, "Beschreibung");
+        String currency = get(v, "Währung");
+        String fee = get(v, "Entgelt");
+        BigDecimal charges = fee == null ? null : germanAmount(fee);
+        return new BankTransaction(
+                PAYPAL_SOURCE, null,
+                date, null, amount, currency != null ? currency.toUpperCase(Locale.ROOT) : "EUR", payPalStatus(kind),
+                firstOf(get(v, "Name"), get(v, "Absender E-Mail-Adresse")), null, null,
+                firstOf(get(v, "Betreff"), get(v, "Hinweis")),
+                null, null, null,
+                kind, get(v, "Transaktionscode"), kind,
+                charges == null || charges.signum() == 0 ? null : charges);
+    }
+
+    private static Status payPalStatus(String kind) {
+        String lower = kind == null ? "" : kind.toLowerCase(Locale.GERMAN);
+        return PAYPAL_PENDING_KINDS.stream().anyMatch(lower::contains) ? Status.PENDING : Status.BOOKED;
     }
 
     // Deutsche Bank (decision 76): d.M.yyyy, signed German amounts in Betrag (empty: Haben, or Soll as a debit), the

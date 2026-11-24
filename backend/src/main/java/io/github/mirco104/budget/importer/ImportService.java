@@ -494,7 +494,7 @@ public class ImportService {
         }
         return new ImportPreviewResponse.Details(blankToNull(row.counterpartyIban()), blankToNull(purpose),
                 blankToNull(row.bankTransactionCode()), row.valueDate(), blankToNull(row.mandateId()),
-                blankToNull(row.creditorId()));
+                blankToNull(row.creditorId()), row.charges());
     }
 
     private static DuplicateOf duplicateOf(Transaction transaction) {

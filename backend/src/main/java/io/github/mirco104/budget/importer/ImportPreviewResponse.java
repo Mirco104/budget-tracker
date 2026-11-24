@@ -61,7 +61,7 @@ public record ImportPreviewResponse(
      */
     public record Details(
             String counterpartyIban, String purpose, String kind, LocalDate valueDate, String mandateId,
-            String creditorId) {
+            String creditorId, java.math.BigDecimal charges) {
     }
 
     /**
