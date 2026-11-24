@@ -613,7 +613,7 @@ function ImportStep({
         <section className="card setup-import" aria-label="Kontoauszug">
           {summary === null ? (
             <p className="tx-meta">
-              Mindestens 3 Monate, besser 6 bis 12. C24, Sparkasse, Deutsche Bank, VR-Bank, N26, Trade Republic; mehrere
+              Mindestens 3 Monate, besser 6 bis 12. C24, Sparkasse, Deutsche Bank, VR-Bank, N26, Trade Republic, PayPal; mehrere
               Dateien und Konten sind möglich. Nach dem Import kommst du hierher zurück.
             </p>
           ) : (

@@ -2,7 +2,7 @@ import type { BudgetSuggestion } from './types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 
-export type ImportProfile = 'C24' | 'TRADE_REPUBLIC' | 'N26' | 'SPARKASSE' | 'VR_BANK' | 'DEUTSCHE_BANK'
+export type ImportProfile = 'C24' | 'TRADE_REPUBLIC' | 'N26' | 'SPARKASSE' | 'VR_BANK' | 'DEUTSCHE_BANK' | 'PAYPAL'
 
 /** NEW and POSSIBLE_DUPLICATE can be imported; DUPLICATE was imported before; SKIPPED cannot be imported (R30). */
 export type ImportStatus = 'NEW' | 'POSSIBLE_DUPLICATE' | 'DUPLICATE' | 'SKIPPED'
@@ -83,6 +83,8 @@ export interface ImportDetails {
   valueDate: string | null
   mandateId: string | null
   creditorId: string | null
+  /** Decision 95: the fee of the booking, signed and already in the amount; only PayPal delivers one. */
+  charges?: number | null
 }
 
 /**
