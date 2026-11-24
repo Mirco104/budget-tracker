@@ -551,6 +551,43 @@ class ImportControllerTest {
         assertThat(JsonPath.<Object>read(again, "$.sources[0].accountId")).isNotNull();
     }
 
+    // C24 with the PayPal direct debit of a purchase (7 days after the top-up) and a withdrawal from PayPal (6 days),
+    // fictional values in the format of the real export
+    static final String C24_WITH_PAYPAL = """
+            Transaktionstyp,Buchungsdatum,Karteneinsatz,Betrag,Zahlungsempfänger,IBAN,BIC,Verwendungszweck,Beschreibung,Kontonummer,Kontoname,Kategorie,Unterkategorie,Bargeldabhebung
+            SEPA-Lastschrift,12.10.2026,,"-49,90 €",PayPal Europe S.a.r.l. et Cie S.C.A,LU280019400644750000,PPLXLUL2,"1000000000001/PP.1234.PP/. Beispiel Shop GmbH, Ihr Einkauf bei Beispiel Shop GmbH",,1000000001,Ausgabenkonto,Freizeit & Unterhaltung,,
+            Gutschrift,09.10.2026,,"96,75 €",PayPal Europe S.a.r.l. et Cie S.C.A,LU280019400644750000,PPLXLUL2,PayPal Europe,,1000000001,Ausgabenkonto,,,
+            """;
+
+    // R27 (c) and the PayPal pair (decision 95): top-up and withdrawal are transfers and turn the stored bank rows into
+    // transfers, so only the payment to the merchant counts
+    @Test
+    void thePayPalTopUpAndWithdrawalTurnTheStoredBankRowsIntoTransfers() throws Exception {
+        long freizeit = category(user, "Freizeit");
+        commit(mockMvc, previewJson(mockMvc, C24_WITH_PAYPAL), entry -> freizeit, true).andExpect(status().isCreated());
+
+        String preview = previewJson(mockMvc, BankCsvTest.PAYPAL);
+        Map<String, Object> topUp = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 5)]").getFirst();
+        assertThat(topUp.get("description")).isEqualTo("Aufladung für Beispiel Shop GmbH");
+        assertThat(topUp.get("transfer")).isEqualTo(true);
+        assertThat(topUp.get("transferCertain")).isEqualTo(true);
+        assertThat(JsonPath.<String>read(topUp, "$.transferPeer.description")).startsWith("PayPal Europe");
+        Map<String, Object> withdrawal = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 3)]").getFirst();
+        assertThat(withdrawal.get("transferCertain")).isEqualTo(true);
+        assertThat(withdrawal.get("transferPeerId")).isNotNull();
+        Map<String, Object> card = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 7)]").getFirst();
+        assertThat(card.get("transfer")).isEqualTo(true);
+        assertThat(card.get("transferPeerId")).isNull();
+        Map<String, Object> purchase = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 4)]").getFirst();
+        assertThat(purchase.get("transfer")).isEqualTo(false);
+
+        commit(mockMvc, preview, entry -> freizeit, true).andExpect(status().isCreated());
+        mockMvc.perform(get("/api/transactions").param("month", "2026-10"))
+                .andExpect(jsonPath("$[?(@.amount == -49.9 && @.accountName != 'PayPal')].transfer").value(true))
+                .andExpect(jsonPath("$[?(@.amount == 96.75 && @.accountName != 'PayPal')].transfer").value(true))
+                .andExpect(jsonPath("$[?(@.description == 'Beispiel Shop GmbH')].transfer").value(false));
+    }
+
     // --- R30 possible duplicates ---
 
     @Test

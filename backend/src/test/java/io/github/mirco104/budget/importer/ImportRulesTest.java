@@ -171,6 +171,27 @@ class ImportRulesTest {
                 .isEqualTo(ImportRules.fingerprint(BankProfile.PAYPAL, row, 1));
     }
 
+    // R27 (c): the kinds of PayPal that move money between PayPal and a bank account or card
+    @Test
+    void knowsThePayPalKindsThatAreTransfers() {
+        assertThat(ImportRules.isPayPalTransferKind("Bankgutschrift auf PayPal-Konto")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("Allgemeine Gutschrift auf Kreditkarte")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("allgemeine gutschrift auf debitkarte")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind(" Von Nutzer eingeleitete Abbuchung ")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("Abbuchung auf Bankkonto")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("Allgemeine Zahlung")).isFalse();
+        assertThat(ImportRules.isPayPalTransferKind(null)).isFalse();
+    }
+
+    // Decision 95: a side names PayPal by its counterparty, its description or the BIC of its counterparty
+    @Test
+    void knowsWhenABookingNamesPayPal() {
+        assertThat(ImportRules.namesPayPal("PayPal Europe S.a.r.l. et Cie S.C.A", null, null)).isTrue();
+        assertThat(ImportRules.namesPayPal(null, "Beispiel Shop GmbH · PayPal", null)).isTrue();
+        assertThat(ImportRules.namesPayPal("Beispiel", "Beispiel", "pplxlul2")).isTrue();
+        assertThat(ImportRules.namesPayPal("Beispiel Shop", "Kauf", "COBADEFFXXX")).isFalse();
+    }
+
     @Test
     void aDeutscheBankFingerprintLeavesOutThePurpose() {
         BankTransaction row = row(BankCsv.read(BankCsvTest.DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8)), 9);
