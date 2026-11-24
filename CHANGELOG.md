@@ -2,7 +2,15 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
-## 0.3.1-alpha (unveröffentlicht)
+## 0.4.0-alpha (unveröffentlicht)
+
+Import von PayPal.
+
+### Neu
+
+- **PayPal-Import:** Der Import liest den CSV-Export der PayPal-Aktivitäten. Gebucht wird der Nettobetrag, also was auf dem PayPal-Konto ankommt oder abgeht; ein Entgelt steht unter „Details“. Der Import bietet das Guthaben der Datei als Kontostand des PayPal-Kontos an. Einbehaltungen und Freigaben werden übersprungen.
+
+## 0.3.1-alpha (23.11.2026)
 
 Nachbesserungen nach der ersten Nutzung von 0.3.0.
 
