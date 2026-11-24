@@ -588,6 +588,23 @@ class ImportControllerTest {
                 .andExpect(jsonPath("$[?(@.description == 'Beispiel Shop GmbH')].transfer").value(false));
     }
 
+    // Decision 95 (5): the USD rows are skipped, the euro row of the conversion counts with the name of the payment
+    @Test
+    void aPayPalPaymentInAnotherCurrencyCountsWithItsEuroConversion() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.PAYPAL_USD);
+
+        List<String> reasons = JsonPath.read(preview, "$.entries[?(@.line == 11 || @.line == 12)].reason");
+        assertThat(reasons).containsOnly("andere Währung als EUR (USD)");
+        Map<String, Object> euro = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 13)]").getFirst();
+        assertThat(euro.get("description")).isEqualTo("Example Store Inc");
+        assertThat(euro.get("counterparty")).isEqualTo("Example Store Inc");
+        assertThat(euro.get("amount")).isEqualTo(-18.4);
+        assertThat(euro.get("transfer")).isEqualTo(false);
+        Map<String, Object> topUp = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 14)]").getFirst();
+        assertThat(topUp.get("description")).isEqualTo("Aufladung für Example Store Inc");
+        assertThat(topUp.get("transfer")).isEqualTo(true);
+    }
+
     // --- R30 possible duplicates ---
 
     @Test
