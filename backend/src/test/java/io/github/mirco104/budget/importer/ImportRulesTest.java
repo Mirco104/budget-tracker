@@ -156,6 +156,21 @@ class ImportRulesTest {
         assertThat(ImportRules.accountName(BankProfile.DEUTSCHE_BANK, "")).isEqualTo("Deutsche Bank");
     }
 
+    // Decision 95: one fixed source, a new account is just "PayPal"; the fingerprint is the Transaktionscode
+    @Test
+    void namesThePayPalAccountAndFingerprintsByTheTransactionCode() {
+        assertThat(ImportRules.sourceKey(BankProfile.PAYPAL, "PayPal")).isEqualTo("PAYPAL:PayPal");
+        assertThat(ImportRules.accountName(BankProfile.PAYPAL, "PayPal")).isEqualTo("PayPal");
+
+        BankTransaction row = row(BankCsv.read(BankCsvTest.PAYPAL.getBytes(StandardCharsets.UTF_8)), 2);
+        BankTransaction otherName = new BankTransaction(row.accountName(), row.accountIban(), row.bookingDate(),
+                row.valueDate(), row.amount(), row.currency(), row.status(), "Person B",
+                row.counterpartyIban(), row.counterpartyBic(), "anders", row.endToEndId(), row.mandateId(),
+                row.creditorId(), row.bankTransactionCode(), row.entryReference(), row.bankCategory());
+        assertThat(ImportRules.fingerprint(BankProfile.PAYPAL, otherName, 2))
+                .isEqualTo(ImportRules.fingerprint(BankProfile.PAYPAL, row, 1));
+    }
+
     @Test
     void aDeutscheBankFingerprintLeavesOutThePurpose() {
         BankTransaction row = row(BankCsv.read(BankCsvTest.DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8)), 9);

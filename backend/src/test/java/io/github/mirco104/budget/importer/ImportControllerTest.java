@@ -122,7 +122,11 @@ class ImportControllerTest {
         String preview = previewJson(mockMvc, BankCsvTest.SPARKASSE_CAMT);
 
         Map<String, Object> club = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 2)]").getFirst();
-        assertThat(club.get("details")).isEqualTo(Map.of(
+        @SuppressWarnings("unchecked")
+        Map<String, Object> clubDetails = (Map<String, Object>) club.get("details");
+        // Decision 95: only PayPal delivers a fee
+        assertThat(clubDetails).containsEntry("charges", null).hasSize(7);
+        assertThat(clubDetails).containsAllEntriesOf(Map.of(
                 "counterpartyIban", "GB82WEST12345698765432",
                 "purpose", "Beitrag 11/2026 : Mitglied 4711",
                 "kind", "FOLGELASTSCHRIFT",
@@ -510,6 +514,41 @@ class ImportControllerTest {
         String again = previewJson(mockMvc, BankCsvTest.DEUTSCHE_BANK);
         assertThat(JsonPath.<Integer>read(again, "$.duplicates")).isEqualTo(5);
         assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
+    }
+
+    // --- PayPal (decision 95) ---
+
+    @Test
+    void aPayPalFileIsImportedOnceWithNettoTheFeeInTheDetailsAndItsBalance() throws Exception {
+        String preview = previewJson(mockMvc, BankCsvTest.PAYPAL);
+        assertThat(JsonPath.<String>read(preview, "$.profile")).isEqualTo("PAYPAL");
+        assertThat(JsonPath.<String>read(preview, "$.profileLabel")).isEqualTo("PayPal");
+        assertThat(JsonPath.<Integer>read(preview, "$.rows")).isEqualTo(9);
+        assertThat(JsonPath.<Integer>read(preview, "$.newRows")).isEqualTo(7);
+        assertThat(JsonPath.<Integer>read(preview, "$.skipped")).isEqualTo(2);
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].key")).isEqualTo("PAYPAL:PayPal");
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].suggestedName")).isEqualTo("PayPal");
+        assertThat(JsonPath.<String>read(preview, "$.sources[0].balanceDate")).isEqualTo("2026-10-12");
+        assertThat(JsonPath.<Double>read(preview, "$.sources[0].balanceAmount")).isEqualTo(15.0);
+        Map<String, Object> income = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 2)]").getFirst();
+        assertThat(income.get("amount")).isEqualTo(96.75);
+        assertThat(income.get("description")).isEqualTo("Person A");
+        assertThat(JsonPath.<Double>read(income, "$.details.charges")).isEqualTo(-3.25);
+        assertThat(JsonPath.<String>read(income, "$.details.kind")).isEqualTo("Allgemeine Zahlung");
+        List<String> reasons = JsonPath.read(preview, "$.entries[?(@.status == 'SKIPPED')].reason");
+        assertThat(reasons).containsOnly("vorgemerkt (noch nicht gebucht)");
+
+        long freizeit = category(user, "Freizeit");
+        commit(mockMvc, preview, entry -> freizeit, true)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.created").value(7))
+                .andExpect(jsonPath("$.batch.profile").value("PAYPAL"));
+
+        String again = previewJson(mockMvc, BankCsvTest.PAYPAL);
+        assertThat(JsonPath.<Integer>read(again, "$.duplicates")).isEqualTo(7);
+        assertThat(JsonPath.<Integer>read(again, "$.newRows")).isZero();
+        // The source is remembered on the new account "PayPal"
+        assertThat(JsonPath.<Object>read(again, "$.sources[0].accountId")).isNotNull();
     }
 
     // --- R30 possible duplicates ---
