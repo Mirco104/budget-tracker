@@ -21,7 +21,30 @@ public final class ImportRules {
     private static final Pattern LONG_NUMBER = Pattern.compile("\\d{8,}");
     private static final Pattern TRAILING_PUNCTUATION = Pattern.compile("[\\s:;,.\\-–]+$");
 
+    // R27 (c): the kinds of PayPal that move money between PayPal and a bank account or card (decision 95)
+    private static final java.util.Set<String> PAYPAL_TRANSFER_KINDS = java.util.Set.of(
+            "bankgutschrift auf paypal-konto", "allgemeine gutschrift auf kreditkarte",
+            "allgemeine gutschrift auf debitkarte", "von nutzer eingeleitete abbuchung", "abbuchung auf bankkonto");
+
     private ImportRules() {
+    }
+
+    /** R27 (c): whether a kind of PayPal moves money between PayPal and a bank account or card, ignoring case. */
+    public static boolean isPayPalTransferKind(String kind) {
+        return kind != null && PAYPAL_TRANSFER_KINDS.contains(kind.trim().toLowerCase(Locale.GERMAN));
+    }
+
+    /**
+     * Decision 95: whether a booking names PayPal: its counterparty or description contains "PayPal" (ignoring case) or
+     * the BIC of its counterparty starts with PPLX.
+     */
+    public static boolean namesPayPal(String counterparty, String description, String counterpartyBic) {
+        return containsPayPal(counterparty) || containsPayPal(description)
+                || (counterpartyBic != null && counterpartyBic.trim().toUpperCase(Locale.ROOT).startsWith("PPLX"));
+    }
+
+    private static boolean containsPayPal(String text) {
+        return text != null && lower(text).contains("paypal");
     }
 
     /** UUIDs and digit runs of 8 or more are dropped, whitespace becomes one space, trailing punctuation goes; null if empty. */
