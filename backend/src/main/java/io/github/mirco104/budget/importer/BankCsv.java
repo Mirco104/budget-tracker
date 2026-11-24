@@ -255,7 +255,8 @@ public final class BankCsv {
 
     /**
      * PayPal (decision 95): a row without a name takes the name of the row whose Transaktionscode is its Zugehöriger
-     * Transaktionscode; a top-up or withdrawal (R27 c) as its purpose "Aufladung für …" or "Auszahlung für …".
+     * Transaktionscode; a top-up or withdrawal (R27 c) as its purpose "Aufladung für …" or "Auszahlung für …", any other
+     * row (the euro row of a currency conversion) as its counterparty.
      */
     private static List<Line> namedAfterRelated(List<Line> lines, Map<Integer, String> related) {
         Map<String, String> names = new HashMap<>();
@@ -272,11 +273,20 @@ public final class BankCsv {
                     && row.remittanceInformation() == null) {
                 String purpose = (row.amount().signum() > 0 ? "Aufladung für " : "Auszahlung für ") + name;
                 result.add(new Line(line.number(), withPurpose(row, purpose), null));
+            } else if (name != null && !ImportRules.isPayPalTransferKind(row.bankTransactionCode())) {
+                result.add(new Line(line.number(), withCounterparty(row, name), null));
             } else {
                 result.add(line);
             }
         }
         return result;
+    }
+
+    private static BankTransaction withCounterparty(BankTransaction r, String counterparty) {
+        return new BankTransaction(r.accountName(), r.accountIban(), r.bookingDate(), r.valueDate(), r.amount(),
+                r.currency(), r.status(), counterparty, r.counterpartyIban(), r.counterpartyBic(),
+                r.remittanceInformation(), r.endToEndId(), r.mandateId(), r.creditorId(), r.bankTransactionCode(),
+                r.entryReference(), r.bankCategory(), r.charges());
     }
 
     private static BankTransaction withPurpose(BankTransaction r, String purpose) {
