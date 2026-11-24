@@ -9,6 +9,7 @@ Import von PayPal.
 ### Neu
 
 - **PayPal-Import:** Der Import liest den CSV-Export der PayPal-Aktivitäten. Gebucht wird der Nettobetrag, also was auf dem PayPal-Konto ankommt oder abgeht; ein Entgelt steht unter „Details“. Der Import bietet das Guthaben der Datei als Kontostand des PayPal-Kontos an. Einbehaltungen und Freigaben werden übersprungen.
+- **PayPal-Aufladungen als Umbuchung:** Zahlst du mit PayPal per Lastschrift oder Karte, erkennt der Import die Aufladung („Aufladung für Händler“) und eine Auszahlung auf dein Bankkonto als Umbuchung. Die Lastschrift auf dem Girokonto wird ihre Gegenbuchung, auch wenn sie bis zu 10 Tage später gebucht ist; so zählt nur die Zahlung an den Händler.
 
 ## 0.3.1-alpha (23.11.2026)
 
