@@ -157,9 +157,14 @@ public class ImportService {
                 continue;
             }
             int number = equalRows.merge(ImportRules.sameRowKey(profile, row), 1, Integer::sum);
-            String counterparty = cut(row.counterpartyName());
-            String description = ImportRules.describe(row.counterpartyName(),
-                    ImportRules.cleanPurpose(row.remittanceInformation()), row.bankTransactionCode());
+            // Decision 95: a PayPal direct debit is named after the merchant ("Prezi Inc · PayPal")
+            String merchant = ImportRules.payPalMerchant(row.counterpartyName(), row.counterpartyBic(),
+                    row.remittanceInformation());
+            String counterparty = cut(merchant != null ? merchant : row.counterpartyName());
+            String description = merchant != null
+                    ? ImportRules.describe(merchant, "PayPal", row.bankTransactionCode())
+                    : ImportRules.describe(row.counterpartyName(), ImportRules.cleanPurpose(row.remittanceInformation()),
+                            row.bankTransactionCode());
             candidates.add(new Candidate(candidates.size(), line, ImportRules.sourceKey(profile, row.accountName()),
                     ImportRules.fingerprint(profile, row, number), description, counterparty, cut(row.bankCategory()),
                     counterparty != null ? counterparty : description));
