@@ -23,7 +23,7 @@ const groups: AccountGroup[] = [
   { role: 'DEPOT', total: 0, accounts: [] },
 ]
 
-function renderPage(start = false) {
+function renderPage(start = false, goalsOnTagesgeld = false) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     void init
     const method = init?.method ?? 'GET'
@@ -49,6 +49,9 @@ function renderPage(start = false) {
                 accountId: 2, accountName: 'Tagesgeld', saved: 1340, target: 2400, accountBalance: 1040, missing: 300,
                 pots: [{ itemId: 5, name: 'Kfz-Versicherung', categoryId: 3, amount: 1200, monthly: 100, balance: 1000,
                   due: false, nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0 }],
+                ...(goalsOnTagesgeld
+                  ? { missing: 1000, goalsSaved: 700, goals: [{ id: 4, name: 'Urlaub', saved: 700, targetAmount: 2000 }] }
+                  : { goalsSaved: 0, goals: [] }),
               },
             ]
           : url === '/api/bank-accounts'
@@ -62,7 +65,7 @@ function renderPage(start = false) {
           : url.startsWith('/api/plan')
             ? { items: [] }
             : url === '/api/saving-goals' && (init?.method ?? 'GET') === 'GET'
-              ? [{ id: 4, name: 'Urlaub', targetAmount: 2000, targetDate: '2027-06-30', saved: 500, monthly: 100 }]
+              ? [{ id: 4, name: 'Urlaub', targetAmount: 2000, targetDate: '2027-06-30', saved: 500, monthly: 100, accountId: null, accountName: null }]
               : []
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   })
@@ -208,6 +211,18 @@ describe('AccountsPage', () => {
     expect(within(reserves).getByRole('option', { name: 'Girokonto' })).toBeInTheDocument()
   })
 
+  // Ticket #145: a goal on the account counts in its cover and shows in its table
+  it('counts the saving goals on an account in its cover', async () => {
+    renderPage(false, true)
+    const card = await screen.findByRole('region', { name: 'Rücklagen und Sparziele' })
+    const row = await within(card).findByRole('button', { name: /Tagesgeld/ })
+    expect(row).toHaveTextContent('dazu Sparziele 700,00 €')
+    expect(card).toHaveTextContent('Auf Tagesgeld fehlen 1.000,00 €')
+    fireEvent.click(row)
+    expect(within(card).getByRole('columnheader', { name: 'Rücklage oder Sparziel' })).toBeInTheDocument()
+    expect(within(card).getByRole('row', { name: /Urlaub/ })).toHaveTextContent('700,00 € / 2.000,00 €')
+  })
+
   // P12 (27h): the lower limit replaces the comfort amount
   it('marks a balance below the lower limit and changes the lower limit', async () => {
     const fetchMock = renderPage()
@@ -303,6 +318,25 @@ describe('AccountsPage', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/saving-goals' && init?.method === 'POST')
-    expect(call?.[1]?.body).toBe(JSON.stringify({ name: 'Fahrrad', targetAmount: 800, targetDate: null }))
+    expect(call?.[1]?.body).toBe(JSON.stringify({ name: 'Fahrrad', targetAmount: 800, targetDate: null, accountId: null }))
+  })
+
+  // Ticket #145: the goal may lie on an account
+  it('puts a new saving goal on an account', async () => {
+    const fetchMock = renderPage()
+    const goals = await screen.findByRole('region', { name: 'Sparziele' })
+    fireEvent.click(within(goals).getByRole('button', { name: '+ Neues Sparziel' }))
+    const dialog = screen.getByRole('dialog', { name: 'Neues Sparziel' })
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Notgroschen' } })
+    const account = within(dialog).getByLabelText('Liegt auf (optional)')
+    await waitFor(() => expect(within(account).getByRole('option', { name: 'Tagesgeld' })).toBeInTheDocument())
+    expect(account).toHaveValue('')
+    fireEvent.change(account, { target: { value: '2' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url, init]) => url === '/api/saving-goals' && init?.method === 'POST')
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Notgroschen', accountId: 2 })
+    })
   })
 })

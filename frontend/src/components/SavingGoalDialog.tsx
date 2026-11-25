@@ -3,13 +3,17 @@ import { errorText } from '../api/client'
 import { useCreateSavingGoal, useDeleteSavingGoal, useUpdateSavingGoal } from '../api/goals'
 import type { SavingGoal } from '../api/types'
 import { parseAmountInput } from '../format'
+import { AccountSelect } from './AccountSelect'
 import { Dialog } from './ui/Dialog'
 
 function amountText(value: number | null): string {
   return value === null ? '' : value.toFixed(2).replace('.', ',')
 }
 
-/** 27f4: a saving goal with name, target amount and target date (both optional); a new one when goal is null. */
+/**
+ * 27f4: a saving goal with name, target amount and target date (both optional); a new one when goal is null. Ticket
+ * #145: optionally the account it lies on, which then has to cover it on Konten.
+ */
 export function SavingGoalDialog({
   goal,
   onClose,
@@ -26,6 +30,7 @@ export function SavingGoalDialog({
   const [name, setName] = useState(goal?.name ?? '')
   const [target, setTarget] = useState(amountText(goal?.targetAmount ?? null))
   const [date, setDate] = useState(goal?.targetDate ?? '')
+  const [accountId, setAccountId] = useState(goal?.accountId != null ? String(goal.accountId) : '')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -52,7 +57,12 @@ export function SavingGoalDialog({
       setError('Bitte einen Betrag wie 1.234,56 eingeben.')
       return
     }
-    const input = { name: name.trim(), targetAmount: amount, targetDate: date === '' ? null : date }
+    const input = {
+      name: name.trim(),
+      targetAmount: amount,
+      targetDate: date === '' ? null : date,
+      accountId: accountId === '' ? null : Number(accountId),
+    }
     void run(() =>
       goal
         ? update.mutateAsync({ id: goal.id, input })
@@ -76,6 +86,11 @@ export function SavingGoalDialog({
             Zieldatum (optional)
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
+        </div>
+        <div className="field">
+          <span id="goal-account-label">Liegt auf (optional)</span>
+          <AccountSelect labelledBy="goal-account-label" value={accountId} onChange={setAccountId} empty="ohne Konto" />
+          <span className="hint">Auf Konten siehst du dann, ob das Konto genug für das Sparziel hat.</span>
         </div>
         {error && (
           <p className="error" role="alert">

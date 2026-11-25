@@ -18,6 +18,8 @@ import { PlanningPage } from './pages/PlanningPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsRoute } from './pages/TransactionsPage'
 import { IMPORT_ROUTE, ROUTES, useHash, usePage, type Page } from './router'
+import { useImportOpen } from './importSession'
+import { ImportPage } from './pages/ImportPage'
 import { hiddenPages } from './stages'
 import { Loading, LoadingBar } from './components/ui/Loading'
 
@@ -153,6 +155,9 @@ function SignedIn({ me }: { me: Me }) {
   // R39: pages the stage does not need are hidden; their address leads to the overview
   const hidden = hiddenPages(me.istStage)
   const pageHidden = hidden.includes(page) && !(page === 'transactions' && hash === IMPORT_ROUTE)
+  // Ticket #183: an open import stays mounted, hidden on other pages, so its choices survive a switch of pages
+  const onImport = page === 'transactions' && hash === IMPORT_ROUTE
+  const importOpen = useImportOpen()
   useEffect(() => {
     if (setupOpen) {
       window.location.hash = ROUTES.setup
@@ -198,7 +203,12 @@ function SignedIn({ me }: { me: Me }) {
 
       <main className="content">
         {page === 'overview' && <DashboardPage month={month} onMonthChange={setMonth} />}
-        {page === 'transactions' && !pageHidden && <TransactionsRoute />}
+        {page === 'transactions' && !pageHidden && !onImport && <TransactionsRoute />}
+        {(onImport || importOpen) && (
+          <div hidden={!onImport}>
+            <ImportPage />
+          </div>
+        )}
         {page === 'planning' && <PlanningPage month={month} onMonthChange={setMonth} />}
         {page === 'evaluation' && !pageHidden && (
           <Suspense fallback={<Loading text="Lade Auswertung …" />}>

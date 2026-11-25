@@ -3396,6 +3396,12 @@ button.saving-button:hover:not(:disabled) {
   align-items: center;
   gap: 6px;
 }
+/* Ticket #138: "Alle aufklappen" / "Alle zuklappen" above a list grouped by category */
+.toggle-all {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0;
+}
 .plan-group-total {
   font-weight: 600;
   font-variant-numeric: tabular-nums;

@@ -16,7 +16,7 @@ export const NO_FILTERS: Filters = { query: '', category: '', account: '', kind:
 
 /**
  * The start of the import filters (ticket #84, after the test): only one-off rows, the series rows and transfers are
- * handled by their cards and choices and shown with Wiederkehrend, Umbuchung or Alle Arten.
+ * handled by their cards and choices and shown with Fix, Umbuchung or Fix und variabel.
  */
 export const IMPORT_FILTERS: Filters = { ...NO_FILTERS, kind: 'SINGLE' }
 
@@ -81,8 +81,11 @@ export const IMPORTED_OPTIONS: { value: string; label: string }[] = [
   { value: 'NO', label: 'Nein' },
 ]
 
-/** The kinds of the import: a row that fulfils a planned term or belongs to a new item is "Wiederkehrend". */
+/**
+ * The kinds of the import, named as on Transaktionen (ticket #185): a row that fulfils a planned term or belongs to a new
+ * item is "Fix" (P5), every other row "Variabel".
+ */
 export const IMPORT_KINDS: { value: string; label: string }[] = [
-  { value: 'RECURRING', label: 'Wiederkehrend' },
-  { value: 'SINGLE', label: 'Einmalig' },
+  { value: 'RECURRING', label: 'Fix' },
+  { value: 'SINGLE', label: 'Variabel' },
 ]

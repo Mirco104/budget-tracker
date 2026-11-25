@@ -48,7 +48,7 @@ export function TransactionFilters({
   /** AP 32: Ja / Nein for bookings from a bank import; without it the bar has no such filter (the import) */
   importedOptions?: FilterOption[]
   /**
-   * Decision 74: the kinds apply to income too (the import: Wiederkehrend / Einmalig), so Einnahmen keeps the kind filter;
+   * Decision 74: the kinds apply to income too (the import: Fix / Variabel), so Einnahmen keeps the kind filter;
    * on Transaktionen fix and variable are kinds of expenses only
    */
   incomeHasKinds?: boolean
@@ -137,7 +137,7 @@ export function TransactionFilters({
           )}
           {(filters.direction !== 'INCOME' || incomeHasKinds) && (
             <select aria-label="Art filtern" value={filters.kind} onChange={(e) => set('kind', e.target.value)}>
-              <option value="">{directions && !incomeHasKinds ? 'Fix und variabel' : 'Alle Arten'}</option>
+              <option value="">Fix und variabel</option>
               {options('kind', kinds)}
             </select>
           )}

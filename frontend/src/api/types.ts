@@ -102,12 +102,16 @@ export interface SavingGoal {
   targetDate: string | null
   saved: number
   monthly: number
+  /** Ticket #145: the account the goal lies on, null without one. */
+  accountId: number | null
+  accountName: string | null
 }
 
 export interface SavingGoalInput {
   name: string
   targetAmount?: number | null
   targetDate?: string | null
+  accountId?: number | null
 }
 
 /**
@@ -372,6 +376,17 @@ export interface ReserveGroup {
   accountBalance: number | null
   missing: number | null
   pots: ReservePot[]
+  /** Ticket #145: what the goals on the account saved (each at least 0); missing covers it too. */
+  goalsSaved: number
+  goals: GoalShare[]
+}
+
+/** Ticket #145: a saving goal on an account with what it saved. */
+export interface GoalShare {
+  id: number
+  name: string
+  saved: number
+  targetAmount: number | null
 }
 
 /** P11: the app balance on the day of the bank balance and the difference (not booked). */

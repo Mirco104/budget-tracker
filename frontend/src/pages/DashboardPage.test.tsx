@@ -218,6 +218,19 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Keine Buchungen in diesem Monat.')).toBeInTheDocument()
   })
 
+  // Ticket #138: one button opens and closes every budget row
+  it('opens and closes all budget rows at once', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Alle aufklappen' }))
+    expect(screen.getByRole('button', { name: /Wohnen/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /Freizeit/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByText('Miete')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alle zuklappen' }))
+    expect(screen.getByRole('button', { name: /Wohnen/ })).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('shows no first steps in an empty past month', async () => {
     renderPage(
       { ...dashboard, categories: [], income: [] },

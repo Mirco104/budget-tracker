@@ -25,6 +25,8 @@ const recent: Transaction[] = [
 
 // The plan of the month; a rare item has a reserve pot (P8)
 let plan: unknown = []
+// Ticket #145: the saving goals, one may lie on an account
+let goals: unknown = []
 const kfz = {
   id: 9, itemKey: 'kfz-key', name: 'Kfz-Versicherung', amount: -1200, rhythmUnit: 'MONTH', rhythmCount: 12,
   group: 'FIXED', reserveAccountId: 4,
@@ -62,6 +64,9 @@ function renderDialog(
     }
     if (url.startsWith('/api/plan')) {
       return json(plan)
+    }
+    if (url === '/api/saving-goals') {
+      return json(goals)
     }
     return json([])
   })
@@ -440,6 +445,16 @@ describe('BookingDialog', () => {
     expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('pot:kfz-key')
     expect(screen.getByLabelText('Konto')).toHaveValue('4')
     plan = []
+  })
+
+  // Ticket #145: paying from a goal suggests the account the goal lies on
+  it('suggests the account of a saving goal when the goal is chosen', async () => {
+    goals = [{ id: 4, name: 'Notgroschen', targetAmount: null, targetDate: null, saved: 700, monthly: 0, accountId: 4, accountName: 'Tagesgeld' }]
+    renderDialog(null, () => json({}), withSavings)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'aus Rücklage / Ersparnissen bezahlen' }))
+    expect(screen.getByLabelText('Bezahlt aus')).toHaveValue('goal:4')
+    expect(screen.getByLabelText('Konto')).toHaveValue('4')
+    goals = []
   })
 
   // US37 (14.11.2026): "Kategorie" lists only top-level categories, "Unterkategorie (optional)" those of the chosen one

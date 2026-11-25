@@ -82,7 +82,7 @@ describe('TransactionFilters', () => {
     expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (2)', 'Wohnen (3)'])
     expect(names('Konto filtern')).toEqual(['Alle Konten', 'Depot (4)'])
     // Fix is chosen, so it stays with (0); Umbuchung is no kind but a category option
-    expect(names('Art filtern')).toEqual(['Alle Arten', 'Fix (0)', 'Variabel (4)'])
+    expect(names('Art filtern')).toEqual(['Fix und variabel', 'Fix (0)', 'Variabel (4)'])
   })
 
   it('reports every change with the other filters kept', () => {
