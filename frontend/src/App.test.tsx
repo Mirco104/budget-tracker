@@ -41,6 +41,58 @@ afterEach(() => {
 })
 
 describe('App', () => {
+  // Ticket #183: a read file stays open while the user looks at other pages, with all choices
+  it('keeps an open import when switching pages and leads back to it', async () => {
+    const preview = {
+      profile: 'C24', profileLabel: 'C24', rows: 1, newRows: 1, duplicates: 0, skipped: 0,
+      sources: [{ key: 'C24:Konto', name: 'Konto', accountId: 1, suggestedName: 'C24 Konto', balanceDate: null, balanceAmount: null }],
+      entries: [{
+        line: 2, status: 'NEW', reason: null, fingerprint: 'a'.repeat(64), source: 'C24:Konto', date: '2026-11-04', amount: -2.99,
+        description: 'Spiele Shop', counterparty: 'Spiele Shop', bankCategory: null, suggestionKey: 'spiele shop', categoryId: null,
+        certain: false, transfer: false, transferCertain: false, transferPeerId: null, transferPeer: null, replaces: null,
+        duplicateOf: null, details: null,
+      }],
+      series: [], budgetSuggestions: [], income: { average: null, minimum: null, months: 0 },
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url === '/api/auth/me') return json(me)
+        if (url === '/api/imports/preview') return json(preview)
+        if (url === '/api/bank-accounts') return json([{ id: 1, name: 'Girokonto', iban: null, defaultAccount: true, archived: false, used: true }])
+        if (url.startsWith('/api/categories') || url === '/api/imports') return json([])
+        return new Promise(() => {})
+      }),
+    )
+    window.location.hash = '#/transaktionen/import'
+    renderWithClient()
+    const file = new File(['Transaktionstyp,Buchungsdatum'], 'export.csv', { type: 'text/csv' })
+    fireEvent.change(await screen.findByLabelText('CSV-Datei wählen'), { target: { files: [file] } })
+    await screen.findByRole('region', { name: 'Datei' })
+    // A choice of the user: the kind filter starts with Variabel
+    fireEvent.change(screen.getByLabelText('Art filtern'), { target: { value: '' } })
+
+    goTo('#/uebersicht')
+    expect(screen.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeInTheDocument()
+    // Still mounted but hidden, so it is not in the accessibility tree
+    expect(screen.queryByRole('heading', { level: 1, name: 'Importieren' })).not.toBeInTheDocument()
+    expect(screen.getByText('Importieren', { selector: 'h1' })).not.toBeVisible()
+
+    goTo('#/transaktionen')
+    expect(await screen.findByText('Ein Import ist noch offen.', { exact: false })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Weiter importieren' })).toHaveAttribute('href', '#/transaktionen/import')
+
+    goTo('#/transaktionen/import')
+    expect(screen.getByRole('heading', { level: 1, name: 'Importieren' })).toBeVisible()
+    expect(screen.getByLabelText('Art filtern')).toHaveValue('')
+
+    // Abbrechen ends the import; the transactions no longer point to it
+    fireEvent.click(screen.getAllByRole('button', { name: 'Abbrechen' })[0])
+    goTo('#/transaktionen')
+    await screen.findByRole('heading', { level: 1, name: 'Transaktionen' })
+    expect(screen.queryByText('Ein Import ist noch offen.', { exact: false })).not.toBeInTheDocument()
+  })
+
   it('shows the brand and opens the overview by default', async () => {
     await renderApp()
 

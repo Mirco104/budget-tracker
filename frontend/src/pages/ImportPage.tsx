@@ -33,6 +33,7 @@ import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, ty
 import { currentMonth, formatDate, formatDateTime, formatEuro, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
+import { setImportOpen } from '../importSession'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
@@ -1539,6 +1540,12 @@ export function ImportPage() {
   // P6: automatic entries the file did not contain; the user deletes or keeps each one
   const [missing, setMissing] = useState<MissingAuto[]>([])
   const deleteTransaction = useDeleteTransaction()
+
+  // Ticket #183: a read file keeps the page mounted while the user looks at other pages; it ends with the preview
+  useEffect(() => {
+    setImportOpen(preview !== null)
+  }, [preview])
+  useEffect(() => () => setImportOpen(false), [])
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
