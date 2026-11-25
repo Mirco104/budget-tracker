@@ -192,6 +192,20 @@ class ImportRulesTest {
         assertThat(ImportRules.namesPayPal("Beispiel Shop", "Kauf", "COBADEFFXXX")).isFalse();
     }
 
+    // R30, decision 95: the merchant of a PayPal direct debit, at any bank
+    @Test
+    void readsTheMerchantOfAPayPalDirectDebit() {
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", "PPLXLUL2",
+                "1000000000001/PP.1234.PP/. Beispiel Shop GmbH, Ihr Einkauf bei Beispiel Shop GmbH")).isEqualTo("Beispiel Shop GmbH");
+        // The BIC alone names PayPal; case and punctuation at the end do not matter
+        assertThat(ImportRules.payPalMerchant("PP Europe", "PPLXLULL", "PP.1234.PP IHR EINKAUF BEI Example Store Inc.")).isEqualTo("Example Store Inc");
+        // Not PayPal, no merchant text, or nothing after it
+        assertThat(ImportRules.payPalMerchant("Beispiel Payment GmbH", "COBADEFFXXX", "Ihr Einkauf bei Beispiel Shop")).isNull();
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", null, "PayPal Europe")).isNull();
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", null, "Ihr Einkauf bei  ")).isNull();
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", null, null)).isNull();
+    }
+
     @Test
     void aDeutscheBankFingerprintLeavesOutThePurpose() {
         BankTransaction row = row(BankCsv.read(BankCsvTest.DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8)), 9);

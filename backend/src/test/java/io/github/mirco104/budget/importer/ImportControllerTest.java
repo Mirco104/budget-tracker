@@ -559,6 +559,22 @@ class ImportControllerTest {
             Gutschrift,09.10.2026,,"96,75 €",PayPal Europe S.a.r.l. et Cie S.C.A,LU280019400644750000,PPLXLUL2,PayPal Europe,,1000000001,Ausgabenkonto,,,
             """;
 
+    // R30, decision 95: a PayPal direct debit is named after the merchant, so the category follows the merchant; the
+    // purpose of the bank stays in the details
+    @Test
+    void aPayPalDirectDebitIsNamedAfterTheMerchant() throws Exception {
+        String preview = previewJson(mockMvc, C24_WITH_PAYPAL);
+
+        Map<String, Object> debit = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 2)]").getFirst();
+        assertThat(debit.get("description")).isEqualTo("Beispiel Shop GmbH · PayPal");
+        assertThat(debit.get("counterparty")).isEqualTo("Beispiel Shop GmbH");
+        assertThat(debit.get("suggestionKey")).isEqualTo("beispiel shop");
+        assertThat(JsonPath.<String>read(debit, "$.details.purpose")).endsWith("Ihr Einkauf bei Beispiel Shop GmbH");
+        // Without "Ihr Einkauf bei" the row stays as the bank delivers it
+        Map<String, Object> credit = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 3)]").getFirst();
+        assertThat(credit.get("counterparty")).isEqualTo("PayPal Europe S.a.r.l. et Cie S.C.A");
+    }
+
     // R27 (c) and the PayPal pair (decision 95): top-up and withdrawal are transfers and turn the stored bank rows into
     // transfers, so only the payment to the merchant counts
     @Test
@@ -571,7 +587,8 @@ class ImportControllerTest {
         assertThat(topUp.get("description")).isEqualTo("Aufladung für Beispiel Shop GmbH");
         assertThat(topUp.get("transfer")).isEqualTo(true);
         assertThat(topUp.get("transferCertain")).isEqualTo(true);
-        assertThat(JsonPath.<String>read(topUp, "$.transferPeer.description")).startsWith("PayPal Europe");
+        // 33g: the stored debit is named after the merchant
+        assertThat(JsonPath.<String>read(topUp, "$.transferPeer.description")).isEqualTo("Beispiel Shop GmbH · PayPal");
         Map<String, Object> withdrawal = JsonPath.<List<Map<String, Object>>>read(preview, "$.entries[?(@.line == 3)]").getFirst();
         assertThat(withdrawal.get("transferCertain")).isEqualTo(true);
         assertThat(withdrawal.get("transferPeerId")).isNotNull();
