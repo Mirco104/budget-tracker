@@ -50,8 +50,8 @@ function renderPage(start = false, goalsOnTagesgeld = false) {
                 pots: [{ itemId: 5, name: 'Kfz-Versicherung', categoryId: 3, amount: 1200, monthly: 100, balance: 1000,
                   due: false, nextDue: '2027-03-15', paid: 0, fromPot: 0, shortfall: 0 }],
                 ...(goalsOnTagesgeld
-                  ? { missing: 1000, goalsSaved: 700, goals: [{ id: 4, name: 'Urlaub', saved: 700, targetAmount: 2000 }] }
-                  : { goalsSaved: 0, goals: [] }),
+                  ? { missing: 1000, goalsSaved: 700, needed: 2040, goals: [{ id: 4, name: 'Urlaub', saved: 700, targetAmount: 2000 }] }
+                  : { goalsSaved: 0, needed: 1340, goals: [] }),
               },
             ]
           : url === '/api/bank-accounts'

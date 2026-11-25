@@ -53,11 +53,13 @@ public class ReserveAccountService {
     /**
      * saved and target sum the pots; goalsSaved sums the saved amounts of the goals on the account (each at least 0,
      * ticket #145); accountBalance is the app balance of the account today, missing what it lacks to cover saved and
-     * goalsSaved (0 when covered). Both null for the pots without an account.
+     * goalsSaved (0 when covered), needed what the account has to hold for both. accountBalance and missing are
+     * null for the pots without an account.
      */
     public record ReserveGroup(
             Long accountId, String accountName, BigDecimal saved, BigDecimal target, BigDecimal accountBalance,
-            BigDecimal missing, List<ReserveCalculator.Pot> pots, BigDecimal goalsSaved, List<GoalShare> goals) {
+            BigDecimal missing, List<ReserveCalculator.Pot> pots, BigDecimal goalsSaved, List<GoalShare> goals,
+            BigDecimal needed) {
     }
 
     /** Ticket #145: a saving goal on the account with what it saved (P10, AP 27e). */
@@ -104,11 +106,11 @@ public class ReserveAccountService {
             BigDecimal needed = AccountCover.needed(saved, goals.stream().map(GoalShare::saved).toList());
             BigDecimal balance = accountService.balance(accounts.get(id), today);
             groups.add(new ReserveGroup(id, accounts.get(id).getName(), saved, sum(pots, false), balance,
-                    AccountCover.missing(needed, balance), pots, needed.subtract(saved), goals));
+                    AccountCover.missing(needed, balance), pots, needed.subtract(saved), goals, needed));
         });
         if (!withoutAccount.isEmpty()) {
             groups.add(new ReserveGroup(null, null, sum(withoutAccount, true), sum(withoutAccount, false), null, null,
-                    withoutAccount, BigDecimal.ZERO.setScale(2), List.of()));
+                    withoutAccount, BigDecimal.ZERO.setScale(2), List.of(), sum(withoutAccount, true)));
         }
         return groups;
     }

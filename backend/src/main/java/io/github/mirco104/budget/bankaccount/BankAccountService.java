@@ -122,8 +122,9 @@ public class BankAccountService {
                     "Auf diesem Konto gibt es Buchungen. Das Konto kann nur archiviert werden.");
         }
         sourceRepository.deleteByAccount(account);
-        // Ticket #145: a goal on the account stays, without account
+        // Ticket #145: a goal on the account stays, without account; so does a reserve linked to it (P8)
         goalRepository.clearAccount(account);
+        itemRepository.clearReserveAccount(account);
         // 27h: the dismissed lower limit notification of the account goes with it
         dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);
         bankAccountRepository.deleteById(id);

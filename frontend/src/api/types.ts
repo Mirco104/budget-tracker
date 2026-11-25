@@ -379,6 +379,8 @@ export interface ReserveGroup {
   /** Ticket #145: what the goals on the account saved (each at least 0); missing covers it too. */
   goalsSaved: number
   goals: GoalShare[]
+  /** What the account has to hold for its reserves and goals (saved + goalsSaved, from the backend). */
+  needed: number
 }
 
 /** Ticket #145: a saving goal on an account with what it saved. */

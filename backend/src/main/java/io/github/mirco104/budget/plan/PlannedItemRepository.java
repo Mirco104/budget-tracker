@@ -58,4 +58,9 @@ public interface PlannedItemRepository extends JpaRepository<PlannedItem, Long> 
     void moveReserveAccount(
             io.github.mirco104.budget.bankaccount.BankAccount source,
             io.github.mirco104.budget.bankaccount.BankAccount target);
+
+    /** Deleting an account leaves the reserves linked to it without account (P8). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update PlannedItem i set i.reserveAccount = null where i.reserveAccount = :account")
+    void clearReserveAccount(io.github.mirco104.budget.bankaccount.BankAccount account);
 }

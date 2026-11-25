@@ -97,6 +97,7 @@ class SavingGoalAccountTest {
                 .andExpect(jsonPath("$[0].accountName").value("Tagesgeld"))
                 .andExpect(jsonPath("$[0].saved").value(0.00))
                 .andExpect(jsonPath("$[0].goalsSaved").value(700.00))
+                .andExpect(jsonPath("$[0].needed").value(700.00))
                 .andExpect(jsonPath("$[0].accountBalance").value(500.00))
                 .andExpect(jsonPath("$[0].missing").value(200.00))
                 .andExpect(jsonPath("$[0].goals[0].name").value("Notgroschen"))

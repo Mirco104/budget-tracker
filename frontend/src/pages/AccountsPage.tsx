@@ -221,7 +221,7 @@ function ReserveGroupRow({
               : `✓ ${group.accountName} deckt die ${things}`}
           </span>{' '}
           <InfoTip label="Was heißt das?">
-            Für deine {things} sollten auf {group.accountName} {formatEuro(group.saved + group.goalsSaved)}{' '}
+            Für deine {things} sollten auf {group.accountName} {formatEuro(group.needed)}{' '}
             liegen. Laut App liegen dort{' '}
             {formatEuro(group.accountBalance)}. {missing > 0 ? `Es fehlen ${formatEuro(missing)}.` : 'Das reicht.'}
           </InfoTip>
