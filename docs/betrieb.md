@@ -31,6 +31,10 @@ curl -s http://localhost:8080/actuator/health
 
 Die Antwort ist nur `{"status":"UP"}`, ohne Details.
 
+## Passkeys
+
+Passkeys (US44, Entscheidung 96) funktionieren nur unter der Domain aus `DOMAIN` über HTTPS; `docker-compose.yml` setzt daraus `PASSKEY_RP_ID` (die Domain) und `PASSKEY_ORIGINS` (`https://<DOMAIN>`). Läuft die App unter einer anderen Adresse, etwa hinter einem eigenen Proxy, beide in `.env` setzen. Ein Passkey gehört zu genau dieser Domain: Wechselt sie, gelten alle Passkeys nicht mehr, und alle melden sich wieder mit dem Passwort an und legen ihre Passkeys neu an. Lokal (`npm run dev` oder `./mvnw spring-boot:run`) gehen Passkeys unter `http://localhost:5173` und `http://localhost:8080`, nicht unter `127.0.0.1`.
+
 ## Test im Heimnetz ohne HTTPS
 
 Ohne Domain, etwa auf einem PC im Heimnetz, in `.env` setzen:
@@ -40,7 +44,7 @@ SESSION_COOKIE_SECURE=false
 APP_BIND=0.0.0.0
 ```
 
-und ohne Caddy starten: `scripts/update.sh --no-https`. Die App ist dann unter `http://<IP>:8080` erreichbar. Das Session-Cookie geht so unverschlüsselt über das Netz, deshalb nur mit Testdaten.
+und ohne Caddy starten: `scripts/update.sh --no-https`. Die App ist dann unter `http://<IP>:8080` erreichbar. Das Session-Cookie geht so unverschlüsselt über das Netz, deshalb nur mit Testdaten. Passkeys gibt es so nicht, der Browser erlaubt sie nur über HTTPS oder auf `localhost`.
 
 ## Update
 

@@ -585,3 +585,11 @@ export interface ChangePasswordInput {
   currentPassword: string
   newPassword: string
 }
+
+/** US44: a passkey of the signed-in user; createdAt and lastUsedAt are ISO instants. */
+export interface Passkey {
+  id: number
+  label: string
+  createdAt: string
+  lastUsedAt: string | null
+}

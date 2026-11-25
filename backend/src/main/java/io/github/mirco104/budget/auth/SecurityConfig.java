@@ -45,6 +45,8 @@ public class SecurityConfig {
     public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // US44: both steps of the sign-in with a passkey
+                        .requestMatchers(HttpMethod.POST, "/api/auth/passkey/options", "/api/auth/passkey").permitAll()
                         // US15: the invited person has no account yet. Admin-only calls check the role in the
                         // service against the database (CurrentUser.requireAdmin), so role changes apply at once.
                         .requestMatchers(HttpMethod.POST, "/api/invitations/*/accept").permitAll()

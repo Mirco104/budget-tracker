@@ -736,6 +736,10 @@ Geklärt am 24.11.2026 (PayPal, AP 33, mit dem Nutzer abgestimmt):
 
 95. **PayPal als eigenes Profil:** PayPal exportiert die Aktivitäten als CSV (Komma, alle Felder in Anführungszeichen, `dd.MM.yyyy`, deutsches Zahlenformat, älteste Zeile zuerst, eine eindeutige ID je Zeile im `Transaktionscode`). Die Datei nennt das eigene Konto nicht; die Quelle ist fest „PayPal“. Festgelegt (R27, R30): (1) Gebucht wird **Netto**, damit der Kontostand stimmt; das Entgelt steht nur unter „Details“, eine eigene Buchung für die Gebühr gibt es nicht. (2) Ein Kauf mit PayPal hat in der Datei zwei Zeilen, die Zahlung an den Händler und die **Aufladung** aus Bankkonto oder Karte („Bankgutschrift auf PayPal-Konto“, „Allgemeine Gutschrift auf Kreditkarte“), dazu auf dem Girokonto die Lastschrift von PayPal. Die Aufladung ist eine sichere Umbuchung (R27 c); sie findet die Lastschrift des Girokontos als Gegenbuchung, so zählt nur die Zahlung an den Händler. Ebenso ist eine **Auszahlung** auf das Bankkonto („Von Nutzer eingeleitete Abbuchung“) eine Umbuchung. Die Aufladung nimmt den Namen des Händlers aus der Zahlung, zu der sie gehört („Aufladung für Prezi Inc“). (3) Weil PayPal die Lastschrift erst nach einigen Werktagen einzieht (im Beispiel des Nutzers 3 Tage über ein Wochenende), gilt für ein **PayPal-Paar** ein Abstand bis 10 Tage statt 3; sicher wird es, wenn beide Beschreibungen den Händler nennen (gemeinsames Wort, R27). (4) Die Lastschrift von PayPal auf dem Girokonto nennt im Zweck den Händler („… Prezi Inc, Ihr Einkauf bei Prezi Inc“). Bei jedem Profil wird er zur Gegenseite, die Beschreibung lautet „Prezi Inc · PayPal“; so schlägt der Import die Kategorie des Händlers vor, auch wenn jemand PayPal gar nicht importiert (offener Punkt aus Abschnitt 16). (5) Eine Zahlung in anderer Währung entfällt wie bisher; die EUR-Zeile der Währungsumrechnung nimmt den Namen der Zahlung, zu der sie gehört, und zählt als Ausgabe. (6) Der Kontostand aus der Datei (Entscheidung 92) ist das Guthaben der neuesten gebuchten EUR-Zeile. (7) Einbehaltungen, Freigaben und Autorisierungen gelten als vorgemerkt. Mit echten Dateien zu prüfen (Abschnitt 16): Rückzahlungen, Einbehaltungen und Fremdwährung, die in der Beispieldatei fehlen.
 
+Geklärt am 25.11.2026 (Passkeys, AP 34, ohne Rückfrage getroffen, zur Prüfung im PR):
+
+96. **Passkey zusätzlich zum Passwort (US44, ergänzt Entscheidung 19):** Ein Passkey ist eine zweite Art, sich anzumelden; das Passwort bleibt Pflicht und gültig, damit ein verlorenes Gerät niemanden aussperrt und der Passwort-Reset (US36) weiter hilft. Umgesetzt mit WebAuthn aus Spring Security (`spring-security-webauthn`, prüft mit webauthn4j), aber mit eigenen Endpunkten statt der fertigen Filter, damit die Anmeldung dieselben Regeln wie das Passwort hat (neue Session, letzte Anmeldung, Sperre). Festgelegt: (1) Nur auffindbare Passkeys (`residentKey: required`) und immer mit Prüfung der Person (`userVerification: required`: Fingerabdruck, Gesicht oder Geräte-PIN), denn der Passkey ersetzt das Passwort ganz; die Anmeldung fragt keine E-Mail, der Browser zeigt die Passkeys der Domain. (2) Ein Passkey hinzufügen verlangt das Passwort, wie E-Mail ändern; eine offen gelassene Sitzung reicht nicht, um dauerhaft Zugang zu bekommen. (3) Jeder Nutzer bekommt mit dem ersten Passkey eine zufällige WebAuthn-Kennung (`passkey_user_handle`, 32 zufällige Byte, keine Personendaten); die E-Mail ist nur der angezeigte Name, ein Wechsel der E-Mail (US16) lässt die Passkeys gültig. (4) Gespeichert werden nur der öffentliche Schlüssel, das Attestierungsobjekt der Registrierung (ohne Attestierung, `attestation: none`), der Signaturzähler und die Transportwege; ein Datenbankabzug öffnet kein Konto. (5) Die Challenge liegt bis zum zweiten Schritt in der Session und gilt einmal. (6) Jede fehlgeschlagene Anmeldung mit Passkey zählt für die Sperre der IP (20 in 15 Minuten, Pentest F6); die Sperre einer E-Mail nach falschen Passwörtern gilt für den Passkey nicht, weil er sich nicht erraten lässt. (7) Ein Passkey gilt nur für die Domain der App (`PASSKEY_RP_ID`, in Docker aus `DOMAIN`) über HTTPS oder auf `localhost`; über `http://<IP>:8080` im Heimnetz gibt es keine Passkeys, und ein Wechsel der Domain macht alle Passkeys ungültig.
+
 ## 12. Testfixtures F1, F2 und Sonderfall Einnahmen = 0
 
 Alle Zahlen sind erfunden und durchgerechnet. Sie dienen als End-to-End-Test für `DashboardCalculator` und `ReserveCalculator` (ergänzend zu den Fällen aus Abschnitt 7).
@@ -898,6 +902,7 @@ Umsetzung der Entscheidungen 18 bis 24, nach AP 12d und 13. Das Benutzersystem (
 - Passwörter nur als Hash (BCrypt oder Argon2), mindestens 12 Zeichen.
 - Session-Cookie `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz für schreibende Aufrufe; Ablauf nach 30 Tagen ohne Nutzung. Im Betrieb (Profil `postgres`, Docker-Image) ist `Secure` an; nur die lokale Entwicklung und ein Test im Heimnetz über HTTP schalten es ab (`SESSION_COOKIE_SECURE=false`).
 - Sperre nach 5 fehlgeschlagenen Anmeldungen in 15 Minuten (US14).
+- Passkeys (US44, Entscheidung 96) nur mit Prüfung der Person; gespeichert wird nur der öffentliche Schlüssel.
 - Mandantentrennung nach R15, durch Integrationstests für jeden Endpunkt abgesichert.
 - Security-Header (Content-Security-Policy, `X-Content-Type-Options`, `Referrer-Policy`).
 - Abhängigkeiten aktuell halten (Dependabot, Abschnitt 8).
@@ -1280,3 +1285,38 @@ Rückmeldungen aus der Nutzung auf dem Produktivserver; Punkte 1, 3 und 4 mit de
 - *Balken der Einrichtung:* Das Einkommen steht als Kopfzeile über dem Balken („Einkommen im Plan“), die Einträge darunter in einem festen Raster (vier Spalten, am Handy zwei mit rechtsbündigen Beträgen); „Ganzer Balken = Einkommen“ entfällt. Die feste Fußzeile ist am Handy niedriger.
 - *Sankey am Handy:* Unter 600 px Breite zeigt *Fertig* statt des Sankey dieselben Flüsse als Liste: Einkommen, dann je Gruppe Summe, ein Balken mit ihrem Anteil am Einkommen und darunter die Kategorien (Sparen: die Sparposten). Recharts kann den Sankey nicht senkrecht zeichnen; die bisherige Mindestbreite mit Scrollen ließ den Beschriftungen zu wenig Platz.
 - *„Einrichtung abschließen“ am Handy:* Ursache war ein Wettlauf: Ein Neuladen der Nutzerdaten (TanStack Query lädt beim Zurückkehren in den Tab neu, am Handy häufig) konnte nach dem Speichern mit dem alten Stand „nicht eingerichtet“ ankommen; dann führte die App zurück auf den Start der Einrichtung. Jetzt bricht das Speichern von Einrichtung und Stufe laufende Abrufe der Nutzerdaten vorher und danach ab, bevor der neue Stand gesetzt wird. Ein Test stellt den Wettlauf nach; am Gerät nachgestellt ist der Fehler nicht.
+
+## 23. Anmeldung mit Passkey ab 25.11.2026
+
+Wer mag, meldet sich statt mit E-Mail und Passwort mit einem Passkey an: mit Fingerabdruck, Gesicht oder der PIN des Geräts, ohne etwas zu tippen. Das Passwort bleibt (Entscheidung 96).
+
+### 23.1 User Story
+
+- **US44 Passkey:** Als Nutzer füge ich unter *Einstellungen › Konto* im Abschnitt *Passkeys* einen Passkey für das Gerät hinzu, auf dem ich gerade bin (Name optional, sonst „Passkey“; dazu mein Passwort), sehe meine Passkeys mit „hinzugefügt“ und „zuletzt benutzt“, benenne sie um und lösche sie. Auf der Anmeldeseite melde ich mich mit „Mit Passkey anmelden“ an. *AK:* Entscheidung 96; Hinzufügen nur mit richtigem Passwort (sonst 400 am Feld `password`); der Name hat höchstens 50 Zeichen; die Anmeldung mit Passkey setzt wie das Passwort eine neue Session und die letzte Anmeldung (US25); ein nicht erkannter Passkey ergibt 401 mit einem Text für jeden Grund („Der Passkey wurde nicht erkannt. Bitte versuche es noch einmal.“), eine gesperrte IP 429; ein gelöschter Passkey meldet nicht mehr an; der Passkey eines anderen Nutzers in der URL ist 404 (R15); Konto löschen (US16) löscht die Passkeys; ohne WebAuthn im Browser zeigt die App keinen Knopf, sondern den Hinweis „Dieser Browser unterstützt keine Passkeys.“; ein abgebrochener Dialog des Browsers zeigt „Der Vorgang wurde abgebrochen oder hat zu lange gedauert.“
+
+### 23.2 Datenmodell (Migration V29)
+
+- `users` bekommt `passkey_user_handle` (Text, leer, eindeutig): die zufällige WebAuthn-Kennung, gesetzt beim ersten Passkey.
+- Neue Tabelle `passkeys`: `user_id`, `credential_id` (eindeutig), `public_key` (COSE), `attestation_object`, `signature_count`, `uv_initialized`, `backup_eligible`, `backup_state`, `transports`, `label` (bis 50 Zeichen), `created_at`, `last_used_at` (leer bis zur ersten Anmeldung); Bytes als base64url.
+
+### 23.3 API
+
+| Methode | Pfad | Zweck | Antworten |
+|---|---|---|---|
+| GET | `/api/account/passkeys` | eigene Passkeys `[{id, label, createdAt, lastUsedAt}]` | 200 |
+| POST | `/api/account/passkeys/options` | Body `{password}`, Optionen für `navigator.credentials.create` (JSON von WebAuthn, base64url) | 200, 400 |
+| POST | `/api/account/passkeys` | Body `{label, credential}` (Antwort des Browsers), legt den Passkey an | 201 + Passkey, 400 |
+| PUT | `/api/account/passkeys/{id}` | Body `{label}` | 200, 400, 404 |
+| DELETE | `/api/account/passkeys/{id}` | löscht den Passkey | 204, 404 |
+| POST | `/api/auth/passkey/options` | ohne Anmeldung: Optionen für `navigator.credentials.get` | 200 |
+| POST | `/api/auth/passkey` | ohne Anmeldung: Antwort des Browsers, meldet an | 204, 401, 429 |
+
+### 23.4 Konfiguration
+
+- `PASSKEY_RP_ID` (Domain, Standard `localhost`) und `PASSKEY_ORIGINS` (erlaubte Adressen, Standard `http://localhost:8080,http://localhost:5173`). `docker-compose.yml` setzt beide aus `DOMAIN` (`https://<DOMAIN>`).
+
+### 23.5 Arbeitspaket
+
+| AP | Inhalt | Ergebnis |
+|---|---|---|
+| 34 | Passkeys (US44, Entscheidung 96): V29, Endpunkte mit WebAuthn von Spring Security, Knopf auf der Anmeldeseite, Abschnitt *Passkeys* unter *Einstellungen › Konto*, `docs/betrieb.md` | Integrationstests mit Software-Passkey grün, Frontend-Tests grün; am echten Gerät zu prüfen |

@@ -6,4 +6,9 @@ public class InvalidCredentialsException extends RuntimeException {
     public InvalidCredentialsException() {
         super("E-Mail oder Passwort ist falsch.");
     }
+
+    /** US44: a passkey that was not recognised; also 401 without telling why. */
+    public InvalidCredentialsException(String message) {
+        super(message);
+    }
 }
