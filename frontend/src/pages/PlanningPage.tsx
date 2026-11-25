@@ -13,6 +13,8 @@ import { Loading } from '../components/ui/Loading'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Toast } from '../components/ui/Toast'
+import { ToggleAll } from '../components/ui/ToggleAll'
+import { useOpenRows } from '../components/ui/useOpenRows'
 import { currentMonth, formatDate, formatEuro, formatMonth } from '../format'
 import { rhythmLabel } from '../labels'
 
@@ -200,18 +202,21 @@ function CategoryRow({
   icon,
   total,
   items,
+  open,
+  onToggle,
   onEdit,
 }: {
   name: string
   icon: string
   total: number
   items: PlannedItem[]
+  open: boolean
+  onToggle: () => void
   onEdit: (item: PlannedItem) => void
 }) {
-  const [open, setOpen] = useState(false)
   return (
     <li className="budget-item">
-      <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={onToggle}>
         <CategoryIcon icon={icon} />
         <span className="budget-name">{name}</span>
         <span className="budget-amount">
@@ -259,6 +264,7 @@ export function GroupSection({
   // Fixed costs and budgets are grouped by category with a subtotal (concept 4.3)
   const byCategory = group === 'FIXED' || group === 'BUDGET'
   const categories = plan.categories.filter((line) => line.group === group)
+  const rows = useOpenRows(byCategory ? categories.map((line) => String(line.categoryId)) : [])
   return (
     <section className="card plan-group" aria-label={title}>
       <div className="plan-group-head">
@@ -293,6 +299,7 @@ export function GroupSection({
         </div>
       )}
       {items.length === 0 && <p className="hint">Noch keine Posten.</p>}
+      {byCategory && <ToggleAll count={categories.length} allOpen={rows.allOpen} onToggle={rows.toggleAll} />}
       {byCategory ? (
         <ul className="budget-list">
           {categories.map((line) => (
@@ -302,6 +309,8 @@ export function GroupSection({
               icon={iconOf(line.categoryId)}
               total={line.total}
               items={items.filter((item) => item.planCategoryId === line.categoryId)}
+              open={rows.isOpen(String(line.categoryId))}
+              onToggle={() => rows.toggle(String(line.categoryId))}
               onEdit={onEdit}
             />
           ))}

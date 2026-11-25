@@ -4,6 +4,10 @@ Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt dies
 
 ## 0.5.0-alpha (unveröffentlicht)
 
+### Neu
+
+- **Alle auf- und zuklappen:** Über der Budget-Tabelle der Übersicht und über Fixkosten und Budgets in der Planung klappt „Alle aufklappen“ alle Kategorien auf einmal auf, „Alle zuklappen“ wieder zu.
+
 ### Änderungen
 
 - **Budget-Vorschläge ausblenden:** In der Einrichtung lässt sich ein Vorschlag aus deinen Buchungen im Schritt *Variable Kosten* neben „Übernehmen“ auch „Ausblenden“.
