@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Ticket #183 (decision 99): whether an import has a file read and not yet finished. While it has, the app keeps the
+ * Ticket #183 (decision 100): whether an import has a file read and not yet finished. While it has, the app keeps the
  * import page mounted (hidden on other pages), so switching pages keeps every choice. Only in memory: reloading the
  * page drops the import, nothing of the file lands in the browser's storage.
  */

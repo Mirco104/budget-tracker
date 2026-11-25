@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Ticket #145 (decision 100): what an account has to hold for its reserves and saving goals (P8, P11). */
+/** Ticket #145 (decision 101): what an account has to hold for its reserves and saving goals (P8, P11). */
 class AccountCoverTest {
 
     @Test

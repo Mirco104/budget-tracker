@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Konten, 27f2: the reserve pots of the current month grouped by their savings account, with the sum of their
  * calculated balances against the app balance of the account (P8, P11); pots without an account form one group.
- * Ticket #145 (decision 100): the saving goals on an account count in its cover too; an account with goals but no
+ * Ticket #145 (decision 101): the saving goals on an account count in its cover too; an account with goals but no
  * pots has a group of its own, goals without an account show in no group.
  */
 @Service

@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
-/** Ticket #145 (decision 100): a saving goal may lie on an account, which then has to cover it like its reserves. */
+/** Ticket #145 (decision 101): a saving goal may lie on an account, which then has to cover it like its reserves. */
 @SpringBootTest
 @Transactional
 class SavingGoalAccountTest {

@@ -5,7 +5,7 @@ import java.math.RoundingMode;
 import java.util.List;
 
 /**
- * Konten (P8, ticket #145, decision 100): what an account has to hold for the reserve pots and saving goals linked to
+ * Konten (P8, ticket #145, decision 101): what an account has to hold for the reserve pots and saving goals linked to
  * it, and what its app balance (P11) lacks for that. A goal counts with what it saved; one below 0 (paid out more than
  * it got) counts as 0, so it never lowers what the reserves need.
  */
