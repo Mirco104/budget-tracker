@@ -21,14 +21,28 @@ import java.time.LocalDate;
  * @param mandateId             mandate reference of a direct debit
  * @param creditorId            creditor identifier of a direct debit
  * @param bankTransactionCode   the kind of booking as the bank names it (Transaktionstyp, Type, type)
- * @param entryReference        the bank's own id of the booking (Trade Republic transaction_id)
+ * @param entryReference        the bank's own id of the booking (Trade Republic transaction_id, PayPal
+ *                              Transaktionscode)
  * @param bankCategory          the bank's own category, outside ISO 20022 (C24 "Kategorie › Unterkategorie")
+ * @param charges               the fee of the booking, signed, already in the amount (PayPal Entgelt, decision 95);
+ *                              null without one
  */
 public record BankTransaction(
         String accountName, String accountIban, LocalDate bookingDate, LocalDate valueDate, BigDecimal amount,
         String currency, Status status, String counterpartyName, String counterpartyIban, String counterpartyBic,
         String remittanceInformation, String endToEndId, String mandateId, String creditorId,
-        String bankTransactionCode, String entryReference, String bankCategory) {
+        String bankTransactionCode, String entryReference, String bankCategory, BigDecimal charges) {
+
+    /** A booking without a fee, as every bank but PayPal delivers it. */
+    public BankTransaction(
+            String accountName, String accountIban, LocalDate bookingDate, LocalDate valueDate, BigDecimal amount,
+            String currency, Status status, String counterpartyName, String counterpartyIban, String counterpartyBic,
+            String remittanceInformation, String endToEndId, String mandateId, String creditorId,
+            String bankTransactionCode, String entryReference, String bankCategory) {
+        this(accountName, accountIban, bookingDate, valueDate, amount, currency, status, counterpartyName,
+                counterpartyIban, counterpartyBic, remittanceInformation, endToEndId, mandateId, creditorId,
+                bankTransactionCode, entryReference, bankCategory, null);
+    }
 
     /** ISO 20022 entry status: BOOK and PDNG. */
     public enum Status { BOOKED, PENDING }

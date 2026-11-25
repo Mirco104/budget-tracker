@@ -49,7 +49,7 @@ public final class CategorySuggester {
     }
 
     /** The normalized words of a text: lower case, everything but letters is a space, words of 2 letters or more. */
-    static List<String> words(String text) {
+    public static List<String> words(String text) {
         if (text == null) {
             return List.of();
         }

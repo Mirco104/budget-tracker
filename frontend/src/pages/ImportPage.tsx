@@ -468,6 +468,9 @@ function RowDetails({ entry }: { entry: ImportEntry }) {
   if (details?.creditorId) {
     fields.push(['Gläubiger-ID', details.creditorId])
   }
+  if (details?.charges) {
+    fields.push(['Entgelt', formatEuro(details.charges)])
+  }
   if (fields.length === 0) {
     return null
   }
@@ -1519,7 +1522,7 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
 
 /**
  * Transaktionen › Importieren (US33, US34): upload a CSV file of C24, Trade Republic, N26, the Sparkasse, the
- * VR-Bank or the Deutsche Bank, check the preview and take the rows over; earlier imports can be undone.
+ * VR-Bank, the Deutsche Bank or PayPal, check the preview and take the rows over; earlier imports can be undone.
  */
 export function ImportPage() {
   // US40: during the setup the import leads back to the wizard
@@ -1617,9 +1620,8 @@ export function ImportPage() {
         <section className="card import-upload" aria-label="Datei wählen">
           <p>
             CSV-Export deiner Bank hochladen. Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier
-            CSV-Exporte), die VR-Bank (Volks- und Raiffeisenbanken) und die Deutsche Bank (Kontoumsätze). Die Datei
-            wird nur gelesen und nicht
-            gespeichert; vorgemerkte Umsätze werden übersprungen.
+            CSV-Exporte), die VR-Bank (Volks- und Raiffeisenbanken), die Deutsche Bank (Kontoumsätze) und PayPal
+            (Aktivitäten). Die Datei wird nur gelesen und nicht gespeichert; vorgemerkte Umsätze werden übersprungen.
           </p>
           <label className="button-link primary file-button">
             <Icon name="plus" size={18} />

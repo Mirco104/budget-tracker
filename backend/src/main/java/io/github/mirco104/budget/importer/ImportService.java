@@ -157,9 +157,14 @@ public class ImportService {
                 continue;
             }
             int number = equalRows.merge(ImportRules.sameRowKey(profile, row), 1, Integer::sum);
-            String counterparty = cut(row.counterpartyName());
-            String description = ImportRules.describe(row.counterpartyName(),
-                    ImportRules.cleanPurpose(row.remittanceInformation()), row.bankTransactionCode());
+            // Decision 95: a PayPal direct debit is named after the merchant ("Prezi Inc · PayPal")
+            String merchant = ImportRules.payPalMerchant(row.counterpartyName(), row.counterpartyBic(),
+                    row.remittanceInformation());
+            String counterparty = cut(merchant != null ? merchant : row.counterpartyName());
+            String description = merchant != null
+                    ? ImportRules.describe(merchant, "PayPal", row.bankTransactionCode())
+                    : ImportRules.describe(row.counterpartyName(), ImportRules.cleanPurpose(row.remittanceInformation()),
+                            row.bankTransactionCode());
             candidates.add(new Candidate(candidates.size(), line, ImportRules.sourceKey(profile, row.accountName()),
                     ImportRules.fingerprint(profile, row, number), description, counterparty, cut(row.bankCategory()),
                     counterparty != null ? counterparty : description));
@@ -178,19 +183,23 @@ public class ImportService {
         Map<Long, Transaction> storedById = new HashMap<>();
         stored.forEach(t -> storedById.put(t.getId(), t));
         storedTransfers.forEach(t -> storedById.put(t.getId(), t));
-        List<ImportMatcher.Existing> existing = stored.stream().map(ImportService::existing).toList();
+        // Decision 95: the own accounts with a PayPal source, for the PayPal pair (R27)
+        Set<Long> payPalAccounts = sourceRepository.findByOwner(owner).stream()
+                .filter(s -> s.getSourceKey().startsWith(BankProfile.PAYPAL.name() + ":"))
+                .map(s -> s.getAccount().getId())
+                .collect(Collectors.toSet());
+        List<ImportMatcher.Existing> existing = stored.stream().map(t -> existing(t, payPalAccounts)).toList();
         List<ImportMatcher.Existing> transferPeers = existing.stream()
                 .filter(e -> !replacing.contains(e.id()))
                 .toList();
         List<ImportMatcher.Row> matcherRows = fresh.stream()
-                .map(c -> new ImportMatcher.Row(c.index(), c.source(), sources.get(c.source()).accountId(),
-                        c.line().row().bookingDate(), c.line().row().amount(), c.line().row().counterpartyIban()))
+                .map(c -> matcherRow(c, profile, sources.get(c.source()).accountId(), payPalAccounts))
                 .toList();
         List<ImportMatcher.OwnAccount> ownAccounts = accounts.stream()
                 .map(a -> new ImportMatcher.OwnAccount(a.getId(), a.getIban()))
                 .toList();
         Map<Integer, ImportMatcher.Transfer> transfers = ImportMatcher.transfers(matcherRows, transferPeers,
-                storedTransfers.stream().map(ImportService::existing).toList(), ownAccounts);
+                storedTransfers.stream().map(t -> existing(t, payPalAccounts)).toList(), ownAccounts);
         Map<Integer, Long> duplicates = ImportMatcher.possibleDuplicates(matcherRows, existing);
         BookingSuggestionService.Suggester suggester = suggestionService.suggester();
 
@@ -323,8 +332,8 @@ public class ImportService {
         }
         LocalDate from = fresh.stream().map(c -> c.line().row().bookingDate()).min(Comparator.naturalOrder()).orElseThrow();
         LocalDate to = fresh.stream().map(c -> c.line().row().bookingDate()).max(Comparator.naturalOrder()).orElseThrow();
-        return transactionRepository.findCountedBetween(owner, from.minusDays(ImportMatcher.TRANSFER_DAYS),
-                to.plusDays(ImportMatcher.TRANSFER_DAYS));
+        return transactionRepository.findCountedBetween(owner, from.minusDays(ImportMatcher.MAX_TRANSFER_DAYS),
+                to.plusDays(ImportMatcher.MAX_TRANSFER_DAYS));
     }
 
     // R27: the stored transfers twice as far around, so one at the edge still finds its stored other side
@@ -334,13 +343,29 @@ public class ImportService {
         }
         LocalDate from = fresh.stream().map(c -> c.line().row().bookingDate()).min(Comparator.naturalOrder()).orElseThrow();
         LocalDate to = fresh.stream().map(c -> c.line().row().bookingDate()).max(Comparator.naturalOrder()).orElseThrow();
-        return transactionRepository.findTransfersBetween(owner, from.minusDays(2L * ImportMatcher.TRANSFER_DAYS),
-                to.plusDays(2L * ImportMatcher.TRANSFER_DAYS));
+        return transactionRepository.findTransfersBetween(owner, from.minusDays(2L * ImportMatcher.MAX_TRANSFER_DAYS),
+                to.plusDays(2L * ImportMatcher.MAX_TRANSFER_DAYS));
     }
 
-    private static ImportMatcher.Existing existing(Transaction t) {
+    // Decision 95: a booking on a PayPal account is that side of a PayPal pair, one that names PayPal the other
+    private static ImportMatcher.Existing existing(Transaction t, Set<Long> payPalAccounts) {
+        ImportMatcher.PayPal payPal = payPalAccounts.contains(t.getAccount().getId()) ? ImportMatcher.PayPal.ACCOUNT
+                : ImportRules.namesPayPal(t.getCounterparty(), t.getDescription(), null) ? ImportMatcher.PayPal.NAMED
+                : ImportMatcher.PayPal.NONE;
         return new ImportMatcher.Existing(t.getId(), t.getAccount().getId(), t.getDate(), t.getAmount(),
-                t.getImportBatch() != null);
+                t.getImportBatch() != null, payPal, t.getDescription());
+    }
+
+    // R27 (c) and decision 95: a row of a PayPal file, or of a source on a PayPal account, is on PayPal
+    private static ImportMatcher.Row matcherRow(Candidate c, BankProfile profile, Long accountId, Set<Long> payPalAccounts) {
+        BankTransaction row = c.line().row();
+        boolean onPayPal = profile == BankProfile.PAYPAL || (accountId != null && payPalAccounts.contains(accountId));
+        ImportMatcher.PayPal payPal = onPayPal ? ImportMatcher.PayPal.ACCOUNT
+                : ImportRules.namesPayPal(row.counterpartyName(), c.description(), row.counterpartyBic())
+                        ? ImportMatcher.PayPal.NAMED : ImportMatcher.PayPal.NONE;
+        return new ImportMatcher.Row(c.index(), c.source(), accountId, row.bookingDate(), row.amount(),
+                row.counterpartyIban(), payPal, c.description(),
+                profile == BankProfile.PAYPAL && ImportRules.isPayPalTransferKind(row.bankTransactionCode()));
     }
 
     // R31: monthly series among the new rows that are no transfer (except saving, decision 67) and fulfil no term
@@ -494,7 +519,7 @@ public class ImportService {
         }
         return new ImportPreviewResponse.Details(blankToNull(row.counterpartyIban()), blankToNull(purpose),
                 blankToNull(row.bankTransactionCode()), row.valueDate(), blankToNull(row.mandateId()),
-                blankToNull(row.creditorId()));
+                blankToNull(row.creditorId()), row.charges());
     }
 
     private static DuplicateOf duplicateOf(Transaction transaction) {

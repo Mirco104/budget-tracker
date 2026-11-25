@@ -240,11 +240,11 @@ describe('ImportPage', () => {
 
     expect(screen.queryByText(/schon vollständig importiert/)).not.toBeInTheDocument()
   })
-  it('names the supported banks, the Sparkasse, the VR-Bank and the Deutsche Bank included (decisions 47, 64, 76)', () => {
+  it('names the supported banks, the Sparkasse, the VR-Bank, the Deutsche Bank and PayPal included (decisions 47, 64, 76, 95)', () => {
     renderPage()
 
     expect(screen.getByRole('region', { name: 'Datei wählen' })).toHaveTextContent(
-      'Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier CSV-Exporte), die VR-Bank (Volks- und Raiffeisenbanken) und die Deutsche Bank (Kontoumsätze).',
+      'Unterstützt werden C24, Trade Republic, N26, die Sparkasse (alle vier CSV-Exporte), die VR-Bank (Volks- und Raiffeisenbanken), die Deutsche Bank (Kontoumsätze) und PayPal (Aktivitäten).',
     )
   })
 
@@ -720,6 +720,29 @@ describe('ImportPage', () => {
     expect(within(club).getByText('GB82 WEST 1234 5698 7654 32')).toBeInTheDocument()
     expect(within(club).getByText('05.11.2026')).toBeInTheDocument()
     expect(within(row('Ohne Details')[0]).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument()
+  })
+
+  // Decision 95: PayPal books Netto and names the fee in the details
+  it('shows the fee of a PayPal row in the details', async () => {
+    renderPage(() =>
+      json({
+        ...preview,
+        entries: [
+          entry({
+            line: 2, fingerprint: 'a'.repeat(64), description: 'Person A', counterparty: 'Person A', amount: 96.75,
+            details: { counterpartyIban: null, purpose: null, kind: 'Allgemeine Zahlung', valueDate: null, mandateId: null, creditorId: null, charges: -3.25 },
+          }),
+        ],
+      }),
+    )
+    await upload()
+
+    const income = row('Person A')[0]
+    fireEvent.click(within(income).getByRole('button', { name: 'Details zu Person A' }))
+
+    const terms = within(income).getAllByRole('term').map((term) => term.textContent)
+    expect(terms).toEqual(['Gegenseite', 'Art', 'Entgelt'])
+    expect(within(income).getAllByRole('definition').at(-1)).toHaveTextContent(/^-3,25\s€$/u)
   })
 
   it('hides an ignored series', async () => {
