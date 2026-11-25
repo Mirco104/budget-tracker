@@ -1,6 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from './client'
 import type { SavingGoal, SavingGoalInput } from './types'
+
+// Ticket #145: a goal on an account counts in the cover of the account on Konten
+function invalidateGoals(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ['saving-goals'] })
+  return queryClient.invalidateQueries({ queryKey: ['accounts', 'reserves'] })
+}
 
 export function fetchSavingGoals(): Promise<SavingGoal[]> {
   return request<SavingGoal[]>('/saving-goals')
@@ -15,7 +21,7 @@ export function useCreateSavingGoal() {
   return useMutation({
     mutationFn: (input: SavingGoalInput) =>
       request<SavingGoal>('/saving-goals', { method: 'POST', body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saving-goals'] }),
+    onSuccess: () => invalidateGoals(queryClient),
   })
 }
 
@@ -25,7 +31,7 @@ export function useUpdateSavingGoal() {
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: SavingGoalInput }) =>
       request<SavingGoal>(`/saving-goals/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saving-goals'] }),
+    onSuccess: () => invalidateGoals(queryClient),
   })
 }
 
@@ -34,6 +40,6 @@ export function useDeleteSavingGoal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => request<unknown>(`/saving-goals/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saving-goals'] }),
+    onSuccess: () => invalidateGoals(queryClient),
   })
 }

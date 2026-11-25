@@ -6,6 +6,7 @@ Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt dies
 
 ### Neu
 
+- **Sparziel auf einem Konto:** Ein Sparziel kann auf einem Konto liegen. *Konten* zeigt dann, ob das Konto genug für seine Rücklagen und Sparziele hat. Bezahlst du etwas aus dem Sparziel, schlägt der Buchungsdialog dieses Konto vor.
 - **Alle auf- und zuklappen:** Über der Budget-Tabelle der Übersicht und über Fixkosten und Budgets in der Planung klappt „Alle aufklappen“ alle Kategorien auf einmal auf, „Alle zuklappen“ wieder zu.
 
 ### Änderungen

@@ -161,10 +161,13 @@ export function BookingDialog({ categories: loaded, entry, defaultDate, onClose,
     setCategoryId(value)
   }
 
-  // 27f4: choosing a reserve suggests its linked account; the user may set the everyday account back
+  // 27f4: choosing a reserve suggests its linked account (ticket #145: a goal its account); the user may set the
+  // everyday account back
   function choosePaidFrom(value: string) {
     setPaidFrom(value)
-    const linked = pots.find((pot) => `pot:${pot.itemKey}` === value)?.reserveAccountId
+    const linked =
+      pots.find((pot) => `pot:${pot.itemKey}` === value)?.reserveAccountId ??
+      goals.find((goal) => `goal:${goal.id}` === value)?.accountId
     if (linked != null) {
       setAccountId(String(linked))
     }
