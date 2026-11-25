@@ -129,7 +129,7 @@ function renderPage(previewAnswer: () => Promise<Response> = () => json(preview)
   return fetchMock
 }
 
-// The import starts with the kind filter Einmalig (ticket #84); most tests look at every row, so they choose Alle Arten
+// The import starts with the kind filter Variabel (ticket #84); most tests look at every row, so they choose Fix und variabel
 async function upload({ allKinds = true }: { allKinds?: boolean } = {}) {
   const file = new File(['Transaktionstyp,Buchungsdatum'], 'export.csv', { type: 'text/csv' })
   fireEvent.change(screen.getByLabelText('CSV-Datei wählen'), { target: { files: [file] } })
@@ -411,7 +411,7 @@ describe('ImportPage', () => {
     )
     // A series with a single match has no card
     expect(screen.queryByRole('region', { name: /Kino-Abo/ })).not.toBeInTheDocument()
-    // Rows that replace an occurrence are Wiederkehrend, so the start filter Einmalig does not show them
+    // Rows that replace an occurrence are Fix, so the start filter Variabel does not show them
     expect(screen.queryByRole('listitem', { name: 'Miete 2026-01-01' })).not.toBeInTheDocument()
 
     fireEvent.click(within(matchCard()).getByRole('button', { name: 'Alle übernehmen (3)' }))
@@ -525,7 +525,7 @@ describe('ImportPage', () => {
     expect(sent(fetchMock, '/api/recurring-transactions')).toBeUndefined()
     // Issue #119: no hint text, only the way back
     expect(within(card).getByRole('button', { name: 'Nicht planen' })).toBeInTheDocument()
-    // Its rows are Wiederkehrend now, so the start filter Einmalig no longer shows them; the card shows them in the list
+    // Its rows are Fix now, so the start filter Variabel no longer shows them; the card shows them in the list
     expect(screen.queryByRole('listitem', { name: 'Spiele Shop' })).not.toBeInTheDocument()
     // The two series rows and Kino Nord (replaces an occurrence)
     expect(screen.getByText('Davon sind 3 gewählte Zeilen vom Filter ausgeblendet.')).toBeInTheDocument()
@@ -862,7 +862,7 @@ describe('ImportPage', () => {
     fireEvent.change(screen.getByLabelText('Einnahmen oder Ausgaben filtern'), { target: { value: '' } })
 
     // The possible duplicate is not ticked at the start
-    expect(names('Importieren filtern')).toEqual(['Übernehmen und nicht', 'Wird übernommen (5)', 'Wird nicht übernommen (1)'])
+    expect(names('Importieren filtern')).toEqual(['Übernehmen: alle', 'Wird übernommen (5)', 'Wird nicht übernommen (1)'])
     fireEvent.change(screen.getByLabelText('Importieren filtern'), { target: { value: 'NO' } })
     expect(listed()).toEqual(['Bäcker'])
 
@@ -893,22 +893,22 @@ describe('ImportPage', () => {
     const names = (label: string) =>
       Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((option) => option.textContent)
     expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (2)'])
-    expect(names('Art filtern')).toEqual(['Alle Arten', 'Einmalig (2)'])
+    expect(names('Art filtern')).toEqual(['Fix und variabel', 'Variabel (2)'])
     expect(names('Konto filtern')).toEqual(['Alle Konten', 'Ausgabenkonto (2)'])
     fireEvent.change(within(row('Spiele Shop')[0]).getByLabelText('Kategorie für Spiele Shop'), { target: { value: '8' } })
     expect(names('Kategorie filtern')).toEqual(['Alle Kategorien', 'Ohne Kategorie (1)', 'Freizeit (1)'])
 
     fireEvent.change(screen.getByLabelText('Beschreibung suchen'), { target: { value: 'nichts' } })
     expect(screen.getByText('Keine Zeilen für diesen Filter.')).toBeInTheDocument()
-    // Back to the start filters: the search is empty and the kind is Einmalig again (Kino Nord replaces an occurrence)
+    // Back to the start filters: the search is empty and the kind is Variabel again (Kino Nord replaces an occurrence)
     fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }))
     expect(screen.getByLabelText('Beschreibung suchen')).toHaveValue('')
     expect(screen.getByLabelText('Art filtern')).toHaveValue('SINGLE')
     expect(listed()).toEqual(['Spiele Shop', 'Spiele Shop', 'Auf Pocket', 'Bäcker'])
   })
 
-  // After the test of ticket #84: the import starts with Einmalig instead of hiding the rows of the cards
-  it('starts with the kind Einmalig and offers no reset for the start filters', async () => {
+  // After the test of ticket #84: the import starts with Variabel instead of hiding the rows of the cards
+  it('starts with the kind Variabel and offers no reset for the start filters', async () => {
     renderPage()
     await upload({ allKinds: false })
 

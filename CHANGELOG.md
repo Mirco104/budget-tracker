@@ -2,7 +2,13 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
-## 0.4.0-alpha (unveröffentlicht)
+## 0.5.0-alpha (unveröffentlicht)
+
+### Änderungen
+
+- **Filter im Import:** Die Art heißt im Import wie auf *Transaktionen* „Fix“ und „Variabel“ statt „Wiederkehrend“ und „Einmalig“, ohne Wahl „Fix und variabel“ statt „Alle Arten“. Der Filter nach dem Schalter der Zeile heißt „Übernehmen: alle“ statt „Übernehmen und nicht“.
+
+## 0.4.0-alpha (25.11.2026)
 
 Import von PayPal.
 
