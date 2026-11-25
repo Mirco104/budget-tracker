@@ -105,6 +105,140 @@ class BankCsvTest {
             Kontostand;15.11.2026;;;1.234,56;EUR
             """;
 
+    // PayPal (decision 95): the export of the activities, "," with every field quoted, dd.MM.yyyy, German amounts,
+    // the oldest row first. Lines 4/5 and 6/7 are a purchase and its top-up from the bank and the credit card, lines
+    // 8/9 a hold and its release. All values fictional.
+    static final String PAYPAL = """
+            "Datum","Uhrzeit","Zeitzone","Beschreibung","Währung","Brutto","Entgelt","Netto","Guthaben","Transaktionscode","Absender E-Mail-Adresse","Name","Name der Bank","Bankkonto","Versand- und Bearbeitungsgebühr","Umsatzsteuer","Rechnungsnummer","Zugehöriger Transaktionscode"
+            "02.10.2026","18:20:00","Europe/Berlin","Allgemeine Zahlung","EUR","100,00","-3,25","96,75","96,75","1AA00000AA0000001","person.a@example.com","Person A","","","0,00","0,00","",""
+            "03.10.2026","09:00:00","Europe/Berlin","Von Nutzer eingeleitete Abbuchung","EUR","-96,75","0,00","-96,75","0,00","1AA00000AA0000002","","","","","0,00","0,00","",""
+            "05.10.2026","12:00:00","Europe/Berlin","Zahlung im Einzugsverfahren mit Zahlungsrechnung","EUR","-49,90","0,00","-49,90","-49,90","1AA00000AA0000003","shop@example.com","Beispiel Shop GmbH","","","0,00","0,00","R-1001","B-0000000000000001"
+            "05.10.2026","12:00:00","Europe/Berlin","Bankgutschrift auf PayPal-Konto","EUR","49,90","0,00","49,90","0,00","1AA00000AA0000004","","","","","0,00","0,00","R-1001","1AA00000AA0000003"
+            "08.10.2026","10:00:00","Europe/Berlin","PayPal Express-Zahlung","EUR","-1.234,50","0,00","-1.234,50","-1.234,50","1AA00000AA0000005","software@example.com","BEISPIEL SOFTWARE","","","0,00","0,00","",""
+            "08.10.2026","10:00:00","Europe/Berlin","Allgemeine Gutschrift auf Kreditkarte","EUR","1.234,50","0,00","1.234,50","0,00","1AA00000AA0000006","","","","","0,00","0,00","","1AA00000AA0000005"
+            "10.10.2026","20:00:00","Europe/Berlin","Allgemeine Einbehaltung","EUR","-10,00","0,00","-10,00","-10,00","1AA00000AA0000007","","","","","0,00","0,00","",""
+            "11.10.2026","20:00:00","Europe/Berlin","Allgemeine Freigabe","EUR","10,00","0,00","10,00","0,00","1AA00000AA0000008","","","","","0,00","0,00","",""
+            "12.10.2026","08:00:00","Europe/Berlin","Handyzahlung","EUR","15,00","0,00","15,00","15,00","1AA00000AA0000009","person.b@example.com","Person B","","","0,00","0,00","",""
+            """;
+
+    // Decision 95: a payment in USD funded in EUR: the payment and its conversion in USD, the conversion in EUR and the
+    // top-up from the bank; fictional values
+    static final String PAYPAL_USD = PAYPAL + """
+            "15.10.2026","16:00:00","Europe/Berlin","PayPal Express-Zahlung","USD","-20,00","0,00","-20,00","-20,00","1AA00000AA0000020","store@example.com","Example Store Inc","","","0,00","0,00","",""
+            "15.10.2026","16:00:00","Europe/Berlin","Allgemeine Währungsumrechnung","USD","20,00","0,00","20,00","0,00","1AA00000AA0000021","","","","","0,00","0,00","","1AA00000AA0000020"
+            "15.10.2026","16:00:00","Europe/Berlin","Allgemeine Währungsumrechnung","EUR","-18,40","0,00","-18,40","-3,40","1AA00000AA0000022","","","","","0,00","0,00","","1AA00000AA0000020"
+            "15.10.2026","16:00:00","Europe/Berlin","Bankgutschrift auf PayPal-Konto","EUR","18,40","0,00","18,40","15,00","1AA00000AA0000023","","","","","0,00","0,00","","1AA00000AA0000020"
+            """;
+
+    @Test
+    void theEuroRowOfAPayPalCurrencyConversionTakesTheNameOfItsPayment() {
+        BankFile file = BankCsv.read(PAYPAL_USD.getBytes(StandardCharsets.UTF_8));
+
+        BankTransaction euro = row(file, 13);
+        assertThat(euro.currency()).isEqualTo("EUR");
+        assertThat(euro.amount()).isEqualByComparingTo("-18.40");
+        assertThat(euro.counterpartyName()).isEqualTo("Example Store Inc");
+        assertThat(euro.bankTransactionCode()).isEqualTo("Allgemeine Währungsumrechnung");
+        assertThat(row(file, 14).remittanceInformation()).isEqualTo("Aufladung für Example Store Inc");
+        assertThat(row(file, 11).currency()).isEqualTo("USD");
+        // The balance stays the one of the euro rows
+        assertThat(file.balances()).containsExactly(
+                new BankCsv.Balance("PayPal", LocalDate.of(2026, 10, 15), new BigDecimal("15.00")));
+    }
+
+    @Test
+    void readsThePayPalExport() {
+        BankFile file = BankCsv.read(("﻿" + PAYPAL).getBytes(StandardCharsets.UTF_8));
+
+        assertThat(file.profile()).isEqualTo(BankProfile.PAYPAL);
+        // Netto is the amount, the fee is in charges; the file names no own account
+        BankTransaction income = row(file, 2);
+        assertThat(income.accountName()).isEqualTo("PayPal");
+        assertThat(income.accountIban()).isNull();
+        assertThat(income.bookingDate()).isEqualTo(LocalDate.of(2026, 10, 2));
+        assertThat(income.amount()).isEqualByComparingTo("96.75");
+        assertThat(income.charges()).isEqualByComparingTo("-3.25");
+        assertThat(income.currency()).isEqualTo("EUR");
+        assertThat(income.status()).isEqualTo(Status.BOOKED);
+        assertThat(income.counterpartyName()).isEqualTo("Person A");
+        assertThat(income.remittanceInformation()).isNull();
+        assertThat(income.bankTransactionCode()).isEqualTo("Allgemeine Zahlung");
+        assertThat(income.bankCategory()).isEqualTo("Allgemeine Zahlung");
+        assertThat(income.entryReference()).isEqualTo("1AA00000AA0000001");
+
+        // No fee is no charges; thousands dots
+        BankTransaction purchase = row(file, 6);
+        assertThat(purchase.amount()).isEqualByComparingTo("-1234.50");
+        assertThat(purchase.charges()).isNull();
+        assertThat(purchase.counterpartyName()).isEqualTo("BEISPIEL SOFTWARE");
+        // Without a name the counterparty stays empty
+        assertThat(row(file, 3).counterpartyName()).isNull();
+    }
+
+    // R30, decision 95: a top-up takes the name of the payment it belongs to as its purpose
+    @Test
+    void aPayPalTopUpIsNamedAfterItsPayment() {
+        BankFile file = BankCsv.read(PAYPAL.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(row(file, 5).counterpartyName()).isNull();
+        assertThat(row(file, 5).remittanceInformation()).isEqualTo("Aufladung für Beispiel Shop GmbH");
+        assertThat(row(file, 7).remittanceInformation()).isEqualTo("Aufladung für BEISPIEL SOFTWARE");
+        // A withdrawal without a related payment keeps its kind
+        assertThat(row(file, 3).remittanceInformation()).isNull();
+        // A payment keeps its own values
+        assertThat(row(file, 4).counterpartyName()).isEqualTo("Beispiel Shop GmbH");
+        assertThat(row(file, 4).remittanceInformation()).isNull();
+    }
+
+    @Test
+    void aPayPalWithdrawalWithARelatedPaymentIsNamedAfterIt() {
+        String file = PAYPAL.replace(
+                "\"Von Nutzer eingeleitete Abbuchung\",\"EUR\",\"-96,75\",\"0,00\",\"-96,75\",\"0,00\",\"1AA00000AA0000002\",\"\",\"\",\"\",\"\",\"0,00\",\"0,00\",\"\",\"\"",
+                "\"Von Nutzer eingeleitete Abbuchung\",\"EUR\",\"-96,75\",\"0,00\",\"-96,75\",\"0,00\",\"1AA00000AA0000002\",\"\",\"\",\"\",\"\",\"0,00\",\"0,00\",\"\",\"1AA00000AA0000001\"");
+
+        assertThat(row(BankCsv.read(file.getBytes(StandardCharsets.UTF_8)), 3).remittanceInformation())
+                .isEqualTo("Auszahlung für Person A");
+    }
+
+    @Test
+    void aPayPalRowWithoutNameTakesTheEmailAndBetreffIsThePurpose() {
+        String file = """
+                "Datum","Beschreibung","Währung","Netto","Transaktionscode","Absender E-Mail-Adresse","Name","Betreff","Hinweis"
+                "01.10.2026","Handyzahlung","EUR","5,00","1AA00000AA0000010","person.b@example.com","","","Pizza"
+                "02.10.2026","Handyzahlung","EUR","6,00","1AA00000AA0000011","","Person A","Kino","Popcorn"
+                """;
+
+        BankFile read = BankCsv.read(file.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(row(read, 2).counterpartyName()).isEqualTo("person.b@example.com");
+        assertThat(row(read, 2).remittanceInformation()).isEqualTo("Pizza");
+        assertThat(row(read, 3).remittanceInformation()).isEqualTo("Kino");
+    }
+
+    // Decision 95: a hold and its release only keep money back, they are pending
+    @Test
+    void payPalHoldsArePending() {
+        BankFile file = BankCsv.read(PAYPAL.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(row(file, 8).status()).isEqualTo(Status.PENDING);
+        assertThat(row(file, 9).status()).isEqualTo(Status.PENDING);
+        assertThat(row(file, 10).status()).isEqualTo(Status.BOOKED);
+    }
+
+    // Decision 92 and 95: the Guthaben of the newest booked EUR row
+    @Test
+    void readsTheBalanceOfThePayPalFile() {
+        assertThat(BankCsv.read(PAYPAL.getBytes(StandardCharsets.UTF_8)).balances()).containsExactly(
+                new BankCsv.Balance("PayPal", LocalDate.of(2026, 10, 12), new BigDecimal("15.00")));
+
+        // A row in another currency has the balance of that currency
+        String usd = PAYPAL + """
+                "12.10.2026","09:00:00","Europe/Berlin","Allgemeine Zahlung","USD","20,00","0,00","20,00","20,00","1AA00000AA0000012","person.c@example.com","Person C","","","0,00","0,00","",""
+                """;
+        assertThat(BankCsv.read(usd.getBytes(StandardCharsets.UTF_8)).balances()).containsExactly(
+                new BankCsv.Balance("PayPal", LocalDate.of(2026, 10, 12), new BigDecimal("15.00")));
+    }
+
     // Decision 92: the balance of the file where the bank delivers one; the others deliver none
     @Test
     void readsTheBalanceFromTheDeutscheBankFooterAndTheNewestVrBankRow() {

@@ -21,11 +21,33 @@ public final class ImportMatcher {
 
     /** Days between a transfer and its counterpart (R27). */
     static final int TRANSFER_DAYS = 3;
+    /** Days between the two sides of a PayPal pair (R27, decision 95). */
+    static final int PAYPAL_TRANSFER_DAYS = 10;
+    /** The widest distance of a counterpart, for loading the stored bookings around a file. */
+    public static final int MAX_TRANSFER_DAYS = Math.max(TRANSFER_DAYS, PAYPAL_TRANSFER_DAYS);
+    // Words every PayPal booking or company carries, no sign of the same purchase (decision 95)
+    private static final Set<String> COMMON_WORDS = Set.of("paypal", "europe", "gmbh", "einkauf", "aufladung",
+            "auszahlung");
+    private static final int MIN_WORD = 4;
+
+    /**
+     * Decision 95: ACCOUNT is a side on a PayPal account (a row of a PayPal file or a booking on an account with a
+     * PayPal source), NAMED a side on another account that names PayPal; a pair of the two may be 10 days apart.
+     */
+    public enum PayPal { NONE, ACCOUNT, NAMED }
     /** Days between a row and a booking by hand with the same amount (R30). */
     static final int DUPLICATE_DAYS = 2;
 
-    /** A new row of the file; accountId is the own account it goes to, null when a new account is created for it. */
-    public record Row(int index, String source, Long accountId, LocalDate date, BigDecimal amount, String counterpartyIban) {
+    /**
+     * A new row of the file; accountId is the own account it goes to, null when a new account is created for it.
+     * payPal and description are for the PayPal pair, certainKind for a kind that is a transfer (R27 c).
+     */
+    public record Row(int index, String source, Long accountId, LocalDate date, BigDecimal amount, String counterpartyIban,
+            PayPal payPal, String description, boolean certainKind) {
+
+        public Row(int index, String source, Long accountId, LocalDate date, BigDecimal amount, String counterpartyIban) {
+            this(index, source, accountId, date, amount, counterpartyIban, PayPal.NONE, null, false);
+        }
 
         public Row(int index, String source, Long accountId, LocalDate date, String amount, String counterpartyIban) {
             this(index, source, accountId, date, new BigDecimal(amount), counterpartyIban);
@@ -33,7 +55,12 @@ public final class ImportMatcher {
     }
 
     /** A stored single transaction that is no transfer; imported is true when it came from an import. */
-    public record Existing(long id, long accountId, LocalDate date, BigDecimal amount, boolean imported) {
+    public record Existing(long id, long accountId, LocalDate date, BigDecimal amount, boolean imported, PayPal payPal,
+            String description) {
+
+        public Existing(long id, long accountId, LocalDate date, BigDecimal amount, boolean imported) {
+            this(id, accountId, date, amount, imported, PayPal.NONE, null);
+        }
 
         public Existing(long id, long accountId, LocalDate date, String amount, boolean imported) {
             this(id, accountId, date, new BigDecimal(amount), imported);
@@ -44,8 +71,9 @@ public final class ImportMatcher {
     }
 
     /**
-     * certain for the IBAN of an own account (R27 a); peerIndex is a row of the file and peerTransactionId a stored
-     * booking with the opposite amount (R27 b), at most one of them.
+     * certain for the IBAN of an own account (R27 a), a kind that is a transfer (R27 c) or a PayPal pair that names the
+     * same merchant (decision 95); peerIndex is a row of the file and peerTransactionId a stored booking with the
+     * opposite amount (R27 b), at most one of them.
      */
     public record Transfer(boolean certain, Integer peerIndex, Long peerTransactionId) {
     }
@@ -72,7 +100,7 @@ public final class ImportMatcher {
             String iban = Iban.normalize(row.counterpartyIban());
             boolean own = iban != null && accounts.stream()
                     .anyMatch(account -> iban.equals(account.iban()) && !Objects.equals(account.id(), row.accountId()));
-            certain.put(row.index(), own);
+            certain.put(row.index(), own || row.certainKind());
         }
 
         Map<Integer, Integer> rowPeers = new HashMap<>();
@@ -94,7 +122,7 @@ public final class ImportMatcher {
                 long days = days(row.date(), other.date());
                 if (other.index() != row.index() && !rowPeers.containsKey(other.index())
                         && !other.source().equals(row.source()) && !sameAccount(row, other)
-                        && days <= TRANSFER_DAYS && days < bestRowDays) {
+                        && days <= maxDays(row.payPal(), other.payPal()) && days < bestRowDays) {
                     bestRow = other;
                     bestRowDays = days;
                 }
@@ -104,7 +132,7 @@ public final class ImportMatcher {
             for (Existing stored : storedByAmount.getOrDefault(opposite, List.of())) {
                 long days = days(row.date(), stored.date());
                 if (!usedStored.contains(stored.id()) && !Objects.equals(stored.accountId(), row.accountId())
-                        && days <= TRANSFER_DAYS && days < bestStoredDays) {
+                        && days <= maxDays(row.payPal(), stored.payPal()) && days < bestStoredDays) {
                     bestStored = stored;
                     bestStoredDays = days;
                 }
@@ -113,9 +141,16 @@ public final class ImportMatcher {
             if (bestRow != null && bestRowDays <= bestStoredDays) {
                 rowPeers.put(row.index(), bestRow.index());
                 rowPeers.put(bestRow.index(), row.index());
+                if (sameMerchant(row.payPal(), row.description(), bestRow.payPal(), bestRow.description())) {
+                    certain.put(row.index(), true);
+                    certain.put(bestRow.index(), true);
+                }
             } else if (bestStored != null) {
                 storedPeers.put(row.index(), bestStored.id());
                 usedStored.add(bestStored.id());
+                if (sameMerchant(row.payPal(), row.description(), bestStored.payPal(), bestStored.description())) {
+                    certain.put(row.index(), true);
+                }
             }
         }
 
@@ -174,7 +209,7 @@ public final class ImportMatcher {
             for (Existing other : byAmount.getOrDefault(key(transfer.amount().negate()), List.of())) {
                 long days = days(transfer.date(), other.date());
                 if (!paired.contains(other.id()) && other.accountId() != transfer.accountId()
-                        && days <= TRANSFER_DAYS && days < bestDays) {
+                        && days <= maxDays(transfer.payPal(), other.payPal()) && days < bestDays) {
                     best = other;
                     bestDays = days;
                 }
@@ -185,6 +220,31 @@ public final class ImportMatcher {
             }
         }
         return sorted.stream().filter(transfer -> !paired.contains(transfer.id())).toList();
+    }
+
+    // Decision 95: a side on a PayPal account and a side that names PayPal may be 10 days apart, any other pair 3
+    private static int maxDays(PayPal a, PayPal b) {
+        return isPayPalPair(a, b) ? PAYPAL_TRANSFER_DAYS : TRANSFER_DAYS;
+    }
+
+    private static boolean isPayPalPair(PayPal a, PayPal b) {
+        return (a == PayPal.ACCOUNT && b == PayPal.NAMED) || (a == PayPal.NAMED && b == PayPal.ACCOUNT);
+    }
+
+    // Decision 95: a PayPal pair whose descriptions share a word of 4 letters or more (R29), not one every PayPal
+    // booking carries, names the same merchant
+    private static boolean sameMerchant(PayPal a, String first, PayPal b, String second) {
+        if (!isPayPalPair(a, b)) {
+            return false;
+        }
+        Set<String> words = new HashSet<>(merchantWords(first));
+        return merchantWords(second).stream().anyMatch(words::contains);
+    }
+
+    private static List<String> merchantWords(String text) {
+        return io.github.mirco104.budget.suggestion.CategorySuggester.words(text).stream()
+                .filter(word -> word.length() >= MIN_WORD && !COMMON_WORDS.contains(word))
+                .toList();
     }
 
     // Two sources the user put on the same account are no transfer between accounts

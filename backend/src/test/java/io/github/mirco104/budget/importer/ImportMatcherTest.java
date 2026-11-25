@@ -190,6 +190,99 @@ class ImportMatcherTest {
         return LocalDate.of(2026, 11, day);
     }
 
+    // --- R27 (c) and the PayPal pair (decision 95) ---
+
+    private static final long PAYPAL = 3;
+    private static final String TOP_UP = "Aufladung für Beispiel Shop GmbH";
+    private static final String DEBIT = "PayPal Europe S.a.r.l. et Cie S.C.A · /PP.1234.PP/. Beispiel Shop GmbH, Ihr Einkauf "
+            + "bei Beispiel Shop GmbH";
+
+    private static Row payPalRow(int index, int day, String amount, String description, boolean topUp) {
+        return new Row(index, "PAYPAL:PayPal", PAYPAL, date(day), new BigDecimal(amount), null, ImportMatcher.PayPal.ACCOUNT,
+                description, topUp);
+    }
+
+    private static Row bankRow(int index, int day, String amount, String description) {
+        return new Row(index, "C24:Ausgabenkonto", GIRO, date(day), new BigDecimal(amount), null, ImportMatcher.PayPal.NAMED,
+                description, false);
+    }
+
+    @Test
+    void aTopUpOrWithdrawalOfPayPalIsCertainWithoutCounterpart() {
+        Map<Integer, Transfer> transfers = ImportMatcher.transfers(
+                List.of(payPalRow(0, 5, "49.90", TOP_UP, true), payPalRow(1, 5, "-49.90", "Beispiel Shop GmbH", false)),
+                List.of(), ACCOUNTS);
+
+        assertThat(transfers).containsOnlyKeys(0);
+        assertThat(transfers.get(0)).isEqualTo(new Transfer(true, null, null));
+    }
+
+    @Test
+    void aPayPalPairMayBeTenDaysApartAndIsCertainWithTheMerchant() {
+        Existing debit = new Existing(7, GIRO, date(15), new BigDecimal("-49.90"), true, ImportMatcher.PayPal.NAMED, DEBIT);
+
+        Map<Integer, Transfer> transfers = ImportMatcher.transfers(List.of(payPalRow(0, 5, "49.90", TOP_UP, true)),
+                List.of(debit), ACCOUNTS);
+
+        assertThat(transfers.get(0)).isEqualTo(new Transfer(true, null, 7L));
+    }
+
+    @Test
+    void aPayPalPairElevenDaysApartIsNoPair() {
+        Existing debit = new Existing(7, GIRO, date(16), new BigDecimal("-49.90"), true, ImportMatcher.PayPal.NAMED, DEBIT);
+
+        Map<Integer, Transfer> transfers = ImportMatcher.transfers(List.of(payPalRow(0, 5, "49.90", TOP_UP, true)),
+                List.of(debit), ACCOUNTS);
+
+        assertThat(transfers.get(0)).isEqualTo(new Transfer(true, null, null));
+    }
+
+    // The bank row of a later file finds the stored top-up, a transfer without its other side
+    @Test
+    void theBankRowFindsTheStoredTopUpAndIsCertainWithTheMerchant() {
+        Existing topUp = new Existing(8, PAYPAL, date(5), new BigDecimal("49.90"), true, ImportMatcher.PayPal.ACCOUNT, TOP_UP);
+
+        Map<Integer, Transfer> transfers = ImportMatcher.transfers(List.of(bankRow(0, 12, "-49.90", DEBIT)), List.of(),
+                List.of(topUp), ACCOUNTS);
+
+        assertThat(transfers.get(0)).isEqualTo(new Transfer(true, null, 8L));
+    }
+
+    @Test
+    void aPayPalPairWithoutCommonWordIsUncertain() {
+        List<Row> rows = List.of(
+                payPalRow(0, 3, "-96.75", "Von Nutzer eingeleitete Abbuchung", true),
+                bankRow(1, 9, "96.75", "PayPal Europe S.a.r.l. et Cie S.C.A · PayPal Europe"));
+
+        Map<Integer, Transfer> transfers = ImportMatcher.transfers(rows, List.of(), ACCOUNTS);
+
+        assertThat(transfers.get(0)).isEqualTo(new Transfer(true, 1, null));
+        assertThat(transfers.get(1)).isEqualTo(new Transfer(false, 0, null));
+    }
+
+    // Only a side on a PayPal account and a side that names PayPal have 10 days; any other pair keeps 3
+    @Test
+    void otherPairsKeepThreeDays() {
+        List<Row> namedOnly = List.of(bankRow(0, 2, "-49.90", DEBIT),
+                new Row(1, "C24:Pocket", 9L, date(8), new BigDecimal("49.90"), null, ImportMatcher.PayPal.NAMED, DEBIT, false));
+        List<Row> plain = List.of(new Row(0, "C24:Ausgabenkonto", GIRO, date(2), "-49.90", null),
+                new Row(1, "PAYPAL:PayPal", PAYPAL, date(6), "49.90", null));
+
+        assertThat(ImportMatcher.transfers(namedOnly, List.of(), ACCOUNTS)).isEmpty();
+        assertThat(ImportMatcher.transfers(plain, List.of(), ACCOUNTS)).isEmpty();
+    }
+
+    @Test
+    void twoStoredSidesOfAPayPalPairAreNoOpenTransfer() {
+        Existing topUp = new Existing(8, PAYPAL, date(5), new BigDecimal("49.90"), true, ImportMatcher.PayPal.ACCOUNT, TOP_UP);
+        Existing debit = new Existing(9, GIRO, date(12), new BigDecimal("-49.90"), true, ImportMatcher.PayPal.NAMED, DEBIT);
+
+        Map<Integer, Transfer> transfers = ImportMatcher.transfers(List.of(bankRow(0, 12, "-49.90", DEBIT)), List.of(),
+                List.of(topUp, debit), ACCOUNTS);
+
+        assertThat(transfers).isEmpty();
+    }
+
     @SuppressWarnings("unused")
     private static BigDecimal money(String value) {
         return new BigDecimal(value);

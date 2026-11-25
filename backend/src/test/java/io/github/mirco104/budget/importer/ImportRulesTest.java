@@ -156,6 +156,56 @@ class ImportRulesTest {
         assertThat(ImportRules.accountName(BankProfile.DEUTSCHE_BANK, "")).isEqualTo("Deutsche Bank");
     }
 
+    // Decision 95: one fixed source, a new account is just "PayPal"; the fingerprint is the Transaktionscode
+    @Test
+    void namesThePayPalAccountAndFingerprintsByTheTransactionCode() {
+        assertThat(ImportRules.sourceKey(BankProfile.PAYPAL, "PayPal")).isEqualTo("PAYPAL:PayPal");
+        assertThat(ImportRules.accountName(BankProfile.PAYPAL, "PayPal")).isEqualTo("PayPal");
+
+        BankTransaction row = row(BankCsv.read(BankCsvTest.PAYPAL.getBytes(StandardCharsets.UTF_8)), 2);
+        BankTransaction otherName = new BankTransaction(row.accountName(), row.accountIban(), row.bookingDate(),
+                row.valueDate(), row.amount(), row.currency(), row.status(), "Person B",
+                row.counterpartyIban(), row.counterpartyBic(), "anders", row.endToEndId(), row.mandateId(),
+                row.creditorId(), row.bankTransactionCode(), row.entryReference(), row.bankCategory());
+        assertThat(ImportRules.fingerprint(BankProfile.PAYPAL, otherName, 2))
+                .isEqualTo(ImportRules.fingerprint(BankProfile.PAYPAL, row, 1));
+    }
+
+    // R27 (c): the kinds of PayPal that move money between PayPal and a bank account or card
+    @Test
+    void knowsThePayPalKindsThatAreTransfers() {
+        assertThat(ImportRules.isPayPalTransferKind("Bankgutschrift auf PayPal-Konto")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("Allgemeine Gutschrift auf Kreditkarte")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("allgemeine gutschrift auf debitkarte")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind(" Von Nutzer eingeleitete Abbuchung ")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("Abbuchung auf Bankkonto")).isTrue();
+        assertThat(ImportRules.isPayPalTransferKind("Allgemeine Zahlung")).isFalse();
+        assertThat(ImportRules.isPayPalTransferKind(null)).isFalse();
+    }
+
+    // Decision 95: a side names PayPal by its counterparty, its description or the BIC of its counterparty
+    @Test
+    void knowsWhenABookingNamesPayPal() {
+        assertThat(ImportRules.namesPayPal("PayPal Europe S.a.r.l. et Cie S.C.A", null, null)).isTrue();
+        assertThat(ImportRules.namesPayPal(null, "Beispiel Shop GmbH · PayPal", null)).isTrue();
+        assertThat(ImportRules.namesPayPal("Beispiel", "Beispiel", "pplxlul2")).isTrue();
+        assertThat(ImportRules.namesPayPal("Beispiel Shop", "Kauf", "COBADEFFXXX")).isFalse();
+    }
+
+    // R30, decision 95: the merchant of a PayPal direct debit, at any bank
+    @Test
+    void readsTheMerchantOfAPayPalDirectDebit() {
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", "PPLXLUL2",
+                "1000000000001/PP.1234.PP/. Beispiel Shop GmbH, Ihr Einkauf bei Beispiel Shop GmbH")).isEqualTo("Beispiel Shop GmbH");
+        // The BIC alone names PayPal; case and punctuation at the end do not matter
+        assertThat(ImportRules.payPalMerchant("PP Europe", "PPLXLULL", "PP.1234.PP IHR EINKAUF BEI Example Store Inc.")).isEqualTo("Example Store Inc");
+        // Not PayPal, no merchant text, or nothing after it
+        assertThat(ImportRules.payPalMerchant("Beispiel Payment GmbH", "COBADEFFXXX", "Ihr Einkauf bei Beispiel Shop")).isNull();
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", null, "PayPal Europe")).isNull();
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", null, "Ihr Einkauf bei  ")).isNull();
+        assertThat(ImportRules.payPalMerchant("PayPal Europe S.a.r.l. et Cie S.C.A", null, null)).isNull();
+    }
+
     @Test
     void aDeutscheBankFingerprintLeavesOutThePurpose() {
         BankTransaction row = row(BankCsv.read(BankCsvTest.DEUTSCHE_BANK.getBytes(StandardCharsets.UTF_8)), 9);

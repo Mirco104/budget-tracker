@@ -20,7 +20,9 @@ public enum BankProfile {
             "Betrag"), List.of(), false),
     // Decision 76: the export of the account bookings; the account is in the preamble, the purpose not in the checksum
     DEUTSCHE_BANK("Deutsche Bank", List.of("Buchungstag", "Wert", "Umsatzart", "Begünstigter / Auftraggeber", "Betrag"),
-            List.of(), false);
+            List.of(), false),
+    // Decision 95: the export of the activities; the Transaktionscode is the bank's id, so the purpose does not matter
+    PAYPAL("PayPal", List.of("Datum", "Beschreibung", "Währung", "Netto", "Transaktionscode", "Name"), List.of(), true);
 
     private final String label;
     private final List<String> requiredColumns;
