@@ -209,6 +209,8 @@ public final class BankCsv {
                 : profile == BankProfile.PAYPAL ? "Guthaben" : null;
         Map<String, Balance> newest = new java.util.LinkedHashMap<>();
         Map<String, Balance> latestOfDay = new java.util.LinkedHashMap<>();
+        // PayPal: the Zugehöriger Transaktionscode per line (decision 95)
+        Map<Integer, String> related = new HashMap<>();
         for (Record record : records) {
             if (profile == BankProfile.DEUTSCHE_BANK && clean(record.fields().getFirst()).equalsIgnoreCase("Kontostand")) {
                 // the footer with the balance is no booking (decision 76), but the balance of the account (decision 92)
@@ -225,6 +227,9 @@ public final class BankCsv {
             try {
                 BankTransaction row = read(profile, values);
                 lines.add(new Line(record.line(), row, null));
+                if (profile == BankProfile.PAYPAL && get(values, "Zugehöriger Transaktionscode") != null) {
+                    related.put(record.line(), get(values, "Zugehöriger Transaktionscode"));
+                }
                 if (balanceColumn != null && row.bookingDate() != null && row.status() == Status.BOOKED
                         && "EUR".equals(row.currency())) {
                     String text = get(values, balanceColumn);
@@ -245,7 +250,50 @@ public final class BankCsv {
         // A file with the oldest row first ends with the newest: then the last row of the newest day counts
         boolean oldestFirst = isOldestFirst(lines);
         balances.addAll((oldestFirst ? latestOfDay : newest).values());
-        return lines;
+        return profile == BankProfile.PAYPAL ? namedAfterRelated(lines, related) : lines;
+    }
+
+    /**
+     * PayPal (decision 95): a row without a name takes the name of the row whose Transaktionscode is its Zugehöriger
+     * Transaktionscode; a top-up or withdrawal (R27 c) as its purpose "Aufladung für …" or "Auszahlung für …", any other
+     * row (the euro row of a currency conversion) as its counterparty.
+     */
+    private static List<Line> namedAfterRelated(List<Line> lines, Map<Integer, String> related) {
+        Map<String, String> names = new HashMap<>();
+        for (Line line : lines) {
+            if (line.row() != null && line.row().entryReference() != null && line.row().counterpartyName() != null) {
+                names.putIfAbsent(line.row().entryReference(), line.row().counterpartyName());
+            }
+        }
+        List<Line> result = new ArrayList<>();
+        for (Line line : lines) {
+            BankTransaction row = line.row();
+            String name = row == null || row.counterpartyName() != null ? null : names.get(related.get(line.number()));
+            if (name != null && ImportRules.isPayPalTransferKind(row.bankTransactionCode())
+                    && row.remittanceInformation() == null) {
+                String purpose = (row.amount().signum() > 0 ? "Aufladung für " : "Auszahlung für ") + name;
+                result.add(new Line(line.number(), withPurpose(row, purpose), null));
+            } else if (name != null && !ImportRules.isPayPalTransferKind(row.bankTransactionCode())) {
+                result.add(new Line(line.number(), withCounterparty(row, name), null));
+            } else {
+                result.add(line);
+            }
+        }
+        return result;
+    }
+
+    private static BankTransaction withCounterparty(BankTransaction r, String counterparty) {
+        return new BankTransaction(r.accountName(), r.accountIban(), r.bookingDate(), r.valueDate(), r.amount(),
+                r.currency(), r.status(), counterparty, r.counterpartyIban(), r.counterpartyBic(),
+                r.remittanceInformation(), r.endToEndId(), r.mandateId(), r.creditorId(), r.bankTransactionCode(),
+                r.entryReference(), r.bankCategory(), r.charges());
+    }
+
+    private static BankTransaction withPurpose(BankTransaction r, String purpose) {
+        return new BankTransaction(r.accountName(), r.accountIban(), r.bookingDate(), r.valueDate(), r.amount(),
+                r.currency(), r.status(), r.counterpartyName(), r.counterpartyIban(), r.counterpartyBic(), purpose,
+                r.endToEndId(), r.mandateId(), r.creditorId(), r.bankTransactionCode(), r.entryReference(),
+                r.bankCategory(), r.charges());
     }
 
     // Whether the booked rows of the file run from the oldest to the newest day

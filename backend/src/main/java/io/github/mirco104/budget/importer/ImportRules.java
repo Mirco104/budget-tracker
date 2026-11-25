@@ -20,8 +20,50 @@ public final class ImportRules {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     private static final Pattern LONG_NUMBER = Pattern.compile("\\d{8,}");
     private static final Pattern TRAILING_PUNCTUATION = Pattern.compile("[\\s:;,.\\-–]+$");
+    // Decision 95: PayPal names the merchant in the purpose of its direct debit ("…, Ihr Einkauf bei Prezi Inc")
+    private static final String MERCHANT_MARK = "ihr einkauf bei ";
+
+    // R27 (c): the kinds of PayPal that move money between PayPal and a bank account or card (decision 95)
+    private static final java.util.Set<String> PAYPAL_TRANSFER_KINDS = java.util.Set.of(
+            "bankgutschrift auf paypal-konto", "allgemeine gutschrift auf kreditkarte",
+            "allgemeine gutschrift auf debitkarte", "von nutzer eingeleitete abbuchung", "abbuchung auf bankkonto");
 
     private ImportRules() {
+    }
+
+    /** R27 (c): whether a kind of PayPal moves money between PayPal and a bank account or card, ignoring case. */
+    public static boolean isPayPalTransferKind(String kind) {
+        return kind != null && PAYPAL_TRANSFER_KINDS.contains(kind.trim().toLowerCase(Locale.GERMAN));
+    }
+
+    /**
+     * Decision 95: whether a booking names PayPal: its counterparty or description contains "PayPal" (ignoring case) or
+     * the BIC of its counterparty starts with PPLX.
+     */
+    public static boolean namesPayPal(String counterparty, String description, String counterpartyBic) {
+        return containsPayPal(counterparty) || containsPayPal(description)
+                || (counterpartyBic != null && counterpartyBic.trim().toUpperCase(Locale.ROOT).startsWith("PPLX"));
+    }
+
+    /**
+     * Decision 95: the merchant of a PayPal direct debit at any bank: when the counterparty names PayPal (or its BIC
+     * starts with PPLX) and the purpose contains "Ihr Einkauf bei " (ignoring case), the text after it without
+     * punctuation at the end; null otherwise.
+     */
+    public static String payPalMerchant(String counterparty, String counterpartyBic, String purpose) {
+        if (purpose == null || !namesPayPal(counterparty, null, counterpartyBic)) {
+            return null;
+        }
+        int at = lower(purpose).indexOf(MERCHANT_MARK);
+        if (at < 0) {
+            return null;
+        }
+        String merchant = TRAILING_PUNCTUATION.matcher(purpose.substring(at + MERCHANT_MARK.length()).trim()).replaceAll("");
+        return merchant.isEmpty() ? null : merchant;
+    }
+
+    private static boolean containsPayPal(String text) {
+        return text != null && lower(text).contains("paypal");
     }
 
     /** UUIDs and digit runs of 8 or more are dropped, whitespace becomes one space, trailing punctuation goes; null if empty. */
