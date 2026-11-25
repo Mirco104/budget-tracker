@@ -7,7 +7,7 @@ import { errorText } from '../api/client'
 import { useCreateSavingGoal, useSavingGoals } from '../api/goals'
 import { useDismissNotification } from '../api/notifications'
 import { useBudgetSuggestions, usePlan, usePlanSuggestions, type PlanSuggestion } from '../api/plan'
-import type { AccountLine, Category, EntryMode, IstStage, Me, Plan, PlanGroup, PlannedItem } from '../api/types'
+import type { AccountLine, BudgetSuggestion, Category, EntryMode, IstStage, Me, Plan, PlanGroup, PlannedItem } from '../api/types'
 import { AccountDialog } from '../components/AccountDialog'
 import { BufferDone } from '../components/BufferDone'
 import { useBufferToOther } from '../components/useBufferToOther'
@@ -130,6 +130,30 @@ function writeAnswers(answers: Answers) {
 }
 const REACHED_KEY = 'setup-reached'
 const SONSTIGES = 'Sonstiges'
+// Ticket #184 (decision 97): the budget suggestions hidden with "Ausblenden", for this browser session
+const HIDDEN_BUDGETS_KEY = 'setup-hidden-budgets'
+
+/** Ticket #184: a budget suggestion is its plan category or, without one, its bank category. */
+function budgetKey(s: BudgetSuggestion): string {
+  return `${s.categoryId ?? ''}|${s.bankCategory ?? ''}`
+}
+
+function readHiddenBudgets(): string[] {
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(HIDDEN_BUDGETS_KEY) ?? '[]') as unknown
+    return Array.isArray(stored) ? stored.filter((key): key is string => typeof key === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function writeHiddenBudgets(keys: string[]) {
+  try {
+    window.sessionStorage.setItem(HIDDEN_BUDGETS_KEY, JSON.stringify(keys))
+  } catch {
+    // only a convenience; without storage a hidden suggestion stays hidden until the step is left
+  }
+}
 
 /** A typical item of "Häufig dazu": name, example amount, category by name and its rhythm (display data only). */
 interface Typical {
@@ -330,7 +354,7 @@ export function SetupPage({ me }: { me: Me }) {
     try {
       await changeSetup.mutateAsync(true)
       writeReached(0)
-      clearSetupSession([ANSWERS_KEY, PATH_KEY])
+      clearSetupSession([ANSWERS_KEY, PATH_KEY, HIDDEN_BUDGETS_KEY])
       openOverview()
     } catch (e) {
       setError(errorText(e, 'Die Einrichtung konnte nicht abgeschlossen werden.'))
@@ -859,6 +883,7 @@ function PlanStep({
   const [typicalOpen, setTypicalOpen] = useState<boolean | null>(null)
   // Decision 91: suggestions of the file hidden in this session (they are not stored, so hiding stays local)
   const [hiddenFile, setHiddenFile] = useState<string[]>([])
+  const [hiddenBudgets, setHiddenBudgets] = useState<string[]>(readHiddenBudgets)
   const active = categories.filter((c) => !c.archived)
 
   // A category by name; created when missing (e.g. "Sonstiges" or a bank category taken over)
@@ -948,10 +973,18 @@ function PlanStep({
           .filter((s) => !hiddenFile.includes(s.key) && !names.has(s.name.trim().toLowerCase()))
   const groupSuggestions = (fromFile === null ? (suggestions.data ?? []) : fileSuggestions).filter((s) => s.group === group)
   const budgetedCategories = new Set(plan.items.filter((item) => item.group === 'BUDGET').map((item) => item.planCategoryId))
-  const budgetList =
+  const budgetList = (
     fromFile === null
       ? (budgetSuggestions.data ?? [])
       : fromFile.budgetSuggestions.filter((b) => b.categoryId === null || !budgetedCategories.has(b.categoryId))
+  ).filter((b) => !hiddenBudgets.includes(budgetKey(b)))
+
+  // Ticket #184: "Ausblenden" takes a budget suggestion out of the list for this browser session
+  function hideBudget(s: BudgetSuggestion) {
+    const keys = [...hiddenBudgets, budgetKey(s)]
+    setHiddenBudgets(keys)
+    writeHiddenBudgets(keys)
+  }
   const hasSuggestions = groupSuggestions.length > 0 || (group === 'BUDGET' && budgetList.length > 0)
   // With suggestions from the bookings the typical items stay folded until asked for
   const showTypical = typicalOpen ?? !hasSuggestions
@@ -1039,7 +1072,7 @@ function PlanStep({
           <p className="tx-meta">Dein Durchschnitt je Kategorie in den letzten Monaten. Was du übernimmst, wird ein Budget dieser Kategorie.</p>
           <ul className="item-list">
             {budgetList.map((s) => (
-              <li key={`${s.categoryId ?? ''}|${s.bankCategory ?? ''}`} className="suggestion-row">
+              <li key={budgetKey(s)} className="suggestion-row">
                 <span className="item-main">
                   <span className="item-name">{s.name}</span>
                   <span className="tx-meta">
@@ -1051,6 +1084,9 @@ function PlanStep({
                 <span className="suggestion-actions">
                   <button type="button" className="link-button" onClick={() => void takeBudget(s.name, s.categoryId, s.proposal)}>
                     Übernehmen
+                  </button>
+                  <button type="button" className="link-button muted" onClick={() => hideBudget(s)}>
+                    Ausblenden
                   </button>
                 </span>
               </li>

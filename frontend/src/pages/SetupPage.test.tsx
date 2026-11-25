@@ -279,6 +279,17 @@ describe('SetupPage', () => {
     expect(screen.getByRole('button', { name: 'Weiter' })).toBeEnabled()
   })
 
+  // Ticket #184: a budget suggestion can be hidden next to Übernehmen; it stays hidden in this browser session
+  it('hides a budget suggestion with Ausblenden', async () => {
+    renderSetup('#/einrichtung/6', { plan: fullPlan, suggestions: budgetSuggestions })
+
+    const suggestions = await screen.findByRole('region', { name: 'Vorschläge aus deinen Buchungen' })
+    fireEvent.click(within(suggestions).getByRole('button', { name: 'Ausblenden' }))
+
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Vorschläge aus deinen Buchungen' })).not.toBeInTheDocument())
+    expect(JSON.parse(window.sessionStorage.getItem('setup-hidden-budgets') ?? '[]')).toEqual(['|Shopping'])
+  })
+
   it('finishes on the last page and can be put off on the first', async () => {
     const fetchMock = renderSetup('#/einrichtung/9', { plan: fullPlan })
 
