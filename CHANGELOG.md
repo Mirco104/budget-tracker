@@ -2,7 +2,15 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
-## 0.4.0-alpha (unveröffentlicht)
+## 0.5.0-alpha (unveröffentlicht)
+
+Anmeldung mit Passkey.
+
+### Neu
+
+- **Anmelden mit Passkey:** Unter Einstellungen › Konto fügst du im Abschnitt „Passkeys“ einen Passkey für dein Gerät hinzu. Danach meldest du dich mit „Mit Passkey anmelden“ per Fingerabdruck, Gesicht oder Geräte-PIN an, ohne E-Mail und Passwort einzutippen. Dein Passwort bleibt gültig. Passkeys lassen sich umbenennen und löschen.
+
+## 0.4.0-alpha (25.11.2026)
 
 Import von PayPal.
 

@@ -12,7 +12,7 @@
 
     <groupId>io.github.mirco104</groupId>
     <artifactId>budget</artifactId>
-    <version>0.4.0-alpha</version>
+    <version>0.5.0-alpha</version>
     <name>budget</name>
     <description>Budget tracker backend</description>
 
@@ -41,6 +41,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- Passkeys (US44): WebAuthn of Spring Security with webauthn4j for checking the signatures -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-webauthn</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

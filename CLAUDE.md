@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-Budget tracker web app: set target budgets per category, record income and expenses, see a monthly dashboard with target vs. actual. Started as an 8-hour practice project; it is now being prepared for real use by several people (first privately among friends, maybe public later), with user accounts, shared expenses and an investment part. The source of truth for behavior is `docs/spezifikation.md` (rules R1–R33 and, from AP 27, P1–P11 in section 19, which replace several R rules; user stories US1–US38, work packages in sections 13, 14, 17, 18, 19, 20, 21 and 22, operations in section 15). Read the relevant section before every task.
+Budget tracker web app: set target budgets per category, record income and expenses, see a monthly dashboard with target vs. actual. Started as an 8-hour practice project; it is now being prepared for real use by several people (first privately among friends, maybe public later), with user accounts, shared expenses and an investment part. The source of truth for behavior is `docs/spezifikation.md` (rules R1–R33 and, from AP 27, P1–P11 in section 19, which replace several R rules; user stories US1–US44, work packages in sections 13, 14, 17, 18, 19, 20, 21, 22 and 23, operations in section 15). Read the relevant section before every task.
 
 ## Stack
 - Backend: Java 21, Spring Boot 4.x, Maven, Spring Web, Spring Data JPA, Spring Security, Flyway, PostgreSQL (production), H2 (tests and local dev), Bean Validation, springdoc-openapi, JUnit 5, AssertJ, MockMvc
