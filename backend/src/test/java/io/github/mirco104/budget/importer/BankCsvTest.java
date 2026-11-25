@@ -121,6 +121,31 @@ class BankCsvTest {
             "12.10.2026","08:00:00","Europe/Berlin","Handyzahlung","EUR","15,00","0,00","15,00","15,00","1AA00000AA0000009","person.b@example.com","Person B","","","0,00","0,00","",""
             """;
 
+    // Decision 95: a payment in USD funded in EUR: the payment and its conversion in USD, the conversion in EUR and the
+    // top-up from the bank; fictional values
+    static final String PAYPAL_USD = PAYPAL + """
+            "15.10.2026","16:00:00","Europe/Berlin","PayPal Express-Zahlung","USD","-20,00","0,00","-20,00","-20,00","1AA00000AA0000020","store@example.com","Example Store Inc","","","0,00","0,00","",""
+            "15.10.2026","16:00:00","Europe/Berlin","Allgemeine Währungsumrechnung","USD","20,00","0,00","20,00","0,00","1AA00000AA0000021","","","","","0,00","0,00","","1AA00000AA0000020"
+            "15.10.2026","16:00:00","Europe/Berlin","Allgemeine Währungsumrechnung","EUR","-18,40","0,00","-18,40","-3,40","1AA00000AA0000022","","","","","0,00","0,00","","1AA00000AA0000020"
+            "15.10.2026","16:00:00","Europe/Berlin","Bankgutschrift auf PayPal-Konto","EUR","18,40","0,00","18,40","15,00","1AA00000AA0000023","","","","","0,00","0,00","","1AA00000AA0000020"
+            """;
+
+    @Test
+    void theEuroRowOfAPayPalCurrencyConversionTakesTheNameOfItsPayment() {
+        BankFile file = BankCsv.read(PAYPAL_USD.getBytes(StandardCharsets.UTF_8));
+
+        BankTransaction euro = row(file, 13);
+        assertThat(euro.currency()).isEqualTo("EUR");
+        assertThat(euro.amount()).isEqualByComparingTo("-18.40");
+        assertThat(euro.counterpartyName()).isEqualTo("Example Store Inc");
+        assertThat(euro.bankTransactionCode()).isEqualTo("Allgemeine Währungsumrechnung");
+        assertThat(row(file, 14).remittanceInformation()).isEqualTo("Aufladung für Example Store Inc");
+        assertThat(row(file, 11).currency()).isEqualTo("USD");
+        // The balance stays the one of the euro rows
+        assertThat(file.balances()).containsExactly(
+                new BankCsv.Balance("PayPal", LocalDate.of(2026, 10, 15), new BigDecimal("15.00")));
+    }
+
     @Test
     void readsThePayPalExport() {
         BankFile file = BankCsv.read(("﻿" + PAYPAL).getBytes(StandardCharsets.UTF_8));
