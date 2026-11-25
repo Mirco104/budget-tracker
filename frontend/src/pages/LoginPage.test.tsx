@@ -67,6 +67,66 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Passwort')).toHaveValue('')
   })
 
+  // US44: no button where the browser has no WebAuthn (jsdom)
+  it('offers no passkey without WebAuthn in the browser', () => {
+    renderLogin(() => json({}))
+
+    expect(screen.queryByRole('button', { name: 'Mit Passkey anmelden' })).not.toBeInTheDocument()
+  })
+
+  it('signs in with a passkey: options, the dialog of the browser, then the answer as base64url', async () => {
+    vi.stubGlobal('PublicKeyCredential', function PublicKeyCredential() {})
+    const get = vi.fn(() =>
+      Promise.resolve({
+        id: 'AAE',
+        rawId: new Uint8Array([0, 1]).buffer,
+        type: 'public-key',
+        authenticatorAttachment: 'platform',
+        getClientExtensionResults: () => ({}),
+        response: {
+          authenticatorData: new Uint8Array([2]).buffer,
+          clientDataJSON: new Uint8Array([3]).buffer,
+          signature: new Uint8Array([4]).buffer,
+          userHandle: new Uint8Array([5]).buffer,
+        },
+      }),
+    )
+    Object.defineProperty(navigator, 'credentials', { value: { get }, configurable: true })
+    const fetchMock = renderLogin(() => Promise.resolve(new Response(null, { status: 204 })))
+    fetchMock.mockImplementationOnce(() =>
+      json({ challenge: 'AQID', rpId: 'localhost', userVerification: 'required', allowCredentials: [] }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mit Passkey anmelden' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/passkey/options')
+    const options = (get.mock.calls[0] as unknown as [{ publicKey: PublicKeyCredentialRequestOptions }])[0].publicKey
+    expect(new Uint8Array(options.challenge as ArrayBuffer)).toEqual(new Uint8Array([1, 2, 3]))
+    expect(options.rpId).toBe('localhost')
+    const [url, init] = fetchMock.mock.calls[1]
+    expect(url).toBe('/api/auth/passkey')
+    expect(JSON.parse(init?.body as string)).toMatchObject({
+      rawId: 'AAE',
+      response: { authenticatorData: 'Ag', clientDataJSON: 'Aw', signature: 'BA', userHandle: 'BQ' },
+    })
+    Reflect.deleteProperty(navigator, 'credentials')
+  })
+
+  it('says so when the passkey dialog was cancelled', async () => {
+    vi.stubGlobal('PublicKeyCredential', function PublicKeyCredential() {})
+    const get = vi.fn(() => Promise.reject(new DOMException('cancelled', 'NotAllowedError')))
+    Object.defineProperty(navigator, 'credentials', { value: { get }, configurable: true })
+    renderLogin(() => json({ challenge: 'AQID', rpId: 'localhost' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mit Passkey anmelden' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Der Vorgang wurde abgebrochen oder hat zu lange gedauert.',
+    )
+    Reflect.deleteProperty(navigator, 'credentials')
+  })
+
   it('asks for both fields before sending', () => {
     const fetchMock = renderLogin(() => new Promise(() => {}))
 
