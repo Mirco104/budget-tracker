@@ -1,5 +1,7 @@
 package io.github.mirco104.budget.goal;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
+import io.github.mirco104.budget.bankaccount.BankAccountService;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
@@ -37,11 +39,14 @@ public class SavingGoalService {
     private final CurrentUser currentUser;
     private final Clock clock;
     private final io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository;
+    private final BankAccountService bankAccountService;
 
     public SavingGoalService(
             SavingGoalRepository goalRepository, PlannedItemRepository itemRepository,
             ItemTermRepository termRepository, TransactionRepository transactionRepository, CurrentUser currentUser,
-            Clock clock, io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository) {
+            Clock clock, io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository,
+            BankAccountService bankAccountService) {
+        this.bankAccountService = bankAccountService;
         this.closedMonthRepository = closedMonthRepository;
         this.goalRepository = goalRepository;
         this.itemRepository = itemRepository;
@@ -58,15 +63,18 @@ public class SavingGoalService {
             @PositiveOrZero(message = "Der Betrag darf nicht negativ sein.")
             @Digits(integer = 10, fraction = 2, message = "Der Betrag darf höchstens 2 Nachkommastellen haben.")
             BigDecimal targetAmount,
-            LocalDate targetDate) {
+            LocalDate targetDate,
+            Long accountId) {
     }
 
     /**
      * saved: the ticked-off or entered saving bookings of its items, plus the amounts assigned at a month closing
-     * (P10), minus what was paid from it; monthly: the monthly share of its saving items in the current month.
+     * (P10), minus what was paid from it; monthly: the monthly share of its saving items in the current month;
+     * accountId and accountName the account it lies on (ticket #145), null without one.
      */
     public record GoalResponse(
-            long id, String name, BigDecimal targetAmount, LocalDate targetDate, BigDecimal saved, BigDecimal monthly) {
+            long id, String name, BigDecimal targetAmount, LocalDate targetDate, BigDecimal saved, BigDecimal monthly,
+            Long accountId, String accountName) {
     }
 
     @Transactional(readOnly = true)
@@ -82,6 +90,7 @@ public class SavingGoalService {
     public GoalResponse create(GoalRequest request) {
         SavingGoal goal = new SavingGoal(currentUser.get());
         goal.update(request.name().trim(), scale(request.targetAmount()), request.targetDate());
+        goal.setAccount(account(request.accountId()));
         return response(goalRepository.save(goal), List.of(), List.of());
     }
 
@@ -89,6 +98,7 @@ public class SavingGoalService {
     public GoalResponse update(long id, GoalRequest request) {
         SavingGoal goal = find(id);
         goal.update(request.name().trim(), scale(request.targetAmount()), request.targetDate());
+        goal.setAccount(account(request.accountId()));
         return response(goal, itemRepository.findAllOf(currentUser.get()), termRepository.findByOwner(currentUser.get()));
     }
 
@@ -142,9 +152,16 @@ public class SavingGoalService {
                 .filter(item -> PlanCalculator.validIn(item.data(), month))
                 .map(item -> PlanCalculator.monthlyShare(item.getAmount(), item.getRhythmUnit(), item.getRhythmCount()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BankAccount account = goal.getAccount();
         return new GoalResponse(goal.getId(), goal.getName(), goal.getTargetAmount(), goal.getTargetDate(),
                 paidIn.add(extra).subtract(paidOut).setScale(2, RoundingMode.HALF_UP),
-                monthly.setScale(2, RoundingMode.HALF_UP));
+                monthly.setScale(2, RoundingMode.HALF_UP),
+                account == null ? null : account.getId(), account == null ? null : account.getName());
+    }
+
+    // Ticket #145: any account of the user (also an archived one, so an old goal can be saved); 400 for another user's
+    private BankAccount account(Long accountId) {
+        return accountId == null ? null : bankAccountService.findBookable(accountId);
     }
 
     private SavingGoal find(long id) {

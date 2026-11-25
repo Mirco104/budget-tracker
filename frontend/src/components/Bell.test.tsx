@@ -98,7 +98,7 @@ describe('Bell', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     // The bell stays open
     expect(screen.getByRole('region', { name: 'Benachrichtigungen' })).toBeInTheDocument()
-    expect(sent(fetchMock, '/api/saving-goals')).toEqual({ name: 'Auto', targetAmount: null, targetDate: null })
+    expect(sent(fetchMock, '/api/saving-goals')).toEqual({ name: 'Auto', targetAmount: null, targetDate: null, accountId: null })
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Zuordnen' }))
     await waitFor(() => expect(sent(fetchMock, '/api/month-closings/2026-10')).toEqual({ savingGoalId: 5 }))

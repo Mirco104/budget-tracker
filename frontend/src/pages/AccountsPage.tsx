@@ -38,6 +38,8 @@ export function AccountsPage() {
   // 27f4 (decision 60): any active account may hold a reserve
   const all = accounts.data.flatMap((g) => g.accounts)
   const reserveAccounts = all.filter((a) => !a.archived)
+  // Ticket #145: goals on an account count in its cover, so the card names them once there is one
+  const reserveTitle = (reserves.data ?? []).some((group) => group.goals.length > 0) ? 'Rücklagen und Sparziele' : 'Rücklagen'
   const archived = all.filter((a) => a.archived)
 
   return (
@@ -97,8 +99,8 @@ export function AccountsPage() {
       </section>
 
       {(reserves.data ?? []).length > 0 && (
-        <section className="card account-group" aria-label="Rücklagen">
-          <h2>Rücklagen</h2>
+        <section className="card account-group" aria-label={reserveTitle}>
+          <h2>{reserveTitle}</h2>
           <ul className="budget-list">
             {(reserves.data ?? []).map((group) => (
               <ReserveGroupRow
@@ -131,6 +133,7 @@ export function AccountsPage() {
                   <span className="budget-name">
                     {goal.name}
                     {goal.targetDate && <span className="tx-meta"> · bis {formatDate(goal.targetDate)}</span>}
+                    {goal.accountName && <span className="tx-meta"> · auf {goal.accountName}</span>}
                   </span>
                   <span className="budget-amount">
                     <span className="saving">
@@ -177,6 +180,10 @@ function ReserveGroupRow({
 }) {
   const [open, setOpen] = useState(false)
   const missing = group.missing ?? 0
+  // Ticket #145: the goals on the account count in its cover too
+  const hasGoals = group.goals.length > 0
+  const hasPots = group.pots.length > 0
+  const things = hasGoals ? (hasPots ? 'Rücklagen und Sparziele' : 'Sparziele') : 'Rücklagen'
   return (
     <li className="budget-item">
       <button type="button" className="budget-head budget-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -187,24 +194,35 @@ function ReserveGroupRow({
           </span>
         </span>
         <span className="budget-amount">
-          <span>
-            {formatEuro(group.saved)} / {formatEuro(group.target)}
-          </span>
+          {hasPots && (
+            <span>
+              {formatEuro(group.saved)} / {formatEuro(group.target)}
+            </span>
+          )}
+          {hasGoals && (
+            <span className={hasPots ? 'budget-left' : undefined}>
+              {hasPots ? 'dazu Sparziele ' : 'Sparziele '}
+              {formatEuro(group.goalsSaved)}
+            </span>
+          )}
         </span>
       </button>
-      <div className="saving-progress">
-        <ProgressBar value={group.target > 0 ? group.saved / group.target : 0} />
-      </div>
+      {hasPots && (
+        <div className="saving-progress">
+          <ProgressBar value={group.target > 0 ? group.saved / group.target : 0} />
+        </div>
+      )}
       {/* 27f4: whether the account covers its reserves, in words everyone understands */}
       {group.accountId !== null && group.accountBalance !== null && (
         <p className={missing > 0 ? 'breakdown reserve-cover short' : 'breakdown reserve-cover'}>
           <span>
             {missing > 0
               ? `Auf ${group.accountName} fehlen ${formatEuro(missing)}`
-              : `✓ ${group.accountName} deckt die Rücklagen`}
+              : `✓ ${group.accountName} deckt die ${things}`}
           </span>{' '}
           <InfoTip label="Was heißt das?">
-            Für deine Rücklagen sollten auf {group.accountName} {formatEuro(group.saved)} liegen. Laut App liegen dort{' '}
+            Für deine {things} sollten auf {group.accountName} {formatEuro(group.saved + group.goalsSaved)}{' '}
+            liegen. Laut App liegen dort{' '}
             {formatEuro(group.accountBalance)}. {missing > 0 ? `Es fehlen ${formatEuro(missing)}.` : 'Das reicht.'}
           </InfoTip>
         </p>
@@ -213,7 +231,7 @@ function ReserveGroupRow({
         <table className="reserve-table">
           <thead>
             <tr>
-              <th scope="col">Rücklage</th>
+              <th scope="col">{hasGoals ? 'Rücklage oder Sparziel' : 'Rücklage'}</th>
               <th scope="col">Angespart / Betrag</th>
               <th scope="col">Liegt auf</th>
             </tr>
@@ -244,6 +262,22 @@ function ReserveGroupRow({
                       ))}
                     </select>
                   </label>
+                </td>
+              </tr>
+            ))}
+            {group.goals.map((goal) => (
+              <tr key={`goal-${goal.id}`}>
+                <td>
+                  <span className="item-name">{goal.name}</span>
+                  <span className="tx-meta"> Sparziel</span>
+                </td>
+                <td className="reserve-amount">
+                  {formatEuro(goal.saved)}
+                  {goal.targetAmount !== null && ` / ${formatEuro(goal.targetAmount)}`}
+                </td>
+                <td>
+                  <span className="mobile-label">Liegt auf </span>
+                  {group.accountName}
                 </td>
               </tr>
             ))}
