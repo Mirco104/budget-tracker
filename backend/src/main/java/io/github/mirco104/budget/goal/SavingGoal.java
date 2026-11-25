@@ -1,5 +1,6 @@
 package io.github.mirco104.budget.goal;
 
+import io.github.mirco104.budget.bankaccount.BankAccount;
 import io.github.mirco104.budget.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,7 +14,10 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/** A saving goal (concept 3.6): an amount, optionally a target date; its monthly rate is a saving item. */
+/**
+ * A saving goal (concept 3.6): an amount, optionally a target date and an account it lies on (ticket #145); its monthly
+ * rate is a saving item.
+ */
 @Entity
 @Table(name = "saving_goals")
 public class SavingGoal {
@@ -33,6 +37,10 @@ public class SavingGoal {
     private BigDecimal targetAmount;
 
     private LocalDate targetDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_id")
+    private BankAccount account;
 
     protected SavingGoal() {
     }
@@ -65,5 +73,13 @@ public class SavingGoal {
 
     public LocalDate getTargetDate() {
         return targetDate;
+    }
+
+    public BankAccount getAccount() {
+        return account;
+    }
+
+    public void setAccount(BankAccount account) {
+        this.account = account;
     }
 }

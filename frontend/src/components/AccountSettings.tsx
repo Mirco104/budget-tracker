@@ -8,6 +8,7 @@ import {
 } from '../api/account'
 import { errorText } from '../api/client'
 import type { Me } from '../api/types'
+import { PasskeySettings } from './PasskeySettings'
 
 type Field = 'displayName' | 'email' | 'password'
 
@@ -353,6 +354,7 @@ export function AccountSettings({ me }: { me: Me }) {
     <section>
       <h3>Konto</h3>
       <AccountDetails me={me} />
+      <PasskeySettings />
       <ExportButton />
       <DeleteForm />
     </section>

@@ -112,6 +112,22 @@ afterEach(() => {
 })
 
 describe('PlanningPage', () => {
+  // Ticket #138: one button opens and closes every category of a group
+  it('opens and closes all categories of a group at once', async () => {
+    renderPage()
+
+    const fixed = await screen.findByRole('region', { name: 'Fixkosten' })
+    fireEvent.click(within(fixed).getByRole('button', { name: 'Alle aufklappen' }))
+    expect(within(fixed).getByRole('button', { name: /Wohnen/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(fixed).getByRole('button', { name: /Mobilität/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(fixed).getByRole('button', { name: /Kfz-Versicherung/ })).toBeInTheDocument()
+
+    fireEvent.click(within(fixed).getByRole('button', { name: 'Alle zuklappen' }))
+    expect(within(fixed).queryByRole('button', { name: /Kfz-Versicherung/ })).not.toBeInTheDocument()
+    // A group with a single category needs no such button
+    expect(within(screen.getByRole('region', { name: 'Budgets (variable Kosten)' })).queryByRole('button', { name: 'Alle aufklappen' })).not.toBeInTheDocument()
+  })
+
   it('shows the groups with their items, monthly shares and subtotals per category', async () => {
     renderPage()
 

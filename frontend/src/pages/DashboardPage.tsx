@@ -17,6 +17,8 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { MonthNav } from '../components/ui/MonthNav'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { ToggleAll } from '../components/ui/ToggleAll'
+import { useOpenRows } from '../components/ui/useOpenRows'
 import { bookingDateFor, formatDate, formatEuro, formatMonthName, formatSigned } from '../format'
 import { averagePeriod, rhythmLabel } from '../labels'
 import { ROUTES } from '../router'
@@ -89,6 +91,9 @@ function DashboardContent({
   }
   // The dashboard lines carry no icon; the categories do (US28)
   const categories = useCategories(month)
+  // Ticket #138: the budget rows that open with their bookings (the row "Ohne Kategorie" does not open)
+  const budgetKeys = (data?.categories ?? []).flatMap((line) => (line.id === null ? [] : [String(line.id)]))
+  const budgetRows = useOpenRows(budgetKeys)
 
   if (isPending) {
     return <Loading text="Lade Übersicht …" />
@@ -216,6 +221,8 @@ function DashboardContent({
               {data.categories.length === 0 ? (
                 <p className="hint">In diesem Monat gibt es weder Soll-Werte noch Ausgaben.</p>
               ) : (
+                <>
+                <ToggleAll count={budgetKeys.length} allOpen={budgetRows.allOpen} onToggle={budgetRows.toggleAll} />
                 <ul className="budget-list">
                   {data.categories.map((line) =>
                     line.id === null ? (
@@ -227,6 +234,8 @@ function DashboardContent({
                       icon={iconOf(line.id)}
                       month={month}
                       pots={(data.reserves ?? []).filter((pot) => pot.categoryId === line.id)}
+                      open={budgetRows.isOpen(String(line.id))}
+                      onToggle={() => budgetRows.toggle(String(line.id))}
                       onEditBooking={onEditBooking}
                       onOpenItem={openItem}
                     />
@@ -239,6 +248,7 @@ function DashboardContent({
                     </div>
                   </li>
                 </ul>
+                </>
               )}
               <a className="summary-link" href={transactionsPeriodHref(`${month}-01`, lastDayOf(month))}>
                 Alle Buchungen im {formatMonthName(month)} ›
@@ -360,6 +370,8 @@ function BudgetItem({
   icon,
   month,
   pots,
+  open,
+  onToggle,
   onEditBooking,
   onOpenItem,
 }: {
@@ -367,10 +379,11 @@ function BudgetItem({
   icon: string
   month: string
   pots: ReservePot[]
+  open: boolean
+  onToggle: () => void
   onEditBooking: (entry: Transaction) => void
   onOpenItem: (itemId: number) => void
 }) {
-  const [open, setOpen] = useState(false)
   const over = line.difference !== null && line.difference < 0
   // Display only: how much of the target is used (the backend calculated all amounts)
   const used = line.target !== null && line.target > 0 ? line.actual / line.target : line.actual > 0 ? 1 : 0
@@ -381,7 +394,7 @@ function BudgetItem({
         type="button"
         className="budget-head budget-toggle"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={onToggle}
       >
         <CategoryIcon icon={icon} />
         <span className="budget-name">{line.name}</span>

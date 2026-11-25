@@ -241,6 +241,25 @@ class AccountOverviewControllerTest {
                 .andExpect(jsonPath("$[0].pots[0].name").value("Kfz-Versicherung"));
     }
 
+    // Review of the 0.5.0 release: an account only linked as the account of a reserve can be deleted; the reserve stays
+    @Test
+    void anAccountThatOnlyHoldsAReserveCanBeDeletedAndTheReserveLosesItsAccount() throws Exception {
+        String item = mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name": "Kfz-Versicherung", "amount": -1200, "categoryId": %d, "rhythmUnit": "MONTH",
+                         "rhythmCount": 12, "anchorDate": "%s", "entryMode": "MANUAL", "validFrom": "%s"}"""
+                        .formatted(category("Mobilität"), today.plusMonths(2), YearMonth.from(today))))
+                .andReturn().getResponse().getContentAsString();
+        long itemId = ((Number) JsonPath.read(item, "$.id")).longValue();
+        mockMvc.perform(put("/api/planned-items/{id}/reserve-account", itemId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\": %d}".formatted(tagesgeld)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/bank-accounts/{id}", tagesgeld)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/reserves/by-account"))
+                .andExpect(jsonPath("$[0].accountId").doesNotExist())
+                .andExpect(jsonPath("$[0].pots[0].name").value("Kfz-Versicherung"));
+    }
+
     @Test
     void aPaymentFromTheLinkedSavingsAccountIsPaidFromTheReserveAndEmptiesIt() throws Exception {
         String item = mockMvc.perform(post("/api/planned-items").contentType(MediaType.APPLICATION_JSON).content("""

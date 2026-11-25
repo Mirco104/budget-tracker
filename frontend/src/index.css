@@ -3250,6 +3250,23 @@ input.switch:focus-visible {
   flex: 1 1 100%;
 }
 
+/* US44: the passkeys in Settings › Konto */
+.passkey-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.passkey-meta {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 0.875em;
+}
+
+.passkey-settings > button {
+  align-self: flex-start;
+}
+
 /* "Passwort vergessen?" under the sign-in form */
 .auth-page .link-button {
   margin-top: 8px;
@@ -3378,6 +3395,12 @@ button.saving-button:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* Ticket #138: "Alle aufklappen" / "Alle zuklappen" above a list grouped by category */
+.toggle-all {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0;
 }
 .plan-group-total {
   font-weight: 600;

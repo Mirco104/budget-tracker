@@ -297,7 +297,7 @@ public class SampleDataSeeder implements ApplicationRunner {
         void saving(String amount, String name, String anchor) {
             LocalDate anchorDate = LocalDate.parse(anchor);
             long goal = goalService.create(new io.github.mirco104.budget.goal.SavingGoalService.GoalRequest(
-                    name, new BigDecimal("3000"), null)).id();
+                    name, new BigDecimal("3000"), null, null)).id();
             planService.create(new PlannedItemRequest(name, new BigDecimal(amount), true, null, null,
                     RhythmUnit.MONTH, 1, anchorDate, EntryMode.TICK, false, YearMonth.from(anchorDate), goal));
         }

@@ -54,6 +54,7 @@ public class AccountService {
     private final BankAccountSourceRepository sourceRepository;
     private final ImportBatchRepository importBatchRepository;
     private final Clock clock;
+    private final io.github.mirco104.budget.passkey.PasskeyRepository passkeyRepository;
 
     // 27h: the month closings and the dismissed notifications of the bell
     private final io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository;
@@ -69,7 +70,9 @@ public class AccountService {
             BankAccountRepository bankAccountRepository, BankAccountSourceRepository sourceRepository,
             ImportBatchRepository importBatchRepository, PasswordResetRepository passwordResetRepository,
             Clock clock, io.github.mirco104.budget.closing.ClosedMonthRepository closedMonthRepository,
-            io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedNotificationRepository) {
+            io.github.mirco104.budget.notification.DismissedNotificationRepository dismissedNotificationRepository,
+            io.github.mirco104.budget.passkey.PasskeyRepository passkeyRepository) {
+        this.passkeyRepository = passkeyRepository;
         this.closedMonthRepository = closedMonthRepository;
         this.dismissedNotificationRepository = dismissedNotificationRepository;
         this.passwordResetRepository = passwordResetRepository;
@@ -219,6 +222,7 @@ public class AccountService {
         bankAccountRepository.deleteByOwner(user);
         invitationRepository.deleteByCreatedBy(user);
         passwordResetRepository.deleteByUserOrCreatedBy(user);
+        passkeyRepository.deleteByOwner(user);
         // The bulk deletes cleared the persistence context, so the user is removed by id
         userRepository.deleteById(user.getId());
     }

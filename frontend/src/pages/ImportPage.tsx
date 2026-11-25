@@ -33,6 +33,7 @@ import { categoryFits, DIRECTIONS, facetCounts, IMPORT_FILTERS, IMPORT_KINDS, ty
 import { currentMonth, formatDate, formatDateTime, formatEuro, formatIban, formatSigned } from '../format'
 import { ROUTES, transactionsPeriodHref } from '../router'
 import { Loading } from '../components/ui/Loading'
+import { setImportOpen } from '../importSession'
 
 /** The value of the category field for a transfer between own accounts (R27). */
 const TRANSFER = 'transfer'
@@ -500,7 +501,7 @@ function RowDetails({ entry }: { entry: ImportEntry }) {
   )
 }
 
-/** A card shows its rows in the list by setting the kind filter to Wiederkehrend (ticket #84, after the test). */
+/** A card shows its rows in the list by setting the kind filter to Fix (ticket #84, after the test). */
 function ShowInList({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="link-button" onClick={onClick}>
@@ -767,7 +768,7 @@ function Preview({
   const [sourceAccounts, setSourceAccounts] = useState(() => initialAccounts(preview, accounts))
   const [view, setView] = useState<View>('all')
   // Ticket #84: the same filters as Transaktionen, by what the user chose for each row
-  // starts with Einmalig; a row edited in the list or jumped to stays shown until the filters change
+  // starts with Variabel; a row edited in the list or jumped to stays shown until the filters change
   const [filters, setFilters] = useState<Filters>(IMPORT_FILTERS)
   const [pinned, setPinned] = useState<string[]>([])
   // Decision 74: '' all rows, YES the rows taken over, NO the others
@@ -811,7 +812,7 @@ function Preview({
     return choice.category !== replacesValue(entry) || choice.replace === false
   }
 
-  // Wiederkehrend for a row that replaces an occurrence (R28) or belongs to a noted series (R31); an Umbuchung is a
+  // Fix for a row that replaces an occurrence (R28) or belongs to a noted series (R31); an Umbuchung is a
   // category option (ticket #84), as a row is a transfer by its category
   function kindOfRow(entry: ImportEntry): string {
     const choice = choices[entry.fingerprint as string]
@@ -1300,7 +1301,7 @@ function Preview({
                 value={importFilter}
                 onChange={(e) => changeImportFilter(e.target.value)}
               >
-                <option value="">Übernehmen und nicht</option>
+                <option value="">Übernehmen: alle</option>
                 {IMPORT_STATES.filter(
                   (option) => (importCounts.get(option.value) ?? 0) > 0 || option.value === importFilter,
                 ).map((option) => (
@@ -1539,6 +1540,12 @@ export function ImportPage() {
   // P6: automatic entries the file did not contain; the user deletes or keeps each one
   const [missing, setMissing] = useState<MissingAuto[]>([])
   const deleteTransaction = useDeleteTransaction()
+
+  // Ticket #183: a read file keeps the page mounted while the user looks at other pages; it ends with the preview
+  useEffect(() => {
+    setImportOpen(preview !== null)
+  }, [preview])
+  useEffect(() => () => setImportOpen(false), [])
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]

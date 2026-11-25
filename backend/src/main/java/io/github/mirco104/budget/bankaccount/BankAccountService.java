@@ -3,6 +3,7 @@ package io.github.mirco104.budget.bankaccount;
 import io.github.mirco104.budget.common.ConflictException;
 import io.github.mirco104.budget.common.InvalidFieldException;
 import io.github.mirco104.budget.common.NotFoundException;
+import io.github.mirco104.budget.goal.SavingGoalRepository;
 import io.github.mirco104.budget.notification.DismissedNotificationRepository;
 import io.github.mirco104.budget.notification.NotificationService;
 import io.github.mirco104.budget.plan.ItemTermRepository;
@@ -26,12 +27,14 @@ public class BankAccountService {
     private final CurrentUser currentUser;
     private final DismissedNotificationRepository dismissedRepository;
     private final ItemTermRepository termRepository;
+    private final SavingGoalRepository goalRepository;
 
     public BankAccountService(
             BankAccountRepository bankAccountRepository, TransactionRepository transactionRepository,
             PlannedItemRepository itemRepository, BankStatementRepository statementRepository, BankAccountSourceRepository sourceRepository,
             CurrentUser currentUser, DismissedNotificationRepository dismissedRepository,
-            ItemTermRepository termRepository) {
+            ItemTermRepository termRepository, SavingGoalRepository goalRepository) {
+        this.goalRepository = goalRepository;
         this.termRepository = termRepository;
         this.dismissedRepository = dismissedRepository;
         this.sourceRepository = sourceRepository;
@@ -119,6 +122,9 @@ public class BankAccountService {
                     "Auf diesem Konto gibt es Buchungen. Das Konto kann nur archiviert werden.");
         }
         sourceRepository.deleteByAccount(account);
+        // Ticket #145: a goal on the account stays, without account; so does a reserve linked to it (P8)
+        goalRepository.clearAccount(account);
+        itemRepository.clearReserveAccount(account);
         // 27h: the dismissed lower limit notification of the account goes with it
         dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);
         bankAccountRepository.deleteById(id);
@@ -156,6 +162,7 @@ public class BankAccountService {
         int moved = transactionRepository.moveAccount(source, target);
         itemRepository.moveAccount(source, target);
         itemRepository.moveReserveAccount(source, target);
+        goalRepository.moveAccount(source, target);
         sourceRepository.moveAccount(source, target);
         statementRepository.deleteByAccount(source);
         dismissedRepository.deleteByOwnerAndKey(currentUser.get(), NotificationService.LIMIT_PREFIX + id);

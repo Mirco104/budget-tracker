@@ -2,7 +2,24 @@
 
 Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt diese Liste beim Klick auf die Version in der Fußzeile.
 
-## 0.4.0-alpha (unveröffentlicht)
+## 0.5.0-alpha (unveröffentlicht)
+
+Anmeldung mit Passkey, Sparziele auf Konten und Verbesserungen am Import.
+
+### Neu
+
+- **Anmelden mit Passkey:** Unter Einstellungen › Konto fügst du im Abschnitt „Passkeys“ einen Passkey für dein Gerät hinzu. Danach meldest du dich mit „Mit Passkey anmelden“ per Fingerabdruck, Gesicht oder Geräte-PIN an, ohne E-Mail und Passwort einzutippen. Dein Passwort bleibt gültig. Passkeys lassen sich umbenennen und löschen.
+- **Sparziel auf einem Konto:** Ein Sparziel kann auf einem Konto liegen. *Konten* zeigt dann, ob das Konto genug für seine Rücklagen und Sparziele hat. Bezahlst du etwas aus dem Sparziel, schlägt der Buchungsdialog dieses Konto vor.
+- **Alle auf- und zuklappen:** Über der Budget-Tabelle der Übersicht und über Fixkosten und Budgets in der Planung klappt „Alle aufklappen“ alle Kategorien auf einmal auf, „Alle zuklappen“ wieder zu.
+
+### Änderungen
+
+- **Konto mit Rücklage löschen:** Ein Konto ohne Buchungen, auf dem nur eine Rücklage lag, ließ sich nicht löschen (Fehlermeldung). Jetzt wird es gelöscht, und die Rücklage bleibt ohne Konto.
+- **Import bleibt offen:** Wechselst du während eines Imports auf eine andere Seite, bleiben die Vorschau und alle Entscheidungen erhalten. *Transaktionen* zeigt dann „Ein Import ist noch offen“ mit einem Link zurück. Neu laden verwirft den Import wie bisher.
+- **Budget-Vorschläge ausblenden:** In der Einrichtung lässt sich ein Vorschlag aus deinen Buchungen im Schritt *Variable Kosten* neben „Übernehmen“ auch „Ausblenden“.
+- **Filter im Import:** Die Art heißt im Import wie auf *Transaktionen* „Fix“ und „Variabel“ statt „Wiederkehrend“ und „Einmalig“, ohne Wahl „Fix und variabel“ statt „Alle Arten“. Der Filter nach dem Schalter der Zeile heißt „Übernehmen: alle“ statt „Übernehmen und nicht“.
+
+## 0.4.0-alpha (25.11.2026)
 
 Import von PayPal.
 
