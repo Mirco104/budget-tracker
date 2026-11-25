@@ -16,8 +16,8 @@ import { useBookingDialog } from '../components/useBookingDialog'
 import { categoryFits, DIRECTIONS, facetCounts, IMPORTED_OPTIONS, NO_FILTERS, type Filters } from '../filters'
 import { currentMonth, formatEuro, todayIso } from '../format'
 import { isCompleteDate, periodLabel, presetPeriod, PRESETS, type Period, type PeriodPreset } from '../period'
+import { useImportOpen } from '../importSession'
 import { IMPORT_ROUTE, useTransactionsRoute } from '../router'
-import { ImportPage } from './ImportPage'
 import { ExpectedSection } from '../components/ExpectedSection'
 import { totals } from '../sums'
 import { Loading } from '../components/ui/Loading'
@@ -92,6 +92,8 @@ export function TransactionsPage({
   focusExpected?: boolean
 }) {
   const today = todayIso()
+  // Ticket #183: a hint back to an import that is still open
+  const importOpen = useImportOpen()
   // A period in the address bar (e.g. after an import, US33) starts as a custom period
   const [preset, setPreset] = useState<PeriodPreset>(initialPeriod ? 'custom' : 'month')
   const [custom, setCustom] = useState<Period>(() => initialPeriod ?? presetPeriod('month', today))
@@ -189,6 +191,11 @@ export function TransactionsPage({
         </a>
         <AddBookingButton onClick={booking.openNew} />
       </PageHeader>
+      {importOpen && (
+        <p className="hint import-open-hint" role="status">
+          Ein Import ist noch offen. <a href={IMPORT_ROUTE}>Weiter importieren</a>
+        </p>
+      )}
 
       <div className="filters">
         <div className="chips" role="group" aria-label="Zeitraum">
@@ -351,11 +358,11 @@ export function TransactionsPage({
   )
 }
 
-/** Transaktionen with its sub page Importieren (US33); a new period in the address bar starts the list afresh. */
+/**
+ * Transaktionen; a new period in the address bar starts the list afresh. Its sub page Importieren (US33) is mounted by
+ * the app, so an open import outlives a switch of pages (ticket #183).
+ */
 export function TransactionsRoute() {
   const route = useTransactionsRoute()
-  if (route.importPage) {
-    return <ImportPage />
-  }
   return <TransactionsPage key={route.hash} initialPeriod={route.period} focusExpected={route.expected} />
 }

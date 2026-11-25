@@ -10,6 +10,7 @@ Was sich am Budget-Tracker geändert hat, das Neueste zuerst. Die App zeigt dies
 
 ### Änderungen
 
+- **Import bleibt offen:** Wechselst du während eines Imports auf eine andere Seite, bleiben die Vorschau und alle Entscheidungen erhalten. *Transaktionen* zeigt dann „Ein Import ist noch offen“ mit einem Link zurück. Neu laden verwirft den Import wie bisher.
 - **Budget-Vorschläge ausblenden:** In der Einrichtung lässt sich ein Vorschlag aus deinen Buchungen im Schritt *Variable Kosten* neben „Übernehmen“ auch „Ausblenden“.
 - **Filter im Import:** Die Art heißt im Import wie auf *Transaktionen* „Fix“ und „Variabel“ statt „Wiederkehrend“ und „Einmalig“, ohne Wahl „Fix und variabel“ statt „Alle Arten“. Der Filter nach dem Schalter der Zeile heißt „Übernehmen: alle“ statt „Übernehmen und nicht“.
 
