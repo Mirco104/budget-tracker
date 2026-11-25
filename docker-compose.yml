@@ -34,6 +34,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      # Passkeys (US44) work only on the domain of Caddy; without DOMAIN only on localhost
+      PASSKEY_RP_ID: ${PASSKEY_RP_ID:-${DOMAIN:-localhost}}
+      PASSKEY_ORIGINS: ${PASSKEY_ORIGINS:-https://${DOMAIN:-localhost}}
     # Only reachable from this machine (and Caddy) unless APP_BIND=0.0.0.0, e.g. to test in the home network
     ports:
       - "${APP_BIND:-127.0.0.1}:8080:8080"

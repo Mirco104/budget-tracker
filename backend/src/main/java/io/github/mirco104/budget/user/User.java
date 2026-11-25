@@ -53,6 +53,10 @@ public class User {
     // Decision 90: automatic entries (P6) start on this day; set when leaving stage 1, null = from "Gilt ab"
     private java.time.LocalDate autoEntriesFrom;
 
+    // US44: random WebAuthn user handle (base64url), set with the first passkey; never the e-mail or the id
+    @Column(unique = true, length = 100)
+    private String passkeyUserHandle;
+
     protected User() {
     }
 
@@ -108,6 +112,14 @@ public class User {
 
     public void changeAutoEntriesFrom(java.time.LocalDate autoEntriesFrom) {
         this.autoEntriesFrom = autoEntriesFrom;
+    }
+
+    public String getPasskeyUserHandle() {
+        return passkeyUserHandle;
+    }
+
+    public void changePasskeyUserHandle(String passkeyUserHandle) {
+        this.passkeyUserHandle = passkeyUserHandle;
     }
 
     public Long getId() {
