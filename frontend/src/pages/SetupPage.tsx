@@ -130,7 +130,7 @@ function writeAnswers(answers: Answers) {
 }
 const REACHED_KEY = 'setup-reached'
 const SONSTIGES = 'Sonstiges'
-// Ticket #184 (decision 97): the budget suggestions hidden with "Ausblenden", for this browser session
+// Ticket #184 (decision 98): the budget suggestions hidden with "Ausblenden", for this browser session
 const HIDDEN_BUDGETS_KEY = 'setup-hidden-budgets'
 
 /** Ticket #184: a budget suggestion is its plan category or, without one, its bank category. */
